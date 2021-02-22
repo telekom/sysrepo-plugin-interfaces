@@ -1,6 +1,7 @@
 #include <linux/limits.h>
 #include <sys/socket.h>
 #include <sysrepo.h>
+#include "libyang/tree_data.h"
 #include "netlink/cache.h"
 #include "netlink/errno.h"
 #include "netlink/netlink.h"
@@ -8,6 +9,7 @@
 #include <string.h>
 #include <netlink/socket.h>
 #include <netlink/route/link.h>
+#include <libyang/libyang.h>
 
 #define BASE_YANG_MODEL "ietf-interfaces"
 
@@ -17,6 +19,7 @@
 
 // state data
 #define INTERFACES_STATE_YANG_MODEL "/" BASE_YANG_MODEL ":interfaces-state"
+#define INTERFACE_LIST_STATE_YANG_MODEL INTERFACES_STATE_YANG_MODEL "/interface"
 
 // callbacks
 static int interfaces_module_change_cb(sr_session_ctx_t *session, const char *module_name, const char *xpath, sr_event_t event, uint32_t request_id, void *private_data);
@@ -161,6 +164,8 @@ static int interfaces_state_data_cb(sr_session_ctx_t *session, const char *modul
 	struct nl_cache *cache = NULL;
 	struct rtnl_link *link = NULL;
 	char tmp_buffer[PATH_MAX] = {0};
+	char xpath_buffer[PATH_MAX] = {0};
+	char interface_path_buffer[PATH_MAX] = {0};
 
 	if (*parent == NULL) {
 		ly_ctx = sr_get_context(sr_session_get_connection(session));
@@ -191,18 +196,31 @@ static int interfaces_state_data_cb(sr_session_ctx_t *session, const char *modul
 	link = (struct rtnl_link *) nl_cache_get_first(cache);
 
 	while (link != NULL) {
-		SRP_LOG_DBG("link name: %s", rtnl_link_get_name(link));
-		SRP_LOG_DBG("link type: %s", rtnl_link_get_type(link));
-		SRP_LOG_DBG("link oper_state: %s", rtnl_link_operstate2str(rtnl_link_get_operstate(link), tmp_buffer, PATH_MAX));
-		SRP_LOG_DBG("link ifindex: %d", rtnl_link_get_ifindex(link));
-		SRP_LOG_DBG("link phys port name: %s\n", rtnl_link_get_phys_port_name(link));
+		snprintf(interface_path_buffer, sizeof(interface_path_buffer) / sizeof(char), "%s[name=\"%s\"]", INTERFACE_LIST_STATE_YANG_MODEL, rtnl_link_get_name(link));
 
+		// name
+		snprintf(xpath_buffer, sizeof(xpath_buffer), "%s/name", interface_path_buffer);
+		SRP_LOG_DBG("%s = %s", xpath_buffer, rtnl_link_get_name(link));
+		lyd_new_path(*parent, ly_ctx, xpath_buffer, rtnl_link_get_name(link), LYD_ANYDATA_CONSTSTRING, 0);
+
+		// oper-status
+		snprintf(xpath_buffer, sizeof(xpath_buffer), "%s/oper-status", interface_path_buffer);
+		rtnl_link_operstate2str(rtnl_link_get_operstate(link), tmp_buffer, sizeof(tmp_buffer));
+		SRP_LOG_DBG("%s = %s", xpath_buffer, tmp_buffer);
+		lyd_new_path(*parent, ly_ctx, xpath_buffer, tmp_buffer, LYD_ANYDATA_CONSTSTRING, 0);
+
+		// statistics test
+		uint64_t unk_protos = rtnl_link_get_stat(link, RTNL_LINK_IP6_INUNKNOWNPROTOS);
+		snprintf(xpath_buffer, sizeof(xpath_buffer), "%s/statistics/in-unknown-protos", interface_path_buffer);
+		snprintf(tmp_buffer, sizeof(tmp_buffer), "%lu", unk_protos);
+		lyd_new_path(*parent, ly_ctx, xpath_buffer, tmp_buffer, LYD_ANYDATA_CONSTSTRING, 0);
+
+		// continue to next link node
 		link = (struct rtnl_link *) nl_cache_get_next((struct nl_object *) link);
 	}
 
 	nl_cache_free(cache);
 
-	// lyd_new_path(*parent, NULL, OS_NAME_YANG_PATH, os_name, 0, 0);
 	goto out;
 
 error_out:
