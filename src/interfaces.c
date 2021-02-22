@@ -1,6 +1,13 @@
+#include <linux/limits.h>
+#include <sys/socket.h>
 #include <sysrepo.h>
+#include "netlink/cache.h"
+#include "netlink/errno.h"
+#include "netlink/netlink.h"
 #include "utils/memory.h"
 #include <string.h>
+#include <netlink/socket.h>
+#include <netlink/route/link.h>
 
 #define BASE_YANG_MODEL "ietf-interfaces"
 
@@ -149,6 +156,60 @@ out:
 static int interfaces_state_data_cb(sr_session_ctx_t *session, const char *module_name, const char *path, const char *request_xpath, uint32_t request_id, struct lyd_node **parent, void *private_data)
 {
 	int error = SR_ERR_OK;
+	const struct ly_ctx *ly_ctx = NULL;
+	struct nl_sock *socket = NULL;
+	struct nl_cache *cache = NULL;
+	struct rtnl_link *link = NULL;
+	char tmp_buffer[PATH_MAX] = {0};
+
+	if (*parent == NULL) {
+		ly_ctx = sr_get_context(sr_session_get_connection(session));
+		if (ly_ctx == NULL) {
+			error = SR_ERR_CALLBACK_FAILED;
+			goto error_out;
+		}
+		*parent = lyd_new_path(NULL, ly_ctx, request_xpath, NULL, 0, 0);
+	}
+
+	socket = nl_socket_alloc();
+	if (socket == NULL) {
+		SRP_LOG_ERR("nl_socket_alloc error: invalid socket");
+		goto error_out;
+	}
+
+	if ((error = nl_connect(socket, NETLINK_ROUTE)) != 0) {
+		SRP_LOG_ERR("nl_connect error (%d): %s", error, nl_geterror(error));
+		goto error_out;
+	}
+
+	error = rtnl_link_alloc_cache(socket, AF_UNSPEC, &cache);
+	if (error != 0) {
+		SRP_LOG_ERR("rtnl_link_alloc_cache error (%d): %s", error, nl_geterror(error));
+		goto error_out;
+	}
+
+	link = (struct rtnl_link *) nl_cache_get_first(cache);
+
+	while (link != NULL) {
+		SRP_LOG_DBG("link name: %s", rtnl_link_get_name(link));
+		SRP_LOG_DBG("link type: %s", rtnl_link_get_type(link));
+		SRP_LOG_DBG("link oper_state: %s", rtnl_link_operstate2str(rtnl_link_get_operstate(link), tmp_buffer, PATH_MAX));
+		SRP_LOG_DBG("link ifindex: %d", rtnl_link_get_ifindex(link));
+		SRP_LOG_DBG("link phys port name: %s\n", rtnl_link_get_phys_port_name(link));
+
+		link = (struct rtnl_link *) nl_cache_get_next((struct nl_object *) link);
+	}
+
+	nl_cache_free(cache);
+
+	// lyd_new_path(*parent, NULL, OS_NAME_YANG_PATH, os_name, 0, 0);
+	goto out;
+
+error_out:
+	error = SR_ERR_CALLBACK_FAILED;
+
+out:
+	nl_socket_free(socket);
 	return error ? SR_ERR_CALLBACK_FAILED : SR_ERR_OK;
 }
 
