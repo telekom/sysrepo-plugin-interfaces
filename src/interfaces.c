@@ -17,10 +17,6 @@
 #define INTERFACES_YANG_MODEL "/" BASE_YANG_MODEL ":interfaces"
 #define INTERFACE_LIST_YANG_PATH INTERFACES_YANG_MODEL "/interface"
 
-// state data
-#define INTERFACES_STATE_YANG_MODEL "/" BASE_YANG_MODEL ":interfaces-state"
-#define INTERFACE_LIST_STATE_YANG_MODEL INTERFACES_STATE_YANG_MODEL "/interface"
-
 // callbacks
 static int interfaces_module_change_cb(sr_session_ctx_t *session, const char *module_name, const char *xpath, sr_event_t event, uint32_t request_id, void *private_data);
 static int interfaces_state_data_cb(sr_session_ctx_t *session, const char *module_name, const char *path, const char *request_xpath, uint32_t request_id, struct lyd_node **parent, void *private_data);
@@ -55,7 +51,7 @@ int sr_plugin_init_cb(sr_session_ctx_t *session, void **private_data)
 		goto error_out;
 	}
 
-	error = sr_oper_get_items_subscribe(session, BASE_YANG_MODEL, INTERFACES_STATE_YANG_MODEL, interfaces_state_data_cb, NULL, SR_SUBSCR_CTX_REUSE, &subscription);
+	error = sr_oper_get_items_subscribe(session, BASE_YANG_MODEL, INTERFACES_YANG_MODEL "/*", interfaces_state_data_cb, NULL, SR_SUBSCR_CTX_REUSE, &subscription);
 	if (error) {
 		SRP_LOG_ERR("sr_oper_get_items_subscribe error (%d): %s", error, sr_strerror(error));
 		goto error_out;
@@ -196,7 +192,7 @@ static int interfaces_state_data_cb(sr_session_ctx_t *session, const char *modul
 	link = (struct rtnl_link *) nl_cache_get_first(cache);
 
 	while (link != NULL) {
-		snprintf(interface_path_buffer, sizeof(interface_path_buffer) / sizeof(char), "%s[name=\"%s\"]", INTERFACE_LIST_STATE_YANG_MODEL, rtnl_link_get_name(link));
+		snprintf(interface_path_buffer, sizeof(interface_path_buffer) / sizeof(char), "%s[name=\"%s\"]", INTERFACE_LIST_YANG_PATH, rtnl_link_get_name(link));
 
 		// name
 		snprintf(xpath_buffer, sizeof(xpath_buffer), "%s/name", interface_path_buffer);
