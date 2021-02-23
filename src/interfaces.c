@@ -12,7 +12,10 @@
 #include <string.h>
 #include <netlink/socket.h>
 #include <netlink/route/link.h>
+#include <netlink/route/addr.h>
+#include <netlink/netlink.h>
 #include <libyang/libyang.h>
+#include <linux/if.h>
 
 #define LD_MAX_LINKS 100 // TODO: check this
 
@@ -34,8 +37,8 @@ static link_data_list_t link_data_list = {0};
 const char *link_types[] = {
 	"bridge",
 	"bond",
-	"dummy"
-	};
+	"dummy",
+};
 
 #define BASE_YANG_MODEL "ietf-interfaces"
 
@@ -44,6 +47,9 @@ const char *link_types[] = {
 // config data
 #define INTERFACES_YANG_MODEL "/" BASE_YANG_MODEL ":interfaces"
 #define INTERFACE_LIST_YANG_PATH INTERFACES_YANG_MODEL "/interface"
+
+// other #defines
+#define MAC_ADDR_MAX_LENGTH 17
 
 // callbacks
 static int interfaces_module_change_cb(sr_session_ctx_t *session, const char *module_name, const char *xpath, sr_event_t event, uint32_t request_id, void *private_data);
@@ -285,14 +291,14 @@ int set_config_value(const char *xpath, const char *value)
 
 	error = link_data_list_add(&link_data_list, interface_node_name);
 	if (error != 0) {
-			SRP_LOG_ERRMSG("link_data_list_add error");
-			error = SR_ERR_CALLBACK_FAILED;
-			goto out;
+		SRP_LOG_ERRMSG("link_data_list_add error");
+		error = SR_ERR_CALLBACK_FAILED;
+		goto out;
 	}
 
 	if (strcmp(interface_node, "description") == 0) {
 		// change desc
-		error = link_data_list_set_description(&link_data_list, interface_node_name, (char *)value);
+		error = link_data_list_set_description(&link_data_list, interface_node_name, (char *) value);
 		if (error != 0) {
 			SRP_LOG_ERRMSG("link_data_list_set_description error");
 			error = SR_ERR_CALLBACK_FAILED;
@@ -318,7 +324,7 @@ int set_config_value(const char *xpath, const char *value)
 		}
 	} else if (strcmp(interface_node, "enabled") == 0) {
 		// change enabled
-		error = link_data_list_set_enabled(&link_data_list, interface_node_name, (char *)value);
+		error = link_data_list_set_enabled(&link_data_list, interface_node_name, (char *) value);
 		if (error != 0) {
 			SRP_LOG_ERRMSG("link_data_list_set_enabled error");
 			error = SR_ERR_CALLBACK_FAILED;
@@ -383,11 +389,11 @@ int add_link_info(link_data_list_t *ld)
 		if (enabled != 0) {
 			if (strcmp(enabled, "true") == 0) {
 				// set the interface to UP
-				rtnl_link_set_flags(request, (unsigned int)rtnl_link_str2flags("up"));
+				rtnl_link_set_flags(request, (unsigned int) rtnl_link_str2flags("up"));
 				rtnl_link_set_operstate(request, IF_OPER_UP);
 			} else {
 				// set the interface to DOWN
-				rtnl_link_unset_flags(request, (unsigned int)rtnl_link_str2flags("up"));
+				rtnl_link_unset_flags(request, (unsigned int) rtnl_link_str2flags("up"));
 				rtnl_link_set_operstate(request, IF_OPER_DOWN);
 			}
 		}
@@ -420,7 +426,7 @@ int add_link_info(link_data_list_t *ld)
 out:
 	nl_socket_free(socket);
 	nl_cache_free(cache);
-	
+
 	return error;
 }
 
@@ -462,14 +468,14 @@ int link_data_list_add(link_data_list_t *ld, char *name)
 		if (strcmp(ld->links[i].name, name) == 0) {
 			name_found = true;
 			break;
-		}	
+		}
 	}
 
 	if (!name_found) {
 		link_set_name(&ld->links[ld->count], name);
 		++ld->count;
 	}
-	
+
 	return 0;
 }
 
@@ -581,9 +587,52 @@ static int interfaces_state_data_cb(sr_session_ctx_t *session, const char *modul
 	struct nl_sock *socket = NULL;
 	struct nl_cache *cache = NULL;
 	struct rtnl_link *link = NULL;
+	struct nl_addr *addr = NULL;
 	char tmp_buffer[PATH_MAX] = {0};
 	char xpath_buffer[PATH_MAX] = {0};
 	char interface_path_buffer[PATH_MAX] = {0};
+
+	struct {
+		char *name;
+		char *description;
+		char *type;
+		char *enabled;
+		char *link_up_down_trap_enable;
+		char *admin_status;
+		const char *oper_status;
+		char *last_change;
+		int32_t if_index;
+		char *phys_address;
+		char *higher_layer_if;
+		char *lower_layer_if;
+		uint64_t speed;
+		struct {
+			char *discontinuity_time;
+			uint64_t in_octets;
+			uint64_t in_unicast_pkts;
+			uint64_t in_broadcast_pkts;
+			uint64_t in_multicast_pkts;
+			uint32_t in_discards;
+			uint32_t in_errors;
+			uint32_t in_unknown_protos;
+			uint64_t out_octets;
+			uint64_t out_unicast_pkts;
+			uint64_t out_broadcast_pkts;
+			uint64_t out_multicast_pkts;
+			uint32_t out_discards;
+			uint32_t out_errors;
+		} statistics;
+	} interface_data = {0};
+
+	const char *OPER_STRING_MAP[] = {
+		[IF_OPER_UNKNOWN] = "unknown",
+		[IF_OPER_NOTPRESENT] = "not-present",
+		[IF_OPER_DOWN] = "down",
+		[IF_OPER_LOWERLAYERDOWN] = "lower-layer-down",
+		[IF_OPER_TESTING] = "testing",
+		[IF_OPER_DORMANT] = "dormant",
+		[IF_OPER_UP] = "up",
+	};
 
 	if (*parent == NULL) {
 		ly_ctx = sr_get_context(sr_session_get_connection(session));
@@ -614,24 +663,142 @@ static int interfaces_state_data_cb(sr_session_ctx_t *session, const char *modul
 	link = (struct rtnl_link *) nl_cache_get_first(cache);
 
 	while (link != NULL) {
+		interface_data.name = rtnl_link_get_name(link);
+		// interface_data.description = ?
+		interface_data.type = rtnl_link_get_type(link);
+		interface_data.enabled = rtnl_link_get_operstate(link) == IF_OPER_UP ? "enabled" : "disabled";
+		// interface_data.link_up_down_trap_enable = ?
+		// interface_data.admin_status = ?
+		interface_data.oper_status = OPER_STRING_MAP[rtnl_link_get_operstate(link)];
+		// interface_data.last_change = ?
+		interface_data.if_index = rtnl_link_get_ifindex(link);
+
+		// mac address
+		addr = rtnl_link_get_addr(link);
+		interface_data.phys_address = xmalloc(sizeof(char) * (MAC_ADDR_MAX_LENGTH + 1));
+		nl_addr2str(addr, interface_data.phys_address, MAC_ADDR_MAX_LENGTH);
+		interface_data.phys_address[MAC_ADDR_MAX_LENGTH] = 0;
+
+		// interface_data.higher_layer_if = ?
+		// interface_data.lower_layer_if = ?
+		// interface_data.speed = ? => maybe implement timer while interface is up?
+
+		// stats
+		// interface_data.statistics.discontinuity_time = ?
+		interface_data.statistics.in_octets = rtnl_link_get_stat(link, RTNL_LINK_IP6_INOCTETS);
+
+		// to discuss
+		interface_data.statistics.in_unicast_pkts = rtnl_link_get_stat(link, RTNL_LINK_RX_PACKETS) - rtnl_link_get_stat(link, RTNL_LINK_IP6_INMCASTPKTS);
+		// only this option involves broadcast packets => IP6 SNMP
+		interface_data.statistics.in_broadcast_pkts = rtnl_link_get_stat(link, RTNL_LINK_IP6_INBCASTPKTS);
+
+		interface_data.statistics.in_multicast_pkts = rtnl_link_get_stat(link, RTNL_LINK_IP6_INMCASTPKTS);
+		interface_data.statistics.in_discards = (uint32_t) rtnl_link_get_stat(link, RTNL_LINK_IP6_INDISCARDS);
+		interface_data.statistics.in_errors = (uint32_t) rtnl_link_get_stat(link, RTNL_LINK_TX_ERRORS);
+		interface_data.statistics.in_unknown_protos = (uint32_t) rtnl_link_get_stat(link, RTNL_LINK_IP6_INUNKNOWNPROTOS);
+
+		interface_data.statistics.out_unicast_pkts = rtnl_link_get_stat(link, RTNL_LINK_TX_PACKETS) - rtnl_link_get_stat(link, RTNL_LINK_IP6_OUTMCASTPKTS);
+		interface_data.statistics.out_broadcast_pkts = rtnl_link_get_stat(link, RTNL_LINK_IP6_OUTBCASTPKTS);
+		interface_data.statistics.out_multicast_pkts = rtnl_link_get_stat(link, RTNL_LINK_IP6_OUTMCASTPKTS);
+		interface_data.statistics.out_discards = (uint32_t) rtnl_link_get_stat(link, RTNL_LINK_IP6_OUTDISCARDS);
+		interface_data.statistics.out_errors = (uint32_t) rtnl_link_get_stat(link, RTNL_LINK_RX_ERRORS);
+
 		snprintf(interface_path_buffer, sizeof(interface_path_buffer) / sizeof(char), "%s[name=\"%s\"]", INTERFACE_LIST_YANG_PATH, rtnl_link_get_name(link));
 
 		// name
 		snprintf(xpath_buffer, sizeof(xpath_buffer), "%s/name", interface_path_buffer);
-		SRP_LOG_DBG("%s = %s", xpath_buffer, rtnl_link_get_name(link));
-		lyd_new_path(*parent, ly_ctx, xpath_buffer, rtnl_link_get_name(link), LYD_ANYDATA_CONSTSTRING, 0);
+		SRP_LOG_DBG("%s = %s", xpath_buffer, interface_data.name);
+		lyd_new_path(*parent, ly_ctx, xpath_buffer, interface_data.name, LYD_ANYDATA_CONSTSTRING, 0);
+
+		// type
+		snprintf(xpath_buffer, sizeof(xpath_buffer), "%s/type", interface_path_buffer);
+		SRP_LOG_DBG("%s = %s", xpath_buffer, interface_data.type);
+		lyd_new_path(*parent, ly_ctx, xpath_buffer, interface_data.type, LYD_ANYDATA_CONSTSTRING, 0);
 
 		// oper-status
 		snprintf(xpath_buffer, sizeof(xpath_buffer), "%s/oper-status", interface_path_buffer);
-		rtnl_link_operstate2str(rtnl_link_get_operstate(link), tmp_buffer, sizeof(tmp_buffer));
-		SRP_LOG_DBG("%s = %s", xpath_buffer, tmp_buffer);
+		SRP_LOG_DBG("%s = %s", xpath_buffer, interface_data.type);
+		lyd_new_path(*parent, ly_ctx, xpath_buffer, (char *) interface_data.oper_status, LYD_ANYDATA_CONSTSTRING, 0);
+
+		// if-index
+		snprintf(xpath_buffer, sizeof(xpath_buffer), "%s/if-index", interface_path_buffer);
+		SRP_LOG_DBG("%s = %d", xpath_buffer, interface_data.if_index);
+		snprintf(tmp_buffer, sizeof(tmp_buffer), "%u", interface_data.if_index);
 		lyd_new_path(*parent, ly_ctx, xpath_buffer, tmp_buffer, LYD_ANYDATA_CONSTSTRING, 0);
 
-		// statistics test
-		uint64_t unk_protos = rtnl_link_get_stat(link, RTNL_LINK_IP6_INUNKNOWNPROTOS);
-		snprintf(xpath_buffer, sizeof(xpath_buffer), "%s/statistics/in-unknown-protos", interface_path_buffer);
-		snprintf(tmp_buffer, sizeof(tmp_buffer), "%lu", unk_protos);
+		// phys-address
+		snprintf(xpath_buffer, sizeof(xpath_buffer), "%s/phys-address", interface_path_buffer);
+		SRP_LOG_DBG("%s = %s", xpath_buffer, interface_data.phys_address);
+		lyd_new_path(*parent, ly_ctx, xpath_buffer, interface_data.phys_address, LYD_ANYDATA_CONSTSTRING, 0);
+
+		// stats:
+		// in-octets
+		snprintf(xpath_buffer, sizeof(xpath_buffer), "%s/statistics/in-octets", interface_path_buffer);
+		snprintf(tmp_buffer, sizeof(tmp_buffer), "%lu", interface_data.statistics.in_octets);
 		lyd_new_path(*parent, ly_ctx, xpath_buffer, tmp_buffer, LYD_ANYDATA_CONSTSTRING, 0);
+
+		// in-unicast-pkts
+		snprintf(xpath_buffer, sizeof(xpath_buffer), "%s/statistics/in-unicast-pkts", interface_path_buffer);
+		snprintf(tmp_buffer, sizeof(tmp_buffer), "%lu", interface_data.statistics.in_unicast_pkts);
+		lyd_new_path(*parent, ly_ctx, xpath_buffer, tmp_buffer, LYD_ANYDATA_CONSTSTRING, 0);
+
+		// in-broadcast-pkts
+		snprintf(xpath_buffer, sizeof(xpath_buffer), "%s/statistics/in-broadcast-pkts", interface_path_buffer);
+		snprintf(tmp_buffer, sizeof(tmp_buffer), "%lu", interface_data.statistics.in_broadcast_pkts);
+		lyd_new_path(*parent, ly_ctx, xpath_buffer, tmp_buffer, LYD_ANYDATA_CONSTSTRING, 0);
+
+		// in-multicast-pkts
+		snprintf(xpath_buffer, sizeof(xpath_buffer), "%s/statistics/in-multicast-pkts", interface_path_buffer);
+		snprintf(tmp_buffer, sizeof(tmp_buffer), "%lu", interface_data.statistics.in_multicast_pkts);
+		lyd_new_path(*parent, ly_ctx, xpath_buffer, tmp_buffer, LYD_ANYDATA_CONSTSTRING, 0);
+
+		// in-discards
+		snprintf(xpath_buffer, sizeof(xpath_buffer), "%s/statistics/in-discards", interface_path_buffer);
+		snprintf(tmp_buffer, sizeof(tmp_buffer), "%u", interface_data.statistics.in_discards);
+		lyd_new_path(*parent, ly_ctx, xpath_buffer, tmp_buffer, LYD_ANYDATA_CONSTSTRING, 0);
+
+		// in-errors
+		snprintf(xpath_buffer, sizeof(xpath_buffer), "%s/statistics/in-errors", interface_path_buffer);
+		snprintf(tmp_buffer, sizeof(tmp_buffer), "%u", interface_data.statistics.in_errors);
+		lyd_new_path(*parent, ly_ctx, xpath_buffer, tmp_buffer, LYD_ANYDATA_CONSTSTRING, 0);
+
+		// in-unknown-protos
+		snprintf(xpath_buffer, sizeof(xpath_buffer), "%s/statistics/in-unknown-protos", interface_path_buffer);
+		snprintf(tmp_buffer, sizeof(tmp_buffer), "%u", interface_data.statistics.in_unknown_protos);
+		lyd_new_path(*parent, ly_ctx, xpath_buffer, tmp_buffer, LYD_ANYDATA_CONSTSTRING, 0);
+
+		// out-octets
+		snprintf(xpath_buffer, sizeof(xpath_buffer), "%s/statistics/out-octets", interface_path_buffer);
+		snprintf(tmp_buffer, sizeof(tmp_buffer), "%lu", interface_data.statistics.out_octets);
+		lyd_new_path(*parent, ly_ctx, xpath_buffer, tmp_buffer, LYD_ANYDATA_CONSTSTRING, 0);
+
+		// out-unicast-pkts
+		snprintf(xpath_buffer, sizeof(xpath_buffer), "%s/statistics/out-unicast-pkts", interface_path_buffer);
+		snprintf(tmp_buffer, sizeof(tmp_buffer), "%lu", interface_data.statistics.out_unicast_pkts);
+		lyd_new_path(*parent, ly_ctx, xpath_buffer, tmp_buffer, LYD_ANYDATA_CONSTSTRING, 0);
+
+		// out-broadcast-pkts
+		snprintf(xpath_buffer, sizeof(xpath_buffer), "%s/statistics/out-broadcast-pkts", interface_path_buffer);
+		snprintf(tmp_buffer, sizeof(tmp_buffer), "%lu", interface_data.statistics.out_broadcast_pkts);
+		lyd_new_path(*parent, ly_ctx, xpath_buffer, tmp_buffer, LYD_ANYDATA_CONSTSTRING, 0);
+
+		// out-multicast-pkts
+		snprintf(xpath_buffer, sizeof(xpath_buffer), "%s/statistics/out-multicast-pkts", interface_path_buffer);
+		snprintf(tmp_buffer, sizeof(tmp_buffer), "%lu", interface_data.statistics.out_multicast_pkts);
+		lyd_new_path(*parent, ly_ctx, xpath_buffer, tmp_buffer, LYD_ANYDATA_CONSTSTRING, 0);
+
+		// out-discards
+		snprintf(xpath_buffer, sizeof(xpath_buffer), "%s/statistics/out-discards", interface_path_buffer);
+		snprintf(tmp_buffer, sizeof(tmp_buffer), "%u", interface_data.statistics.out_discards);
+		lyd_new_path(*parent, ly_ctx, xpath_buffer, tmp_buffer, LYD_ANYDATA_CONSTSTRING, 0);
+
+		// out-errors
+		snprintf(xpath_buffer, sizeof(xpath_buffer), "%s/statistics/out-errors", interface_path_buffer);
+		snprintf(tmp_buffer, sizeof(tmp_buffer), "%u", interface_data.statistics.out_errors);
+		lyd_new_path(*parent, ly_ctx, xpath_buffer, tmp_buffer, LYD_ANYDATA_CONSTSTRING, 0);
+
+		// free all allocated data
+		free(interface_data.phys_address);
 
 		// continue to next link node
 		link = (struct rtnl_link *) nl_cache_get_next((struct nl_object *) link);
