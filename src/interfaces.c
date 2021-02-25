@@ -773,6 +773,7 @@ static int interfaces_state_data_cb(sr_session_ctx_t *session, const char *modul
 		snprintf(tmp_buffer, sizeof(tmp_buffer), "%lu", interface_data.speed);
 		lyd_new_path(*parent, ly_ctx, xpath_buffer, tmp_buffer, LYD_ANYDATA_CONSTSTRING, 0);
 
+		// lower-layer-if
 		for (uint64_t i = 0; i < interface_data.lower_layer_if.count; i++) {
 			snprintf(xpath_buffer, sizeof(xpath_buffer), "%s/lower-layer-if", interface_path_buffer);
 			SRP_LOG_DBG("%s += %s", xpath_buffer, interface_data.lower_layer_if.data[i]);
