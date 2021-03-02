@@ -1,6 +1,9 @@
 #include <linux/limits.h>
+#include <linux/if.h>
 #include <sys/socket.h>
+#include <errno.h>
 #include <sysrepo.h>
+#include <sysrepo/xpath.h>
 #include "libyang/tree_data.h"
 #include "netlink/cache.h"
 #include "netlink/errno.h"
@@ -11,7 +14,32 @@
 #include <netlink/route/link.h>
 #include <libyang/libyang.h>
 
+#define LD_MAX_LINKS 100 // TODO: check this
+
+typedef struct {
+	char *name;
+	char *description;
+	char *type;
+	char *enabled;
+} link_data_t;
+
+typedef struct {
+	link_data_t links[LD_MAX_LINKS];
+	uint8_t count;
+} link_data_list_t;
+
+static link_data_list_t link_data_list = {0};
+
+// TODO: update
+const char *link_types[] = {
+	"bridge",
+	"bond",
+	"dummy"
+	};
+
 #define BASE_YANG_MODEL "ietf-interfaces"
+
+#define SYSREPOCFG_EMPTY_CHECK_COMMAND "sysrepocfg -X -d running -m " BASE_YANG_MODEL
 
 // config data
 #define INTERFACES_YANG_MODEL "/" BASE_YANG_MODEL ":interfaces"
@@ -22,7 +50,21 @@ static int interfaces_module_change_cb(sr_session_ctx_t *session, const char *mo
 static int interfaces_state_data_cb(sr_session_ctx_t *session, const char *module_name, const char *path, const char *request_xpath, uint32_t request_id, struct lyd_node **parent, void *private_data);
 
 // helper functions
+static bool system_running_datastore_is_empty_check(void);
+static int load_data(sr_session_ctx_t *session);
 static char *interfaces_xpath_get(const struct lyd_node *node);
+int set_config_value(const char *xpath, const char *value);
+int add_link_info(link_data_list_t *ld);
+
+void link_init(link_data_t *l);
+void link_set_name(link_data_t *l, char *name);
+void link_data_list_init(link_data_list_t *ld);
+int link_data_list_add(link_data_list_t *ld, char *name);
+int link_data_list_set_description(link_data_list_t *ld, char *name, char *description);
+int link_data_list_set_type(link_data_list_t *ld, char *name, char *type);
+int link_data_list_set_enabled(link_data_list_t *ld, char *name, char *enabled);
+void link_data_list_free(link_data_list_t *ld);
+void link_data_free(link_data_t *l);
 
 int sr_plugin_init_cb(sr_session_ctx_t *session, void **private_data)
 {
@@ -32,6 +74,8 @@ int sr_plugin_init_cb(sr_session_ctx_t *session, void **private_data)
 	sr_subscription_ctx_t *subscription = NULL;
 
 	*private_data = NULL;
+
+	link_data_list_init(&link_data_list);
 
 	SRP_LOG_INFMSG("start session to startup datastore");
 
@@ -43,6 +87,25 @@ int sr_plugin_init_cb(sr_session_ctx_t *session, void **private_data)
 	}
 
 	*private_data = startup_session;
+
+	/* TODO: Uncomment when load_data is implemented (after operational data is done)
+	if (system_running_datastore_is_empty_check() == true) {
+		SRP_LOG_INFMSG("running DS is empty, loading data");
+
+		error = load_data(session);
+		if (error) {
+			SRP_LOG_ERRMSG("load_data error");
+			goto error_out;
+		}
+
+		error = sr_copy_config(startup_session, BASE_YANG_MODEL, SR_DS_RUNNING, 0, 0);
+		if (error) {
+			SRP_LOG_ERR("sr_copy_config error (%d): %s", error, sr_strerror(error));
+			goto error_out;
+		}
+	} */
+
+	SRP_LOG_INFMSG("subscribing to module change");
 
 	// sub to any module change - for now
 	error = sr_module_change_subscribe(session, BASE_YANG_MODEL, "/" BASE_YANG_MODEL ":*//*", interfaces_module_change_cb, *private_data, 0, SR_SUBSCR_DEFAULT, &subscription);
@@ -68,6 +131,47 @@ out:
 	return error ? SR_ERR_CALLBACK_FAILED : SR_ERR_OK;
 }
 
+static bool system_running_datastore_is_empty_check(void)
+{
+	FILE *sysrepocfg_DS_empty_check = NULL;
+	bool is_empty = false;
+
+	sysrepocfg_DS_empty_check = popen(SYSREPOCFG_EMPTY_CHECK_COMMAND, "r");
+	if (sysrepocfg_DS_empty_check == NULL) {
+		SRP_LOG_WRN("could not execute %s", SYSREPOCFG_EMPTY_CHECK_COMMAND);
+		is_empty = true;
+		goto out;
+	}
+
+	if (fgetc(sysrepocfg_DS_empty_check) == EOF) {
+		is_empty = true;
+	}
+
+out:
+	if (sysrepocfg_DS_empty_check) {
+		pclose(sysrepocfg_DS_empty_check);
+	}
+
+	return is_empty;
+}
+
+static int load_data(sr_session_ctx_t *session)
+{
+	int error = 0;
+
+	// TODO: call function to gather everything from interfaces_state_data_cb
+
+	error = sr_apply_changes(session, 0, 0);
+	if (error) {
+		SRP_LOG_ERR("sr_apply_changes error (%d): %s", error, sr_strerror(error));
+		goto error_out;
+	}
+
+	return 0;
+error_out:
+	return -1;
+}
+
 void sr_plugin_cleanup_cb(sr_session_ctx_t *session, void *private_data)
 {
 	sr_session_ctx_t *startup_session = (sr_session_ctx_t *) private_data;
@@ -75,6 +179,8 @@ void sr_plugin_cleanup_cb(sr_session_ctx_t *session, void *private_data)
 	if (startup_session) {
 		sr_session_stop(startup_session);
 	}
+
+	link_data_list_free(&link_data_list);
 
 	SRP_LOG_INFMSG("plugin cleanup finished");
 }
@@ -132,15 +238,19 @@ static int interfaces_module_change_cb(sr_session_ctx_t *session, const char *mo
 
 			if (node->schema->nodetype == LYS_LEAF || node->schema->nodetype == LYS_LEAFLIST) {
 				if (operation == SR_OP_CREATED || operation == SR_OP_MODIFIED) {
+					error = set_config_value(node_xpath, node_value);
 					if (error) {
 						SRP_LOG_ERR("set_config_value error (%d)", error);
 						goto error_out;
 					}
+				} else if (operation == SR_OP_DELETED) {
+					// TODO: add deletetion of interface or interface data
 				}
 			}
 			FREE_SAFE(node_xpath);
 			node_value = NULL;
 		}
+		add_link_info(&link_data_list);
 	}
 	goto out;
 
@@ -150,6 +260,318 @@ out:
 	FREE_SAFE(node_xpath);
 	sr_free_change_iter(system_change_iter);
 	return error ? SR_ERR_CALLBACK_FAILED : SR_ERR_OK;
+}
+
+int set_config_value(const char *xpath, const char *value)
+{
+	int error = SR_ERR_OK;
+	char *interface_node = NULL;
+	char *interface_node_name = NULL;
+	sr_xpath_ctx_t state = {0};
+
+	interface_node = sr_xpath_node_name((char *) xpath);
+	if (interface_node == NULL) {
+		SRP_LOG_ERRMSG("sr_xpath_node_name error");
+		error = SR_ERR_CALLBACK_FAILED;
+		goto out;
+	}
+
+	interface_node_name = sr_xpath_key_value((char *) xpath, "interface", "name", &state);
+	if (interface_node_name == NULL) {
+		SRP_LOG_ERRMSG("sr_xpath_key_value error");
+		error = SR_ERR_CALLBACK_FAILED;
+		goto out;
+	}
+
+	error = link_data_list_add(&link_data_list, interface_node_name);
+	if (error != 0) {
+			SRP_LOG_ERRMSG("link_data_list_add error");
+			error = SR_ERR_CALLBACK_FAILED;
+			goto out;
+	}
+
+	if (strcmp(interface_node, "description") == 0) {
+		// change desc
+		error = link_data_list_set_description(&link_data_list, interface_node_name, (char *)value);
+		if (error != 0) {
+			SRP_LOG_ERRMSG("link_data_list_set_description error");
+			error = SR_ERR_CALLBACK_FAILED;
+			goto out;
+		}
+	} else if (strcmp(interface_node, "type") == 0) {
+		// change type
+
+		if (strstr(value, "ethernetCsmacd") != NULL) {
+			// can't add a new eth interface
+			//link_data_list_set_type(&link_data_list, interface_node_name, "eth");
+		} else if (strstr(value, "softwareLoopback") != NULL) {
+			// can't add a new lo interface
+			//link_data_list_set_type(&link_data_list, interface_node_name, "lo");
+		}
+
+		// TODO: update this
+		error = link_data_list_set_type(&link_data_list, interface_node_name, "dummy");
+		if (error != 0) {
+			SRP_LOG_ERRMSG("link_data_list_set_type error");
+			error = SR_ERR_CALLBACK_FAILED;
+			goto out;
+		}
+	} else if (strcmp(interface_node, "enabled") == 0) {
+		// change enabled
+		error = link_data_list_set_enabled(&link_data_list, interface_node_name, (char *)value);
+		if (error != 0) {
+			SRP_LOG_ERRMSG("link_data_list_set_enabled error");
+			error = SR_ERR_CALLBACK_FAILED;
+			goto out;
+		}
+	}
+
+	goto out;
+
+out:
+	return error ? SR_ERR_CALLBACK_FAILED : SR_ERR_OK;
+}
+
+int add_link_info(link_data_list_t *ld)
+{
+	struct nl_sock *socket = NULL;
+	struct nl_cache *cache = NULL;
+
+	int error = SR_ERR_OK;
+
+	socket = nl_socket_alloc();
+	if (socket == NULL) {
+		SRP_LOG_ERRMSG("nl_socket_alloc error: invalid socket");
+		goto out;
+	}
+
+	if ((error = nl_connect(socket, NETLINK_ROUTE)) != 0) {
+		SRP_LOG_ERR("nl_connect error (%d): %s", error, nl_geterror(error));
+		goto out;
+	}
+
+	error = rtnl_link_alloc_cache(socket, AF_UNSPEC, &cache);
+	if (error != 0) {
+		SRP_LOG_ERR("rtnl_link_alloc_cache error (%d): %s", error, nl_geterror(error));
+		goto out;
+	}
+
+	for (int i = 0; i < ld->count; i++) {
+		char *name = ld->links[i].name;
+		char *type = ld->links[i].type;
+		char *description = ld->links[i].description;
+		char *enabled = ld->links[i].enabled;
+
+		struct rtnl_link *old = rtnl_link_get_by_name(cache, name);
+		struct rtnl_link *request = rtnl_link_alloc();
+
+		// desc
+		if (description != 0) {
+			rtnl_link_set_ifalias(request, description);
+		}
+
+		// type
+		if (type != 0) {
+			error = rtnl_link_set_type(request, type);
+			if (error < 0) {
+				SRP_LOG_ERR("rtnl_link_set_type error (%d): %s", error, nl_geterror(error));
+				goto out;
+			}
+		}
+
+		// enabled
+		if (enabled != 0) {
+			if (strcmp(enabled, "true") == 0) {
+				// set the interface to UP
+				rtnl_link_set_flags(request, (unsigned int)rtnl_link_str2flags("up"));
+				rtnl_link_set_operstate(request, IF_OPER_UP);
+			} else {
+				// set the interface to DOWN
+				rtnl_link_unset_flags(request, (unsigned int)rtnl_link_str2flags("up"));
+				rtnl_link_set_operstate(request, IF_OPER_DOWN);
+			}
+		}
+
+		if (old != NULL) {
+			// the interface with name already exists, change it
+			error = rtnl_link_change(socket, old, request, 0);
+			if (error != 0) {
+				SRP_LOG_ERR("rtnl_link_change error (%d): %s", error, nl_geterror(error));
+				goto out;
+			}
+		} else {
+			// the interface doesn't exist
+
+			// set the new name
+			rtnl_link_set_name(request, name);
+
+			// add the interface
+			// note: if type is not set, you can't add the new link
+			error = rtnl_link_add(socket, request, NLM_F_CREATE);
+			if (error != 0) {
+				SRP_LOG_ERR("rtnl_link_add error (%d): %s", error, nl_geterror(error));
+				goto out;
+			}
+		}
+		rtnl_link_put(old);
+		rtnl_link_put(request);
+	}
+
+out:
+	nl_socket_free(socket);
+	nl_cache_free(cache);
+	
+	return error;
+}
+
+// TODO: move these functions to a file in utils?
+void link_init(link_data_t *l)
+{
+	l->name = 0;
+	l->description = 0;
+	l->type = 0;
+	l->enabled = 0;
+}
+
+void link_data_list_init(link_data_list_t *ld)
+{
+	for (int i = 0; i < LD_MAX_LINKS; i++) {
+		link_init(&ld->links[i]);
+	}
+	ld->count = 0;
+}
+
+void link_set_name(link_data_t *l, char *name)
+{
+	unsigned long tmp_len = 0;
+	tmp_len = strlen(name);
+	l->name = xmalloc(sizeof(char) * (tmp_len + 1));
+	memcpy(l->name, name, tmp_len);
+	l->name[tmp_len] = 0;
+}
+
+int link_data_list_add(link_data_list_t *ld, char *name)
+{
+	bool name_found = false;
+
+	if (ld->count >= LD_MAX_LINKS) {
+		return EINVAL;
+	}
+
+	for (int i = 0; i < ld->count; i++) {
+		if (strcmp(ld->links[i].name, name) == 0) {
+			name_found = true;
+			break;
+		}	
+	}
+
+	if (!name_found) {
+		link_set_name(&ld->links[ld->count], name);
+		++ld->count;
+	}
+	
+	return 0;
+}
+
+int link_data_list_set_description(link_data_list_t *ld, char *name, char *description)
+{
+	int error = 0;
+	int name_found = 0;
+
+	for (int i = 0; i < ld->count; i++) {
+		if (strcmp(ld->links[i].name, name) == 0) {
+			name_found = 1;
+
+			unsigned long tmp_len = 0;
+			tmp_len = strlen(description);
+			ld->links[i].description = xmalloc(sizeof(char) * (tmp_len + 1));
+			memcpy(ld->links[i].description, description, tmp_len);
+			ld->links[i].description[tmp_len] = 0;
+
+			break;
+		}
+	}
+	if (!name_found) {
+		// error
+		error = EINVAL;
+	}
+	return error;
+}
+
+int link_data_list_set_type(link_data_list_t *ld, char *name, char *type)
+{
+	int error = 0;
+	int name_found = 0;
+
+	for (int i = 0; i < ld->count; i++) {
+		if (strcmp(ld->links[i].name, name) == 0) {
+			name_found = 1;
+
+			unsigned long tmp_len = 0;
+			tmp_len = strlen(type);
+			ld->links[i].type = xmalloc(sizeof(char) * (tmp_len + 1));
+			memcpy(ld->links[i].type, type, tmp_len);
+			ld->links[i].type[tmp_len] = 0;
+
+			break;
+		}
+	}
+	if (!name_found) {
+		// error
+		error = EINVAL;
+	}
+	return error;
+}
+
+int link_data_list_set_enabled(link_data_list_t *ld, char *name, char *enabled)
+{
+	int error = 0;
+	int name_found = 0;
+
+	for (int i = 0; i < ld->count; i++) {
+		if (strcmp(ld->links[i].name, name) == 0) {
+			name_found = 1;
+
+			unsigned long tmp_len = 0;
+			tmp_len = strlen(enabled);
+			ld->links[i].enabled = xmalloc(sizeof(char) * (tmp_len + 1));
+			memcpy(ld->links[i].enabled, enabled, tmp_len);
+			ld->links[i].enabled[tmp_len] = 0;
+
+			break;
+		}
+	}
+	if (!name_found) {
+		// error
+		error = EINVAL;
+	}
+	return error;
+}
+
+void link_data_free(link_data_t *l)
+{
+	if (l->name) {
+		FREE_SAFE(l->name);
+	}
+
+	if (l->description) {
+		FREE_SAFE(l->description);
+	}
+
+	if (l->type) {
+		FREE_SAFE(l->type);
+	}
+
+	if (l->enabled) {
+		FREE_SAFE(l->enabled);
+	}
+}
+
+void link_data_list_free(link_data_list_t *ld)
+{
+	for (int i = 0; i < ld->count; i++) {
+		link_data_free(&ld->links[i]);
+	}
 }
 
 static int interfaces_state_data_cb(sr_session_ctx_t *session, const char *module_name, const char *path, const char *request_xpath, uint32_t request_id, struct lyd_node **parent, void *private_data)
