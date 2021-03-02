@@ -596,7 +596,7 @@ static int interfaces_state_data_cb(sr_session_ctx_t *session, const char *modul
 
 	socket = nl_socket_alloc();
 	if (socket == NULL) {
-		SRP_LOG_ERR("nl_socket_alloc error: invalid socket");
+		SRP_LOG_ERRMSG("nl_socket_alloc error: invalid socket");
 		goto error_out;
 	}
 
