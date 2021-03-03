@@ -4,10 +4,10 @@
 #include <errno.h>
 #include <sysrepo.h>
 #include <sysrepo/xpath.h>
-#include "libyang/tree_data.h"
-#include "netlink/cache.h"
-#include "netlink/errno.h"
-#include "netlink/netlink.h"
+#include <libyang/tree_data.h>
+#include <netlink/cache.h>
+#include <netlink/errno.h>
+#include <netlink/netlink.h>
 #include "utils/memory.h"
 #include <string.h>
 #include <netlink/socket.h>
