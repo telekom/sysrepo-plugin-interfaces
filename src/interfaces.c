@@ -8,7 +8,7 @@
 #include <netlink/cache.h>
 #include <netlink/errno.h>
 #include <netlink/netlink.h>
-#include "utils/memory.h"
+#include <utils/memory.h>
 #include <string.h>
 #include <netlink/socket.h>
 #include <netlink/route/link.h>
@@ -18,6 +18,9 @@
 #include <netlink/netlink.h>
 #include <libyang/libyang.h>
 #include <linux/if.h>
+#include <pthread.h>
+#include <unistd.h>
+#include <utils/if_state.h>
 
 #define LD_MAX_LINKS 100 // TODO: check this
 
@@ -74,6 +77,22 @@ int link_data_list_set_enabled(link_data_list_t *ld, char *name, char *enabled);
 void link_data_list_free(link_data_list_t *ld);
 void link_data_free(link_data_t *l);
 
+// function to start all threads for each interface
+int init_state_changes(void);
+
+// callback function for a thread to track state changes on a specific interface (ifindex passed using void* data param)
+void *manager_thread_cb(void *data);
+void cache_change_cb(struct nl_cache *cache, struct nl_object *obj, int val, void *arg);
+
+// static list of interface states for tracking state changes using threads
+static if_state_list_t if_state_changes;
+
+// link manager used for cacheing links info constantly
+static struct nl_cache_mngr *link_manager = NULL;
+static struct nl_cache *link_cache = NULL;
+
+volatile int exit_application = 0;
+
 int sr_plugin_init_cb(sr_session_ctx_t *session, void **private_data)
 {
 	int error = 0;
@@ -86,6 +105,14 @@ int sr_plugin_init_cb(sr_session_ctx_t *session, void **private_data)
 	link_data_list_init(&link_data_list);
 
 	SRP_LOG_INFMSG("start session to startup datastore");
+
+	if_state_list_init(&if_state_changes);
+
+	error = init_state_changes();
+	if (error != 0) {
+		SRP_LOG_ERR("Error occurred while initializing threads to track interface changes... exiting");
+		goto out;
+	}
 
 	connection = sr_session_get_connection(session);
 	error = sr_session_start(connection, SR_DS_STARTUP, &startup_session);
@@ -189,6 +216,8 @@ void sr_plugin_cleanup_cb(sr_session_ctx_t *session, void *private_data)
 	}
 
 	link_data_list_free(&link_data_list);
+	if_state_list_free(&if_state_changes);
+	nl_cache_mngr_free(link_manager);
 
 	SRP_LOG_INFMSG("plugin cleanup finished");
 }
@@ -699,23 +728,22 @@ static int interfaces_state_data_cb(sr_session_ctx_t *session, const char *modul
 		nl_addr2str(addr, interface_data.phys_address, MAC_ADDR_MAX_LENGTH);
 		interface_data.phys_address[MAC_ADDR_MAX_LENGTH] = 0;
 
-		// lower-layer-if
+		// higher-layer-if
 		tmp_if_index = rtnl_link_get_master(link);
 		while (tmp_if_index) {
 			tmp_link = rtnl_link_get(cache, tmp_if_index);
 
 			// append name to the list
 			tmp_len = strlen(rtnl_link_get_name(tmp_link));
-			interface_data.lower_layer_if.count++;
-			interface_data.lower_layer_if.data = xrealloc(interface_data.lower_layer_if.data, sizeof(char *) * (interface_data.lower_layer_if.count));
-			interface_data.lower_layer_if.data[interface_data.lower_layer_if.count - 1] = xmalloc(sizeof(char) * (tmp_len + 1));
-			memcpy(interface_data.lower_layer_if.data[interface_data.lower_layer_if.count - 1], rtnl_link_get_name(tmp_link), tmp_len);
-			interface_data.lower_layer_if.data[interface_data.lower_layer_if.count - 1][tmp_len] = 0;
+			interface_data.higher_layer_if.count++;
+			interface_data.higher_layer_if.data = xrealloc(interface_data.higher_layer_if.data, sizeof(char *) * (interface_data.higher_layer_if.count));
+			interface_data.higher_layer_if.data[interface_data.higher_layer_if.count - 1] = xmalloc(sizeof(char) * (tmp_len + 1));
+			memcpy(interface_data.higher_layer_if.data[interface_data.higher_layer_if.count - 1], rtnl_link_get_name(tmp_link), tmp_len);
+			interface_data.higher_layer_if.data[interface_data.higher_layer_if.count - 1][tmp_len] = 0;
 
 			tmp_if_index = rtnl_link_get_master(tmp_link);
 		}
 
-		// interface_data.higher_layer_if = ?
 		// interface_data.lower_layer_if = ?
 		interface_data.speed = rtnl_tc_get_stat(tc, RTNL_TC_RATE_BPS);
 
@@ -773,11 +801,11 @@ static int interfaces_state_data_cb(sr_session_ctx_t *session, const char *modul
 		snprintf(tmp_buffer, sizeof(tmp_buffer), "%lu", interface_data.speed);
 		lyd_new_path(*parent, ly_ctx, xpath_buffer, tmp_buffer, LYD_ANYDATA_CONSTSTRING, 0);
 
-		// lower-layer-if
-		for (uint64_t i = 0; i < interface_data.lower_layer_if.count; i++) {
-			snprintf(xpath_buffer, sizeof(xpath_buffer), "%s/lower-layer-if", interface_path_buffer);
-			SRP_LOG_DBG("%s += %s", xpath_buffer, interface_data.lower_layer_if.data[i]);
-			lyd_new_path(*parent, ly_ctx, xpath_buffer, interface_data.lower_layer_if.data[i], LYD_ANYDATA_CONSTSTRING, 0);
+		// higher-layer-if
+		for (uint64_t i = 0; i < interface_data.higher_layer_if.count; i++) {
+			snprintf(xpath_buffer, sizeof(xpath_buffer), "%s/higher-layer-if", interface_path_buffer);
+			SRP_LOG_DBG("%s += %s", xpath_buffer, interface_data.higher_layer_if.data[i]);
+			lyd_new_path(*parent, ly_ctx, xpath_buffer, interface_data.higher_layer_if.data[i], LYD_ANYDATA_CONSTSTRING, 0);
 		}
 
 		// stats:
@@ -893,11 +921,137 @@ static char *interfaces_xpath_get(const struct lyd_node *node)
 	}
 }
 
+int init_state_changes(void)
+{
+	int error = 0;
+	struct nl_sock *socket = NULL;
+	struct nl_cache *cache = NULL;
+	struct rtnl_link *link = NULL;
+	if_state_t *tmp_st = NULL;
+	pthread_attr_t attr;
+
+	uint if_cnt = 0;
+
+	struct {
+		pthread_t *data;
+		uint count;
+	} thread_ls;
+
+	pthread_t manager_thread;
+
+	pthread_attr_init(&attr);
+	pthread_attr_setdetachstate(&attr, 1);
+
+	socket = nl_socket_alloc();
+	if (socket == NULL) {
+		SRP_LOG_ERR("nl_socket_alloc error: invalid socket");
+		return -1;
+	}
+
+	if ((error = nl_connect(socket, NETLINK_ROUTE)) != 0) {
+		SRP_LOG_ERR("nl_connect error (%d): %s", error, nl_geterror(error));
+		goto error_out;
+	}
+
+	error = rtnl_link_alloc_cache(socket, AF_UNSPEC, &cache);
+	if (error != 0) {
+		SRP_LOG_ERR("rtnl_link_alloc_cache error (%d): %s", error, nl_geterror(error));
+		goto error_out;
+	}
+
+	link = (struct rtnl_link *) nl_cache_get_first(cache);
+
+	while (link != NULL) {
+		++if_cnt;
+		link = (struct rtnl_link *) nl_cache_get_next((struct nl_object *) link);
+	}
+
+	// allocate a list to contain if_cnt number of interface states
+	if_state_list_alloc(&if_state_changes, if_cnt);
+
+	thread_ls.data = (pthread_t *) malloc(sizeof(pthread_t) * if_cnt);
+	thread_ls.count = if_cnt;
+
+	link = (struct rtnl_link *) nl_cache_get_first(cache);
+	if_cnt = 0;
+
+	while (link != NULL) {
+		tmp_st = if_state_list_get(&if_state_changes, if_cnt);
+		if (tmp_st) {
+			tmp_st->state = rtnl_link_get_operstate(link);
+			tmp_st->if_idx = rtnl_link_get_ifindex(link);
+		}
+
+		++if_cnt;
+		link = (struct rtnl_link *) nl_cache_get_next((struct nl_object *) link);
+	}
+
+	error = nl_cache_mngr_alloc(NULL, NETLINK_ROUTE, 0, &link_manager);
+	if (error != 0) {
+		SRP_LOG_ERR("nl_cache_mngr_alloc failed (%d): %s", error, nl_geterror(error));
+		goto error_out;
+	}
+
+	error = nl_cache_mngr_add(link_manager, "route/link", cache_change_cb, NULL, &link_cache);
+	if (error != 0) {
+		SRP_LOG_ERR("nl_cache_mngr_add failed (%d): %s", error, nl_geterror(error));
+		goto error_out;
+	}
+
+	pthread_create(&manager_thread, NULL, manager_thread_cb, 0);
+
+	pthread_detach(manager_thread);
+
+error_out:
+
+	// clear libnl data
+	nl_cache_free(cache);
+	nl_socket_free(socket);
+
+	// free tmp struct
+	if (thread_ls.count) {
+		free(thread_ls.data);
+	}
+	return error;
+}
+
+void cache_change_cb(struct nl_cache *cache, struct nl_object *obj, int val, void *arg)
+{
+	struct rtnl_link *link = NULL;
+	int if_idx = 0;
+	uint8_t tmp_state = 0;
+	if_state_t *tmp_st = NULL;
+
+	SRP_LOG_DBG("entered cb function for a link manager");
+
+	link = (struct rtnl_link *) nl_cache_get_first(cache);
+
+	while (link != NULL) {
+		if_idx = rtnl_link_get_ifindex(link);
+		tmp_st = if_state_list_get_by_if_idx(&if_state_changes, if_idx);
+		tmp_state = rtnl_link_get_operstate(link);
+
+		if (tmp_state != tmp_st->state) {
+			SRP_LOG_DBG("Interface %d changed operstate from %d to %d", if_idx, tmp_st->state, tmp_state);
+			tmp_st->state = tmp_state;
+			tmp_st->last_change = time(0);
+		}
+		link = (struct rtnl_link *) nl_cache_get_next((struct nl_object *) link);
+	}
+}
+
+void *manager_thread_cb(void *data)
+{
+	do {
+		nl_cache_mngr_data_ready(link_manager);
+	} while (true && exit_application == 0);
+
+	return NULL;
+}
+
 #ifndef PLUGIN
 #include <signal.h>
 #include <unistd.h>
-
-volatile int exit_application = 0;
 
 static void sigint_handler(__attribute__((unused)) int signum);
 
@@ -937,6 +1091,8 @@ int main(void)
 out:
 	sr_plugin_cleanup_cb(session, private_data);
 	sr_disconnect(connection);
+
+	pthread_exit(0);
 
 	return error ? -1 : 0;
 }
