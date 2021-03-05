@@ -21,6 +21,7 @@ typedef struct {
 	char *description;
 	char *type;
 	char *enabled;
+	bool delete;
 } link_data_t;
 
 typedef struct {
@@ -54,15 +55,18 @@ static bool system_running_datastore_is_empty_check(void);
 static int load_data(sr_session_ctx_t *session);
 static char *interfaces_xpath_get(const struct lyd_node *node);
 int set_config_value(const char *xpath, const char *value);
-int add_link_info(link_data_list_t *ld);
+int delete_config_value(const char *xpath, const char *value);
+int update_link_info(link_data_list_t *ld, sr_change_oper_t operation);
 
 void link_init(link_data_t *l);
 void link_set_name(link_data_t *l, char *name);
 void link_data_list_init(link_data_list_t *ld);
+int link_data_list_remove(link_data_list_t *ld, char *name);
 int link_data_list_add(link_data_list_t *ld, char *name);
 int link_data_list_set_description(link_data_list_t *ld, char *name, char *description);
 int link_data_list_set_type(link_data_list_t *ld, char *name, char *type);
 int link_data_list_set_enabled(link_data_list_t *ld, char *name, char *enabled);
+int link_data_list_set_delete(link_data_list_t *ld, char *name, bool delete);
 void link_data_list_free(link_data_list_t *ld);
 void link_data_free(link_data_t *l);
 
@@ -244,13 +248,17 @@ static int interfaces_module_change_cb(sr_session_ctx_t *session, const char *mo
 						goto error_out;
 					}
 				} else if (operation == SR_OP_DELETED) {
-					// TODO: add deletetion of interface or interface data
+					error = delete_config_value(node_xpath, node_value);
+					if (error) {
+						SRP_LOG_ERR("delete_config_value error (%d)", error);
+						goto error_out;
+					}
 				}
 			}
 			FREE_SAFE(node_xpath);
 			node_value = NULL;
 		}
-		add_link_info(&link_data_list);
+		update_link_info(&link_data_list, operation);
 	}
 	goto out;
 
@@ -332,7 +340,60 @@ out:
 	return error ? SR_ERR_CALLBACK_FAILED : SR_ERR_OK;
 }
 
-int add_link_info(link_data_list_t *ld)
+int delete_config_value(const char *xpath, const char *value)
+{
+	int error = SR_ERR_OK;
+	//return SR_ERR_OK;
+	char *interface_node = NULL;
+	char *interface_node_name = NULL;
+	sr_xpath_ctx_t state = {0};
+
+	interface_node = sr_xpath_node_name((char *) xpath);
+	if (interface_node == NULL) {
+		SRP_LOG_ERRMSG("sr_xpath_node_name error");
+		error = SR_ERR_CALLBACK_FAILED;
+		goto out;
+	}
+
+	interface_node_name = sr_xpath_key_value((char *) xpath, "interface", "name", &state);
+	if (interface_node_name == NULL) {
+		SRP_LOG_ERRMSG("sr_xpath_key_value error");
+		error = SR_ERR_CALLBACK_FAILED;
+		goto out;
+	}
+
+	if (strcmp(interface_node, "name") == 0) {
+		// mark for deletion
+		error = link_data_list_set_delete(&link_data_list, interface_node_name, true);
+		if (error != 0) {
+			SRP_LOG_ERRMSG("link_data_list_set_delete error");
+			error = SR_ERR_CALLBACK_FAILED;
+			goto out;
+		}
+	} else if (strcmp(interface_node, "description") == 0) {
+		// set description to empty string
+		error = link_data_list_set_description(&link_data_list, interface_node_name, "");
+		if (error != 0) {
+			SRP_LOG_ERRMSG("link_data_list_set_description error");
+			error = SR_ERR_CALLBACK_FAILED;
+			goto out;
+		}
+	} else if (strcmp(interface_node, "enabled") == 0) {
+		// set enabled to false
+		error = link_data_list_set_enabled(&link_data_list, interface_node_name, "");
+		if (error != 0) {
+			SRP_LOG_ERRMSG("link_data_list_set_enabled error");
+			error = SR_ERR_CALLBACK_FAILED;
+			goto out;
+		}
+	}
+
+out:
+
+	return error ? SR_ERR_CALLBACK_FAILED : SR_ERR_OK;
+}
+
+int update_link_info(link_data_list_t *ld, sr_change_oper_t operation)
 {
 	struct nl_sock *socket = NULL;
 	struct nl_cache *cache = NULL;
@@ -361,9 +422,37 @@ int add_link_info(link_data_list_t *ld)
 		char *type = ld->links[i].type;
 		char *description = ld->links[i].description;
 		char *enabled = ld->links[i].enabled;
+		bool delete = ld->links[i].delete;
 
 		struct rtnl_link *old = rtnl_link_get_by_name(cache, name);
 		struct rtnl_link *request = rtnl_link_alloc();
+
+		// delete if marked for deletion
+		if (delete) {
+			// delete the link
+			error = rtnl_link_delete(socket, old);
+			if (error < 0) {
+				SRP_LOG_ERR("rtnl_link_delete error (%d): %s", error, nl_geterror(error));
+				goto out;
+			}
+
+			// free the link from link_data_list
+			link_data_free(&ld->links[i]);
+			// and initialize the values
+			link_init(&ld->links[i]);
+
+			// cleanup
+			if (old != NULL) {
+				rtnl_link_put(old);
+			}
+
+			if (request != NULL) {
+				rtnl_link_put(request);
+			}
+
+			// and continue
+			continue;
+		}
 
 		// desc
 		if (description != 0) {
@@ -400,17 +489,19 @@ int add_link_info(link_data_list_t *ld)
 				goto out;
 			}
 		} else {
-			// the interface doesn't exist
+			if (operation != SR_OP_DELETED) {
+				// the interface doesn't exist
 
-			// set the new name
-			rtnl_link_set_name(request, name);
+				// set the new name
+				rtnl_link_set_name(request, name);
 
-			// add the interface
-			// note: if type is not set, you can't add the new link
-			error = rtnl_link_add(socket, request, NLM_F_CREATE);
-			if (error != 0) {
-				SRP_LOG_ERR("rtnl_link_add error (%d): %s", error, nl_geterror(error));
-				goto out;
+				// add the interface
+				// note: if type is not set, you can't add the new link
+				error = rtnl_link_add(socket, request, NLM_F_CREATE);
+				if (error != 0) {
+					SRP_LOG_ERR("rtnl_link_add error (%d): %s", error, nl_geterror(error));
+					goto out;
+				}
 			}
 		}
 		rtnl_link_put(old);
@@ -431,6 +522,7 @@ void link_init(link_data_t *l)
 	l->description = 0;
 	l->type = 0;
 	l->enabled = 0;
+	l->delete = false;
 }
 
 void link_data_list_init(link_data_list_t *ld)
@@ -459,14 +551,29 @@ int link_data_list_add(link_data_list_t *ld, char *name)
 	}
 
 	for (int i = 0; i < ld->count; i++) {
-		if (strcmp(ld->links[i].name, name) == 0) {
-			name_found = true;
-			break;
-		}	
+		if (ld->links[i].name != 0) { // in case we deleted a link it will be 0
+			if (strcmp(ld->links[i].name, name) == 0) {
+				name_found = true;
+				break;
+			}
+		}
 	}
 
 	if (!name_found) {
-		link_set_name(&ld->links[ld->count], name);
+		// set the new link to the first free one in the list
+		// the one with name == 0
+		int pos = ld->count;
+		for (int i = 0; i < ld->count; i++) {
+			if (ld->links[i].name == 0) {
+				pos = i;
+				// in case a link was deleted don't increase the counter
+				if (pos < ld->count) {
+					ld->count--;
+				}
+				break;
+			}
+		}
+		link_set_name(&ld->links[pos], name);
 		++ld->count;
 	}
 	
@@ -481,6 +588,10 @@ int link_data_list_set_description(link_data_list_t *ld, char *name, char *descr
 	for (int i = 0; i < ld->count; i++) {
 		if (strcmp(ld->links[i].name, name) == 0) {
 			name_found = 1;
+
+			if (ld->links[i].description  != NULL) {
+				FREE_SAFE(ld->links[i].description );
+			}
 
 			unsigned long tmp_len = 0;
 			tmp_len = strlen(description);
@@ -507,6 +618,10 @@ int link_data_list_set_type(link_data_list_t *ld, char *name, char *type)
 		if (strcmp(ld->links[i].name, name) == 0) {
 			name_found = 1;
 
+			if (ld->links[i].type  != NULL) {
+				FREE_SAFE(ld->links[i].type );
+			}
+
 			unsigned long tmp_len = 0;
 			tmp_len = strlen(type);
 			ld->links[i].type = xmalloc(sizeof(char) * (tmp_len + 1));
@@ -532,12 +647,35 @@ int link_data_list_set_enabled(link_data_list_t *ld, char *name, char *enabled)
 		if (strcmp(ld->links[i].name, name) == 0) {
 			name_found = 1;
 
+			if (ld->links[i].enabled  != NULL) {
+				FREE_SAFE(ld->links[i].enabled );
+			}
+
 			unsigned long tmp_len = 0;
 			tmp_len = strlen(enabled);
 			ld->links[i].enabled = xmalloc(sizeof(char) * (tmp_len + 1));
 			memcpy(ld->links[i].enabled, enabled, tmp_len);
 			ld->links[i].enabled[tmp_len] = 0;
 
+			break;
+		}
+	}
+	if (!name_found) {
+		// error
+		error = EINVAL;
+	}
+	return error;
+}
+
+int link_data_list_set_delete(link_data_list_t *ld, char *name, bool delete)
+{
+	int error = 0;
+	int name_found = 0;
+
+	for (int i = 0; i < ld->count; i++) {
+		if (strcmp(ld->links[i].name, name) == 0) {
+			name_found = 1;
+			ld->links[i].delete = delete;
 			break;
 		}
 	}
