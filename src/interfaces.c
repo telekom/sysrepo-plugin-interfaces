@@ -21,6 +21,7 @@
 #include <pthread.h>
 #include <unistd.h>
 #include <utils/if_state.h>
+#include <time.h>
 
 #define LD_MAX_LINKS 100 // TODO: check this
 
@@ -630,6 +631,8 @@ static int interfaces_state_data_cb(sr_session_ctx_t *session, const char *modul
 	char xpath_buffer[PATH_MAX] = {0};
 	char interface_path_buffer[PATH_MAX] = {0};
 
+	if_state_t *tmp_ifs = NULL;
+
 	struct {
 		char *name;
 		char *description;
@@ -638,7 +641,7 @@ static int interfaces_state_data_cb(sr_session_ctx_t *session, const char *modul
 		char *link_up_down_trap_enable;
 		char *admin_status;
 		const char *oper_status;
-		char *last_change;
+		struct tm *last_change;
 		int32_t if_index;
 		char *phys_address;
 		struct {
@@ -719,8 +722,11 @@ static int interfaces_state_data_cb(sr_session_ctx_t *session, const char *modul
 		// interface_data.link_up_down_trap_enable = ?
 		// interface_data.admin_status = ?
 		interface_data.oper_status = OPER_STRING_MAP[rtnl_link_get_operstate(link)];
-		// interface_data.last_change = ?
 		interface_data.if_index = rtnl_link_get_ifindex(link);
+
+		// last-change field
+		tmp_ifs = if_state_list_get_by_if_idx(&if_state_changes, interface_data.if_index);
+		interface_data.last_change = (tmp_ifs->last_change != 0) ? localtime(&tmp_ifs->last_change) : NULL;
 
 		// mac address
 		addr = rtnl_link_get_addr(link);
@@ -781,8 +787,16 @@ static int interfaces_state_data_cb(sr_session_ctx_t *session, const char *modul
 
 		// oper-status
 		snprintf(xpath_buffer, sizeof(xpath_buffer), "%s/oper-status", interface_path_buffer);
-		SRP_LOG_DBG("%s = %s", xpath_buffer, interface_data.type);
+		SRP_LOG_DBG("%s = %s", xpath_buffer, interface_data.oper_status);
 		lyd_new_path(*parent, ly_ctx, xpath_buffer, (char *) interface_data.oper_status, LYD_ANYDATA_CONSTSTRING, 0);
+
+		// last-change -> only if changed at one point
+		if (interface_data.last_change != NULL) {
+			snprintf(xpath_buffer, sizeof(xpath_buffer), "%s/last-change", interface_path_buffer);
+			SRP_LOG_DBG("%s = %s", xpath_buffer, interface_data.type);
+			strftime(tmp_buffer, sizeof tmp_buffer, "%FT%TZ", interface_data.last_change);
+			lyd_new_path(*parent, ly_ctx, xpath_buffer, tmp_buffer, LYD_ANYDATA_CONSTSTRING, 0);
+		}
 
 		// if-index
 		snprintf(xpath_buffer, sizeof(xpath_buffer), "%s/if-index", interface_path_buffer);
