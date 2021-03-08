@@ -22,6 +22,7 @@
 #include <unistd.h>
 #include <utils/if_state.h>
 #include <time.h>
+#include <sys/sysinfo.h>
 
 #define LD_MAX_LINKS 100 // TODO: check this
 
@@ -56,6 +57,7 @@ const char *link_types[] = {
 
 // other #defines
 #define MAC_ADDR_MAX_LENGTH 17
+#define DATETIME_BUF_SIZE 30
 
 // callbacks
 static int interfaces_module_change_cb(sr_session_ctx_t *session, const char *module_name, const char *xpath, sr_event_t event, uint32_t request_id, void *private_data);
@@ -77,6 +79,8 @@ int link_data_list_set_type(link_data_list_t *ld, char *name, char *type);
 int link_data_list_set_enabled(link_data_list_t *ld, char *name, char *enabled);
 void link_data_list_free(link_data_list_t *ld);
 void link_data_free(link_data_t *l);
+
+static int get_system_boot_time(char boot_datetime[]);
 
 // function to start all threads for each interface
 int init_state_changes(void);
@@ -754,7 +758,13 @@ static int interfaces_state_data_cb(sr_session_ctx_t *session, const char *modul
 		interface_data.speed = rtnl_tc_get_stat(tc, RTNL_TC_RATE_BPS);
 
 		// stats:
-		// interface_data.statistics.discontinuity_time = ?
+		char system_boot_time[DATETIME_BUF_SIZE] = {0};
+		error = get_system_boot_time(system_boot_time);
+		if (error) {
+			SRP_LOG_ERR("get_system_boot_time error: %s", strerror(errno));
+			goto error_out;
+		}
+		interface_data.statistics.discontinuity_time = system_boot_time;
 		interface_data.statistics.in_octets = rtnl_link_get_stat(link, RTNL_LINK_IP6_INOCTETS);
 
 		// to discuss
@@ -823,6 +833,11 @@ static int interfaces_state_data_cb(sr_session_ctx_t *session, const char *modul
 		}
 
 		// stats:
+		// discontinuity-time
+		snprintf(xpath_buffer, sizeof(xpath_buffer), "%s/statistics/discontinuity-time", interface_path_buffer);
+		SRP_LOG_DBG("%s = %s", xpath_buffer, interface_data.statistics.discontinuity_time);
+		lyd_new_path(*parent, ly_ctx, xpath_buffer, interface_data.statistics.discontinuity_time, LYD_ANYDATA_CONSTSTRING, 0);
+
 		// in-octets
 		snprintf(xpath_buffer, sizeof(xpath_buffer), "%s/statistics/in-octets", interface_path_buffer);
 		snprintf(tmp_buffer, sizeof(tmp_buffer), "%lu", interface_data.statistics.in_octets);
@@ -906,6 +921,43 @@ error_out:
 out:
 	nl_socket_free(socket);
 	return error ? SR_ERR_CALLBACK_FAILED : SR_ERR_OK;
+}
+
+static int get_system_boot_time(char boot_datetime[])
+{
+	time_t now = 0;
+	struct tm *ts = {0};
+	struct sysinfo s_info = {0};
+	time_t uptime_seconds = 0;
+
+	now = time(NULL);
+
+	ts = localtime(&now);
+	if (ts == NULL)
+		return -1;
+
+	if (sysinfo(&s_info) != 0)
+		return -1;
+
+	uptime_seconds = s_info.uptime;
+
+	time_t diff = now - uptime_seconds;
+
+	ts = localtime(&diff);
+	if (ts == NULL)
+		return -1;
+
+	/* must satisfy constraint (type yang:date-and-time):
+		"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?(Z|[\+\-]\d{2}:\d{2})"
+		TODO: Add support for:
+			- 2021-02-09T06:02:39.234+01:00
+			- 2021-02-09T06:02:39.234Z
+			- 2021-02-09T06:02:39+11:11
+	*/
+
+	strftime(boot_datetime, DATETIME_BUF_SIZE, "%FT%TZ", ts);
+
+	return 0;
 }
 
 static char *interfaces_xpath_get(const struct lyd_node *node)
