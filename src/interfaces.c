@@ -57,7 +57,11 @@ const char *link_types[] = {
 
 // other #defines
 #define MAC_ADDR_MAX_LENGTH 17
+#define MAX_DESCR_LEN 100
 #define DATETIME_BUF_SIZE 30
+#define SYSREPO_DIR_ENV_VAR "SYSREPO_DIR"
+#define INTERFACE_DESCRIPTION_PATH "/repositories/plugins/sysrepo-plugin-interfaces/interface_description"
+#define TMP_INTERFACE_DESCRIPTION_PATH "/repositories/plugins/sysrepo-plugin-interfaces/tmp_interface_description"
 
 // callbacks
 static int interfaces_module_change_cb(sr_session_ctx_t *session, const char *module_name, const char *xpath, sr_event_t event, uint32_t request_id, void *private_data);
@@ -80,6 +84,8 @@ int link_data_list_set_enabled(link_data_list_t *ld, char *name, char *enabled);
 void link_data_list_free(link_data_list_t *ld);
 void link_data_free(link_data_t *l);
 
+static int set_interface_description(char *name, char *description);
+static int get_interface_description(char *name, char **description);
 static int get_system_boot_time(char boot_datetime[]);
 
 // function to start all threads for each interface
@@ -292,7 +298,13 @@ static int interfaces_module_change_cb(sr_session_ctx_t *session, const char *mo
 			FREE_SAFE(node_xpath);
 			node_value = NULL;
 		}
-		add_link_info(&link_data_list);
+
+		error = add_link_info(&link_data_list);
+		if (error) {
+			error = SR_ERR_CALLBACK_FAILED;
+			SRP_LOG_ERRMSG("add_link_info error");
+			goto error_out;
+		}
 	}
 	goto out;
 
@@ -409,7 +421,12 @@ int add_link_info(link_data_list_t *ld)
 
 		// desc
 		if (description != 0) {
-			rtnl_link_set_ifalias(request, description);
+			//rtnl_link_set_ifalias(request, description);
+			error = set_interface_description(name, description);
+			if (error != 0) {
+				SRP_LOG_ERR("set_interface_description error: %s", strerror(errno));
+				goto out;
+			}
 		}
 
 		// type
@@ -616,6 +633,179 @@ void link_data_list_free(link_data_list_t *ld)
 	}
 }
 
+static int set_interface_description(char *name, char *description)
+{
+	FILE *fp = NULL;
+	FILE *fp_tmp = NULL;
+	char entry[MAX_DESCR_LEN] = {0};
+	char *sysrepo_dir = NULL;
+	char *desc_file_path = NULL; // ${SYSREPO_DIR}INTERFACE_DESCRIPTION_PATH
+	char *tmp_desc_file_path = NULL;
+	char *line = NULL;
+	size_t len = 0;
+	ssize_t read = 0;
+	bool entry_updated = false;
+
+	sysrepo_dir = getenv(SYSREPO_DIR_ENV_VAR);
+	if (sysrepo_dir == NULL) {
+		SRP_LOG_ERR("Unable to get env var %s", SYSREPO_DIR_ENV_VAR);
+		goto error_out;
+	}
+
+	desc_file_path = xmalloc(strlen(sysrepo_dir) + strlen(INTERFACE_DESCRIPTION_PATH) + 1);
+
+	if (sprintf(desc_file_path, "%s%s", sysrepo_dir, INTERFACE_DESCRIPTION_PATH) < 0) {
+		goto error_out;
+	}
+
+	if (sprintf(entry, "%s=%s\n", name, description) < 0) {
+		goto error_out;
+	}
+
+	// if the file exists
+	if (access(desc_file_path, F_OK) == 0){
+		tmp_desc_file_path = xmalloc(strlen(sysrepo_dir) + strlen(TMP_INTERFACE_DESCRIPTION_PATH) + 1);
+
+		if (sprintf(tmp_desc_file_path, "%s%s", sysrepo_dir, TMP_INTERFACE_DESCRIPTION_PATH) < 0) {
+			goto error_out;
+		}
+
+		fp = fopen(desc_file_path, "r");
+		if (fp == NULL) {
+			goto error_out;
+		}
+
+		fp_tmp = fopen (tmp_desc_file_path, "a");
+		if (fp_tmp == NULL) {
+			goto error_out;
+		}
+
+		while ((read = getline(&line, &len, fp)) != -1) {
+			// check if interface with name already exists
+			if (strncmp(line, name, strlen(name)) == 0) {
+				// update it
+				fputs(entry, fp_tmp);
+				entry_updated = true;
+				break;
+			} else {
+				fputs(line, fp_tmp);
+			}
+		}
+
+		FREE_SAFE(line);
+		fclose(fp);
+		fclose(fp_tmp);
+
+		// rename the tmp file
+		if (rename(tmp_desc_file_path, desc_file_path) != 0) {
+			goto error_out;
+		}
+
+		FREE_SAFE(tmp_desc_file_path);
+	}
+
+	// if the current entry wasn't updated, append it
+	if (!entry_updated) {
+		fp = fopen(desc_file_path, "a");
+		if (fp == NULL) {
+			goto error_out;
+		}
+
+		fputs(entry, fp);
+
+		fclose(fp);
+	}
+
+	FREE_SAFE(desc_file_path);
+	return 0;
+
+error_out:
+	if (desc_file_path != NULL) {
+		FREE_SAFE(desc_file_path);
+	}
+
+	if (tmp_desc_file_path != NULL) {
+		FREE_SAFE(tmp_desc_file_path);
+	}
+
+	if (fp != NULL) {
+		fclose(fp);
+	}
+
+	if (fp_tmp != NULL) {
+		fclose(fp_tmp);
+	}
+
+	return -1;
+ }
+
+ static int get_interface_description(char *name, char **description)
+ {
+	FILE *fp = NULL;
+	char *line = NULL;
+	size_t len = 0;
+	ssize_t read = 0;
+	char *sysrepo_dir = NULL;
+	char *desc_file_path = NULL; // ${SYSREPO_DIR}INTERFACE_DESCRIPTION_PATH
+	bool entry_found = false;
+	char *token = NULL;
+	char *tmp_description = NULL;
+
+	sysrepo_dir = getenv(SYSREPO_DIR_ENV_VAR);
+	if (sysrepo_dir == NULL) {
+		return -1;
+	}
+
+	desc_file_path = xmalloc(strlen(sysrepo_dir) + strlen(INTERFACE_DESCRIPTION_PATH) + 1);
+
+	if (sprintf(desc_file_path, "%s%s", sysrepo_dir, INTERFACE_DESCRIPTION_PATH) < 0) {
+		FREE_SAFE(desc_file_path);
+		return -1;
+	}
+
+	// check if file exists
+	if (access(desc_file_path, F_OK) != 0){
+		SRP_LOG_ERRMSG("File doesn't exist. No descriptions are set.");
+		FREE_SAFE(desc_file_path);
+		return -1;
+	}
+
+	fp = fopen(desc_file_path, "r");
+	if (fp == NULL) {
+		FREE_SAFE(desc_file_path);
+		return -1;
+	}
+
+	while ((read = getline(&line, &len, fp)) != -1) {
+		// find description for given interface name
+		if (strncmp(line, name, strlen(name)) == 0) {
+			// remove the newline char from line
+			line[strlen(line) - 1] = '\0';
+
+			token = strtok(line, "=");
+			if (token != NULL) {
+				tmp_description = strtok(NULL, "=");
+				size_t desc_len = strlen(tmp_description);
+				*description = xcalloc(desc_len + 1, sizeof(char));
+				strncpy(*description, tmp_description, desc_len);
+			}
+			entry_found = true;
+			break;
+		}
+	}
+
+	FREE_SAFE(line);
+	fclose(fp);
+	FREE_SAFE(desc_file_path);
+
+	if (!entry_found) {
+		SRP_LOG_ERR("No description for interface %s was found", name);
+		return -1;
+	}
+
+	return 0;
+ }
+
 static int interfaces_state_data_cb(sr_session_ctx_t *session, const char *module_name, const char *path, const char *request_xpath, uint32_t request_id, struct lyd_node **parent, void *private_data)
 {
 	int error = SR_ERR_OK;
@@ -720,7 +910,14 @@ static int interfaces_state_data_cb(sr_session_ctx_t *session, const char *modul
 		rtnl_tc_set_link(tc, link);
 
 		interface_data.name = rtnl_link_get_name(link);
-		// interface_data.description = ?
+
+		error = get_interface_description(interface_data.name, &interface_data.description);
+		if (error != 0) {
+			SRP_LOG_ERRMSG("get_interface_description error");
+			// don't return in case of error
+			// some interfaces may not have a description already set (wlan0, etc.)
+		}
+
 		interface_data.type = rtnl_link_get_type(link);
 		interface_data.enabled = rtnl_link_get_operstate(link) == IF_OPER_UP ? "enabled" : "disabled";
 		// interface_data.link_up_down_trap_enable = ?
@@ -760,7 +957,7 @@ static int interfaces_state_data_cb(sr_session_ctx_t *session, const char *modul
 		// stats:
 		char system_boot_time[DATETIME_BUF_SIZE] = {0};
 		error = get_system_boot_time(system_boot_time);
-		if (error) {
+		if (error != 0) {
 			SRP_LOG_ERR("get_system_boot_time error: %s", strerror(errno));
 			goto error_out;
 		}
@@ -789,6 +986,11 @@ static int interfaces_state_data_cb(sr_session_ctx_t *session, const char *modul
 		snprintf(xpath_buffer, sizeof(xpath_buffer), "%s/name", interface_path_buffer);
 		SRP_LOG_DBG("%s = %s", xpath_buffer, interface_data.name);
 		lyd_new_path(*parent, ly_ctx, xpath_buffer, interface_data.name, LYD_ANYDATA_CONSTSTRING, 0);
+
+		// description
+		snprintf(xpath_buffer, sizeof(xpath_buffer), "%s/description", interface_path_buffer);
+		SRP_LOG_DBG("%s = %s", xpath_buffer, interface_data.description);
+		lyd_new_path(*parent, ly_ctx, xpath_buffer, interface_data.description, LYD_ANYDATA_CONSTSTRING, 0);
 
 		// type
 		snprintf(xpath_buffer, sizeof(xpath_buffer), "%s/type", interface_path_buffer);
@@ -905,6 +1107,9 @@ static int interfaces_state_data_cb(sr_session_ctx_t *session, const char *modul
 
 		// free all allocated data
 		free(interface_data.phys_address);
+		if (interface_data.description != NULL) {
+			FREE_SAFE(interface_data.description);
+		}
 
 		// continue to next link node
 		link = (struct rtnl_link *) nl_cache_get_next((struct nl_object *) link);
