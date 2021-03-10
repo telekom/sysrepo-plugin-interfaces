@@ -983,125 +983,194 @@ static int interfaces_state_data_cb(sr_session_ctx_t *session, const char *modul
 		snprintf(interface_path_buffer, sizeof(interface_path_buffer) / sizeof(char), "%s[name=\"%s\"]", INTERFACE_LIST_YANG_PATH, rtnl_link_get_name(link));
 
 		// name
-		snprintf(xpath_buffer, sizeof(xpath_buffer), "%s/name", interface_path_buffer);
+		error = snprintf(xpath_buffer, sizeof(xpath_buffer), "%s/name", interface_path_buffer);
+		if (error < 0) {
+			goto error_out;
+		}
 		SRP_LOG_DBG("%s = %s", xpath_buffer, interface_data.name);
 		lyd_new_path(*parent, ly_ctx, xpath_buffer, interface_data.name, LYD_ANYDATA_CONSTSTRING, 0);
 
 		// description
-		snprintf(xpath_buffer, sizeof(xpath_buffer), "%s/description", interface_path_buffer);
+		error = snprintf(xpath_buffer, sizeof(xpath_buffer), "%s/description", interface_path_buffer);
+		if (error < 0) {
+			goto error_out;
+		}
 		SRP_LOG_DBG("%s = %s", xpath_buffer, interface_data.description);
 		lyd_new_path(*parent, ly_ctx, xpath_buffer, interface_data.description, LYD_ANYDATA_CONSTSTRING, 0);
 
 		// type
-		snprintf(xpath_buffer, sizeof(xpath_buffer), "%s/type", interface_path_buffer);
+		error = snprintf(xpath_buffer, sizeof(xpath_buffer), "%s/type", interface_path_buffer);
+		if (error < 0) {
+			goto error_out;
+		}
 		SRP_LOG_DBG("%s = %s", xpath_buffer, interface_data.type);
 		lyd_new_path(*parent, ly_ctx, xpath_buffer, interface_data.type, LYD_ANYDATA_CONSTSTRING, 0);
 
 		// oper-status
-		snprintf(xpath_buffer, sizeof(xpath_buffer), "%s/oper-status", interface_path_buffer);
+		error = snprintf(xpath_buffer, sizeof(xpath_buffer), "%s/oper-status", interface_path_buffer);
+		if (error < 0) {
+			goto error_out;
+		}
 		SRP_LOG_DBG("%s = %s", xpath_buffer, interface_data.oper_status);
 		lyd_new_path(*parent, ly_ctx, xpath_buffer, (char *) interface_data.oper_status, LYD_ANYDATA_CONSTSTRING, 0);
 
 		// last-change -> only if changed at one point
 		if (interface_data.last_change != NULL) {
-			snprintf(xpath_buffer, sizeof(xpath_buffer), "%s/last-change", interface_path_buffer);
+			error = snprintf(xpath_buffer, sizeof(xpath_buffer), "%s/last-change", interface_path_buffer);
+			if (error < 0) {
+				goto error_out;
+			}
 			SRP_LOG_DBG("%s = %s", xpath_buffer, interface_data.type);
 			strftime(tmp_buffer, sizeof tmp_buffer, "%FT%TZ", interface_data.last_change);
 			lyd_new_path(*parent, ly_ctx, xpath_buffer, tmp_buffer, LYD_ANYDATA_CONSTSTRING, 0);
 		}
 
 		// if-index
-		snprintf(xpath_buffer, sizeof(xpath_buffer), "%s/if-index", interface_path_buffer);
+		error = snprintf(xpath_buffer, sizeof(xpath_buffer), "%s/if-index", interface_path_buffer);
+		if (error < 0) {
+			goto error_out;
+		}
 		SRP_LOG_DBG("%s = %d", xpath_buffer, interface_data.if_index);
 		snprintf(tmp_buffer, sizeof(tmp_buffer), "%u", interface_data.if_index);
 		lyd_new_path(*parent, ly_ctx, xpath_buffer, tmp_buffer, LYD_ANYDATA_CONSTSTRING, 0);
 
 		// phys-address
-		snprintf(xpath_buffer, sizeof(xpath_buffer), "%s/phys-address", interface_path_buffer);
+		error = snprintf(xpath_buffer, sizeof(xpath_buffer), "%s/phys-address", interface_path_buffer);
+		if (error < 0) {
+			goto error_out;
+		}
 		SRP_LOG_DBG("%s = %s", xpath_buffer, interface_data.phys_address);
 		lyd_new_path(*parent, ly_ctx, xpath_buffer, interface_data.phys_address, LYD_ANYDATA_CONSTSTRING, 0);
 
 		// speed
-		snprintf(xpath_buffer, sizeof(xpath_buffer), "%s/speed", interface_path_buffer);
+		error = snprintf(xpath_buffer, sizeof(xpath_buffer), "%s/speed", interface_path_buffer);
+		if (error < 0) {
+			goto error_out;
+		}
 		SRP_LOG_DBG("%s = %s", xpath_buffer, interface_data.speed);
 		snprintf(tmp_buffer, sizeof(tmp_buffer), "%lu", interface_data.speed);
 		lyd_new_path(*parent, ly_ctx, xpath_buffer, tmp_buffer, LYD_ANYDATA_CONSTSTRING, 0);
 
 		// higher-layer-if
 		for (uint64_t i = 0; i < interface_data.higher_layer_if.count; i++) {
-			snprintf(xpath_buffer, sizeof(xpath_buffer), "%s/higher-layer-if", interface_path_buffer);
+			error = snprintf(xpath_buffer, sizeof(xpath_buffer), "%s/higher-layer-if", interface_path_buffer);
+			if (error < 0) {
+				goto error_out;
+			}
 			SRP_LOG_DBG("%s += %s", xpath_buffer, interface_data.higher_layer_if.data[i]);
 			lyd_new_path(*parent, ly_ctx, xpath_buffer, interface_data.higher_layer_if.data[i], LYD_ANYDATA_CONSTSTRING, 0);
 		}
 
 		// stats:
 		// discontinuity-time
-		snprintf(xpath_buffer, sizeof(xpath_buffer), "%s/statistics/discontinuity-time", interface_path_buffer);
+		error = snprintf(xpath_buffer, sizeof(xpath_buffer), "%s/statistics/discontinuity-time", interface_path_buffer);
+		if (error < 0) {
+			goto error_out;
+		}
 		SRP_LOG_DBG("%s = %s", xpath_buffer, interface_data.statistics.discontinuity_time);
 		lyd_new_path(*parent, ly_ctx, xpath_buffer, interface_data.statistics.discontinuity_time, LYD_ANYDATA_CONSTSTRING, 0);
 
 		// in-octets
-		snprintf(xpath_buffer, sizeof(xpath_buffer), "%s/statistics/in-octets", interface_path_buffer);
+		error = snprintf(xpath_buffer, sizeof(xpath_buffer), "%s/statistics/in-octets", interface_path_buffer);
+		if (error < 0) {
+			goto error_out;
+		}
 		snprintf(tmp_buffer, sizeof(tmp_buffer), "%lu", interface_data.statistics.in_octets);
 		lyd_new_path(*parent, ly_ctx, xpath_buffer, tmp_buffer, LYD_ANYDATA_CONSTSTRING, 0);
 
 		// in-unicast-pkts
-		snprintf(xpath_buffer, sizeof(xpath_buffer), "%s/statistics/in-unicast-pkts", interface_path_buffer);
+		error = snprintf(xpath_buffer, sizeof(xpath_buffer), "%s/statistics/in-unicast-pkts", interface_path_buffer);
+		if (error < 0) {
+			goto error_out;
+		}
 		snprintf(tmp_buffer, sizeof(tmp_buffer), "%lu", interface_data.statistics.in_unicast_pkts);
 		lyd_new_path(*parent, ly_ctx, xpath_buffer, tmp_buffer, LYD_ANYDATA_CONSTSTRING, 0);
 
 		// in-broadcast-pkts
-		snprintf(xpath_buffer, sizeof(xpath_buffer), "%s/statistics/in-broadcast-pkts", interface_path_buffer);
+		error = snprintf(xpath_buffer, sizeof(xpath_buffer), "%s/statistics/in-broadcast-pkts", interface_path_buffer);
+		if (error < 0) {
+			goto error_out;
+		}
 		snprintf(tmp_buffer, sizeof(tmp_buffer), "%lu", interface_data.statistics.in_broadcast_pkts);
 		lyd_new_path(*parent, ly_ctx, xpath_buffer, tmp_buffer, LYD_ANYDATA_CONSTSTRING, 0);
 
 		// in-multicast-pkts
-		snprintf(xpath_buffer, sizeof(xpath_buffer), "%s/statistics/in-multicast-pkts", interface_path_buffer);
+		error = snprintf(xpath_buffer, sizeof(xpath_buffer), "%s/statistics/in-multicast-pkts", interface_path_buffer);
+		if (error < 0) {
+			goto error_out;
+		}
 		snprintf(tmp_buffer, sizeof(tmp_buffer), "%lu", interface_data.statistics.in_multicast_pkts);
 		lyd_new_path(*parent, ly_ctx, xpath_buffer, tmp_buffer, LYD_ANYDATA_CONSTSTRING, 0);
 
 		// in-discards
-		snprintf(xpath_buffer, sizeof(xpath_buffer), "%s/statistics/in-discards", interface_path_buffer);
+		error = snprintf(xpath_buffer, sizeof(xpath_buffer), "%s/statistics/in-discards", interface_path_buffer);
+		if (error < 0) {
+			goto error_out;
+		}
 		snprintf(tmp_buffer, sizeof(tmp_buffer), "%u", interface_data.statistics.in_discards);
 		lyd_new_path(*parent, ly_ctx, xpath_buffer, tmp_buffer, LYD_ANYDATA_CONSTSTRING, 0);
 
 		// in-errors
-		snprintf(xpath_buffer, sizeof(xpath_buffer), "%s/statistics/in-errors", interface_path_buffer);
+		error = snprintf(xpath_buffer, sizeof(xpath_buffer), "%s/statistics/in-errors", interface_path_buffer);
+		if (error < 0) {
+			goto error_out;
+		}
 		snprintf(tmp_buffer, sizeof(tmp_buffer), "%u", interface_data.statistics.in_errors);
 		lyd_new_path(*parent, ly_ctx, xpath_buffer, tmp_buffer, LYD_ANYDATA_CONSTSTRING, 0);
 
 		// in-unknown-protos
-		snprintf(xpath_buffer, sizeof(xpath_buffer), "%s/statistics/in-unknown-protos", interface_path_buffer);
+		error = snprintf(xpath_buffer, sizeof(xpath_buffer), "%s/statistics/in-unknown-protos", interface_path_buffer);
+		if (error < 0) {
+			goto error_out;
+		}
 		snprintf(tmp_buffer, sizeof(tmp_buffer), "%u", interface_data.statistics.in_unknown_protos);
 		lyd_new_path(*parent, ly_ctx, xpath_buffer, tmp_buffer, LYD_ANYDATA_CONSTSTRING, 0);
 
 		// out-octets
-		snprintf(xpath_buffer, sizeof(xpath_buffer), "%s/statistics/out-octets", interface_path_buffer);
+		error = snprintf(xpath_buffer, sizeof(xpath_buffer), "%s/statistics/out-octets", interface_path_buffer);
+		if (error < 0) {
+			goto error_out;
+		}
 		snprintf(tmp_buffer, sizeof(tmp_buffer), "%lu", interface_data.statistics.out_octets);
 		lyd_new_path(*parent, ly_ctx, xpath_buffer, tmp_buffer, LYD_ANYDATA_CONSTSTRING, 0);
 
 		// out-unicast-pkts
-		snprintf(xpath_buffer, sizeof(xpath_buffer), "%s/statistics/out-unicast-pkts", interface_path_buffer);
+		error = snprintf(xpath_buffer, sizeof(xpath_buffer), "%s/statistics/out-unicast-pkts", interface_path_buffer);
+		if (error < 0) {
+			goto error_out;
+		}
 		snprintf(tmp_buffer, sizeof(tmp_buffer), "%lu", interface_data.statistics.out_unicast_pkts);
 		lyd_new_path(*parent, ly_ctx, xpath_buffer, tmp_buffer, LYD_ANYDATA_CONSTSTRING, 0);
 
 		// out-broadcast-pkts
-		snprintf(xpath_buffer, sizeof(xpath_buffer), "%s/statistics/out-broadcast-pkts", interface_path_buffer);
+		error = snprintf(xpath_buffer, sizeof(xpath_buffer), "%s/statistics/out-broadcast-pkts", interface_path_buffer);
+		if (error < 0) {
+			goto error_out;
+		}
 		snprintf(tmp_buffer, sizeof(tmp_buffer), "%lu", interface_data.statistics.out_broadcast_pkts);
 		lyd_new_path(*parent, ly_ctx, xpath_buffer, tmp_buffer, LYD_ANYDATA_CONSTSTRING, 0);
 
 		// out-multicast-pkts
-		snprintf(xpath_buffer, sizeof(xpath_buffer), "%s/statistics/out-multicast-pkts", interface_path_buffer);
+		error = snprintf(xpath_buffer, sizeof(xpath_buffer), "%s/statistics/out-multicast-pkts", interface_path_buffer);
+		if (error < 0) {
+			goto error_out;
+		}
 		snprintf(tmp_buffer, sizeof(tmp_buffer), "%lu", interface_data.statistics.out_multicast_pkts);
 		lyd_new_path(*parent, ly_ctx, xpath_buffer, tmp_buffer, LYD_ANYDATA_CONSTSTRING, 0);
 
 		// out-discards
-		snprintf(xpath_buffer, sizeof(xpath_buffer), "%s/statistics/out-discards", interface_path_buffer);
+		error = snprintf(xpath_buffer, sizeof(xpath_buffer), "%s/statistics/out-discards", interface_path_buffer);
+		if (error < 0) {
+			goto error_out;
+		}
 		snprintf(tmp_buffer, sizeof(tmp_buffer), "%u", interface_data.statistics.out_discards);
 		lyd_new_path(*parent, ly_ctx, xpath_buffer, tmp_buffer, LYD_ANYDATA_CONSTSTRING, 0);
 
 		// out-errors
-		snprintf(xpath_buffer, sizeof(xpath_buffer), "%s/statistics/out-errors", interface_path_buffer);
+		error = snprintf(xpath_buffer, sizeof(xpath_buffer), "%s/statistics/out-errors", interface_path_buffer);
+		if (error < 0) {
+			goto error_out;
+		}
 		snprintf(tmp_buffer, sizeof(tmp_buffer), "%u", interface_data.statistics.out_errors);
 		lyd_new_path(*parent, ly_ctx, xpath_buffer, tmp_buffer, LYD_ANYDATA_CONSTSTRING, 0);
 
