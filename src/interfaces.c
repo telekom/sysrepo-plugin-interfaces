@@ -455,12 +455,12 @@ int update_link_info(link_data_list_t *ld, sr_change_oper_t operation)
 		}
 
 		// desc
-		if (description != 0) {
+		if (description != NULL) {
 			rtnl_link_set_ifalias(request, description);
 		}
 
 		// type
-		if (type != 0) {
+		if (type != NULL) {
 			error = rtnl_link_set_type(request, type);
 			if (error < 0) {
 				SRP_LOG_ERR("rtnl_link_set_type error (%d): %s", error, nl_geterror(error));
@@ -469,7 +469,7 @@ int update_link_info(link_data_list_t *ld, sr_change_oper_t operation)
 		}
 
 		// enabled
-		if (enabled != 0) {
+		if (enabled != NULL) {
 			if (strcmp(enabled, "true") == 0) {
 				// set the interface to UP
 				rtnl_link_set_flags(request, (unsigned int)rtnl_link_str2flags("up"));
@@ -518,10 +518,10 @@ out:
 // TODO: move these functions to a file in utils?
 void link_init(link_data_t *l)
 {
-	l->name = 0;
-	l->description = 0;
-	l->type = 0;
-	l->enabled = 0;
+	l->name = NULL;
+	l->description = NULL;
+	l->type = NULL;
+	l->enabled = NULL;
 	l->delete = false;
 }
 
@@ -551,7 +551,7 @@ int link_data_list_add(link_data_list_t *ld, char *name)
 	}
 
 	for (int i = 0; i < ld->count; i++) {
-		if (ld->links[i].name != 0) { // in case we deleted a link it will be 0
+		if (ld->links[i].name != NULL) { // in case we deleted a link it will be NULL
 			if (strcmp(ld->links[i].name, name) == 0) {
 				name_found = true;
 				break;
