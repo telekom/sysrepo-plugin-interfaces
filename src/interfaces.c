@@ -1187,6 +1187,8 @@ static int interfaces_state_data_cb(sr_session_ctx_t *session, const char *modul
 	rtnl_qdisc_put(qdisc);
 	nl_cache_free(cache);
 
+	error = SR_ERR_OK; // set error to OK, since it will be modified by snprintf
+
 	goto out;
 
 error_out:
