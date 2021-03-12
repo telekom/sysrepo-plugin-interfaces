@@ -438,8 +438,6 @@ int update_link_info(link_data_list_t *ld, sr_change_oper_t operation)
 
 			// free the link from link_data_list
 			link_data_free(&ld->links[i]);
-			// and initialize the values
-			link_init(&ld->links[i]);
 
 			// cleanup
 			if (old != NULL) {
