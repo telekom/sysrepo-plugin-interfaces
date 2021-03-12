@@ -562,17 +562,15 @@ int link_data_list_add(link_data_list_t *ld, char *name)
 		// the one with name == 0
 		int pos = ld->count;
 		for (int i = 0; i < ld->count; i++) {
-			if (ld->links[i].name == 0) {
+			if (ld->links[i].name == NULL) {
 				pos = i;
-				// in case a link was deleted don't increase the counter
-				if (pos < ld->count) {
-					ld->count--;
-				}
 				break;
 			}
 		}
 		link_set_name(&ld->links[pos], name);
-		++ld->count;
+		if (pos == ld->count) {
+			++ld->count;
+		}
 	}
 	
 	return 0;
