@@ -1545,8 +1545,6 @@ void *manager_thread_cb(void *data)
 #include <signal.h>
 #include <unistd.h>
 
-volatile int exit_application = 0;
-
 static void sigint_handler(__attribute__((unused)) int signum);
 
 int main(void)
