@@ -396,7 +396,6 @@ out:
 int delete_config_value(const char *xpath, const char *value)
 {
 	int error = SR_ERR_OK;
-	//return SR_ERR_OK;
 	char *interface_node = NULL;
 	char *interface_node_name = NULL;
 	sr_xpath_ctx_t state = {0};
@@ -491,6 +490,8 @@ int update_link_info(link_data_list_t *ld, sr_change_oper_t operation)
 
 			// free the link from link_data_list
 			link_data_free(&ld->links[i]);
+			// set delete to false
+			ld->links[i].delete = false;
 
 			// cleanup
 			if (old != NULL) {
@@ -731,10 +732,12 @@ int link_data_list_set_delete(link_data_list_t *ld, char *name, bool delete)
 	int name_found = 0;
 
 	for (int i = 0; i < ld->count; i++) {
-		if (strcmp(ld->links[i].name, name) == 0) {
-			name_found = 1;
-			ld->links[i].delete = delete;
-			break;
+		if (ld->links[i].name != NULL) {
+			if (strcmp(ld->links[i].name, name) == 0) {
+				name_found = 1;
+				ld->links[i].delete = delete;
+				break;
+			}
 		}
 	}
 	if (!name_found) {
@@ -922,9 +925,13 @@ error_out:
 			token = strtok(line, "=");
 			if (token != NULL) {
 				tmp_description = strtok(NULL, "=");
-				size_t desc_len = strlen(tmp_description);
-				*description = xcalloc(desc_len + 1, sizeof(char));
-				strncpy(*description, tmp_description, desc_len);
+				if (tmp_description != NULL) {
+					size_t desc_len = strlen(tmp_description);
+					*description = xcalloc(desc_len + 1, sizeof(char));
+					strncpy(*description, tmp_description, desc_len);
+				} else {
+					entry_found = false;
+				}
 			}
 			entry_found = true;
 			break;
@@ -1448,6 +1455,11 @@ int init_state_changes(void)
 
 	while (link != NULL) {
 		++if_cnt;
+
+		// quickfix for existing interface without description set
+		char *tmp_name = rtnl_link_get_name(link);
+		set_interface_description(tmp_name, tmp_name);
+
 		link = (struct rtnl_link *) nl_cache_get_next((struct nl_object *) link);
 	}
 
