@@ -464,6 +464,11 @@ int add_link_info(link_data_list_t *ld)
 			// set the new name
 			rtnl_link_set_name(request, name);
 
+			// update the last-change state list
+			uint8_t state = rtnl_link_get_operstate(request);
+
+			if_state_list_add(&if_state_changes, state, name);
+
 			// add the interface
 			// note: if type is not set, you can't add the new link
 			error = rtnl_link_add(socket, request, NLM_F_CREATE);
@@ -926,8 +931,15 @@ static int interfaces_state_data_cb(sr_session_ctx_t *session, const char *modul
 		interface_data.if_index = rtnl_link_get_ifindex(link);
 
 		// last-change field
-		tmp_ifs = if_state_list_get_by_if_idx(&if_state_changes, interface_data.if_index);
+		tmp_ifs = if_state_list_get_by_if_name(&if_state_changes, interface_data.name);
 		interface_data.last_change = (tmp_ifs->last_change != 0) ? localtime(&tmp_ifs->last_change) : NULL;
+
+		// get_system_boot_time will change the struct tm which is held in interface_data.last_change if it's not NULL
+		char system_time[DATETIME_BUF_SIZE] = {0};
+		if (interface_data.last_change != NULL) {
+			// convert it to human readable format here
+			strftime(system_time, sizeof system_time, "%FT%TZ", interface_data.last_change);
+		}
 
 		// mac address
 		addr = rtnl_link_get_addr(link);
@@ -1021,8 +1033,7 @@ static int interfaces_state_data_cb(sr_session_ctx_t *session, const char *modul
 				goto error_out;
 			}
 			SRP_LOG_DBG("%s = %s", xpath_buffer, interface_data.type);
-			strftime(tmp_buffer, sizeof tmp_buffer, "%FT%TZ", interface_data.last_change);
-			lyd_new_path(*parent, ly_ctx, xpath_buffer, tmp_buffer, LYD_ANYDATA_CONSTSTRING, 0);
+			lyd_new_path(*parent, ly_ctx, xpath_buffer, system_time, LYD_ANYDATA_CONSTSTRING, 0);
 		}
 
 		// if-index
@@ -1321,7 +1332,14 @@ int init_state_changes(void)
 		tmp_st = if_state_list_get(&if_state_changes, if_cnt);
 		if (tmp_st) {
 			tmp_st->state = rtnl_link_get_operstate(link);
-			tmp_st->if_idx = rtnl_link_get_ifindex(link);
+
+			char *tmp_name = NULL;
+			tmp_name = rtnl_link_get_name(link);
+
+			size_t len = strlen(tmp_name);
+			tmp_st->name = xcalloc(len + 1, sizeof(char));
+			strncpy(tmp_st->name, tmp_name, len);
+			tmp_st->name[len] = '\0';
 		}
 
 		++if_cnt;
@@ -1360,23 +1378,23 @@ error_out:
 void cache_change_cb(struct nl_cache *cache, struct nl_object *obj, int val, void *arg)
 {
 	struct rtnl_link *link = NULL;
-	int if_idx = 0;
-	uint8_t tmp_state = 0;
+	char *name = NULL;
 	if_state_t *tmp_st = NULL;
+	uint8_t tmp_state = 0;
 
 	SRP_LOG_DBG("entered cb function for a link manager");
 
 	link = (struct rtnl_link *) nl_cache_get_first(cache);
 
 	while (link != NULL) {
-		if_idx = rtnl_link_get_ifindex(link);
-		tmp_st = if_state_list_get_by_if_idx(&if_state_changes, if_idx);
+		name = rtnl_link_get_name(link);
+		tmp_st = if_state_list_get_by_if_name(&if_state_changes, name);
 		tmp_state = rtnl_link_get_operstate(link);
 
 		if (tmp_state != tmp_st->state) {
-			SRP_LOG_DBG("Interface %d changed operstate from %d to %d", if_idx, tmp_st->state, tmp_state);
+			SRP_LOG_DBG("Interface %s changed operstate from %d to %d", name, tmp_st->state, tmp_state);
 			tmp_st->state = tmp_state;
-			tmp_st->last_change = time(0);
+			tmp_st->last_change = time(NULL);
 		}
 		link = (struct rtnl_link *) nl_cache_get_next((struct nl_object *) link);
 	}
