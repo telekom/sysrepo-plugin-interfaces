@@ -93,11 +93,11 @@ static int get_interface_description(char *name, char **description);
 static int get_system_boot_time(char boot_datetime[]);
 
 // function to start all threads for each interface
-int init_state_changes(void);
+static int init_state_changes(void);
 
 // callback function for a thread to track state changes on a specific interface (ifindex passed using void* data param)
-void *manager_thread_cb(void *data);
-void cache_change_cb(struct nl_cache *cache, struct nl_object *obj, int val, void *arg);
+static void *manager_thread_cb(void *data);
+static void cache_change_cb(struct nl_cache *cache, struct nl_object *obj, int val, void *arg);
 
 // static list of interface states for tracking state changes using threads
 static if_state_list_t if_state_changes;
@@ -1413,7 +1413,7 @@ static char *interfaces_xpath_get(const struct lyd_node *node)
 	}
 }
 
-int init_state_changes(void)
+static int init_state_changes(void)
 {
 	int error = 0;
 	struct nl_sock *socket = NULL;
@@ -1519,7 +1519,7 @@ error_out:
 	return error;
 }
 
-void cache_change_cb(struct nl_cache *cache, struct nl_object *obj, int val, void *arg)
+static void cache_change_cb(struct nl_cache *cache, struct nl_object *obj, int val, void *arg)
 {
 	struct rtnl_link *link = NULL;
 	char *name = NULL;
@@ -1544,7 +1544,7 @@ void cache_change_cb(struct nl_cache *cache, struct nl_object *obj, int val, voi
 	}
 }
 
-void *manager_thread_cb(void *data)
+static void *manager_thread_cb(void *data)
 {
 	do {
 		nl_cache_mngr_data_ready(link_manager);
