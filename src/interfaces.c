@@ -1332,7 +1332,7 @@ static int interfaces_state_data_cb(sr_session_ctx_t *session, const char *modul
 		lyd_new_path(*parent, ly_ctx, xpath_buffer, tmp_buffer, LYD_ANYDATA_CONSTSTRING, 0);
 
 		// free all allocated data
-		free(interface_data.phys_address);
+		FREE_SAFE(interface_data.phys_address);
 		if (interface_data.description != NULL) {
 			FREE_SAFE(interface_data.description);
 		}
