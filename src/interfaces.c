@@ -780,7 +780,9 @@ static int set_interface_description(char *name, char *description)
 	char entry[MAX_DESCR_LEN] = {0};
 	char *sysrepo_dir = NULL;
 	char *desc_file_path = NULL; // ${SYSREPO_DIR}INTERFACE_DESCRIPTION_PATH
+	size_t desc_file_path_len = 0;
 	char *tmp_desc_file_path = NULL;
+	size_t tmp_desc_file_path_len = 0;
 	char *line = NULL;
 	size_t len = 0;
 	ssize_t read = 0;
@@ -792,21 +794,24 @@ static int set_interface_description(char *name, char *description)
 		goto error_out;
 	}
 
-	desc_file_path = xmalloc(strlen(sysrepo_dir) + strlen(INTERFACE_DESCRIPTION_PATH) + 1);
+	desc_file_path_len = strlen(sysrepo_dir) + strlen(INTERFACE_DESCRIPTION_PATH) + 1;
+	desc_file_path = xmalloc(desc_file_path_len);
 
-	if (sprintf(desc_file_path, "%s%s", sysrepo_dir, INTERFACE_DESCRIPTION_PATH) < 0) {
+	if (snprintf(desc_file_path, desc_file_path_len, "%s%s", sysrepo_dir, INTERFACE_DESCRIPTION_PATH) < 0) {
 		goto error_out;
 	}
 
-	if (sprintf(entry, "%s=%s\n", name, description) < 0) {
+	if (snprintf(entry, MAX_DESCR_LEN, "%s=%s\n", name, description) < 0) {
 		goto error_out;
 	}
 
 	// if the file exists
 	if (access(desc_file_path, F_OK) == 0){
-		tmp_desc_file_path = xmalloc(strlen(sysrepo_dir) + strlen(TMP_INTERFACE_DESCRIPTION_PATH) + 1);
+		tmp_desc_file_path_len = strlen(sysrepo_dir) + strlen(TMP_INTERFACE_DESCRIPTION_PATH) + 1;
+		tmp_desc_file_path = xmalloc(tmp_desc_file_path_len);
 
-		if (sprintf(tmp_desc_file_path, "%s%s", sysrepo_dir, TMP_INTERFACE_DESCRIPTION_PATH) < 0) {
+		if (snprintf(tmp_desc_file_path, tmp_desc_file_path_len, "%s%s", sysrepo_dir,
+				TMP_INTERFACE_DESCRIPTION_PATH) < 0) {
 			goto error_out;
 		}
 
@@ -887,6 +892,7 @@ error_out:
 	ssize_t read = 0;
 	char *sysrepo_dir = NULL;
 	char *desc_file_path = NULL; // ${SYSREPO_DIR}INTERFACE_DESCRIPTION_PATH
+	size_t desc_file_path_len = 0;
 	bool entry_found = false;
 	char *token = NULL;
 	char *tmp_description = NULL;
@@ -896,9 +902,10 @@ error_out:
 		return -1;
 	}
 
-	desc_file_path = xmalloc(strlen(sysrepo_dir) + strlen(INTERFACE_DESCRIPTION_PATH) + 1);
+	desc_file_path_len = strlen(sysrepo_dir) + strlen(INTERFACE_DESCRIPTION_PATH) + 1;
+	desc_file_path = xmalloc(desc_file_path_len);
 
-	if (sprintf(desc_file_path, "%s%s", sysrepo_dir, INTERFACE_DESCRIPTION_PATH) < 0) {
+	if (snprintf(desc_file_path, desc_file_path_len, "%s%s", sysrepo_dir, INTERFACE_DESCRIPTION_PATH) < 0) {
 		FREE_SAFE(desc_file_path);
 		return -1;
 	}
