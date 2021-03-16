@@ -8,7 +8,7 @@
 #include <netlink/cache.h>
 #include <netlink/errno.h>
 #include <netlink/netlink.h>
-#include <utils/memory.h>
+#include "utils/memory.h"
 #include <string.h>
 #include <netlink/socket.h>
 #include <netlink/route/link.h>
@@ -20,7 +20,7 @@
 #include <linux/if.h>
 #include <pthread.h>
 #include <unistd.h>
-#include <utils/if_state.h>
+#include "utils/if_state.h"
 #include <time.h>
 #include <sys/sysinfo.h>
 
