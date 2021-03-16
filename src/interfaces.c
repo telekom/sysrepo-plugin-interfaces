@@ -125,7 +125,7 @@ int sr_plugin_init_cb(sr_session_ctx_t *session, void **private_data)
 
 	error = init_state_changes();
 	if (error != 0) {
-		SRP_LOG_ERR("Error occurred while initializing threads to track interface changes... exiting");
+		SRP_LOG_ERRMSG("Error occurred while initializing threads to track interface changes... exiting");
 		goto out;
 	}
 
@@ -1436,7 +1436,7 @@ int init_state_changes(void)
 
 	socket = nl_socket_alloc();
 	if (socket == NULL) {
-		SRP_LOG_ERR("nl_socket_alloc error: invalid socket");
+		SRP_LOG_ERRMSG("nl_socket_alloc error: invalid socket");
 		return -1;
 	}
 
@@ -1526,7 +1526,7 @@ void cache_change_cb(struct nl_cache *cache, struct nl_object *obj, int val, voi
 	if_state_t *tmp_st = NULL;
 	uint8_t tmp_state = 0;
 
-	SRP_LOG_DBG("entered cb function for a link manager");
+	SRP_LOG_DBGMSG("entered cb function for a link manager");
 
 	link = (struct rtnl_link *) nl_cache_get_first(cache);
 
