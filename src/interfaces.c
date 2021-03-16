@@ -1465,7 +1465,10 @@ static int init_state_changes(void)
 
 		// quickfix for existing interface without description set
 		char *tmp_name = rtnl_link_get_name(link);
-		set_interface_description(tmp_name, tmp_name);
+		error = set_interface_description(tmp_name, tmp_name);
+		if (error != 0) {
+			SRP_LOG_ERR("interface: %s, description %s, set_interface_description error: %s", tmp_name, tmp_name, strerror(errno));
+		}
 
 		link = (struct rtnl_link *) nl_cache_get_next((struct nl_object *) link);
 	}
