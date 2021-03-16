@@ -13,6 +13,7 @@ include_directories(
 set(SOURCES
     src/interfaces.c
     src/utils/memory.c
+    src/utils/if_state.c
 )
 
 # get sysrepo version
@@ -43,11 +44,16 @@ find_package(SYSREPO REQUIRED)
 find_package(LIBYANG REQUIRED)
 find_package(NL REQUIRED)
 
+# pthread api
+set(THREADS_PREFER_PTHREAD_FLAG ON)
+find_package(Threads REQUIRED)
+
 target_link_libraries(
     ${PROJECT_NAME}
     ${SYSREPO_LIBRARIES}
     ${LIBYANG_LIBRARIES}
     ${NL_LIBRARIES}
+    Threads::Threads
 )
 
 include_directories(
