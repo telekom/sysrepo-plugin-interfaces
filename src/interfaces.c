@@ -930,16 +930,18 @@ error_out:
 			line[strlen(line) - 1] = '\0';
 
 			token = strtok(line, "=");
-			if (token != NULL) {
-				tmp_description = strtok(NULL, "=");
-				if (tmp_description != NULL) {
-					size_t desc_len = strlen(tmp_description);
-					*description = xcalloc(desc_len + 1, sizeof(char));
-					strncpy(*description, tmp_description, desc_len);
-				} else {
-					entry_found = false;
-				}
+			if (token == NULL) {
+				continue;
 			}
+
+			tmp_description = strtok(NULL, "=");
+			if (tmp_description == NULL) {
+				continue;
+			}
+
+			size_t desc_len = strlen(tmp_description);
+			*description = xcalloc(desc_len + 1, sizeof(char));
+			strncpy(*description, tmp_description, desc_len);
 			entry_found = true;
 			break;
 		}
