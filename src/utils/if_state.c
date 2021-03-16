@@ -19,7 +19,7 @@ void if_state_free(if_state_t *st)
 
 void if_state_list_init(if_state_list_t *ls)
 {
-	ls->data = 0;
+	ls->data = NULL;
 	ls->count = 0;
 }
 
