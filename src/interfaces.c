@@ -70,7 +70,7 @@ static int interfaces_state_data_cb(sr_session_ctx_t *session, const char *modul
 
 // helper functions
 static bool system_running_datastore_is_empty_check(void);
-static int load_data(sr_session_ctx_t *session);
+static int load_data(sr_session_ctx_t *session, link_data_list_t *ld);
 static char *interfaces_xpath_get(const struct lyd_node *node);
 int set_config_value(const char *xpath, const char *value);
 int delete_config_value(const char *xpath, const char *value);
@@ -143,11 +143,10 @@ int sr_plugin_init_cb(sr_session_ctx_t *session, void **private_data)
 
 	*private_data = startup_session;
 
-	/* TODO: Uncomment when load_data is implemented (after operational data is done)
 	if (system_running_datastore_is_empty_check() == true) {
 		SRP_LOG_INFMSG("running DS is empty, loading data");
 
-		error = load_data(session);
+		error = load_data(session, &link_data_list);
 		if (error) {
 			SRP_LOG_ERRMSG("load_data error");
 			goto error_out;
@@ -158,7 +157,7 @@ int sr_plugin_init_cb(sr_session_ctx_t *session, void **private_data)
 			SRP_LOG_ERR("sr_copy_config error (%d): %s", error, sr_strerror(error));
 			goto error_out;
 		}
-	} */
+	}
 
 	SRP_LOG_INFMSG("subscribing to module change");
 
@@ -210,11 +209,81 @@ out:
 	return is_empty;
 }
 
-static int load_data(sr_session_ctx_t *session)
+static int load_data(sr_session_ctx_t *session, link_data_list_t *ld)
 {
 	int error = 0;
+	char interface_path_buffer[PATH_MAX] = {0};
+	char xpath_buffer[PATH_MAX] = {0};
 
-	// TODO: call function to gather everything from interfaces_state_data_cb
+	for (int i = 0; i < ld->count; i++) {
+		char *name = ld->links[i].name;
+		char *type = ld->links[i].type;
+		char *description = ld->links[i].description;
+		char *enabled = ld->links[i].enabled;
+
+		snprintf(interface_path_buffer, sizeof(interface_path_buffer) / sizeof(char), "%s[name=\"%s\"]", INTERFACE_LIST_YANG_PATH, name);
+
+		error = snprintf(xpath_buffer, sizeof(xpath_buffer), "%s/name", interface_path_buffer);
+		if (error < 0) {
+			goto error_out;
+		}
+
+		error = sr_set_item_str(session, xpath_buffer, name, NULL, SR_EDIT_DEFAULT);
+		if (error) {
+			SRP_LOG_ERR("sr_set_item_str error (%d): %s", error, sr_strerror(error));
+			goto error_out;
+		}
+
+		error = snprintf(xpath_buffer, sizeof(xpath_buffer), "%s/description", interface_path_buffer);
+		if (error < 0) {
+			goto error_out;
+		}
+
+		error = sr_set_item_str(session, xpath_buffer, description, NULL, SR_EDIT_DEFAULT);
+		if (error) {
+			SRP_LOG_ERR("sr_set_item_str error (%d): %s", error, sr_strerror(error));
+			goto error_out;
+		}
+
+		error = snprintf(xpath_buffer, sizeof(xpath_buffer), "%s/type", interface_path_buffer);
+		if (error < 0) {
+			goto error_out;
+		}
+
+		/* For existing interface the type will be null since it was not set by the plugin.
+		 * These interfaces may include: a loopback, a wlan, a eth device etc.
+		 * quickfix: If the type is NULL and name is 'lo' set it to "iana-if-type:softwareLoopback"
+		 * 			 If the type is NULL, set it to 'iana-if-type:ethernetCsmacd'
+		 *			 Otherwise sr_set_item_str will fail
+		 * TODO:
+		 *		- add a function that maps "real" interface type to ianaift type
+		 */
+
+		if (type == NULL && strcmp(name, "lo") == 0) {
+			type = "iana-if-type:softwareLoopback";
+		} else if (type == NULL) {
+			type = "iana-if-type:ethernetCsmacd";
+		} else if (strcmp(type, "dummy") == 0) {
+			type = "iana-if-type:other"; // since dummy is not a real type
+		}
+
+		error = sr_set_item_str(session, xpath_buffer, type, NULL, SR_EDIT_DEFAULT);
+		if (error) {
+			SRP_LOG_ERR("sr_set_item_str error (%d): %s", error, sr_strerror(error));
+			goto error_out;
+		}
+
+		error = snprintf(xpath_buffer, sizeof(xpath_buffer), "%s/enabled", interface_path_buffer);
+		if (error < 0) {
+			goto error_out;
+		}
+
+		error = sr_set_item_str(session, xpath_buffer, enabled, NULL, SR_EDIT_DEFAULT);
+		if (error) {
+			SRP_LOG_ERR("sr_set_item_str error (%d): %s", error, sr_strerror(error));
+			goto error_out;
+		}
+	}
 
 	error = sr_apply_changes(session, 0, 0);
 	if (error) {
