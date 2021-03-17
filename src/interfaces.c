@@ -78,7 +78,8 @@ int update_link_info(link_data_list_t *ld, sr_change_oper_t operation);
 
 void link_init(link_data_t *l);
 void link_set_name(link_data_t *l, char *name);
-void link_data_list_init(link_data_list_t *ld);
+static int link_data_list_init(link_data_list_t *ld);
+static int add_existing_links(link_data_list_t *ld);
 int link_data_list_remove(link_data_list_t *ld, char *name);
 int link_data_list_add(link_data_list_t *ld, char *name);
 int link_data_list_set_description(link_data_list_t *ld, char *name, char *description);
@@ -117,7 +118,11 @@ int sr_plugin_init_cb(sr_session_ctx_t *session, void **private_data)
 
 	*private_data = NULL;
 
-	link_data_list_init(&link_data_list);
+	error = link_data_list_init(&link_data_list);
+	if (error != 0) {
+		SRP_LOG_ERRMSG("link_data_list_init error");
+		goto out;
+	}
 
 	SRP_LOG_INFMSG("start session to startup datastore");
 
@@ -476,6 +481,10 @@ int update_link_info(link_data_list_t *ld, sr_change_oper_t operation)
 		char *enabled = ld->links[i].enabled;
 		bool delete = ld->links[i].delete;
 
+		if (name == NULL) {
+			continue;
+		}
+
 		struct rtnl_link *old = rtnl_link_get_by_name(cache, name);
 		struct rtnl_link *request = rtnl_link_alloc();
 
@@ -586,12 +595,127 @@ void link_init(link_data_t *l)
 	l->delete = false;
 }
 
-void link_data_list_init(link_data_list_t *ld)
+static int link_data_list_init(link_data_list_t *ld)
 {
+	int error = 0;
+
 	for (int i = 0; i < LD_MAX_LINKS; i++) {
 		link_init(&ld->links[i]);
 	}
 	ld->count = 0;
+
+	error = add_existing_links(ld);
+	if (error != 0) {
+		return -1;
+	}
+
+	return 0;
+}
+
+static int add_existing_links(link_data_list_t *ld)
+{
+	int error = 0;
+	struct nl_sock *socket = NULL;
+	struct nl_cache *cache = NULL;
+	struct rtnl_link *link = NULL;
+
+	socket = nl_socket_alloc();
+	if (socket == NULL) {
+		SRP_LOG_ERR("nl_socket_alloc error: invalid socket");
+		goto error_out;
+	}
+
+	error = nl_connect(socket, NETLINK_ROUTE);
+	if (error != 0) {
+		SRP_LOG_ERR("nl_connect error (%d): %s", error, nl_geterror(error));
+		goto error_out;
+	}
+
+	error = rtnl_link_alloc_cache(socket, AF_UNSPEC, &cache);
+	if (error != 0) {
+		SRP_LOG_ERR("rtnl_link_alloc_cache error (%d): %s", error, nl_geterror(error));
+		goto error_out;
+	}
+
+	link = (struct rtnl_link *) nl_cache_get_first(cache);
+
+	while (link != NULL) {
+		char *name = NULL;
+		char *description = NULL;
+		char *type = NULL;
+		char *enabled = NULL;
+
+		name = rtnl_link_get_name(link);
+		if (name == NULL) {
+			SRP_LOG_ERRMSG("rtnl_link_get_name error");
+			goto error_out;
+		}
+
+		error = get_interface_description(name, &description);
+		if (error != 0) {
+			SRP_LOG_ERRMSG("get_interface_description error");
+			// don't return in case of error
+			// some interfaces may not have a description already set (wlan0, etc.)
+		}
+
+		type = rtnl_link_get_type(link);
+
+		enabled = rtnl_link_get_operstate(link) == IF_OPER_UP ? "true" : "false";
+
+		error = link_data_list_add(ld, name);
+		if (error != 0) {
+			SRP_LOG_ERRMSG("link_data_list_add error");
+			goto error_out;
+		}
+
+		if (description != NULL) {
+			error = link_data_list_set_description(ld, name, description);
+			if (error != 0) {
+				SRP_LOG_ERRMSG("link_data_list_set_description error");
+				goto error_out;
+			}
+		}
+
+		if (type != NULL) {
+			error = link_data_list_set_type(ld, name, type);
+			if (error != 0) {
+				SRP_LOG_ERRMSG("link_data_list_set_type error");
+				goto error_out;
+			}
+		}
+
+		error = link_data_list_set_enabled(ld, name, enabled);
+		if (error != 0) {
+			SRP_LOG_ERRMSG("link_data_list_set_enabled error");
+			goto error_out;
+		}
+
+		link = (struct rtnl_link *) nl_cache_get_next((struct nl_object *) link);
+
+		if (description != NULL) { // it was allocated in get_interface_description
+			FREE_SAFE(description);
+		}
+	}
+
+	rtnl_link_put(link);
+
+	nl_socket_free(socket);
+	nl_cache_free(cache);
+
+	return 0;
+
+error_out:
+	if (socket != NULL) {
+		nl_socket_free(socket);
+	}
+
+	if (link != NULL) {
+		rtnl_link_put(link);
+	}
+
+	nl_cache_free(cache);
+
+	return -1;
 }
 
 void link_set_name(link_data_t *l, char *name)
@@ -645,20 +769,22 @@ int link_data_list_set_description(link_data_list_t *ld, char *name, char *descr
 	int name_found = 0;
 
 	for (int i = 0; i < ld->count; i++) {
-		if (strcmp(ld->links[i].name, name) == 0) {
-			name_found = 1;
+		if (ld->links[i].name != NULL) {
+			if (strcmp(ld->links[i].name, name) == 0) {
+				name_found = 1;
 
-			if (ld->links[i].description  != NULL) {
-				FREE_SAFE(ld->links[i].description );
+				if (ld->links[i].description  != NULL) {
+					FREE_SAFE(ld->links[i].description );
+				}
+
+				unsigned long tmp_len = 0;
+				tmp_len = strlen(description);
+				ld->links[i].description = xmalloc(sizeof(char) * (tmp_len + 1));
+				memcpy(ld->links[i].description, description, tmp_len);
+				ld->links[i].description[tmp_len] = 0;
+
+				break;
 			}
-
-			unsigned long tmp_len = 0;
-			tmp_len = strlen(description);
-			ld->links[i].description = xmalloc(sizeof(char) * (tmp_len + 1));
-			memcpy(ld->links[i].description, description, tmp_len);
-			ld->links[i].description[tmp_len] = 0;
-
-			break;
 		}
 	}
 	if (!name_found) {
@@ -674,20 +800,22 @@ int link_data_list_set_type(link_data_list_t *ld, char *name, char *type)
 	int name_found = 0;
 
 	for (int i = 0; i < ld->count; i++) {
-		if (strcmp(ld->links[i].name, name) == 0) {
-			name_found = 1;
+		if (ld->links[i].name != NULL) {
+			if (strcmp(ld->links[i].name, name) == 0) {
+				name_found = 1;
 
-			if (ld->links[i].type  != NULL) {
-				FREE_SAFE(ld->links[i].type );
+				if (ld->links[i].type  != NULL) {
+					FREE_SAFE(ld->links[i].type );
+				}
+
+				unsigned long tmp_len = 0;
+				tmp_len = strlen(type);
+				ld->links[i].type = xmalloc(sizeof(char) * (tmp_len + 1));
+				memcpy(ld->links[i].type, type, tmp_len);
+				ld->links[i].type[tmp_len] = 0;
+
+				break;
 			}
-
-			unsigned long tmp_len = 0;
-			tmp_len = strlen(type);
-			ld->links[i].type = xmalloc(sizeof(char) * (tmp_len + 1));
-			memcpy(ld->links[i].type, type, tmp_len);
-			ld->links[i].type[tmp_len] = 0;
-
-			break;
 		}
 	}
 	if (!name_found) {
@@ -703,20 +831,22 @@ int link_data_list_set_enabled(link_data_list_t *ld, char *name, char *enabled)
 	int name_found = 0;
 
 	for (int i = 0; i < ld->count; i++) {
-		if (strcmp(ld->links[i].name, name) == 0) {
-			name_found = 1;
+		if (ld->links[i].name != NULL) {
+			if (strcmp(ld->links[i].name, name) == 0) {
+				name_found = 1;
 
-			if (ld->links[i].enabled  != NULL) {
-				FREE_SAFE(ld->links[i].enabled );
+				if (ld->links[i].enabled  != NULL) {
+					FREE_SAFE(ld->links[i].enabled );
+				}
+
+				unsigned long tmp_len = 0;
+				tmp_len = strlen(enabled);
+				ld->links[i].enabled = xmalloc(sizeof(char) * (tmp_len + 1));
+				memcpy(ld->links[i].enabled, enabled, tmp_len);
+				ld->links[i].enabled[tmp_len] = 0;
+
+				break;
 			}
-
-			unsigned long tmp_len = 0;
-			tmp_len = strlen(enabled);
-			ld->links[i].enabled = xmalloc(sizeof(char) * (tmp_len + 1));
-			memcpy(ld->links[i].enabled, enabled, tmp_len);
-			ld->links[i].enabled[tmp_len] = 0;
-
-			break;
 		}
 	}
 	if (!name_found) {
@@ -1464,13 +1594,6 @@ static int init_state_changes(void)
 
 	while (link != NULL) {
 		++if_cnt;
-
-		// quickfix for existing interface without description set
-		char *tmp_name = rtnl_link_get_name(link);
-		error = set_interface_description(tmp_name, tmp_name);
-		if (error != 0) {
-			SRP_LOG_ERR("interface: %s, description %s, set_interface_description error: %s", tmp_name, tmp_name, strerror(errno));
-		}
 
 		link = (struct rtnl_link *) nl_cache_get_next((struct nl_object *) link);
 	}
