@@ -5,7 +5,7 @@
     <interface>
         <name>test_interface</name>
         <description>this is a test interface</description>
-        <type>ianaift:softwareLoopback</type>
+        <type>ianaift:other</type>
         <enabled>false</enabled>
     </interface>
 

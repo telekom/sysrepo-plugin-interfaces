@@ -41,13 +41,6 @@ typedef struct {
 
 static link_data_list_t link_data_list = {0};
 
-// TODO: update
-const char *link_types[] = {
-	"bridge",
-	"bond",
-	"dummy"
-};
-
 #define BASE_YANG_MODEL "ietf-interfaces"
 
 #define SYSREPOCFG_EMPTY_CHECK_COMMAND "sysrepocfg -X -d running -m " BASE_YANG_MODEL
@@ -75,6 +68,7 @@ static char *interfaces_xpath_get(const struct lyd_node *node);
 int set_config_value(const char *xpath, const char *value);
 int delete_config_value(const char *xpath, const char *value);
 int update_link_info(link_data_list_t *ld, sr_change_oper_t operation);
+static char *convert_ianaiftype(char *iana_if_type);
 
 void link_init(link_data_t *l);
 void link_set_name(link_data_t *l, char *name);
@@ -255,14 +249,16 @@ static int load_data(sr_session_ctx_t *session, link_data_list_t *ld)
 		 * quickfix: If the type is NULL and name is 'lo' set it to "iana-if-type:softwareLoopback"
 		 * 			 If the type is NULL, set it to 'iana-if-type:ethernetCsmacd'
 		 *			 Otherwise sr_set_item_str will fail
-		 * TODO:
-		 *		- add a function that maps "real" interface type to ianaift type
 		 */
 
 		if (type == NULL && strcmp(name, "lo") == 0) {
 			type = "iana-if-type:softwareLoopback";
 		} else if (type == NULL) {
 			type = "iana-if-type:ethernetCsmacd";
+		} else if (strcmp(type, "macvlan") == 0) {
+			type = "iana-if-type:l2vlan";
+		} else if (strcmp(type, "vlan") == 0) {
+			type = "iana-if-type:l3ipvlan";
 		} else if (strcmp(type, "dummy") == 0) {
 			type = "iana-if-type:other"; // since dummy is not a real type
 		}
@@ -436,21 +432,21 @@ int set_config_value(const char *xpath, const char *value)
 	} else if (strcmp(interface_node, "type") == 0) {
 		// change type
 
-		if (strstr(value, "ethernetCsmacd") != NULL) {
-			// can't add a new eth interface
-			//link_data_list_set_type(&link_data_list, interface_node_name, "eth");
-		} else if (strstr(value, "softwareLoopback") != NULL) {
-			// can't add a new lo interface
-			//link_data_list_set_type(&link_data_list, interface_node_name, "lo");
+		// convert the iana-if-type to a "real" interface type which libnl understands
+		char *interface_type = convert_ianaiftype((char *) value);
+		if (interface_type == NULL) {
+			SRP_LOG_ERRMSG("convert_ianaiftype error");
+			error = SR_ERR_CALLBACK_FAILED;
+			goto out;
 		}
 
-		// TODO: update this
-		error = link_data_list_set_type(&link_data_list, interface_node_name, "dummy");
+		error = link_data_list_set_type(&link_data_list, interface_node_name, interface_type);
 		if (error != 0) {
 			SRP_LOG_ERRMSG("link_data_list_set_type error");
 			error = SR_ERR_CALLBACK_FAILED;
 			goto out;
 		}
+
 	} else if (strcmp(interface_node, "enabled") == 0) {
 		// change enabled
 		error = link_data_list_set_enabled(&link_data_list, interface_node_name, (char *) value);
@@ -465,6 +461,27 @@ int set_config_value(const char *xpath, const char *value)
 
 out:
 	return error ? SR_ERR_CALLBACK_FAILED : SR_ERR_OK;
+}
+
+// TODO: move this function to a helper functions file in utils
+static char *convert_ianaiftype(char *iana_if_type)
+{
+	char *if_type = NULL;
+
+	if (strstr(iana_if_type, "softwareLoopback") != NULL) {
+		if_type = "lo";
+	} else if (strstr(iana_if_type, "ethernetCsmacd") != NULL) {
+		if_type = "eth";
+	} else if (strstr(iana_if_type, "l2vlan") != NULL) {
+		if_type = "macvlan";
+	} else if (strstr(iana_if_type, "l3ipvlan") != NULL) {
+		if_type = "vlan";
+	} else if (strstr(iana_if_type, "other") != NULL) {
+		if_type = "dummy";
+	}
+	// TODO: add support for more interface types
+
+	return if_type;
 }
 
 int delete_config_value(const char *xpath, const char *value)
@@ -523,7 +540,6 @@ int update_link_info(link_data_list_t *ld, sr_change_oper_t operation)
 {
 	struct nl_sock *socket = NULL;
 	struct nl_cache *cache = NULL;
-
 	int error = SR_ERR_OK;
 
 	socket = nl_socket_alloc();
@@ -625,6 +641,20 @@ int update_link_info(link_data_list_t *ld, sr_change_oper_t operation)
 		} else {
 			if (operation != SR_OP_DELETED) {
 				// the interface doesn't exist
+
+				// check if the interface is a virtual interface
+				// non-virtual interfaces can't be created
+				if (strcmp(type, "eth") == 0) {
+					SRP_LOG_ERR("Can't create non-virtual interface of type: %s", type);
+					error = -1;
+					goto out;
+				} else if (strcmp(type, "lo") == 0) {
+					SRP_LOG_ERR("Can't create non-virtual interface of type: %s", type);
+					error = -1;
+					goto out;
+				}
+
+				// TODO: handle creating a l2vlan and l3ipvlan
 
 				// set the new name
 				rtnl_link_set_name(request, name);
