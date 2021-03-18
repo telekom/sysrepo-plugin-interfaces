@@ -1,0 +1,12 @@
+<interfaces
+    xmlns="urn:ietf:params:xml:ns:yang:ietf-interfaces"
+    xmlns:ianaift="urn:ietf:params:xml:ns:yang:iana-if-type">
+
+    <interface>
+        <name>test_interface</name>
+        <description>this is a test interface</description>
+        <type>ianaift:softwareLoopback</type>
+        <enabled>false</enabled>
+    </interface>
+
+</interfaces>
