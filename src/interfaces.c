@@ -181,8 +181,9 @@ int sr_plugin_init_cb(sr_session_ctx_t *session, void **private_data)
 	goto out;
 
 error_out:
-	sr_unsubscribe(subscription);
-
+	if (subscription != NULL) {
+		sr_unsubscribe(subscription);
+	}
 out:
 	return error ? SR_ERR_CALLBACK_FAILED : SR_ERR_OK;
 }
@@ -265,6 +266,8 @@ static int load_data(sr_session_ctx_t *session, link_data_list_t *ld)
 			type = "iana-if-type:softwareLoopback";
 		} else if (type == NULL) {
 			type = "iana-if-type:ethernetCsmacd";
+		} else if (strcmp(type, "vlan") == 0) {
+			type = "iana-if-type:l2vlan";
 		} else if (strcmp(type, "dummy") == 0) {
 			type = "iana-if-type:other"; // since dummy is not a real type
 		}
