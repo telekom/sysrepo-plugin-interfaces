@@ -1266,8 +1266,7 @@ error_out:
 	FREE_SAFE(desc_file_path);
 
 	if (!entry_found) {
-		SRP_LOG_ERR("No description for interface %s was found", name);
-		return -1;
+		SRP_LOG_INF("No description for interface %s was found", name);
 	}
 
 	return 0;
@@ -1381,8 +1380,7 @@ static int interfaces_state_data_cb(sr_session_ctx_t *session, const char *modul
 		error = get_interface_description(interface_data.name, &interface_data.description);
 		if (error != 0) {
 			SRP_LOG_ERRMSG("get_interface_description error");
-			// don't return in case of error
-			// some interfaces may not have a description already set (wlan0, etc.)
+			goto error_out;
 		}
 
 		interface_data.type = rtnl_link_get_type(link);
