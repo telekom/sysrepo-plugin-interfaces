@@ -56,6 +56,7 @@ static link_data_list_t link_data_list = {0};
 #define SYSREPO_DIR_ENV_VAR "SYSREPO_DIR"
 #define INTERFACE_DESCRIPTION_PATH "/repositories/plugins/sysrepo-plugin-interfaces/interface_description"
 #define TMP_INTERFACE_DESCRIPTION_PATH "/repositories/plugins/sysrepo-plugin-interfaces/tmp_interface_description"
+#define CLASS_NET_LINE_LEN 1024
 
 // callbacks
 static int interfaces_module_change_cb(sr_session_ctx_t *session, const char *module_name, const char *xpath, sr_event_t event, uint32_t request_id, void *private_data);
@@ -64,6 +65,7 @@ static int interfaces_state_data_cb(sr_session_ctx_t *session, const char *modul
 // helper functions
 static bool system_running_datastore_is_empty_check(void);
 static int load_data(sr_session_ctx_t *session, link_data_list_t *ld);
+static bool check_system_interface(const char *interface_name, bool *system_interface);
 static char *interfaces_xpath_get(const struct lyd_node *node);
 int set_config_value(const char *xpath, const char *value);
 int delete_config_value(const char *xpath, const char *value);
@@ -173,8 +175,9 @@ int sr_plugin_init_cb(sr_session_ctx_t *session, void **private_data)
 	goto out;
 
 error_out:
-	sr_unsubscribe(subscription);
-
+	if (subscription != NULL) {
+		sr_unsubscribe(subscription);
+	}
 out:
 	return error ? SR_ERR_CALLBACK_FAILED : SR_ERR_OK;
 }
@@ -255,10 +258,8 @@ static int load_data(sr_session_ctx_t *session, link_data_list_t *ld)
 			type = "iana-if-type:softwareLoopback";
 		} else if (type == NULL) {
 			type = "iana-if-type:ethernetCsmacd";
-		} else if (strcmp(type, "macvlan") == 0) {
-			type = "iana-if-type:l2vlan";
 		} else if (strcmp(type, "vlan") == 0) {
-			type = "iana-if-type:l3ipvlan";
+			type = "iana-if-type:l2vlan";
 		} else if (strcmp(type, "dummy") == 0) {
 			type = "iana-if-type:other"; // since dummy is not a real type
 		}
@@ -366,6 +367,21 @@ static int interfaces_module_change_cb(sr_session_ctx_t *session, const char *mo
 						goto error_out;
 					}
 				} else if (operation == SR_OP_DELETED) {
+					// check if this is a system interface (e.g.: lo, wlan0, enp0s31f6 etc.)
+					bool system_interface = false;
+					error = check_system_interface(node_value, &system_interface);
+					if (error) {
+						SRP_LOG_ERRMSG("check_system_interface error");
+						goto error_out;
+					}
+
+					if (system_interface) {
+						SRP_LOG_ERRMSG("Can't delete a system interface");
+						FREE_SAFE(node_xpath);
+						sr_free_change_iter(system_change_iter);
+						return SR_ERR_INVAL_ARG;
+					}
+
 					error = delete_config_value(node_xpath, node_value);
 					if (error) {
 						SRP_LOG_ERR("delete_config_value error (%d)", error);
@@ -473,8 +489,6 @@ static char *convert_ianaiftype(char *iana_if_type)
 	} else if (strstr(iana_if_type, "ethernetCsmacd") != NULL) {
 		if_type = "eth";
 	} else if (strstr(iana_if_type, "l2vlan") != NULL) {
-		if_type = "macvlan";
-	} else if (strstr(iana_if_type, "l3ipvlan") != NULL) {
 		if_type = "vlan";
 	} else if (strstr(iana_if_type, "other") != NULL) {
 		if_type = "dummy";
@@ -684,6 +698,98 @@ out:
 	return error;
 }
 
+static bool check_system_interface(const char *interface_name, bool *system_interface)
+{
+	int error = 0;
+	char *all_devices_cmd = "ls /sys/class/net";
+	char *check_system_devices_cmd = "ls -l /sys/class/net";
+	char line[CLASS_NET_LINE_LEN] = {0};
+	int all_cnt = 0;
+	int sys_cnt = 0;
+	char *all_interfaces[LD_MAX_LINKS] = {0};
+	char *system_interfaces[LD_MAX_LINKS] = {0};
+	FILE *system_interface_check = NULL;
+
+	system_interface_check = popen(all_devices_cmd, "r");
+	if (system_interface_check == NULL) {
+		SRP_LOG_WRN("could not execute %s", all_devices_cmd);
+		*system_interface = false;
+		error = -1;
+		goto out;
+	}
+
+	// get all interfaces from /sys/class/net
+	while (fgets(line, sizeof(line), system_interface_check) != NULL) {
+		// remove newline char from line
+		line[strlen(line) - 1] = '\0';
+		all_interfaces[all_cnt] = strndup(line, strlen(line)+1);
+		all_cnt++;
+	}
+
+	pclose(system_interface_check);
+	// reset everything to reuse it
+	system_interface_check = NULL;
+	memset(line, 0, CLASS_NET_LINE_LEN);
+
+	system_interface_check = popen(check_system_devices_cmd, "r");
+	if (system_interface_check == NULL) {
+		SRP_LOG_WRN("could not execute %s", check_system_devices_cmd);
+		*system_interface = false;
+		error = -1;
+		goto out;
+	}
+
+	// check if an interface is virtual or system
+	while (fgets(line, sizeof(line), system_interface_check) != NULL) {
+		// loopback device is virtual but handle it as a physical device here
+		// because libnl won't let us delete it
+		if (strstr(line, "/lo") != NULL ||
+			(strstr(line, "/virtual/") == NULL &&
+			strncmp(line, "total", strlen("total") != 0))) {
+			// this is a system interface
+
+			// add it to system_interfaces
+			for (int i = 0; i < LD_MAX_LINKS; i++) {
+				if (all_interfaces[i] != 0) {
+					if (strstr(line, all_interfaces[i]) != NULL) {
+						system_interfaces[sys_cnt] = strndup(all_interfaces[i], strlen(all_interfaces[i])+1);
+						sys_cnt++;
+						break;
+					}
+				}
+			}
+		}
+		memset(line, 0, CLASS_NET_LINE_LEN);
+	}
+
+	for (int i = 0; i < LD_MAX_LINKS; i++) {
+		if (system_interfaces[i] != 0) {
+			if (strcmp(interface_name, system_interfaces[i]) == 0) {
+				*system_interface = true;
+				break;
+			}
+		}
+	}
+
+	// cleanup
+	for (int i = 0; i < LD_MAX_LINKS; i++) {
+		if (system_interfaces[i] != 0) {
+			FREE_SAFE(system_interfaces[i]);
+		}
+
+		if (all_interfaces[i] != 0) {
+			FREE_SAFE(all_interfaces[i]);
+		}
+	}
+
+out:
+	if (system_interface_check) {
+		pclose(system_interface_check);
+	}
+
+	return error;
+}
+
 // TODO: move these functions to a file in utils?
 void link_init(link_data_t *l)
 {
@@ -717,6 +823,10 @@ static int add_existing_links(link_data_list_t *ld)
 	struct nl_sock *socket = NULL;
 	struct nl_cache *cache = NULL;
 	struct rtnl_link *link = NULL;
+	char *name = NULL;
+	char *description = NULL;
+	char *type = NULL;
+	char *enabled = NULL;
 
 	socket = nl_socket_alloc();
 	if (socket == NULL) {
@@ -739,11 +849,6 @@ static int add_existing_links(link_data_list_t *ld)
 	link = (struct rtnl_link *) nl_cache_get_first(cache);
 
 	while (link != NULL) {
-		char *name = NULL;
-		char *description = NULL;
-		char *type = NULL;
-		char *enabled = NULL;
-
 		name = rtnl_link_get_name(link);
 		if (name == NULL) {
 			SRP_LOG_ERRMSG("rtnl_link_get_name error");
@@ -813,6 +918,10 @@ error_out:
 	}
 
 	nl_cache_free(cache);
+
+	if (description != NULL) {
+		FREE_SAFE(description);
+	}
 
 	return -1;
 }
@@ -1181,8 +1290,7 @@ error_out:
 	FREE_SAFE(desc_file_path);
 
 	if (!entry_found) {
-		SRP_LOG_ERR("No description for interface %s was found", name);
-		return -1;
+		SRP_LOG_INF("No description for interface %s was found", name);
 	}
 
 	return 0;
@@ -1296,8 +1404,7 @@ static int interfaces_state_data_cb(sr_session_ctx_t *session, const char *modul
 		error = get_interface_description(interface_data.name, &interface_data.description);
 		if (error != 0) {
 			SRP_LOG_ERRMSG("get_interface_description error");
-			// don't return in case of error
-			// some interfaces may not have a description already set (wlan0, etc.)
+			goto error_out;
 		}
 
 		interface_data.type = rtnl_link_get_type(link);
