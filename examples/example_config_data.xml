@@ -1,11 +1,24 @@
 <interfaces
     xmlns="urn:ietf:params:xml:ns:yang:ietf-interfaces"
-    xmlns:ianaift="urn:ietf:params:xml:ns:yang:iana-if-type">
+    xmlns:ianaift="urn:ietf:params:xml:ns:yang:iana-if-type"
+    xmlns:dot1q-types="urn:ieee:std:802.1Q:yang:ieee802-dot1q-types"
+    xmlns:if-ext="urn:ietf:params:xml:ns:yang:ietf-if-extensions">
 
     <interface>
         <name>test_interface</name>
         <description>this is a test interface</description>
         <type>ianaift:other</type>
+        <enabled>false</enabled>
+    </interface>
+
+    <!-- TODO: add parent leaf etc.
+         - this will be updated once if-extensions and vlan encaps are implemented
+         - currently parent interface is hardcoded as eth0
+    -->
+    <interface>
+        <name>eth0.2</name>
+        <description>this is a test interface</description>
+        <type>ianaift:l2vlan</type>
         <enabled>false</enabled>
     </interface>
 

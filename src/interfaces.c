@@ -630,6 +630,14 @@ int update_link_info(link_data_list_t *ld, sr_change_oper_t operation)
 				SRP_LOG_ERR("rtnl_link_set_type error (%d): %s", error, nl_geterror(error));
 				goto out;
 			}
+
+			// handle vlan interfaces
+			if (strcmp(type, "vlan") == 0) {
+				// TODO: update this after if-extensions and if-vlan encaps is implemented
+				int master_index = rtnl_link_name2i(cache, "eth0");
+				rtnl_link_set_link(request, master_index);
+				rtnl_link_vlan_set_id(request, 10);
+			}
 		}
 
 		// enabled
@@ -656,19 +664,21 @@ int update_link_info(link_data_list_t *ld, sr_change_oper_t operation)
 			if (operation != SR_OP_DELETED) {
 				// the interface doesn't exist
 
-				// check if the interface is a virtual interface
+				// check if the interface is a system interface
 				// non-virtual interfaces can't be created
-				if (strcmp(type, "eth") == 0) {
-					SRP_LOG_ERR("Can't create non-virtual interface of type: %s", type);
-					error = -1;
-					goto out;
-				} else if (strcmp(type, "lo") == 0) {
-					SRP_LOG_ERR("Can't create non-virtual interface of type: %s", type);
+				bool system_interface = false;
+				error = check_system_interface(name, &system_interface);
+				if (error) {
+					SRP_LOG_ERRMSG("check_system_interface error");
 					error = -1;
 					goto out;
 				}
 
-				// TODO: handle creating a l2vlan and l3ipvlan
+				if (system_interface || strcmp(type, "eth") == 0 || strcmp(type, "lo") == 0){
+					SRP_LOG_ERR("Can't create non-virtual interface %s of type: %s", name, type);
+					error = -1;
+					goto out;
+				}
 
 				// set the new name
 				rtnl_link_set_name(request, name);
