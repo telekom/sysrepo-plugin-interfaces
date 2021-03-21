@@ -48,7 +48,7 @@ $ sysrepocfg -X -m ietf-interfaces
 </interfaces>
 ```
 
-Then we can retreive the name of an interface:
+### Interface name
 ```
 $ sysrepocfg -X -x '/ietf-interfaces:interfaces/interface[name="lo"]/name'
 <interfaces xmlns="urn:ietf:params:xml:ns:yang:ietf-interfaces">
@@ -58,7 +58,9 @@ $ sysrepocfg -X -x '/ietf-interfaces:interfaces/interface[name="lo"]/name'
 </interfaces>
 ```
 
-Description:
+Changing the name of a system interface like `lo` isn't supported, and the plugin won't allow it.
+
+### Interface description
 ```
 $ sysrepocfg -X -x '/ietf-interfaces:interfaces/interface[name="lo"]/description'
 <interfaces xmlns="urn:ietf:params:xml:ns:yang:ietf-interfaces">
@@ -85,7 +87,10 @@ $ sysrepocfg -X -x '/ietf-interfaces:interfaces/interface[name="lo"]/description
 </interfaces>
 ```
 
-Changing the name of a system interface like `lo` isn't supported, and the plugin won't allow it.
+The interface description is stored by the plugin, currently in a file which sould ensure that
+set descriptions are preserved between plugin runs.
+
+### Interface type
 
 Next, we can get the type of an interface.
 ```
@@ -99,6 +104,11 @@ $ sysrepocfg -X -x '/ietf-interfaces:interfaces/interface[name="lo"]/type'
 ```
 
 Changing the type of a system interface like `lo` also won't work.
+Types have to be set based on the `iana-if-type` model.
+Currently supported interfaces include `ethernetCsmacd`, `other`, `softwareLoopback` and `l2vlan`.
+Any other unsupported types, for example bridges, shouldn't appear in the datastore.
+
+### Interface enabled state
 
 We can retreive information whether the interface is currently enabled with the following command:
 ```
