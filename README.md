@@ -176,3 +176,8 @@ sysrepocfg -X -d operational -f json -x '/ietf-interfaces:interfaces'
 	# TODO
 }
 ```
+
+## Testing
+The `tests/manual_tests.md` file contains a list of sysrepo commands that can be used to test
+the currently implemented features of the plugin.
+It can also serve as a list of currently implemented YANG nodes in the model.
