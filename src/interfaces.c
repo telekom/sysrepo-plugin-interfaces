@@ -840,7 +840,7 @@ static int add_existing_links(link_data_list_t *ld)
 
 	socket = nl_socket_alloc();
 	if (socket == NULL) {
-		SRP_LOG_ERR("nl_socket_alloc error: invalid socket");
+		SRP_LOG_ERRMSG("nl_socket_alloc error: invalid socket");
 		goto error_out;
 	}
 
