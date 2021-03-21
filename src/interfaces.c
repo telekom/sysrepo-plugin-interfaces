@@ -1192,7 +1192,9 @@ static int set_interface_description(char *name, char *description)
 
 		FREE_SAFE(line);
 		fclose(fp);
+		fp = NULL;
 		fclose(fp_tmp);
+		fp_tmp = NULL;
 
 		// rename the tmp file
 		if (rename(tmp_desc_file_path, desc_file_path) != 0) {
@@ -1212,6 +1214,7 @@ static int set_interface_description(char *name, char *description)
 		fputs(entry, fp);
 
 		fclose(fp);
+		fp = NULL;
 	}
 
 	FREE_SAFE(desc_file_path);
