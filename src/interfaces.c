@@ -220,6 +220,26 @@ static int load_data(sr_session_ctx_t *session, link_data_list_t *ld)
 
 		snprintf(interface_path_buffer, sizeof(interface_path_buffer) / sizeof(char), "%s[name=\"%s\"]", INTERFACE_LIST_YANG_PATH, name);
 
+		/* For existing interface the type will be null since it was not set by the plugin.
+		 * These interfaces may include: a loopback, a wlan, a eth device etc.
+		 * quickfix: If the type is NULL and name is 'lo' set it to "iana-if-type:softwareLoopback"
+		 * 			 If the type is NULL, set it to 'iana-if-type:ethernetCsmacd'
+		 *			 Otherwise sr_set_item_str will fail
+		 */
+
+		if (type == NULL && strcmp(name, "lo") == 0) {
+			type = "iana-if-type:softwareLoopback";
+		} else if (type == NULL) {
+			type = "iana-if-type:ethernetCsmacd";
+		} else if (strcmp(type, "vlan") == 0) {
+			type = "iana-if-type:l2vlan";
+		} else if (strcmp(type, "dummy") == 0) {
+			type = "iana-if-type:other"; // since dummy is not a real type
+		} else {
+			SRP_LOG_INF("load_data unsupported interface type %s", type);
+			continue;
+		}
+
 		error = snprintf(xpath_buffer, sizeof(xpath_buffer), "%s/name", interface_path_buffer);
 		if (error < 0) {
 			goto error_out;
@@ -245,23 +265,6 @@ static int load_data(sr_session_ctx_t *session, link_data_list_t *ld)
 		error = snprintf(xpath_buffer, sizeof(xpath_buffer), "%s/type", interface_path_buffer);
 		if (error < 0) {
 			goto error_out;
-		}
-
-		/* For existing interface the type will be null since it was not set by the plugin.
-		 * These interfaces may include: a loopback, a wlan, a eth device etc.
-		 * quickfix: If the type is NULL and name is 'lo' set it to "iana-if-type:softwareLoopback"
-		 * 			 If the type is NULL, set it to 'iana-if-type:ethernetCsmacd'
-		 *			 Otherwise sr_set_item_str will fail
-		 */
-
-		if (type == NULL && strcmp(name, "lo") == 0) {
-			type = "iana-if-type:softwareLoopback";
-		} else if (type == NULL) {
-			type = "iana-if-type:ethernetCsmacd";
-		} else if (strcmp(type, "vlan") == 0) {
-			type = "iana-if-type:l2vlan";
-		} else if (strcmp(type, "dummy") == 0) {
-			type = "iana-if-type:other"; // since dummy is not a real type
 		}
 
 		error = sr_set_item_str(session, xpath_buffer, type, NULL, SR_EDIT_DEFAULT);
