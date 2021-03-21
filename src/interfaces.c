@@ -297,6 +297,8 @@ void sr_plugin_cleanup_cb(sr_session_ctx_t *session, void *private_data)
 {
 	sr_session_ctx_t *startup_session = (sr_session_ctx_t *) private_data;
 
+	exit_application = 1;
+
 	if (startup_session) {
 		sr_session_stop(startup_session);
 	}
