@@ -4,6 +4,48 @@
 
 This Sysrepo plugin is responsible for bridging a Linux system and Sysrepo/YANG datastore network interfaces configuration.
 
+## Dependencies
+
+Other than libyang and Sysrepo, there are some other dependencies required to build and use this plugin.
+These include pthreads and the libnl (https://www.infradead.org/~tgr/libnl/) netlink library.
+
+## Build
+
+This section describes how to build the plugin on hosts that have Sysrepo installed. This
+includes standard Linux machines and docker images with Sysrepo, Netopeer and other required dependencies.
+
+First, clone the repo:
+```
+$ git clone git@lab.sartura.hr:sysrepo/sysrepo-plugin-interfaces.git
+```
+
+Next, make a build directory and prepare the build scripts:
+
+```
+$ mkdir build && cd build
+$ cmake ..
+```
+
+This will build the plugin as a standalone executable which can be run without `sysrepo-plugind`
+
+To build the project in plugin mode, run the following instead:
+
+```
+$ cmake -DPLUGIN=ON ..
+```
+
+After that, run `make` and `make install`
+
+Finally to run the plugin, YANG models describing interface related functionality have to be installed.
+
+```
+$ sysrepoctl -i ../yang/iana-if-type@2017-01-19.yang
+$ sysrepoctl -i ../yang/ietf-interfaces@2018-02-20.yang
+$ sysrepoctl -i ../yang/ietf-interfaces-common@2019-03-05.yang
+$ sysrepoctl -i ../yang/ieee802-dot1q-types.yang 
+$ sysrepoctl -i ../yang/ietf-if-vlan-encapsulation@2020-07-13.yang
+```
+
 ## Development Setup
 
 Setup the development environment using the provided [`setup-dev-sysrepo`](https://github.com/sartura/setup-dev-sysrepo) scripts. This will build all the necessary components.
