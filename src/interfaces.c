@@ -41,13 +41,6 @@ typedef struct {
 
 static link_data_list_t link_data_list = {0};
 
-// TODO: update
-const char *link_types[] = {
-	"bridge",
-	"bond",
-	"dummy"
-};
-
 #define BASE_YANG_MODEL "ietf-interfaces"
 
 #define SYSREPOCFG_EMPTY_CHECK_COMMAND "sysrepocfg -X -d running -m " BASE_YANG_MODEL
@@ -77,6 +70,7 @@ static char *interfaces_xpath_get(const struct lyd_node *node);
 int set_config_value(const char *xpath, const char *value);
 int delete_config_value(const char *xpath, const char *value);
 int update_link_info(link_data_list_t *ld, sr_change_oper_t operation);
+static char *convert_ianaiftype(char *iana_if_type);
 
 void link_init(link_data_t *l);
 void link_set_name(link_data_t *l, char *name);
@@ -226,6 +220,26 @@ static int load_data(sr_session_ctx_t *session, link_data_list_t *ld)
 
 		snprintf(interface_path_buffer, sizeof(interface_path_buffer) / sizeof(char), "%s[name=\"%s\"]", INTERFACE_LIST_YANG_PATH, name);
 
+		/* For existing interface the type will be null since it was not set by the plugin.
+		 * These interfaces may include: a loopback, a wlan, a eth device etc.
+		 * quickfix: If the type is NULL and name is 'lo' set it to "iana-if-type:softwareLoopback"
+		 * 			 If the type is NULL, set it to 'iana-if-type:ethernetCsmacd'
+		 *			 Otherwise sr_set_item_str will fail
+		 */
+
+		if (type == NULL && strcmp(name, "lo") == 0) {
+			type = "iana-if-type:softwareLoopback";
+		} else if (type == NULL) {
+			type = "iana-if-type:ethernetCsmacd";
+		} else if (strcmp(type, "vlan") == 0) {
+			type = "iana-if-type:l2vlan";
+		} else if (strcmp(type, "dummy") == 0) {
+			type = "iana-if-type:other"; // since dummy is not a real type
+		} else {
+			SRP_LOG_INF("load_data unsupported interface type %s", type);
+			continue;
+		}
+
 		error = snprintf(xpath_buffer, sizeof(xpath_buffer), "%s/name", interface_path_buffer);
 		if (error < 0) {
 			goto error_out;
@@ -251,25 +265,6 @@ static int load_data(sr_session_ctx_t *session, link_data_list_t *ld)
 		error = snprintf(xpath_buffer, sizeof(xpath_buffer), "%s/type", interface_path_buffer);
 		if (error < 0) {
 			goto error_out;
-		}
-
-		/* For existing interface the type will be null since it was not set by the plugin.
-		 * These interfaces may include: a loopback, a wlan, a eth device etc.
-		 * quickfix: If the type is NULL and name is 'lo' set it to "iana-if-type:softwareLoopback"
-		 * 			 If the type is NULL, set it to 'iana-if-type:ethernetCsmacd'
-		 *			 Otherwise sr_set_item_str will fail
-		 * TODO:
-		 *		- add a function that maps "real" interface type to ianaift type
-		 */
-
-		if (type == NULL && strcmp(name, "lo") == 0) {
-			type = "iana-if-type:softwareLoopback";
-		} else if (type == NULL) {
-			type = "iana-if-type:ethernetCsmacd";
-		} else if (strcmp(type, "vlan") == 0) {
-			type = "iana-if-type:l2vlan";
-		} else if (strcmp(type, "dummy") == 0) {
-			type = "iana-if-type:other"; // since dummy is not a real type
 		}
 
 		error = sr_set_item_str(session, xpath_buffer, type, NULL, SR_EDIT_DEFAULT);
@@ -304,6 +299,8 @@ error_out:
 void sr_plugin_cleanup_cb(sr_session_ctx_t *session, void *private_data)
 {
 	sr_session_ctx_t *startup_session = (sr_session_ctx_t *) private_data;
+
+	exit_application = 1;
 
 	if (startup_session) {
 		sr_session_stop(startup_session);
@@ -456,21 +453,21 @@ int set_config_value(const char *xpath, const char *value)
 	} else if (strcmp(interface_node, "type") == 0) {
 		// change type
 
-		if (strstr(value, "ethernetCsmacd") != NULL) {
-			// can't add a new eth interface
-			//link_data_list_set_type(&link_data_list, interface_node_name, "eth");
-		} else if (strstr(value, "softwareLoopback") != NULL) {
-			// can't add a new lo interface
-			//link_data_list_set_type(&link_data_list, interface_node_name, "lo");
+		// convert the iana-if-type to a "real" interface type which libnl understands
+		char *interface_type = convert_ianaiftype((char *) value);
+		if (interface_type == NULL) {
+			SRP_LOG_ERRMSG("convert_ianaiftype error");
+			error = SR_ERR_CALLBACK_FAILED;
+			goto out;
 		}
 
-		// TODO: update this
-		error = link_data_list_set_type(&link_data_list, interface_node_name, "dummy");
+		error = link_data_list_set_type(&link_data_list, interface_node_name, interface_type);
 		if (error != 0) {
 			SRP_LOG_ERRMSG("link_data_list_set_type error");
 			error = SR_ERR_CALLBACK_FAILED;
 			goto out;
 		}
+
 	} else if (strcmp(interface_node, "enabled") == 0) {
 		// change enabled
 		error = link_data_list_set_enabled(&link_data_list, interface_node_name, (char *) value);
@@ -485,6 +482,25 @@ int set_config_value(const char *xpath, const char *value)
 
 out:
 	return error ? SR_ERR_CALLBACK_FAILED : SR_ERR_OK;
+}
+
+// TODO: move this function to a helper functions file in utils
+static char *convert_ianaiftype(char *iana_if_type)
+{
+	char *if_type = NULL;
+
+	if (strstr(iana_if_type, "softwareLoopback") != NULL) {
+		if_type = "lo";
+	} else if (strstr(iana_if_type, "ethernetCsmacd") != NULL) {
+		if_type = "eth";
+	} else if (strstr(iana_if_type, "l2vlan") != NULL) {
+		if_type = "vlan";
+	} else if (strstr(iana_if_type, "other") != NULL) {
+		if_type = "dummy";
+	}
+	// TODO: add support for more interface types
+
+	return if_type;
 }
 
 int delete_config_value(const char *xpath, const char *value)
@@ -543,7 +559,6 @@ int update_link_info(link_data_list_t *ld, sr_change_oper_t operation)
 {
 	struct nl_sock *socket = NULL;
 	struct nl_cache *cache = NULL;
-
 	int error = SR_ERR_OK;
 
 	socket = nl_socket_alloc();
@@ -620,6 +635,14 @@ int update_link_info(link_data_list_t *ld, sr_change_oper_t operation)
 				SRP_LOG_ERR("rtnl_link_set_type error (%d): %s", error, nl_geterror(error));
 				goto out;
 			}
+
+			// handle vlan interfaces
+			if (strcmp(type, "vlan") == 0) {
+				// TODO: update this after if-extensions and if-vlan encaps is implemented
+				int master_index = rtnl_link_name2i(cache, "eth0");
+				rtnl_link_set_link(request, master_index);
+				rtnl_link_vlan_set_id(request, 10);
+			}
 		}
 
 		// enabled
@@ -645,6 +668,22 @@ int update_link_info(link_data_list_t *ld, sr_change_oper_t operation)
 		} else {
 			if (operation != SR_OP_DELETED) {
 				// the interface doesn't exist
+
+				// check if the interface is a system interface
+				// non-virtual interfaces can't be created
+				bool system_interface = false;
+				error = check_system_interface(name, &system_interface);
+				if (error) {
+					SRP_LOG_ERRMSG("check_system_interface error");
+					error = -1;
+					goto out;
+				}
+
+				if (system_interface || strcmp(type, "eth") == 0 || strcmp(type, "lo") == 0){
+					SRP_LOG_ERR("Can't create non-virtual interface %s of type: %s", name, type);
+					error = -1;
+					goto out;
+				}
 
 				// set the new name
 				rtnl_link_set_name(request, name);
@@ -806,7 +845,7 @@ static int add_existing_links(link_data_list_t *ld)
 
 	socket = nl_socket_alloc();
 	if (socket == NULL) {
-		SRP_LOG_ERR("nl_socket_alloc error: invalid socket");
+		SRP_LOG_ERRMSG("nl_socket_alloc error: invalid socket");
 		goto error_out;
 	}
 
@@ -1153,7 +1192,9 @@ static int set_interface_description(char *name, char *description)
 
 		FREE_SAFE(line);
 		fclose(fp);
+		fp = NULL;
 		fclose(fp_tmp);
+		fp_tmp = NULL;
 
 		// rename the tmp file
 		if (rename(tmp_desc_file_path, desc_file_path) != 0) {
@@ -1173,6 +1214,7 @@ static int set_interface_description(char *name, char *description)
 		fputs(entry, fp);
 
 		fclose(fp);
+		fp = NULL;
 	}
 
 	FREE_SAFE(desc_file_path);
