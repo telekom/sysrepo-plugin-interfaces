@@ -50,7 +50,7 @@ static link_data_list_t link_data_list = {0};
 #define INTERFACE_LIST_YANG_PATH INTERFACES_YANG_MODEL "/interface"
 
 // other #defines
-#define MAC_ADDR_MAX_LENGTH 17
+#define MAC_ADDR_MAX_LENGTH 18
 #define MAX_DESCR_LEN 100
 #define DATETIME_BUF_SIZE 30
 #define SYSREPO_DIR_ENV_VAR "SYSREPO_DIR"
