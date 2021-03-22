@@ -1476,23 +1476,25 @@ static int interfaces_state_data_cb(sr_session_ctx_t *session, const char *modul
 			goto error_out;
 		}
 		interface_data.statistics.discontinuity_time = system_boot_time;
-		interface_data.statistics.in_octets = rtnl_link_get_stat(link, RTNL_LINK_IP6_INOCTETS);
+		interface_data.statistics.in_octets = rtnl_link_get_stat(link, RTNL_LINK_RX_BYTES);
 
 		// to discuss
 		interface_data.statistics.in_unicast_pkts = rtnl_link_get_stat(link, RTNL_LINK_RX_PACKETS) - rtnl_link_get_stat(link, RTNL_LINK_IP6_INMCASTPKTS);
 		// only this option involves broadcast packets => IP6 SNMP
 		interface_data.statistics.in_broadcast_pkts = rtnl_link_get_stat(link, RTNL_LINK_IP6_INBCASTPKTS);
+		interface_data.statistics.in_broadcast_pkts = 0;
 
-		interface_data.statistics.in_multicast_pkts = rtnl_link_get_stat(link, RTNL_LINK_IP6_INMCASTPKTS);
-		interface_data.statistics.in_discards = (uint32_t) rtnl_link_get_stat(link, RTNL_LINK_IP6_INDISCARDS);
-		interface_data.statistics.in_errors = (uint32_t) rtnl_link_get_stat(link, RTNL_LINK_TX_ERRORS);
+		interface_data.statistics.in_multicast_pkts = rtnl_link_get_stat(link, RTNL_LINK_MULTICAST);
+		interface_data.statistics.in_discards = (uint32_t) rtnl_link_get_stat(link, RTNL_LINK_RX_DROPPED);
+		interface_data.statistics.in_errors = (uint32_t) rtnl_link_get_stat(link, RTNL_LINK_RX_ERRORS);
 		interface_data.statistics.in_unknown_protos = (uint32_t) rtnl_link_get_stat(link, RTNL_LINK_IP6_INUNKNOWNPROTOS);
 
+		interface_data.statistics.out_octets = rtnl_link_get_stat(link, RTNL_LINK_TX_BYTES);
 		interface_data.statistics.out_unicast_pkts = rtnl_link_get_stat(link, RTNL_LINK_TX_PACKETS) - rtnl_link_get_stat(link, RTNL_LINK_IP6_OUTMCASTPKTS);
 		interface_data.statistics.out_broadcast_pkts = rtnl_link_get_stat(link, RTNL_LINK_IP6_OUTBCASTPKTS);
 		interface_data.statistics.out_multicast_pkts = rtnl_link_get_stat(link, RTNL_LINK_IP6_OUTMCASTPKTS);
-		interface_data.statistics.out_discards = (uint32_t) rtnl_link_get_stat(link, RTNL_LINK_IP6_OUTDISCARDS);
-		interface_data.statistics.out_errors = (uint32_t) rtnl_link_get_stat(link, RTNL_LINK_RX_ERRORS);
+		interface_data.statistics.out_discards = (uint32_t) rtnl_link_get_stat(link, RTNL_LINK_TX_DROPPED);
+		interface_data.statistics.out_errors = (uint32_t) rtnl_link_get_stat(link, RTNL_LINK_TX_ERRORS);
 
 		snprintf(interface_path_buffer, sizeof(interface_path_buffer) / sizeof(char), "%s[name=\"%s\"]", INTERFACE_LIST_YANG_PATH, rtnl_link_get_name(link));
 
