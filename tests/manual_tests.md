@@ -157,6 +157,7 @@ sysrepocfg -X -d operational -m ietf-interfaces
     <name>lo</name>
     <description>test</description>
     <oper-status>unknown</oper-status>
+    <last-change>2021-03-23T12:21:23Z</last-change>
     <phys-address>00:00:00:00:00:00</phys-address>
     <speed>0</speed>
     <statistics>
@@ -333,6 +334,10 @@ The `phys-address` node should contain the physical address (usually MAC) of the
 The `statistics` node contains various statistics about the interface.
 `discontinuity-time` currently contains the system boot time, as we are currently not aware of an easy
 way to track interface discontinuities on Linux.
+
+`last-change` contains the time that the interface last change its operational status.
+This time is tracked by the plugin internally, by receiving updates about changes
+in the state of the interface.
 
 `in-octets` tracks the number of bytes received on an interface. It is retrieved through `libnl`
 using the routing part of netlink.
