@@ -53,9 +53,9 @@ static link_data_list_t link_data_list = {0};
 #define MAC_ADDR_MAX_LENGTH 18
 #define MAX_DESCR_LEN 100
 #define DATETIME_BUF_SIZE 30
-#define SYSREPO_DIR_ENV_VAR "SYSREPO_DIR"
-#define INTERFACE_DESCRIPTION_PATH "/repositories/plugins/sysrepo-plugin-interfaces/interface_description"
-#define TMP_INTERFACE_DESCRIPTION_PATH "/repositories/plugins/sysrepo-plugin-interfaces/tmp_interface_description"
+#define PLUGIN_DIR_ENV_VAR "PLUGIN_DIR"
+#define INTERFACE_DESCRIPTION_FILENAME "/interface_description"
+#define TMP_INTERFACE_DESCRIPTION_FILENAME "/tmp_interface_description"
 #define CLASS_NET_LINE_LEN 1024
 
 // callbacks
@@ -87,6 +87,7 @@ void link_data_free(link_data_t *l);
 
 static int set_interface_description(char *name, char *description);
 static int get_interface_description(char *name, char **description);
+static char *get_plugin_file_path(const char *filename, bool create);
 static int get_system_boot_time(char boot_datetime[]);
 
 // function to start all threads for each interface
@@ -111,8 +112,18 @@ int sr_plugin_init_cb(sr_session_ctx_t *session, void **private_data)
 	sr_conn_ctx_t *connection = NULL;
 	sr_session_ctx_t *startup_session = NULL;
 	sr_subscription_ctx_t *subscription = NULL;
+	char *desc_file_path = NULL;
 
 	*private_data = NULL;
+
+	desc_file_path = get_plugin_file_path(INTERFACE_DESCRIPTION_FILENAME, true);
+	if (desc_file_path == NULL) {
+		SRP_LOG_ERR("Please set the %s env variable. "
+			       "The plugin uses the path in the variable "
+			       "to store interface descriptions in a file.", PLUGIN_DIR_ENV_VAR);
+		error = -1;
+		goto error_out;
+	}
 
 	error = link_data_list_init(&link_data_list);
 	if (error != 0) {
@@ -1131,26 +1142,16 @@ static int set_interface_description(char *name, char *description)
 	FILE *fp = NULL;
 	FILE *fp_tmp = NULL;
 	char entry[MAX_DESCR_LEN] = {0};
-	char *sysrepo_dir = NULL;
-	char *desc_file_path = NULL; // ${SYSREPO_DIR}INTERFACE_DESCRIPTION_PATH
-	size_t desc_file_path_len = 0;
+	char *desc_file_path = NULL;
 	char *tmp_desc_file_path = NULL;
-	size_t tmp_desc_file_path_len = 0;
 	char *line = NULL;
 	size_t len = 0;
 	ssize_t read = 0;
 	bool entry_updated = false;
 
-	sysrepo_dir = getenv(SYSREPO_DIR_ENV_VAR);
-	if (sysrepo_dir == NULL) {
-		SRP_LOG_ERR("Unable to get env var %s", SYSREPO_DIR_ENV_VAR);
-		goto error_out;
-	}
-
-	desc_file_path_len = strlen(sysrepo_dir) + strlen(INTERFACE_DESCRIPTION_PATH) + 1;
-	desc_file_path = xmalloc(desc_file_path_len);
-
-	if (snprintf(desc_file_path, desc_file_path_len, "%s%s", sysrepo_dir, INTERFACE_DESCRIPTION_PATH) < 0) {
+	desc_file_path = get_plugin_file_path(INTERFACE_DESCRIPTION_FILENAME, false);
+	if (desc_file_path == NULL) {
+		SRP_LOG_ERRMSG("set_interface_description: couldn't get interface description file path\n");
 		goto error_out;
 	}
 
@@ -1160,11 +1161,9 @@ static int set_interface_description(char *name, char *description)
 
 	// if the file exists
 	if (access(desc_file_path, F_OK) == 0){
-		tmp_desc_file_path_len = strlen(sysrepo_dir) + strlen(TMP_INTERFACE_DESCRIPTION_PATH) + 1;
-		tmp_desc_file_path = xmalloc(tmp_desc_file_path_len);
-
-		if (snprintf(tmp_desc_file_path, tmp_desc_file_path_len, "%s%s", sysrepo_dir,
-				TMP_INTERFACE_DESCRIPTION_PATH) < 0) {
+		tmp_desc_file_path = get_plugin_file_path(TMP_INTERFACE_DESCRIPTION_FILENAME, true);
+		if (desc_file_path == NULL) {
+			SRP_LOG_ERRMSG("set_interface_description: couldn't get interface description file path\n");
 			goto error_out;
 		}
 
@@ -1246,30 +1245,14 @@ error_out:
 	char *line = NULL;
 	size_t len = 0;
 	ssize_t read = 0;
-	char *sysrepo_dir = NULL;
-	char *desc_file_path = NULL; // ${SYSREPO_DIR}INTERFACE_DESCRIPTION_PATH
-	size_t desc_file_path_len = 0;
+	char *desc_file_path = NULL;
 	bool entry_found = false;
 	char *token = NULL;
 	char *tmp_description = NULL;
 
-	sysrepo_dir = getenv(SYSREPO_DIR_ENV_VAR);
-	if (sysrepo_dir == NULL) {
-		return -1;
-	}
-
-	desc_file_path_len = strlen(sysrepo_dir) + strlen(INTERFACE_DESCRIPTION_PATH) + 1;
-	desc_file_path = xmalloc(desc_file_path_len);
-
-	if (snprintf(desc_file_path, desc_file_path_len, "%s%s", sysrepo_dir, INTERFACE_DESCRIPTION_PATH) < 0) {
-		FREE_SAFE(desc_file_path);
-		return -1;
-	}
-
-	// check if file exists
-	if (access(desc_file_path, F_OK) != 0){
-		SRP_LOG_ERRMSG("File doesn't exist. No descriptions are set.");
-		FREE_SAFE(desc_file_path);
+	desc_file_path = get_plugin_file_path(INTERFACE_DESCRIPTION_FILENAME, false);
+	if (desc_file_path == NULL) {
+		SRP_LOG_ERRMSG("get_interface_description: couldn't get interface description file path\n");
 		return -1;
 	}
 
@@ -1312,7 +1295,44 @@ error_out:
 	}
 
 	return 0;
- }
+}
+
+static char *get_plugin_file_path(const char *filename, bool create)
+{
+	char *plugin_dir = NULL;
+	char *file_path = NULL;
+	size_t filename_len = 0;
+	FILE *tmp = NULL;
+
+	plugin_dir = getenv(PLUGIN_DIR_ENV_VAR);
+	if (plugin_dir == NULL) {
+		SRP_LOG_ERR("Unable to get env var %s", PLUGIN_DIR_ENV_VAR);
+		return NULL;
+	}
+
+	filename_len = strlen(plugin_dir) + strlen(filename) + 1;
+	file_path= xmalloc(filename_len);
+
+	if (snprintf(file_path, filename_len, "%s%s", plugin_dir, filename) < 0) {
+		return NULL;
+	}
+
+	// check if file exists
+	if (access(file_path, F_OK) != 0){
+		if (create) {
+			tmp = fopen(file_path, "w");
+			if (tmp == NULL) {
+				SRP_LOG_ERR("Error creating %s", file_path);
+			}
+			fclose(tmp);
+		} else {
+			SRP_LOG_ERR("Filename %s doesn't exist in dir %s", filename, plugin_dir);
+			return NULL;
+		}
+	}
+
+	return file_path;
+}
 
 static int interfaces_state_data_cb(sr_session_ctx_t *session, const char *module_name, const char *path, const char *request_xpath, uint32_t request_id, struct lyd_node **parent, void *private_data)
 {
@@ -1422,7 +1442,7 @@ static int interfaces_state_data_cb(sr_session_ctx_t *session, const char *modul
 		error = get_interface_description(interface_data.name, &interface_data.description);
 		if (error != 0) {
 			SRP_LOG_ERRMSG("get_interface_description error");
-			goto error_out;
+			// don't exit, as some interfaces might not have a description
 		}
 
 		interface_data.type = rtnl_link_get_type(link);

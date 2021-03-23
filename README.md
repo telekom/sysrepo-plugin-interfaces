@@ -143,10 +143,13 @@ The following items are operational state data:
 
 ## Running and Examples
 
-This plugin is installed as the `sysrepo-plugin-interfaces` binary to `${SYSREPO_DIR}/bin/` directory path.
-After loading the example simply invoke this binary, making sure that the environment variables are set correctly:
+This plugin is installed as the `sysrepo-plugin-interfaces` binary to `${SYSREPO_DIR}/bin/` directory path, if installed with the setup-dev scripts.
+After loading the example simply invoke this binary, making sure that the environment variables are set correctly.
+Specifically, the `PLUGIN_DIR` has to be set, to a directory where the plugin's files can be stored:
 
 ```
+mkdir -p /usr/local/lib/sysrepo-interfaces-plugin
+export PLUGIN_DIR=/usr/local/lib/sysrepo-interfaces-plugin
 $ sysrepo-plugin-interfaces
 [...]
 [INF]: Applying scheduled changes.
