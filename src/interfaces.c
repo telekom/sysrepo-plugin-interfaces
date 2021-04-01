@@ -1393,6 +1393,32 @@ static int interfaces_state_data_cb(sr_session_ctx_t *session, const char *modul
 		} statistics;
 	} interface_data = {0};
 
+	typedef struct {
+		char *name;
+		char **data;
+		uint32_t count;
+	} master_t;
+
+	typedef struct {
+		master_t masters[LD_MAX_LINKS];
+		uint32_t count;
+	} master_list_t;
+
+	master_list_t master_list = {0};
+
+	typedef struct {
+		char *name;
+		char **data;
+		uint32_t count;
+	} slave_t;
+
+	typedef struct {
+		slave_t slaves[LD_MAX_LINKS];
+		uint32_t count;
+	} slave_list_t;
+
+	slave_list_t slave_list = {0};
+
 	const char *OPER_STRING_MAP[] = {
 		[IF_OPER_UNKNOWN] = "unknown",
 		[IF_OPER_NOTPRESENT] = "not-present",
@@ -1427,6 +1453,87 @@ static int interfaces_state_data_cb(sr_session_ctx_t *session, const char *modul
 	if (error != 0) {
 		SRP_LOG_ERR("rtnl_link_alloc_cache error (%d): %s", error, nl_geterror(error));
 		goto error_out;
+	}
+
+	link = (struct rtnl_link *) nl_cache_get_first(cache);
+
+	// collect all master interfaces
+	while (link != NULL) {
+		char *if_name = rtnl_link_get_name(link);
+
+		// higher-layer-if
+		tmp_if_index = rtnl_link_get_master(link);
+		while (tmp_if_index) {
+			tmp_link = rtnl_link_get(cache, tmp_if_index);
+
+			// append name to the list
+			tmp_len = strlen(rtnl_link_get_name(tmp_link));
+			interface_data.higher_layer_if.count++;
+			interface_data.higher_layer_if.data = xrealloc(interface_data.higher_layer_if.data, sizeof(char *) * (interface_data.higher_layer_if.count));
+			interface_data.higher_layer_if.data[interface_data.higher_layer_if.count - 1] = xmalloc(sizeof(char) * (tmp_len + 1));
+			memcpy(interface_data.higher_layer_if.data[interface_data.higher_layer_if.count - 1], rtnl_link_get_name(tmp_link), tmp_len);
+			interface_data.higher_layer_if.data[interface_data.higher_layer_if.count - 1][tmp_len] = 0;
+
+			tmp_if_index = rtnl_link_get_master(tmp_link);
+		}
+
+		if (interface_data.higher_layer_if.data != NULL) {
+			master_list.masters[master_list.count].data = xrealloc(interface_data.higher_layer_if.data, sizeof(char *) * (interface_data.higher_layer_if.count));
+			memcpy(master_list.masters[master_list.count].data, interface_data.higher_layer_if.data, sizeof(char *) * (interface_data.higher_layer_if.count));
+			master_list.masters[master_list.count].count = interface_data.higher_layer_if.count;
+
+			master_list.masters[master_list.count].name = strdup(if_name);
+			master_list.count++;
+		}
+
+		// continue to next link node
+		link = (struct rtnl_link *) nl_cache_get_next((struct nl_object *) link);
+	}
+
+	// collect all slave interfaces
+	link = (struct rtnl_link *) nl_cache_get_first(cache);
+
+	while (link != NULL) {
+		// lower-layer-if
+		char *if_name = rtnl_link_get_name(link);
+
+		bool break_out = false;
+		for (uint64_t i = 0; i < master_list.count; i++) {
+			for (uint64_t j = 0; j < master_list.masters[i].count; j++) {
+				if (strcmp(master_list.masters[i].name, master_list.masters[i].data[j]) == 0) {
+					continue;
+				}
+
+				if (strcmp(master_list.masters[i].data[j], if_name) == 0) {
+					SRP_LOG_DBG("Slave of interface %s: %s", if_name, master_list.masters[i].name);
+
+					// append name to the list
+					tmp_len = strlen(master_list.masters[i].name);
+					interface_data.lower_layer_if.count++;
+					interface_data.lower_layer_if.data = xrealloc(interface_data.lower_layer_if.data, sizeof(char *) * (interface_data.lower_layer_if.count));
+					interface_data.lower_layer_if.data[interface_data.lower_layer_if.count - 1] = xmalloc(sizeof(char) * (tmp_len + 1));
+					memcpy(interface_data.lower_layer_if.data[interface_data.lower_layer_if.count - 1], master_list.masters[i].name, tmp_len);
+					interface_data.lower_layer_if.data[interface_data.lower_layer_if.count - 1][tmp_len] = 0;
+
+					if (interface_data.lower_layer_if.data != NULL) {
+						slave_list.slaves[slave_list.count].data = xrealloc(interface_data.lower_layer_if.data, sizeof(char *) * (interface_data.lower_layer_if.count));
+						memcpy(slave_list.slaves[slave_list.count].data, interface_data.lower_layer_if.data, sizeof(char *) * (interface_data.lower_layer_if.count));
+						slave_list.slaves[slave_list.count].count = interface_data.lower_layer_if.count;
+
+						slave_list.slaves[slave_list.count].name = strdup(if_name);
+						slave_list.count++;
+					}
+
+					break_out = true;
+					break;
+				}
+			}
+			if (break_out) {
+				break;
+			}
+		}
+		// continue to next link node
+		link = (struct rtnl_link *) nl_cache_get_next((struct nl_object *) link);
 	}
 
 	link = (struct rtnl_link *) nl_cache_get_first(cache);
@@ -1469,23 +1576,6 @@ static int interfaces_state_data_cb(sr_session_ctx_t *session, const char *modul
 		nl_addr2str(addr, interface_data.phys_address, MAC_ADDR_MAX_LENGTH);
 		interface_data.phys_address[MAC_ADDR_MAX_LENGTH] = 0;
 
-		// higher-layer-if
-		tmp_if_index = rtnl_link_get_master(link);
-		while (tmp_if_index) {
-			tmp_link = rtnl_link_get(cache, tmp_if_index);
-
-			// append name to the list
-			tmp_len = strlen(rtnl_link_get_name(tmp_link));
-			interface_data.higher_layer_if.count++;
-			interface_data.higher_layer_if.data = xrealloc(interface_data.higher_layer_if.data, sizeof(char *) * (interface_data.higher_layer_if.count));
-			interface_data.higher_layer_if.data[interface_data.higher_layer_if.count - 1] = xmalloc(sizeof(char) * (tmp_len + 1));
-			memcpy(interface_data.higher_layer_if.data[interface_data.higher_layer_if.count - 1], rtnl_link_get_name(tmp_link), tmp_len);
-			interface_data.higher_layer_if.data[interface_data.higher_layer_if.count - 1][tmp_len] = 0;
-
-			tmp_if_index = rtnl_link_get_master(tmp_link);
-		}
-
-		// interface_data.lower_layer_if = ?
 		interface_data.speed = rtnl_tc_get_stat(tc, RTNL_TC_RATE_BPS);
 
 		// stats:
@@ -1587,13 +1677,35 @@ static int interfaces_state_data_cb(sr_session_ctx_t *session, const char *modul
 		lyd_new_path(*parent, ly_ctx, xpath_buffer, tmp_buffer, LYD_ANYDATA_CONSTSTRING, 0);
 
 		// higher-layer-if
-		for (uint64_t i = 0; i < interface_data.higher_layer_if.count; i++) {
-			error = snprintf(xpath_buffer, sizeof(xpath_buffer), "%s/higher-layer-if", interface_path_buffer);
-			if (error < 0) {
-				goto error_out;
+		for (uint64_t i = 0; i < master_list.count; i++) {
+			if (strcmp(interface_data.name, master_list.masters[i].name) == 0) {
+				for (uint64_t j = 0; j < master_list.masters[i].count; j++) {
+
+					error = snprintf(xpath_buffer, sizeof(xpath_buffer), "%s/higher-layer-if", interface_path_buffer);
+					if (error < 0) {
+						goto error_out;
+					}
+
+					SRP_LOG_DBG("%s += %s", xpath_buffer, master_list.masters[i].data[j]);
+					lyd_new_path(*parent, ly_ctx, xpath_buffer, master_list.masters[i].data[j], LYD_ANYDATA_CONSTSTRING, 0);
+				}
 			}
-			SRP_LOG_DBG("%s += %s", xpath_buffer, interface_data.higher_layer_if.data[i]);
-			lyd_new_path(*parent, ly_ctx, xpath_buffer, interface_data.higher_layer_if.data[i], LYD_ANYDATA_CONSTSTRING, 0);
+		}
+
+		// lower-layer-if
+		for (uint64_t i = 0; i < slave_list.count; i++) {
+			if (strcmp(interface_data.name, slave_list.slaves[i].name) == 0) {
+				for (uint64_t j = 0; j < slave_list.slaves[i].count; j++) {
+
+					error = snprintf(xpath_buffer, sizeof(xpath_buffer), "%s/lower-layer-if", interface_path_buffer);
+					if (error < 0) {
+						goto error_out;
+					}
+
+					SRP_LOG_DBG("%s += %s", xpath_buffer, slave_list.slaves[i].data[j]);
+					lyd_new_path(*parent, ly_ctx, xpath_buffer, slave_list.slaves[i].data[j], LYD_ANYDATA_CONSTSTRING, 0);
+				}
+			}
 		}
 
 		// stats:
