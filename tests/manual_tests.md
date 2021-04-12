@@ -155,22 +155,21 @@ sysrepocfg -X -d operational -m ietf-interfaces
 <interfaces xmlns="urn:ietf:params:xml:ns:yang:ietf-interfaces">
   <interface>
     <name>lo</name>
-    <description>test</description>
+    <description/>
     <oper-status>unknown</oper-status>
-    <last-change>2021-03-23T12:21:23Z</last-change>
     <phys-address>00:00:00:00:00:00</phys-address>
     <speed>0</speed>
     <statistics>
-      <discontinuity-time>2021-03-22T19:38:35Z</discontinuity-time>
-      <in-octets>0</in-octets>
+      <discontinuity-time>2021-04-12T09:16:12Z</discontinuity-time>
+      <in-octets>1160729</in-octets>
       <in-unicast-pkts>0</in-unicast-pkts>
       <in-broadcast-pkts>0</in-broadcast-pkts>
       <in-multicast-pkts>0</in-multicast-pkts>
       <in-discards>0</in-discards>
       <in-errors>0</in-errors>
       <in-unknown-protos>0</in-unknown-protos>
-      <out-octets>0</out-octets>
-      <out-unicast-pkts>2776</out-unicast-pkts>
+      <out-octets>1160729</out-octets>
+      <out-unicast-pkts>18891</out-unicast-pkts>
       <out-broadcast-pkts>0</out-broadcast-pkts>
       <out-multicast-pkts>0</out-multicast-pkts>
       <out-discards>0</out-discards>
@@ -184,7 +183,7 @@ sysrepocfg -X -d operational -m ietf-interfaces
     <phys-address>98:fa:9b:78:03:6f</phys-address>
     <speed>0</speed>
     <statistics>
-      <discontinuity-time>2021-03-22T19:38:35Z</discontinuity-time>
+      <discontinuity-time>2021-04-12T09:16:12Z</discontinuity-time>
       <in-octets>0</in-octets>
       <in-unicast-pkts>0</in-unicast-pkts>
       <in-broadcast-pkts>0</in-broadcast-pkts>
@@ -207,41 +206,18 @@ sysrepocfg -X -d operational -m ietf-interfaces
     <phys-address>d0:ab:d5:33:62:c9</phys-address>
     <speed>0</speed>
     <statistics>
-      <discontinuity-time>2021-03-22T19:38:35Z</discontinuity-time>
-      <in-octets>0</in-octets>
+      <discontinuity-time>2021-04-12T09:16:12Z</discontinuity-time>
+      <in-octets>222429196</in-octets>
       <in-unicast-pkts>0</in-unicast-pkts>
       <in-broadcast-pkts>0</in-broadcast-pkts>
       <in-multicast-pkts>0</in-multicast-pkts>
       <in-discards>0</in-discards>
       <in-errors>0</in-errors>
       <in-unknown-protos>0</in-unknown-protos>
-      <out-octets>0</out-octets>
-      <out-unicast-pkts>18016</out-unicast-pkts>
+      <out-octets>34816525</out-octets>
+      <out-unicast-pkts>169315</out-unicast-pkts>
       <out-broadcast-pkts>0</out-broadcast-pkts>
-      <out-multicast-pkts>23</out-multicast-pkts>
-      <out-discards>1</out-discards>
-      <out-errors>0</out-errors>
-    </statistics>
-  </interface>
-  <interface>
-    <name>br-467cc91543b9</name>
-    <description/>
-    <oper-status>up</oper-status>
-    <phys-address>02:42:57:2b:23:af</phys-address>
-    <speed>0</speed>
-    <statistics>
-      <discontinuity-time>2021-03-22T19:38:35Z</discontinuity-time>
-      <in-octets>0</in-octets>
-      <in-unicast-pkts>0</in-unicast-pkts>
-      <in-broadcast-pkts>0</in-broadcast-pkts>
-      <in-multicast-pkts>0</in-multicast-pkts>
-      <in-discards>0</in-discards>
-      <in-errors>0</in-errors>
-      <in-unknown-protos>0</in-unknown-protos>
-      <out-octets>0</out-octets>
-      <out-unicast-pkts>251</out-unicast-pkts>
-      <out-broadcast-pkts>0</out-broadcast-pkts>
-      <out-multicast-pkts>5</out-multicast-pkts>
+      <out-multicast-pkts>20</out-multicast-pkts>
       <out-discards>0</out-discards>
       <out-errors>0</out-errors>
     </statistics>
@@ -249,11 +225,11 @@ sysrepocfg -X -d operational -m ietf-interfaces
   <interface>
     <name>docker0</name>
     <description/>
-    <oper-status>up</oper-status>
-    <phys-address>02:42:7c:69:df:d7</phys-address>
+    <oper-status>down</oper-status>
+    <phys-address>02:42:ed:f9:e8:67</phys-address>
     <speed>0</speed>
     <statistics>
-      <discontinuity-time>2021-03-22T19:38:35Z</discontinuity-time>
+      <discontinuity-time>2021-04-12T09:16:12Z</discontinuity-time>
       <in-octets>0</in-octets>
       <in-unicast-pkts>0</in-unicast-pkts>
       <in-broadcast-pkts>0</in-broadcast-pkts>
@@ -262,58 +238,57 @@ sysrepocfg -X -d operational -m ietf-interfaces
       <in-errors>0</in-errors>
       <in-unknown-protos>0</in-unknown-protos>
       <out-octets>0</out-octets>
-      <out-unicast-pkts>9994</out-unicast-pkts>
+      <out-unicast-pkts>0</out-unicast-pkts>
       <out-broadcast-pkts>0</out-broadcast-pkts>
-      <out-multicast-pkts>21</out-multicast-pkts>
+      <out-multicast-pkts>0</out-multicast-pkts>
       <out-discards>0</out-discards>
       <out-errors>0</out-errors>
     </statistics>
   </interface>
   <interface>
-    <name>vethcb51a04</name>
+    <name>br-467cc91543b9</name>
     <description/>
     <oper-status>up</oper-status>
-    <phys-address>5a:9d:4c:be:19:d4</phys-address>
+    <phys-address>02:42:80:ab:de:52</phys-address>
     <speed>0</speed>
-    <higher-layer-if>br-467cc91543b9</higher-layer-if>
+    <lower-layer-if>veth6186adb</lower-layer-if>
     <statistics>
-      <discontinuity-time>2021-03-22T19:38:35Z</discontinuity-time>
-      <in-octets>0</in-octets>
+      <discontinuity-time>2021-04-12T09:16:12Z</discontinuity-time>
+      <in-octets>113833</in-octets>
       <in-unicast-pkts>0</in-unicast-pkts>
       <in-broadcast-pkts>0</in-broadcast-pkts>
       <in-multicast-pkts>0</in-multicast-pkts>
       <in-discards>0</in-discards>
       <in-errors>0</in-errors>
       <in-unknown-protos>0</in-unknown-protos>
-      <out-octets>0</out-octets>
-      <out-unicast-pkts>256</out-unicast-pkts>
+      <out-octets>334734</out-octets>
+      <out-unicast-pkts>2348</out-unicast-pkts>
       <out-broadcast-pkts>0</out-broadcast-pkts>
-      <out-multicast-pkts>15</out-multicast-pkts>
+      <out-multicast-pkts>5</out-multicast-pkts>
       <out-discards>0</out-discards>
       <out-errors>0</out-errors>
     </statistics>
   </interface>
   <interface>
-    <name>veth44c145f</name>
+    <name>veth6186adb</name>
     <description/>
     <oper-status>up</oper-status>
-    <phys-address>42:7a:06:90:46:87</phys-address>
+    <phys-address>3a:0c:eb:cf:1c:2b</phys-address>
     <speed>0</speed>
     <higher-layer-if>br-467cc91543b9</higher-layer-if>
-    <higher-layer-if>docker0</higher-layer-if>
     <statistics>
-      <discontinuity-time>2021-03-22T19:38:35Z</discontinuity-time>
-      <in-octets>0</in-octets>
+      <discontinuity-time>2021-04-12T09:16:12Z</discontinuity-time>
+      <in-octets>128729</in-octets>
       <in-unicast-pkts>0</in-unicast-pkts>
       <in-broadcast-pkts>0</in-broadcast-pkts>
       <in-multicast-pkts>0</in-multicast-pkts>
       <in-discards>0</in-discards>
       <in-errors>0</in-errors>
       <in-unknown-protos>0</in-unknown-protos>
-      <out-octets>0</out-octets>
-      <out-unicast-pkts>56</out-unicast-pkts>
+      <out-octets>336160</out-octets>
+      <out-unicast-pkts>2353</out-unicast-pkts>
       <out-broadcast-pkts>0</out-broadcast-pkts>
-      <out-multicast-pkts>14</out-multicast-pkts>
+      <out-multicast-pkts>19</out-multicast-pkts>
       <out-discards>0</out-discards>
       <out-errors>0</out-errors>
     </statistics>
@@ -330,6 +305,10 @@ The `phys-address` node should contain the physical address (usually MAC) of the
 
 `higher-layer-if` retrieves the master interface of the current interface. For example if the interface is part of a virtual bridge,
 `higher-layer-if` will contain the name of the virtual bridge.
+
+`lower-layer-if` retrieves the slave interface of the current interface. For example if the interface a virtual bridge,
+`lower-layer-if` will contain all the interfaces that are a part of that bridge.
+
 
 The `statistics` node contains various statistics about the interface.
 `discontinuity-time` currently contains the system boot time, as we are currently not aware of an easy
