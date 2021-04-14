@@ -61,3 +61,8 @@ include_directories(
     ${LIBYANG_INCLUDE_DIRS}
     ${NL_INCLUDE_DIRS}
 )
+
+if(ENABLE_BUILD_TESTS)
+	find_package(CMOCKA REQUIRED)
+    include (CTest)
+endif()

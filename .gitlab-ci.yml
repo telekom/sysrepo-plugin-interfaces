@@ -1,0 +1,78 @@
+image: "debian:sid"
+
+before_script:
+  - apt-get update
+  - apt-get -y install clang cmake libcmocka0 libcmocka-dev valgrind libyang1 libyang-dev sysrepo libsysrepo-dev libnl-3-200 libnl-3-dev libnl-genl-3-dev libnl-nf-3-dev
+
+  # resolve time issues
+  - ln -snf /usr/share/zoneinfo/Europe/Zagreb /etc/localtime && echo 'Europe/Zagreb' > /etc/timezone
+
+stages:
+  - build
+  - test
+
+build:default:
+  stage: build
+  script:
+    - mkdir build && cd build
+    - CC=clang cmake -DENABLE_BUILD_TESTS=ON ..
+    - make 
+  artifacts:
+    paths:
+      - build/
+
+build:sanitized:
+  stage: build
+  script:
+    - mkdir build_sanitized && cd build_sanitized
+    - CC=clang cmake -DCMAKE_C_FLAGS=\"-fsanitize=address,undefined\" -DENABLE_SANITIZER=ON ..
+    - make
+  artifacts:
+    paths:
+      - build_sanitized/
+
+build:sanitized_memory:
+  stage: build
+  script:
+    - mkdir build_sanitized_memory && cd build_sanitized_memory
+    - CC=clang cmake -DCMAKE_C_FLAGS=\"-fsanitize=memory\" -DENABLE_SANITIZER=ON ..
+    - make
+  artifacts:
+    paths:
+      - build_sanitized_memory/
+
+test:default:
+  stage: test
+  script:
+    - cd build
+    - ctest -T test --output-on-failure
+  artifacts:
+    paths:
+      - build/
+
+test:sanitized:
+  stage: test
+  script:
+    - cd build_sanitized
+    - ctest -T test --output-on-failure
+  artifacts:
+    paths:
+      - build_sanitized/
+
+test:sanitized_memory:
+  stage: test
+  script:
+    - cd build_sanitized_memory
+    - ctest -T test --output-on-failure
+  artifacts:
+    paths:
+      - build_sanitized_memory/
+
+test:valgrind:
+  stage: test
+  script:
+    - cd build
+    - ctest -T memcheck
+  artifacts:
+    paths:
+      - build/
