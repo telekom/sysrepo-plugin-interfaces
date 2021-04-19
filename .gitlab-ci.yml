@@ -43,6 +43,7 @@ build:sanitized_memory:
 
 test:default:
   stage: test
+  needs: ["build:default"]
   script:
     - cd build
     - ctest -T test --output-on-failure
@@ -52,6 +53,7 @@ test:default:
 
 test:sanitized:
   stage: test
+  needs: ["build:sanitized"]
   script:
     - cd build_sanitized
     - ctest -T test --output-on-failure
@@ -61,6 +63,7 @@ test:sanitized:
 
 test:sanitized_memory:
   stage: test
+  needs: ["build:sanitized_memory"]
   script:
     - cd build_sanitized_memory
     - ctest -T test --output-on-failure
@@ -70,6 +73,7 @@ test:sanitized_memory:
 
 test:valgrind:
   stage: test
+  needs: ["build:default"]
   script:
     - cd build
     - ctest -T memcheck
