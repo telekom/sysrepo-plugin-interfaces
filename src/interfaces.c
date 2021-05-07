@@ -1323,6 +1323,7 @@ static char *get_plugin_file_path(const char *filename, bool create)
 			tmp = fopen(file_path, "w");
 			if (tmp == NULL) {
 				SRP_LOG_ERR("Error creating %s", file_path);
+				return NULL;
 			}
 			fclose(tmp);
 		} else {
