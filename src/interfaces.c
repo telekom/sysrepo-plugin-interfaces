@@ -1,6 +1,13 @@
+#include <netlink/addr.h>
+#include "utils/ip_data.h"
+#include <linux/if_addr.h>
 #include <linux/limits.h>
 #include <linux/if.h>
+#include <linux/ip.h>
 #include <sys/socket.h>
+#include <sys/stat.h>
+#include <sys/types.h>
+#include <dirent.h>
 #include <errno.h>
 #include <sysrepo.h>
 #include <sysrepo/xpath.h>
@@ -12,36 +19,26 @@
 #include <string.h>
 #include <netlink/socket.h>
 #include <netlink/route/link.h>
+#include <netlink/route/link/inet.h>
+#include <netlink/route/link/inet6.h>
 #include <netlink/route/addr.h>
+#include <netlink/route/neighbour.h>
 #include <netlink/route/tc.h>
 #include <netlink/route/qdisc.h>
+#include <netlink/route/link/vlan.h>
 #include <netlink/netlink.h>
 #include <libyang/libyang.h>
 #include <linux/if.h>
 #include <pthread.h>
 #include <unistd.h>
-#include "utils/if_state.h"
+#include <utils/if_state.h>
+#include <arpa/inet.h>
+#include <utils/link_data.h>
 #include <time.h>
 #include <sys/sysinfo.h>
 
-#define LD_MAX_LINKS 100 // TODO: check this
-
-typedef struct {
-	char *name;
-	char *description;
-	char *type;
-	char *enabled;
-	bool delete;
-} link_data_t;
-
-typedef struct {
-	link_data_t links[LD_MAX_LINKS];
-	uint8_t count;
-} link_data_list_t;
-
-static link_data_list_t link_data_list = {0};
-
 #define BASE_YANG_MODEL "ietf-interfaces"
+#define BASE_IP_YANG_MODEL "ietf-ip"
 
 #define SYSREPOCFG_EMPTY_CHECK_COMMAND "sysrepocfg -X -d running -m " BASE_YANG_MODEL
 
@@ -53,10 +50,12 @@ static link_data_list_t link_data_list = {0};
 #define MAC_ADDR_MAX_LENGTH 18
 #define MAX_DESCR_LEN 100
 #define DATETIME_BUF_SIZE 30
-#define PLUGIN_DIR_ENV_VAR "PLUGIN_DIR"
+#define PLUGIN_DIR_ENV_VAR "IF_PLUGIN_DATA_DIR"
+#define PLUGIN_DIR_DEFAULT "/usr/local/lib/sysrepo-interfaces-plugin"
 #define INTERFACE_DESCRIPTION_FILENAME "/interface_description"
 #define TMP_INTERFACE_DESCRIPTION_FILENAME "/tmp_interface_description"
 #define CLASS_NET_LINE_LEN 1024
+#define ADDR_STR_BUF_SIZE 45 // max ip string length (15 for ipv4 and 45 for ipv6)
 
 // callbacks
 static int interfaces_module_change_cb(sr_session_ctx_t *session, const char *module_name, const char *xpath, sr_event_t event, uint32_t request_id, void *private_data);
@@ -68,23 +67,17 @@ static int load_data(sr_session_ctx_t *session, link_data_list_t *ld);
 static bool check_system_interface(const char *interface_name, bool *system_interface);
 static char *interfaces_xpath_get(const struct lyd_node *node);
 int set_config_value(const char *xpath, const char *value);
+int add_interface_ipv4(link_data_t *ld, struct rtnl_link *old, struct rtnl_link *req, int if_idx);
+static int remove_ipv4_address(ip_address_list_t *addr_list, struct nl_sock *socket, struct rtnl_link *old);
+int add_interface_ipv6(link_data_t *ld, struct rtnl_link *old, struct rtnl_link *req, int if_idx);
+static int remove_ipv6_address(ip_address_list_t *addr_list, struct nl_sock *socket, struct rtnl_link *old);
+static int remove_neighbors(ip_neighbor_list_t *nbor_list, struct nl_sock *socket, int addr_ver, int if_index);
+int write_to_proc_file(const char *dir_path, char *interface, const char *fn, int val);
+static int read_from_proc_file(const char *dir_path, char *interface, const char *fn, int *val);
 int delete_config_value(const char *xpath, const char *value);
 int update_link_info(link_data_list_t *ld, sr_change_oper_t operation);
 static char *convert_ianaiftype(char *iana_if_type);
-
-void link_init(link_data_t *l);
-void link_set_name(link_data_t *l, char *name);
-static int link_data_list_init(link_data_list_t *ld);
-static int add_existing_links(link_data_list_t *ld);
-int link_data_list_remove(link_data_list_t *ld, char *name);
-int link_data_list_add(link_data_list_t *ld, char *name);
-int link_data_list_set_description(link_data_list_t *ld, char *name, char *description);
-int link_data_list_set_type(link_data_list_t *ld, char *name, char *type);
-int link_data_list_set_enabled(link_data_list_t *ld, char *name, char *enabled);
-int link_data_list_set_delete(link_data_list_t *ld, char *name, bool delete);
-void link_data_list_free(link_data_list_t *ld);
-void link_data_free(link_data_t *l);
-
+int add_existing_links(link_data_list_t *ld);
 static int set_interface_description(char *name, char *description);
 static int get_interface_description(char *name, char **description);
 static char *get_plugin_file_path(const char *filename, bool create);
@@ -99,6 +92,9 @@ static void cache_change_cb(struct nl_cache *cache, struct nl_object *obj, int v
 
 // static list of interface states for tracking state changes using threads
 static if_state_list_t if_state_changes;
+
+// global list of link_data structs
+static link_data_list_t link_data_list = {0};
 
 // link manager used for cacheing links info constantly
 static struct nl_cache_mngr *link_manager = NULL;
@@ -118,9 +114,7 @@ int sr_plugin_init_cb(sr_session_ctx_t *session, void **private_data)
 
 	desc_file_path = get_plugin_file_path(INTERFACE_DESCRIPTION_FILENAME, true);
 	if (desc_file_path == NULL) {
-		SRP_LOG_ERR("Please set the %s env variable. "
-			       "The plugin uses the path in the variable "
-			       "to store interface descriptions in a file.", PLUGIN_DIR_ENV_VAR);
+		SRP_LOG_ERRMSG("get_plugin_file_path error");
 		error = -1;
 		goto error_out;
 	}
@@ -183,11 +177,17 @@ int sr_plugin_init_cb(sr_session_ctx_t *session, void **private_data)
 
 	SRP_LOG_INFMSG("plugin init done");
 
+	FREE_SAFE(desc_file_path);
+
 	goto out;
 
 error_out:
 	if (subscription != NULL) {
 		sr_unsubscribe(subscription);
+	}
+
+	if (desc_file_path != NULL) {
+		FREE_SAFE(desc_file_path);
 	}
 out:
 	return error ? SR_ERR_CALLBACK_FAILED : SR_ERR_OK;
@@ -222,6 +222,7 @@ static int load_data(sr_session_ctx_t *session, link_data_list_t *ld)
 	int error = 0;
 	char interface_path_buffer[PATH_MAX] = {0};
 	char xpath_buffer[PATH_MAX] = {0};
+	char tmp_buffer[PATH_MAX] = {0};
 
 	for (int i = 0; i < ld->count; i++) {
 		char *name = ld->links[i].name;
@@ -293,6 +294,240 @@ static int load_data(sr_session_ctx_t *session, link_data_list_t *ld)
 		if (error) {
 			SRP_LOG_ERR("sr_set_item_str error (%d): %s", error, sr_strerror(error));
 			goto error_out;
+		}
+
+		// ietf-ip
+		// TODO: refactor this!
+		// list of ipv4 addresses
+		if (strcmp(ld->links[i].name, name ) == 0) {
+			// enabled
+			// TODO
+
+			// forwarding
+			uint8_t ipv4_forwarding = ld->links[i].ipv4.forwarding;
+
+			error = snprintf(xpath_buffer, sizeof(xpath_buffer), "%s/ietf-ip:ipv4/forwarding", interface_path_buffer);
+			if (error < 0) {
+				goto error_out;
+			}
+
+			SRP_LOG_DBG("xpath_buffer: %s = %s", xpath_buffer, ipv4_forwarding == 0 ? "false" : "true");
+
+			error = sr_set_item_str(session, xpath_buffer, ipv4_forwarding == 0 ? "false" : "true", NULL, SR_EDIT_DEFAULT);
+			if (error) {
+				SRP_LOG_ERR("sr_set_item_str error (%d): %s", error, sr_strerror(error));
+				goto error_out;
+			}
+
+			uint32_t ipv4_addr_count = ld->links[i].ipv4.addr_list.count;
+
+			for (uint32_t j = 0; j < ipv4_addr_count; j++) {
+				if (ld->links[i].ipv4.addr_list.addr[j].ip != NULL) { // in case we deleted an ip address it will be NULL
+					char *ip_addr = ld->links[i].ipv4.addr_list.addr[j].ip;
+
+					int ipv4_mtu = ld->links[i].ipv4.mtu;
+					if (ipv4_mtu > 0) {
+						error = snprintf(xpath_buffer, sizeof(xpath_buffer), "%s/ietf-ip:ipv4/mtu", interface_path_buffer);
+						if (error < 0) {
+							goto error_out;
+						}
+
+						snprintf(tmp_buffer, sizeof(tmp_buffer), "%u", ipv4_mtu);
+
+						SRP_LOG_DBG("xpath_buffer: %s = %s", xpath_buffer, tmp_buffer);
+
+						error = sr_set_item_str(session, xpath_buffer, tmp_buffer, NULL, SR_EDIT_DEFAULT);
+						if (error) {
+							SRP_LOG_ERR("sr_set_item_str error (%d): %s", error, sr_strerror(error));
+							goto error_out;
+						}
+					}
+
+					error = snprintf(xpath_buffer, sizeof(xpath_buffer), "%s/ietf-ip:ipv4/address[ip='%s']/ip", interface_path_buffer, ip_addr);
+					if (error < 0) {
+						goto error_out;
+					}
+
+					// ip
+					SRP_LOG_DBG("xpath_buffer: %s = %s", xpath_buffer, ld->links[i].ipv4.addr_list.addr[j].ip);
+					error = sr_set_item_str(session, xpath_buffer, ld->links[i].ipv4.addr_list.addr[j].ip, NULL, SR_EDIT_DEFAULT);
+					if (error) {
+						SRP_LOG_ERR("sr_set_item_str error (%d): %s", error, sr_strerror(error));
+						goto error_out;
+					}
+
+					// subnet
+					snprintf(tmp_buffer, sizeof(tmp_buffer), "%u", ld->links[i].ipv4.addr_list.addr[j].subnet);
+
+					error = snprintf(xpath_buffer, sizeof(xpath_buffer), "%s/ietf-ip:ipv4/address[ip='%s']/prefix-length", interface_path_buffer, ip_addr);
+					if (error < 0) {
+						goto error_out;
+					}
+
+					SRP_LOG_DBG("xpath_buffer: %s = %s", xpath_buffer, tmp_buffer);
+
+					error = sr_set_item_str(session, xpath_buffer, tmp_buffer, NULL, SR_EDIT_DEFAULT);
+					if (error) {
+						SRP_LOG_ERR("sr_set_item_str error (%d): %s", error, sr_strerror(error));
+						goto error_out;
+					}
+				}
+			}
+
+			// list of ipv4 neighbors
+			uint32_t ipv4_neigh_count = ld->links[i].ipv4.nbor_list.count;
+			for (uint32_t j = 0; j < ipv4_neigh_count; j++) {
+				char *ip_addr = ld->links[i].ipv4.nbor_list.nbor[j].ip;
+
+				error = snprintf(xpath_buffer, sizeof(xpath_buffer), "%s/ietf-ip:ipv4/neighbor[ip='%s']/ip", interface_path_buffer, ip_addr);
+				if (error < 0) {
+					goto error_out;
+				}
+
+				// ip
+				SRP_LOG_DBG("xpath_buffer: %s = %s", xpath_buffer, ld->links[i].ipv4.nbor_list.nbor[j].ip);
+				error = sr_set_item_str(session, xpath_buffer, ld->links[i].ipv4.nbor_list.nbor[j].ip, NULL, SR_EDIT_DEFAULT);
+				if (error) {
+					SRP_LOG_ERR("sr_set_item_str error (%d): %s", error, sr_strerror(error));
+					goto error_out;
+				}
+
+				// link-layer-address
+				error = snprintf(xpath_buffer, sizeof(xpath_buffer), "%s/ietf-ip:ipv4/neighbor[ip='%s']/link-layer-address", interface_path_buffer, ip_addr);
+				if (error < 0) {
+					goto error_out;
+				}
+
+				SRP_LOG_DBG("xpath_buffer: %s = %s", xpath_buffer, ld->links[i].ipv4.nbor_list.nbor[j].phys_addr);
+
+				error = sr_set_item_str(session, xpath_buffer, ld->links[i].ipv4.nbor_list.nbor[j].phys_addr, NULL, SR_EDIT_DEFAULT);
+				if (error) {
+					SRP_LOG_ERR("sr_set_item_str error (%d): %s", error, sr_strerror(error));
+					goto error_out;
+				}
+			}
+
+			// list of ipv6 addresses
+			// enabled
+			uint8_t ipv6_enabled = ld->links[i].ipv6.ip_data.enabled;
+
+			error = snprintf(xpath_buffer, sizeof(xpath_buffer), "%s/ietf-ip:ipv6/enabled", interface_path_buffer);
+			if (error < 0) {
+				goto error_out;
+			}
+
+			SRP_LOG_DBG("xpath_buffer: %s = %s", xpath_buffer, ipv6_enabled == 0 ? "false" : "true");
+
+			error = sr_set_item_str(session, xpath_buffer, ipv6_enabled == 0 ? "false" : "true", NULL, SR_EDIT_DEFAULT);
+			if (error) {
+				SRP_LOG_ERR("sr_set_item_str error (%d): %s", error, sr_strerror(error));
+				goto error_out;
+			}
+
+			// forwarding
+			uint8_t ipv6_forwarding = ld->links[i].ipv6.ip_data.forwarding;
+
+			error = snprintf(xpath_buffer, sizeof(xpath_buffer), "%s/ietf-ip:ipv6/forwarding", interface_path_buffer);
+			if (error < 0) {
+				goto error_out;
+			}
+
+			SRP_LOG_DBG("xpath_buffer: %s = %s", xpath_buffer, ipv6_forwarding == 0 ? "false" : "true");
+
+			error = sr_set_item_str(session, xpath_buffer, ipv6_forwarding == 0 ? "false" : "true", NULL, SR_EDIT_DEFAULT);
+			if (error) {
+				SRP_LOG_ERR("sr_set_item_str error (%d): %s", error, sr_strerror(error));
+				goto error_out;
+			}
+
+			uint32_t ipv6_addr_count = ld->links[i].ipv6.ip_data.addr_list.count;
+
+			for (uint32_t j = 0; j < ipv6_addr_count; j++) {
+				if (ld->links[i].ipv6.ip_data.addr_list.addr[j].ip != NULL) { // in case we deleted an ip address it will be NULL
+					char *ip_addr = ld->links[i].ipv6.ip_data.addr_list.addr[j].ip;
+					int ipv6_mtu = ld->links[i].ipv6.ip_data.mtu;
+
+					// mtu
+					if (ipv6_mtu > 0 && ip_addr != NULL) {
+						error = snprintf(xpath_buffer, sizeof(xpath_buffer), "%s/ietf-ip:ipv6/mtu", interface_path_buffer);
+						if (error < 0) {
+							goto error_out;
+						}
+						snprintf(tmp_buffer, sizeof(tmp_buffer), "%u", ipv6_mtu);
+
+						SRP_LOG_DBG("xpath_buffer: %s = %s", xpath_buffer, tmp_buffer);
+
+						error = sr_set_item_str(session, xpath_buffer, tmp_buffer, NULL, SR_EDIT_DEFAULT);
+						if (error) {
+							SRP_LOG_ERR("sr_set_item_str error (%d): %s", error, sr_strerror(error));
+							goto error_out;
+						}
+					}
+
+					error = snprintf(xpath_buffer, sizeof(xpath_buffer), "%s/ietf-ip:ipv6/address[ip='%s']/ip", interface_path_buffer, ip_addr);
+					if (error < 0) {
+						goto error_out;
+					}
+
+					// ip
+					SRP_LOG_DBG("xpath_buffer: %s = %s", xpath_buffer, ld->links[i].ipv6.ip_data.addr_list.addr[j].ip);
+
+					error = sr_set_item_str(session, xpath_buffer, ld->links[i].ipv6.ip_data.addr_list.addr[j].ip, NULL, SR_EDIT_DEFAULT);
+					if (error) {
+						SRP_LOG_ERR("sr_set_item_str error (%d): %s", error, sr_strerror(error));
+						goto error_out;
+					}
+
+					// subnet
+					snprintf(tmp_buffer, sizeof(tmp_buffer), "%u", ld->links[i].ipv6.ip_data.addr_list.addr[j].subnet);
+
+					error = snprintf(xpath_buffer, sizeof(xpath_buffer), "%s/ietf-ip:ipv6/address[ip='%s']/prefix-length", interface_path_buffer, ip_addr);
+					if (error < 0) {
+						goto error_out;
+					}
+
+					SRP_LOG_DBG("xpath_buffer: %s = %s", xpath_buffer, tmp_buffer);
+
+					error = sr_set_item_str(session, xpath_buffer, tmp_buffer, NULL, SR_EDIT_DEFAULT);
+					if (error) {
+						SRP_LOG_ERR("sr_set_item_str error (%d): %s", error, sr_strerror(error));
+						goto error_out;
+					}
+				}
+			}
+
+			// list of ipv6 neighbors
+			uint32_t ipv6_neigh_count = ld->links[i].ipv6.ip_data.nbor_list.count;
+			for (uint32_t j = 0; j < ipv6_neigh_count; j++) {
+				char *ip_addr = ld->links[i].ipv6.ip_data.nbor_list.nbor[j].ip;
+
+				error = snprintf(xpath_buffer, sizeof(xpath_buffer), "%s/ietf-ip:ipv6/neighbor[ip='%s']/ip", interface_path_buffer, ip_addr);
+				if (error < 0) {
+					goto error_out;
+				}
+
+				// ip
+				SRP_LOG_DBG("xpath_buffer: %s = %s", xpath_buffer, ld->links[i].ipv6.ip_data.nbor_list.nbor[j].ip);
+				error = sr_set_item_str(session, xpath_buffer, ld->links[i].ipv6.ip_data.nbor_list.nbor[j].ip, NULL, SR_EDIT_DEFAULT);
+				if (error) {
+					SRP_LOG_ERR("sr_set_item_str error (%d): %s", error, sr_strerror(error));
+					goto error_out;
+				}
+
+				// link-layer-address
+				error = snprintf(xpath_buffer, sizeof(xpath_buffer), "%s/ietf-ip:ipv6/neighbor[ip='%s']/link-layer-address", interface_path_buffer, ip_addr);
+				if (error < 0) {
+					goto error_out;
+				}
+
+				SRP_LOG_DBG("xpath_buffer: %s = %s", xpath_buffer, ld->links[i].ipv6.ip_data.nbor_list.nbor[j].phys_addr);
+
+				error = sr_set_item_str(session, xpath_buffer, ld->links[i].ipv6.ip_data.nbor_list.nbor[j].phys_addr, NULL, SR_EDIT_DEFAULT);
+				if (error) {
+					SRP_LOG_ERR("sr_set_item_str error (%d): %s", error, sr_strerror(error));
+					goto error_out;
+				}
+			}
 		}
 	}
 
@@ -430,7 +665,10 @@ int set_config_value(const char *xpath, const char *value)
 	int error = SR_ERR_OK;
 	char *interface_node = NULL;
 	char *interface_node_name = NULL;
+	char *address_node_ip = NULL;
+	char *neighbor_node_ip = NULL;
 	sr_xpath_ctx_t state = {0};
+	char *xpath_cpy = strdup(xpath);
 
 	interface_node = sr_xpath_node_name((char *) xpath);
 	if (interface_node == NULL) {
@@ -440,6 +678,7 @@ int set_config_value(const char *xpath, const char *value)
 	}
 
 	interface_node_name = sr_xpath_key_value((char *) xpath, "interface", "name", &state);
+
 	if (interface_node_name == NULL) {
 		SRP_LOG_ERRMSG("sr_xpath_key_value error");
 		error = SR_ERR_CALLBACK_FAILED;
@@ -478,8 +717,7 @@ int set_config_value(const char *xpath, const char *value)
 			error = SR_ERR_CALLBACK_FAILED;
 			goto out;
 		}
-
-	} else if (strcmp(interface_node, "enabled") == 0) {
+	} else if (strcmp(interface_node, "enabled") == 0 && strstr(xpath_cpy, "ietf-ip:") == 0) {
 		// change enabled
 		error = link_data_list_set_enabled(&link_data_list, interface_node_name, (char *) value);
 		if (error != 0) {
@@ -488,10 +726,124 @@ int set_config_value(const char *xpath, const char *value)
 			goto out;
 		}
 	}
+	else if (strstr(xpath_cpy, "ietf-ip:ipv4") != 0) {
+		SRP_LOG_DBG("ietf-ip:ipv4 change: '%s' on interface '%s'", interface_node, interface_node_name);
+		memset(&state, 0, sizeof(sr_xpath_ctx_t));
+		// check if an ip address has been added
+		address_node_ip = sr_xpath_key_value((char *) xpath_cpy, "address", "ip", &state);
+
+		// check if a neighbor has been added
+		neighbor_node_ip = sr_xpath_key_value((char *) xpath_cpy, "neighbor", "ip", &state);
+
+		if (address_node_ip != NULL) {
+			// address has been added -> check for interface node (last node of the path) -> (prefix-length || netmask)
+			if (strcmp(interface_node, "prefix-length") == 0) {
+				error = link_data_list_add_ipv4_address(&link_data_list, interface_node_name, address_node_ip, (char *) value, ip_subnet_type_prefix_length);
+				if (error != 0) {
+					SRP_LOG_ERR("link_data_list_add_ipv4_address error (%d) : %s", error, strerror(error));
+					error = SR_ERR_CALLBACK_FAILED;
+					goto out;
+				}
+			} else if (strcmp(interface_node, "netmask") == 0) {
+				error = link_data_list_add_ipv4_address(&link_data_list, interface_node_name, address_node_ip, (char *) value, ip_subnet_type_netmask);
+				if (error != 0) {
+					SRP_LOG_ERR("link_data_list_add_ipv4_address error (%d) : %s", error, strerror(error));
+					error = SR_ERR_CALLBACK_FAILED;
+					goto out;
+				}
+			}
+		} else if (neighbor_node_ip != NULL) {
+			if (strcmp(interface_node, "link-layer-address") == 0) {
+				error = link_data_list_add_ipv4_neighbor(&link_data_list, interface_node_name, neighbor_node_ip, (char *) value);
+				if (error != 0) {
+					SRP_LOG_ERR("link_data_list_add_ipv4_neighbor error (%d) : %s", error, strerror(error));
+					error = SR_ERR_CALLBACK_FAILED;
+					goto out;
+				}
+			}
+		} else if (strcmp(interface_node, "enabled") == 0) {
+			error = link_data_list_set_ipv4_enabled(&link_data_list, interface_node_name, (char *) value);
+			if (error != 0) {
+				SRP_LOG_ERR("link_data_list_set_ipv4_enabled error (%d) : %s", error, strerror(error));
+				error = SR_ERR_CALLBACK_FAILED;
+				goto out;
+			}
+		} else if (strcmp(interface_node, "forwarding") == 0) {
+			error = link_data_list_set_ipv4_forwarding(&link_data_list, interface_node_name, (char *) value);
+			if (error != 0) {
+				SRP_LOG_ERR("link_data_list_set_ipv4_forwarding error (%d) : %s", error, strerror(error));
+				error = SR_ERR_CALLBACK_FAILED;
+				goto out;
+			}
+		} else if (strcmp(interface_node, "mtu") == 0) {
+			error = link_data_list_set_ipv4_mtu(&link_data_list, interface_node_name, (char *) value);
+			if (error != 0) {
+				SRP_LOG_ERR("link_data_list_set_ipv4_mtu error (%d) : %s", error, strerror(error));
+				error = SR_ERR_CALLBACK_FAILED;
+				goto out;
+			}
+		}
+	} else if (strstr(xpath_cpy, "ietf-ip:ipv6") != 0) {
+		SRP_LOG_DBG("ietf-ip:ipv6 change: '%s' on interface '%s'", interface_node, interface_node_name);
+		// check if an ip address has been added
+		address_node_ip = sr_xpath_key_value((char *) xpath_cpy, "address", "ip", &state);
+		// check if a neighbor has been added
+		neighbor_node_ip = sr_xpath_key_value((char *) xpath_cpy, "neighbor", "ip", &state);
+
+		if (address_node_ip != NULL) {
+			// address has been added -> check for interface node (last node of the path) -> (prefix-length || netmask)
+			if (strcmp(interface_node, "prefix-length") == 0) {
+				error = link_data_list_add_ipv6_address(&link_data_list, interface_node_name, address_node_ip, (char *) value);
+				if (error != 0) {
+					SRP_LOG_ERR("link_data_list_add_ipv4_address error (%d) : %s", error, strerror(error));
+					error = SR_ERR_CALLBACK_FAILED;
+					goto out;
+				}
+			} else if (strcmp(interface_node, "netmask") == 0) {
+				error = link_data_list_add_ipv6_address(&link_data_list, interface_node_name, address_node_ip, (char *) value);
+				if (error != 0) {
+					SRP_LOG_ERR("link_data_list_add_ipv4_address error (%d) : %s", error, strerror(error));
+					error = SR_ERR_CALLBACK_FAILED;
+					goto out;
+				}
+			}
+		} else if (neighbor_node_ip != NULL) {
+			if (strcmp(interface_node, "link-layer-address") == 0) {
+				error = link_data_list_add_ipv6_neighbor(&link_data_list, interface_node_name, neighbor_node_ip, (char *) value);
+				if (error != 0) {
+					SRP_LOG_ERR("link_data_list_add_ipv4_neighbor error (%d) : %s", error, strerror(error));
+					error = SR_ERR_CALLBACK_FAILED;
+					goto out;
+				}
+			}
+		} else if (strcmp(interface_node, "enabled") == 0) {
+			error = link_data_list_set_ipv6_enabled(&link_data_list, interface_node_name, (char *) value);
+			if (error != 0) {
+				SRP_LOG_ERR("link_data_list_set_ipv4_enabled error (%d) : %s", error, strerror(error));
+				error = SR_ERR_CALLBACK_FAILED;
+				goto out;
+			}
+		} else if (strcmp(interface_node, "forwarding") == 0) {
+			error = link_data_list_set_ipv6_forwarding(&link_data_list, interface_node_name, (char *) value);
+			if (error != 0) {
+				SRP_LOG_ERR("link_data_list_set_ipv4_forwarding error (%d) : %s", error, strerror(error));
+				error = SR_ERR_CALLBACK_FAILED;
+				goto out;
+			}
+		} else if (strcmp(interface_node, "mtu") == 0) {
+			error = link_data_list_set_ipv6_mtu(&link_data_list, interface_node_name, (char *) value);
+			if (error != 0) {
+				SRP_LOG_ERR("link_data_list_set_ipv4_mtu error (%d) : %s", error, strerror(error));
+				error = SR_ERR_CALLBACK_FAILED;
+				goto out;
+			}
+		}
+	}
 
 	goto out;
 
 out:
+	FREE_SAFE(xpath_cpy);
 	return error ? SR_ERR_CALLBACK_FAILED : SR_ERR_OK;
 }
 
@@ -520,6 +872,7 @@ int delete_config_value(const char *xpath, const char *value)
 	char *interface_node = NULL;
 	char *interface_node_name = NULL;
 	sr_xpath_ctx_t state = {0};
+	char *xpath_cpy = strdup(xpath);
 
 	interface_node = sr_xpath_node_name((char *) xpath);
 	if (interface_node == NULL) {
@@ -559,10 +912,66 @@ int delete_config_value(const char *xpath, const char *value)
 			error = SR_ERR_CALLBACK_FAILED;
 			goto out;
 		}
+	} else if (strstr(xpath_cpy, "ietf-ip:ipv4") != 0) {
+		memset(&state, 0, sizeof(sr_xpath_ctx_t));
+
+		// check if an ip address needs to be removed
+		char *address_node_ip = sr_xpath_key_value((char *) xpath_cpy, "address", "ip", &state);
+
+		// check if a neighbor needs to be removed
+		char *neighbor_node_ip = sr_xpath_key_value((char *) xpath_cpy, "neighbor", "ip", &state);
+
+		if (address_node_ip != NULL) {
+			if (strcmp(interface_node, "ip") == 0) {
+				error = link_data_list_set_delete_ipv4_address(&link_data_list, interface_node_name, address_node_ip);
+				if (error != 0) {
+					SRP_LOG_ERR("link_data_list_set_delete_ipv4_address error (%d) : %s", error, strerror(error));
+					error = SR_ERR_CALLBACK_FAILED;
+					goto out;
+				}
+			}
+		} else if (neighbor_node_ip != NULL) {
+			if (strcmp(interface_node, "ip") == 0) {
+				error = link_data_list_set_delete_ipv4_neighbor(&link_data_list, interface_node_name, (char *) value);
+				if (error != 0) {
+					SRP_LOG_ERR("link_data_list_set_delete_ipv4_neighbor error (%d) : %s", error, strerror(error));
+					error = SR_ERR_CALLBACK_FAILED;
+					goto out;
+				}
+			}
+		}
+	} else if (strstr(xpath_cpy, "ietf-ip:ipv6") != 0) {
+		memset(&state, 0, sizeof(sr_xpath_ctx_t));
+
+		// check if an ip address needs to be removed
+		char *address_node_ip = sr_xpath_key_value((char *) xpath_cpy, "address", "ip", &state);
+
+		// check if a neighbor needs to be removed
+		char *neighbor_node_ip = sr_xpath_key_value((char *) xpath_cpy, "neighbor", "ip", &state);
+
+		if (address_node_ip != NULL) {
+			if (strcmp(interface_node, "ip") == 0) {
+				error = link_data_list_set_delete_ipv6_address(&link_data_list, interface_node_name, address_node_ip);
+				if (error != 0) {
+					SRP_LOG_ERR("link_data_list_set_delete_ipv6_address error (%d) : %s", error, strerror(error));
+					error = SR_ERR_CALLBACK_FAILED;
+					goto out;
+				}
+			}
+		} else if (neighbor_node_ip != NULL) {
+			if (strcmp(interface_node, "ip") == 0) {
+				error = link_data_list_set_delete_ipv6_neighbor(&link_data_list, interface_node_name, (char *) value);
+				if (error != 0) {
+					SRP_LOG_ERR("link_data_list_set_delete_ipv6_neighbor error (%d) : %s", error, strerror(error));
+					error = SR_ERR_CALLBACK_FAILED;
+					goto out;
+				}
+			}
+		}
 	}
 
 out:
-
+	FREE_SAFE(xpath_cpy);
 	return error ? SR_ERR_CALLBACK_FAILED : SR_ERR_OK;
 }
 
@@ -570,6 +979,9 @@ int update_link_info(link_data_list_t *ld, sr_change_oper_t operation)
 {
 	struct nl_sock *socket = NULL;
 	struct nl_cache *cache = NULL;
+	struct rtnl_link *old = NULL;
+	struct rtnl_link *request = NULL;
+
 	int error = SR_ERR_OK;
 
 	socket = nl_socket_alloc();
@@ -600,10 +1012,10 @@ int update_link_info(link_data_list_t *ld, sr_change_oper_t operation)
 			continue;
 		}
 
-		struct rtnl_link *old = rtnl_link_get_by_name(cache, name);
-		struct rtnl_link *request = rtnl_link_alloc();
+		old = rtnl_link_get_by_name(cache, name);
+		request = rtnl_link_alloc();
 
-		// delete if marked for deletion
+		// delete link (interface) if marked for deletion
 		if (delete) {
 			// delete the link
 			error = rtnl_link_delete(socket, old);
@@ -628,6 +1040,54 @@ int update_link_info(link_data_list_t *ld, sr_change_oper_t operation)
 
 			// and continue
 			continue;
+		}
+
+		// check if any ipv4 addresses need to be removed
+		uint32_t ipv4_addr_count = ld->links[i].ipv4.addr_list.count;
+
+		if (ipv4_addr_count > 0) {
+			error = remove_ipv4_address(&ld->links[i].ipv4.addr_list, socket, old);
+			if (error != 0) {
+				SRP_LOG_ERR("remove_ipv4_address error (%d): %s", error, nl_geterror(error));
+				goto out;
+			}
+		}
+
+		// check if any ipv6 addresses need to be removed
+		uint32_t ipv6_addr_count = ld->links[i].ipv6.ip_data.addr_list.count;
+
+		if (ipv6_addr_count > 0) {
+			error = remove_ipv6_address(&ld->links[i].ipv6.ip_data.addr_list, socket, old);
+			if (error != 0) {
+				SRP_LOG_ERR("remove_ipv6_address error (%d): %s", error, nl_geterror(error));
+				goto out;
+			}
+		}
+
+		if (old != NULL) {
+			int index = rtnl_link_get_ifindex(old);
+
+			// check if any ipv4 neighbors need to be removed
+			uint32_t ipv4_neigh_count = ld->links[i].ipv4.nbor_list.count;
+
+			if (ipv4_neigh_count > 0) {
+				error = remove_neighbors(&ld->links[i].ipv4.nbor_list, socket, AF_INET, index);
+				if (error != 0) {
+					SRP_LOG_ERRMSG("remove_neighbors error");
+					goto out;
+				}
+			}
+
+			// check if any ipv6 neighbors need to be removed
+			uint32_t ipv6_neigh_count = ld->links[i].ipv6.ip_data.nbor_list.count;
+
+			if (ipv6_neigh_count > 0) {
+				error = remove_neighbors(&ld->links[i].ipv6.ip_data.nbor_list, socket, AF_INET6, index);
+				if (error != 0) {
+					SRP_LOG_ERRMSG("remove_neighbors error");
+					goto out;
+				}
+			}
 		}
 
 		// desc
@@ -670,6 +1130,19 @@ int update_link_info(link_data_list_t *ld, sr_change_oper_t operation)
 		}
 
 		if (old != NULL) {
+			// add ipv4/ipv6 options
+			error = add_interface_ipv4(&ld->links[i], old, request, rtnl_link_get_ifindex(old));
+			if (error != 0) {
+				SRP_LOG_ERRMSG("add_interface_ipv4 error");
+				goto out;
+			}
+
+			error = add_interface_ipv6(&ld->links[i], old, request, rtnl_link_get_ifindex(old));
+			if (error != 0) {
+				SRP_LOG_ERRMSG("add_interface_ipv6 error");
+				goto out;
+			}
+
 			// the interface with name already exists, change it
 			error = rtnl_link_change(socket, old, request, 0);
 			if (error != 0) {
@@ -690,7 +1163,7 @@ int update_link_info(link_data_list_t *ld, sr_change_oper_t operation)
 					goto out;
 				}
 
-				if (system_interface || strcmp(type, "eth") == 0 || strcmp(type, "lo") == 0){
+				if (system_interface || strcmp(type, "eth") == 0 || strcmp(type, "lo") == 0) {
 					SRP_LOG_ERR("Can't create non-virtual interface %s of type: %s", name, type);
 					error = -1;
 					goto out;
@@ -711,6 +1184,38 @@ int update_link_info(link_data_list_t *ld, sr_change_oper_t operation)
 					SRP_LOG_ERR("rtnl_link_add error (%d): %s", error, nl_geterror(error));
 					goto out;
 				}
+
+				// in order to add ipv4/ipv6 options we first have to create the interface
+				// and then get its interface index, because we need it inside add_interface_ipv4/ipv6
+				// and don't want to set it manually...
+				nl_cache_free(cache);
+				error = rtnl_link_alloc_cache(socket, AF_UNSPEC, &cache);
+				if (error != 0) {
+					SRP_LOG_ERR("rtnl_link_alloc_cache error (%d): %s", error, nl_geterror(error));
+					goto out;
+				}
+
+				old = rtnl_link_get_by_name(cache, name);
+
+				if (old != NULL) {
+					error = add_interface_ipv4(&ld->links[i], old, request, rtnl_link_get_ifindex(old));
+					if (error != 0) {
+						SRP_LOG_ERRMSG("add_interface_ipv4 error");
+						goto out;
+					}
+
+					error = add_interface_ipv6(&ld->links[i], old, request, rtnl_link_get_ifindex(old));
+					if (error != 0) {
+						SRP_LOG_ERRMSG("add_interface_ipv6 error");
+						goto out;
+					}
+
+					error = rtnl_link_change(socket, old, request, 0);
+					if (error != 0) {
+						SRP_LOG_ERR("rtnl_link_change error (%d): %s", error, nl_geterror(error));
+						goto out;
+					}
+				}
 			}
 		}
 		rtnl_link_put(old);
@@ -722,6 +1227,405 @@ out:
 	nl_cache_free(cache);
 
 	return error;
+}
+
+static int remove_ipv4_address(ip_address_list_t *addr_list, struct nl_sock *socket, struct rtnl_link *old)
+{
+	int error = 0;
+	uint32_t addr_count = addr_list->count;
+
+	// iterate through list of IPv4 addresses and check delete flag
+	for (uint32_t j = 0; j < addr_count; j++) {
+
+		if (addr_list->addr[j].delete == true) {
+			struct rtnl_addr *addr = rtnl_addr_alloc();
+			struct nl_addr *local_addr = nl_addr_alloc(32);
+
+			error = nl_addr_parse(addr_list->addr[j].ip, AF_INET, &local_addr);
+			if (error != 0) {
+				SRP_LOG_ERR("nl_addr_parse error (%d): %s", error, nl_geterror(error));
+				rtnl_addr_put(addr);
+				nl_addr_put(local_addr);
+				return -1;
+			}
+			int32_t if_index = rtnl_link_get_ifindex(old);
+
+			nl_addr_set_prefixlen(local_addr, addr_list->addr[j].subnet);
+
+			rtnl_addr_set_ifindex(addr, if_index);
+
+			rtnl_addr_set_local(addr, local_addr);
+
+			error = rtnl_addr_delete(socket, addr, 0);
+			if (error < 0) {
+				SRP_LOG_ERR("rtnl_addr_delete error (%d): %s", error, nl_geterror(error));
+				rtnl_addr_put(addr);
+				nl_addr_put(local_addr);
+				return -1;
+			}
+
+			rtnl_addr_put(addr);
+			nl_addr_put(local_addr);
+
+			// remove this IP address from list
+			ip_address_free(&addr_list->addr[j]);
+		}
+	}
+
+	return 0;
+}
+
+int add_interface_ipv4(link_data_t *ld, struct rtnl_link *old, struct rtnl_link *req, int if_idx)
+{
+	int error = 0;
+	const char *ipv4_base = "/proc/sys/net/ipv4/conf";
+	char *if_name = ld->name;
+	ipv4_data_t *ipv4 = &ld->ipv4;
+	ip_address_list_t *addr_ls = &ipv4->addr_list;
+	ip_neighbor_list_t *neigh_ls = &ipv4->nbor_list;
+	struct nl_sock *socket = NULL;
+	struct nl_addr *local_addr = NULL;
+	struct rtnl_addr *r_addr = NULL;
+	struct rtnl_neigh *neigh = NULL;
+	struct nl_addr *ll_addr = NULL;
+
+	// add ipv4 options from given link data to the req link object
+	// also set forwarding options to the given files for a particular link
+	if (strcmp(if_name, "lo") != 0) {
+		// enabled
+		// TODO: fix this
+		// note: commented out because there is no disable_ipv4 file on arch (need to find workaround)
+		/*
+		error = write_to_proc_file(ipv4_base, if_name, "disable_ipv4", ipv4->enabled == 0);
+		if (error != 0) {
+			goto out;
+		}*/
+
+		// forwarding
+		error = write_to_proc_file(ipv4_base, if_name, "forwarding", ipv4->forwarding);
+		if (error != 0) {
+			goto out;
+		}
+	}
+
+	// set mtu
+	if (ipv4->mtu != 0) {
+		rtnl_link_set_mtu(req, ipv4->mtu);
+	}
+
+	// address list
+	socket = nl_socket_alloc();
+	if (socket == NULL) {
+		SRP_LOG_ERRMSG("nl_socket_alloc error: invalid socket");
+		goto out;
+	}
+
+	if ((error = nl_connect(socket, NETLINK_ROUTE)) != 0) {
+		SRP_LOG_ERR("nl_connect error (%d): %s", error, nl_geterror(error));
+		goto out;
+	}
+
+	for (uint i = 0; i < addr_ls->count; i++) {
+		if (addr_ls->addr[i].ip == NULL) { // ip was deleted
+			continue;
+		}
+		r_addr = rtnl_addr_alloc();
+		local_addr = nl_addr_alloc(32);
+		error = nl_addr_parse(addr_ls->addr[i].ip, AF_INET, &local_addr);
+		if (error != 0) {
+			rtnl_addr_put(r_addr);
+			nl_addr_put(local_addr);
+			SRP_LOG_ERR("nl_addr_parse 1 error (%d): %s", error, nl_geterror(error));
+			goto out;
+		}
+		nl_addr_set_prefixlen(local_addr, addr_ls->addr[i].subnet);
+
+		// configure rtln_addr for a link
+		rtnl_addr_set_ifindex(r_addr, if_idx);
+		rtnl_addr_set_local(r_addr, local_addr);
+
+		// send message
+		rtnl_addr_add(socket, r_addr, 0);
+
+		// Free the memory
+		nl_addr_put(local_addr);
+		rtnl_addr_put(r_addr);
+	}
+
+	for (uint i = 0; i < neigh_ls->count; i++) {
+		if (neigh_ls->nbor[i].ip == NULL) { // neighbor was deleted
+			continue;
+		}
+		neigh = rtnl_neigh_alloc();
+		local_addr = nl_addr_alloc(32);
+		ll_addr = nl_addr_alloc(32);
+
+		error = nl_addr_parse(neigh_ls->nbor[i].ip, AF_INET, &local_addr);
+		if (error != 0) {
+			nl_addr_put(ll_addr);
+			nl_addr_put(local_addr);
+			rtnl_neigh_put(neigh);
+			SRP_LOG_ERR("nl_addr_parse  2 error (%d): %s", error, nl_geterror(error));
+			goto out;
+		}
+
+		error = nl_addr_parse(neigh_ls->nbor[i].phys_addr, AF_LLC, &ll_addr);
+		if (error != 0) {
+			nl_addr_put(ll_addr);
+			nl_addr_put(local_addr);
+			rtnl_neigh_put(neigh);
+			SRP_LOG_ERR("nl_addr_parse  3 error (%d): %s", error, nl_geterror(error));
+			goto out;
+		}
+
+		rtnl_neigh_set_ifindex(neigh, if_idx);
+
+		// set dst and ll addr
+		rtnl_neigh_set_lladdr(neigh, ll_addr);
+		rtnl_neigh_set_dst(neigh, local_addr);
+
+		error = rtnl_neigh_add(socket, neigh, NLM_F_CREATE);
+		if (error != 0) {
+			SRP_LOG_ERR("rtnl_neigh_add error (%d): %s", error, nl_geterror(error));
+			nl_addr_put(ll_addr);
+			nl_addr_put(local_addr);
+			rtnl_neigh_put(neigh);
+			goto out;
+		}
+
+		nl_addr_put(ll_addr);
+		nl_addr_put(local_addr);
+		rtnl_neigh_put(neigh);
+	}
+
+out:
+	nl_socket_free(socket);
+	return error;
+}
+
+static int remove_ipv6_address(ip_address_list_t *addr_list, struct nl_sock *socket, struct rtnl_link *old)
+{
+	int error = 0;
+	uint32_t addr_count = addr_list->count;
+
+	// iterate through list of IPv6 addresses and check delete flag
+	if (addr_count > 0) {
+		for (uint32_t j = 0; j < addr_count; j++) {
+
+			if (addr_list->addr[j].delete == true) {
+				struct rtnl_addr *addr = rtnl_addr_alloc();
+				struct nl_addr *local_addr = nl_addr_alloc(32);
+
+				error = nl_addr_parse(addr_list->addr[j].ip, AF_INET6, &local_addr);
+				if (error != 0) {
+					SRP_LOG_ERR("nl_addr_parse error (%d): %s", error, nl_geterror(error));
+					rtnl_addr_put(addr);
+					nl_addr_put(local_addr);
+					return -1;
+				}
+				int32_t if_index = rtnl_link_get_ifindex(old);
+
+				nl_addr_set_prefixlen(local_addr, addr_list->addr[j].subnet);
+
+				rtnl_addr_set_ifindex(addr, if_index);
+
+				rtnl_addr_set_local(addr, local_addr);
+
+				error = rtnl_addr_delete(socket, addr, 0);
+				if (error < 0) {
+					SRP_LOG_ERR("rtnl_addr_delete error (%d): %s", error, nl_geterror(error));
+					rtnl_addr_put(addr);
+					nl_addr_put(local_addr);
+					return -1;
+				}
+
+				rtnl_addr_put(addr);
+				nl_addr_put(local_addr);
+
+				// remove this IP address from list
+				ip_address_free(&addr_list->addr[j]);
+			}
+		}
+	}
+
+	return 0;
+}
+
+int add_interface_ipv6(link_data_t *ld, struct rtnl_link *old, struct rtnl_link *req, int if_idx)
+{
+	int error = 0;
+	const char *ipv6_base = "/proc/sys/net/ipv6/conf";
+	char *if_name = ld->name;
+	ipv6_data_t *ipv6 = &ld->ipv6;
+	ip_address_list_t *addr_ls = &ipv6->ip_data.addr_list;
+	ip_neighbor_list_t *neigh_ls = &ipv6->ip_data.nbor_list;
+	struct nl_sock *socket = NULL;
+	struct nl_addr *local_addr = NULL;
+	struct rtnl_addr *r_addr = NULL;
+	struct rtnl_neigh *neigh = NULL;
+	struct nl_addr *ll_addr = NULL;
+
+	// enabled
+	error = write_to_proc_file(ipv6_base, if_name, "disable_ipv6", ipv6->ip_data.enabled == 0);
+	if (error != 0) {
+		goto out;
+	}
+
+	// forwarding
+	error = write_to_proc_file(ipv6_base, if_name, "forwarding", ipv6->ip_data.forwarding);
+	if (error != 0) {
+		goto out;
+	}
+
+	// set mtu
+	if (ipv6->ip_data.mtu != 0) {
+		rtnl_link_set_mtu(req, ipv6->ip_data.mtu);
+	}
+
+	// address list
+	socket = nl_socket_alloc();
+	if (socket == NULL) {
+		SRP_LOG_ERRMSG("nl_socket_alloc error: invalid socket");
+		goto out;
+	}
+
+	if ((error = nl_connect(socket, NETLINK_ROUTE)) != 0) {
+		SRP_LOG_ERR("nl_connect error (%d): %s", error, nl_geterror(error));
+		goto out;
+	}
+
+	for (uint i = 0; i < addr_ls->count; i++) {
+		if (addr_ls->addr[i].ip == NULL) { // ip was deleted
+			continue;
+		}
+
+		r_addr = rtnl_addr_alloc();
+		local_addr = nl_addr_alloc(32);
+
+		error = nl_addr_parse(addr_ls->addr[i].ip, AF_INET6, &local_addr);
+		if (error != 0) {
+			rtnl_addr_put(r_addr);
+			nl_addr_put(local_addr);
+			goto out;
+		}
+		nl_addr_set_prefixlen(local_addr, addr_ls->addr[i].subnet);
+
+		// configure rtln_addr for a link
+		rtnl_addr_set_ifindex(r_addr, if_idx);
+		rtnl_addr_set_local(r_addr, local_addr);
+
+		if (ipv6->autoconf.temp_valid_lifetime != 0) {
+			rtnl_addr_set_valid_lifetime(r_addr, ipv6->autoconf.temp_valid_lifetime);
+		}
+
+		if (ipv6->autoconf.temp_preffered_lifetime != 0) {
+			rtnl_addr_set_preferred_lifetime(r_addr, ipv6->autoconf.temp_preffered_lifetime);
+		}
+
+		// send message
+		rtnl_addr_add(socket, r_addr, 0);
+
+		// Free the memory
+		nl_addr_put(local_addr);
+		rtnl_addr_put(r_addr);
+	}
+
+	for (uint i = 0; i < neigh_ls->count; i++) {
+		if (neigh_ls->nbor[i].ip == NULL) { // neighbor was deleted
+			continue;
+		}
+		neigh = rtnl_neigh_alloc();
+		local_addr = nl_addr_alloc(32);
+		ll_addr = nl_addr_alloc(32);
+
+		error = nl_addr_parse(neigh_ls->nbor[i].ip, AF_INET6, &local_addr);
+		if (error != 0) {
+			nl_addr_put(ll_addr);
+			nl_addr_put(local_addr);
+			rtnl_neigh_put(neigh);
+			goto out;
+		}
+
+		error = nl_addr_parse(neigh_ls->nbor[i].phys_addr, AF_LLC, &ll_addr);
+		if (error != 0) {
+			nl_addr_put(ll_addr);
+			nl_addr_put(local_addr);
+			rtnl_neigh_put(neigh);
+			goto out;
+		}
+
+		rtnl_neigh_set_ifindex(neigh, if_idx);
+
+		// set dst and ll addr
+		rtnl_neigh_set_lladdr(neigh, ll_addr);
+		rtnl_neigh_set_dst(neigh, local_addr);
+
+		error = rtnl_neigh_add(socket, neigh, NLM_F_CREATE);
+		if (error != 0) {
+			SRP_LOG_ERR("rtnl_neigh_add error (%d): %s", error, nl_geterror(error));
+			nl_addr_put(ll_addr);
+			nl_addr_put(local_addr);
+			rtnl_neigh_put(neigh);
+			goto out;
+		}
+
+		nl_addr_put(ll_addr);
+		nl_addr_put(local_addr);
+		rtnl_neigh_put(neigh);
+	}
+out:
+	nl_socket_free(socket);
+	return error;
+}
+
+static int remove_neighbors(ip_neighbor_list_t *nbor_list, struct nl_sock *socket, int addr_ver, int if_index)
+{
+	int error = 0;
+	// Iterate through list of neighbors and check delete flag
+	for (uint32_t i = 0; i < nbor_list->count; i++) {
+
+		if (nbor_list->nbor[i].delete == true) {
+			// Allocate an empty neighbour object to be filled out with the attributes
+			// matching the neighbour to be deleted. Alternatively a fully equipped
+			// neighbour object out of a cache can be used instead.
+			struct nl_addr *dst_addr = nl_addr_alloc(32);
+			struct rtnl_neigh *neigh = rtnl_neigh_alloc();
+
+			error = nl_addr_parse(nbor_list->nbor[i].ip, addr_ver, &dst_addr);
+			if (error != 0) {
+				SRP_LOG_ERR("nl_addr_parse error (%d): %s", error, nl_geterror(error));
+				nl_addr_put(dst_addr);
+				rtnl_neigh_put(neigh);
+				return -1;
+			}
+			// Neighbours are uniquely identified by their interface index and
+			// destination address, you may fill out other attributes but they
+			// will have no influence.
+			rtnl_neigh_set_ifindex(neigh, if_index);
+			rtnl_neigh_set_dst(neigh, dst_addr);
+
+			// Build the netlink message and send it to the kernel, the operation will
+			// block until the operation has been completed. Alternatively the required
+			// netlink message can be built using rtnl_neigh_build_delete_request()
+			// to be sent out using nl_send_auto_complete().
+			error = rtnl_neigh_delete(socket, neigh, 0);
+			if (error != 0) {
+				SRP_LOG_ERR("rtnl_neigh_delete error (%d): %s", error, nl_geterror(error));
+				nl_addr_put(dst_addr);
+				rtnl_neigh_put(neigh);
+				return -1;
+			}
+
+			// Free the memory
+			nl_addr_put(dst_addr);
+			rtnl_neigh_put(neigh);
+
+			// Remove neighbor from list
+			ip_neighbor_free(&nbor_list->nbor[i]);
+		}
+	}
+
+	return 0;
 }
 
 static bool check_system_interface(const char *interface_name, bool *system_interface)
@@ -748,7 +1652,7 @@ static bool check_system_interface(const char *interface_name, bool *system_inte
 	while (fgets(line, sizeof(line), system_interface_check) != NULL) {
 		// remove newline char from line
 		line[strlen(line) - 1] = '\0';
-		all_interfaces[all_cnt] = strndup(line, strlen(line)+1);
+		all_interfaces[all_cnt] = strndup(line, strlen(line) + 1);
 		all_cnt++;
 	}
 
@@ -771,14 +1675,14 @@ static bool check_system_interface(const char *interface_name, bool *system_inte
 		// because libnl won't let us delete it
 		if (strstr(line, "/lo") != NULL ||
 			(strstr(line, "/virtual/") == NULL &&
-			strncmp(line, "total", strlen("total") != 0))) {
+			 strncmp(line, "total", strlen("total") != 0))) {
 			// this is a system interface
 
 			// add it to system_interfaces
 			for (int i = 0; i < LD_MAX_LINKS; i++) {
 				if (all_interfaces[i] != 0) {
 					if (strstr(line, all_interfaces[i]) != NULL) {
-						system_interfaces[sys_cnt] = strndup(all_interfaces[i], strlen(all_interfaces[i])+1);
+						system_interfaces[sys_cnt] = strndup(all_interfaces[i], strlen(all_interfaces[i]) + 1);
 						sys_cnt++;
 						break;
 					}
@@ -816,43 +1720,94 @@ out:
 	return error;
 }
 
-// TODO: move these functions to a file in utils?
-void link_init(link_data_t *l)
-{
-	l->name = NULL;
-	l->description = NULL;
-	l->type = NULL;
-	l->enabled = NULL;
-	l->delete = false;
-}
-
-static int link_data_list_init(link_data_list_t *ld)
+int write_to_proc_file(const char *dir_path, char *interface, const char *fn, int val)
 {
 	int error = 0;
+	char tmp_buffer[PATH_MAX];
+	FILE *fptr = NULL;
 
-	for (int i = 0; i < LD_MAX_LINKS; i++) {
-		link_init(&ld->links[i]);
+	error = snprintf(tmp_buffer, sizeof(tmp_buffer), "%s/%s/%s", dir_path, interface, fn);
+	if (error < 0) {
+		// snprintf error
+		SRP_LOG_ERRMSG("snprintf failed");
+		goto out;
 	}
-	ld->count = 0;
 
-	error = add_existing_links(ld);
-	if (error != 0) {
-		return -1;
+	// snprintf returns return the number of bytes that are written
+	// reset error to 0
+	error = 0;
+
+	fptr = fopen((const char *) tmp_buffer, "w");
+
+	if (fptr != NULL) {
+		fprintf(fptr, "%d", val);
+		fclose(fptr);
+	} else {
+		SRP_LOG_ERR("failed to open %s: %s", tmp_buffer, strerror(errno));
+		error = -1;
+		goto out;
 	}
 
-	return 0;
+out:
+	return error;
 }
 
-static int add_existing_links(link_data_list_t *ld)
+
+static int read_from_proc_file(const char *dir_path, char *interface, const char *fn, int *val)
+{
+	int error = 0;
+	char tmp_buffer[PATH_MAX];
+	FILE *fptr = NULL;
+	char tmp_val[2] = {0};
+
+	error = snprintf(tmp_buffer, sizeof(tmp_buffer), "%s/%s/%s", dir_path, interface, fn);
+	if (error < 0) {
+		// snprintf error
+		SRP_LOG_ERRMSG("snprintf failed");
+		goto out;
+	}
+
+	// snprintf returns return the number of bytes that are written
+	// reset error to 0
+	error = 0;
+
+	fptr = fopen((const char *) tmp_buffer, "r");
+
+	if (fptr != NULL) {
+		fgets(tmp_val, sizeof(tmp_val), fptr);
+
+		*val = atoi(tmp_val);
+
+		fclose(fptr);
+	} else {
+		SRP_LOG_ERR("failed to open %s: %s", tmp_buffer, strerror(errno));
+		error = -1;
+		goto out;
+	}
+
+out:
+	return error;
+}
+
+int add_existing_links(link_data_list_t *ld)
 {
 	int error = 0;
 	struct nl_sock *socket = NULL;
 	struct nl_cache *cache = NULL;
 	struct rtnl_link *link = NULL;
+	struct nl_cache *addr_cache = NULL;
+	struct nl_cache *neigh_cache = NULL;
+	struct rtnl_addr *addr = {0};
 	char *name = NULL;
 	char *description = NULL;
 	char *type = NULL;
 	char *enabled = NULL;
+	unsigned int mtu = 0;
+	char tmp_buffer[10] = {0};
+	int addr_family = 0;
+	char addr_str[ADDR_STR_BUF_SIZE];
+	char dst_addr_str[ADDR_STR_BUF_SIZE];
+	char ll_addr_str[ADDR_STR_BUF_SIZE];
 
 	socket = nl_socket_alloc();
 	if (socket == NULL) {
@@ -892,6 +1847,11 @@ static int add_existing_links(link_data_list_t *ld)
 
 		enabled = rtnl_link_get_operstate(link) == IF_OPER_UP ? "true" : "false";
 
+		// mtu
+		mtu = rtnl_link_get_mtu(link);
+
+		snprintf(tmp_buffer, sizeof(tmp_buffer), "%u", mtu);
+
 		error = link_data_list_add(ld, name);
 		if (error != 0) {
 			SRP_LOG_ERRMSG("link_data_list_add error");
@@ -920,6 +1880,265 @@ static int add_existing_links(link_data_list_t *ld)
 			goto error_out;
 		}
 
+		int if_index = rtnl_link_get_ifindex(link);
+
+		// neighbors
+		error = rtnl_neigh_alloc_cache(socket, &neigh_cache);
+		if (error != 0) {
+			SRP_LOG_ERR("rtnl_neigh_alloc_cache error (%d): %s", error, nl_geterror(error));
+			goto error_out;
+		}
+
+		int neigh_count = nl_cache_nitems(neigh_cache);
+
+		struct nl_object *nl_neigh_object;
+		nl_neigh_object = nl_cache_get_first(neigh_cache);
+
+		for (int i=0; i < neigh_count; i++) {
+			struct nl_addr *nl_dst_addr = rtnl_neigh_get_dst((struct rtnl_neigh *) nl_neigh_object);
+
+			char *dst_addr = nl_addr2str(nl_dst_addr, dst_addr_str, sizeof(dst_addr_str));
+			if (dst_addr == NULL) {
+				SRP_LOG_ERRMSG("nl_addr2str error");
+				goto error_out;
+			}
+
+			struct rtnl_neigh *neigh = rtnl_neigh_get(neigh_cache, if_index, nl_dst_addr);
+
+			if (neigh != NULL) {
+				int cur_neigh_index = rtnl_neigh_get_ifindex(neigh);
+
+				if (if_index != cur_neigh_index) {
+					nl_neigh_object = nl_cache_get_next(nl_neigh_object);
+					continue;
+				}
+
+				struct nl_addr *ll_addr = rtnl_neigh_get_lladdr(neigh);
+
+				char *ll_addr_s = nl_addr2str(ll_addr, ll_addr_str, sizeof(ll_addr_str));
+				if (NULL == ll_addr_s) {
+					SRP_LOG_ERRMSG("nl_addr2str error");
+					goto error_out;
+				}
+
+				// check if ipv4 or ipv6
+				addr_family = rtnl_neigh_get_family(neigh);
+
+				if (addr_family == AF_INET) {
+					error = link_data_list_add_ipv4_neighbor(&link_data_list, name, dst_addr, ll_addr_s);
+					if (error != 0) {
+						SRP_LOG_ERR("link_data_list_add_ipv4_neighbor error (%d) : %s", error, strerror(error));
+						goto error_out;
+					}
+				} else if (addr_family == AF_INET6) {
+					error = link_data_list_add_ipv6_neighbor(&link_data_list, name, dst_addr, ll_addr_s);
+					if (error != 0) {
+						SRP_LOG_ERR("link_data_list_add_ipv6_neighbor error (%d) : %s", error, strerror(error));
+						goto error_out;
+					}
+				}
+				rtnl_neigh_put(neigh);
+			}
+			nl_neigh_object = nl_cache_get_next(nl_neigh_object);
+		}
+
+		nl_cache_free(neigh_cache);
+		neigh_cache = NULL;
+
+		error = rtnl_addr_alloc_cache(socket, &addr_cache);
+		if (error != 0) {
+			SRP_LOG_ERR("rtnl_addr_alloc_cache error (%d): %s", error, nl_geterror(error));
+			goto error_out;
+		}
+
+		// get ipv4 and ipv6 addresses
+		int addr_count = nl_cache_nitems(addr_cache);
+
+		struct nl_object *nl_object;
+		nl_object = nl_cache_get_first(addr_cache);
+
+		addr = (struct rtnl_addr *) nl_object;
+
+		for (int i=0; i < addr_count; i++) {
+			struct nl_addr *nl_addr_local = rtnl_addr_get_local(addr);
+			if (nl_addr_local == NULL) {
+				SRP_LOG_ERRMSG("rtnl_addr_get_local error");
+				goto error_out;
+			}
+
+			int cur_if_index = rtnl_addr_get_ifindex(addr);
+
+			if (if_index != cur_if_index) {
+				nl_object = nl_cache_get_next(nl_object);
+				addr = (struct rtnl_addr *) nl_object;
+				continue;
+			}
+
+			const char*addr_s = nl_addr2str(nl_addr_local, addr_str, sizeof(addr_str));
+			if (NULL == addr_s) {
+				SRP_LOG_ERRMSG("nl_addr2str error");
+				goto error_out;
+			}
+
+			char *str = xstrdup(addr_s);
+
+			// get address
+			char *token = strtok(str, "/");
+			if (token == NULL) {
+				SRP_LOG_ERRMSG("couldn't parse ip address");
+
+				FREE_SAFE(str);
+				goto error_out;
+			}
+
+			char *address = xstrdup(token);
+
+			// get subnet
+			token = strtok(NULL, "/");
+			if (token == NULL) {
+				// the address exists
+				// skip it
+				// we didn't add this address
+				// e.g.: ::1
+				FREE_SAFE(str);
+				FREE_SAFE(address);
+				continue;
+			}
+
+			char *subnet = xstrdup(token);
+
+			// check if ipv4 or ipv6
+			addr_family = rtnl_addr_get_family(addr);
+
+			if (addr_family == AF_INET) {
+				// ipv4
+				error = link_data_list_add_ipv4_address(&link_data_list, name, address, subnet, ip_subnet_type_prefix_length);
+				if (error != 0) {
+					SRP_LOG_ERR("link_data_list_add_ipv4_address error (%d) : %s", error, strerror(error));
+
+					FREE_SAFE(str);
+					FREE_SAFE(address);
+					FREE_SAFE(subnet);
+					goto error_out;
+				}
+
+				if (mtu > 0) {
+					error = link_data_list_set_ipv4_mtu(&link_data_list, name, tmp_buffer);
+					if (error != 0) {
+						SRP_LOG_ERR("link_data_list_set_ipv4_mtu error (%d) : %s", error, strerror(error));
+
+						FREE_SAFE(str);
+						FREE_SAFE(address);
+						FREE_SAFE(subnet);
+						goto error_out;
+					}
+				}
+
+				// enabled
+				const char *ipv4_base = "/proc/sys/net/ipv4/conf";
+				// TODO: figure out how to enable/disable ipv4
+				//		since disable_ipv4 doesn't exist in /proc/sys/net/ipv6/conf/interface_name
+
+				// forwarding
+				int ipv4_forwarding = 0;
+
+				error = read_from_proc_file(ipv4_base, name, "forwarding", &ipv4_forwarding);
+				if (error != 0) {
+					FREE_SAFE(str);
+					FREE_SAFE(address);
+					FREE_SAFE(subnet);
+					goto error_out;
+				}
+
+				error = link_data_list_set_ipv4_forwarding(&link_data_list, name, ipv4_forwarding == 0 ? "false" : "true");
+				if (error != 0) {
+					SRP_LOG_ERR("link_data_list_set_ipv4_forwarding error (%d) : %s", error, strerror(error));
+
+					FREE_SAFE(str);
+					FREE_SAFE(address);
+					FREE_SAFE(subnet);
+					goto error_out;
+				}
+
+			} else if (addr_family == AF_INET6) {
+				// ipv6
+				error = link_data_list_add_ipv6_address(&link_data_list, name, address, subnet);
+				if (error != 0) {
+					SRP_LOG_ERR("link_data_list_add_ipv6_address error (%d) : %s", error, strerror(error));
+
+					FREE_SAFE(str);
+					FREE_SAFE(address);
+					FREE_SAFE(subnet);
+					goto error_out;
+				}
+
+				if (mtu > 0) {
+					error = link_data_list_set_ipv6_mtu(&link_data_list, name, tmp_buffer);
+					if (error != 0) {
+						SRP_LOG_ERR("link_data_list_set_ipv6_mtu error (%d) : %s", error, strerror(error));
+
+						FREE_SAFE(str);
+						FREE_SAFE(address);
+						FREE_SAFE(subnet);
+						goto error_out;
+					}
+				}
+
+				// enabled
+				const char *ipv6_base = "/proc/sys/net/ipv6/conf";
+
+				int ipv6_enabled = 0;
+
+				error = read_from_proc_file(ipv6_base, name, "disable_ipv6", &ipv6_enabled);
+				if (error != 0) {
+					FREE_SAFE(str);
+					FREE_SAFE(address);
+					FREE_SAFE(subnet);
+					goto error_out;
+				}
+				// since we check the value of 'disable_ipv6' file, the ipv6_enabled should be reversed
+				error = link_data_list_set_ipv6_enabled(&link_data_list, name, ipv6_enabled == 0 ? "true" : "false");
+				if (error != 0) {
+					SRP_LOG_ERR("link_data_list_set_ipv6_enabled error (%d) : %s", error, strerror(error));
+
+					FREE_SAFE(str);
+					FREE_SAFE(address);
+					FREE_SAFE(subnet);
+					goto error_out;
+				}
+
+				// forwarding
+				int ipv6_forwarding = 0;
+
+				error = read_from_proc_file(ipv6_base, name, "forwarding", &ipv6_forwarding);
+				if (error != 0) {
+					FREE_SAFE(str);
+					FREE_SAFE(address);
+					FREE_SAFE(subnet);
+					goto error_out;
+				}
+
+				error = link_data_list_set_ipv6_forwarding(&link_data_list, name, ipv6_forwarding == 0 ? "false" : "true");
+				if (error != 0) {
+					SRP_LOG_ERR("link_data_list_set_ipv6_forwarding error (%d) : %s", error, strerror(error));
+
+					FREE_SAFE(str);
+					FREE_SAFE(address);
+					FREE_SAFE(subnet);
+					goto error_out;
+				}
+			}
+
+			nl_object = nl_cache_get_next(nl_object);
+			addr = (struct rtnl_addr *) nl_object;
+
+			FREE_SAFE(str);
+			FREE_SAFE(address);
+			FREE_SAFE(subnet);
+		}
+		nl_cache_free(addr_cache);
+		addr_cache = NULL;
+
 		link = (struct rtnl_link *) nl_cache_get_next((struct nl_object *) link);
 
 		if (description != NULL) { // it was allocated in get_interface_description
@@ -945,196 +2164,15 @@ error_out:
 
 	nl_cache_free(cache);
 
+	if (addr_cache != NULL) {
+		nl_cache_free(addr_cache);
+	}
+
 	if (description != NULL) {
 		FREE_SAFE(description);
 	}
 
 	return -1;
-}
-
-void link_set_name(link_data_t *l, char *name)
-{
-	unsigned long tmp_len = 0;
-	tmp_len = strlen(name);
-	l->name = xmalloc(sizeof(char) * (tmp_len + 1));
-	memcpy(l->name, name, tmp_len);
-	l->name[tmp_len] = 0;
-}
-
-int link_data_list_add(link_data_list_t *ld, char *name)
-{
-	bool name_found = false;
-
-	if (ld->count >= LD_MAX_LINKS) {
-		return EINVAL;
-	}
-
-	for (int i = 0; i < ld->count; i++) {
-		if (ld->links[i].name != NULL) { // in case we deleted a link it will be NULL
-			if (strcmp(ld->links[i].name, name) == 0) {
-				name_found = true;
-				break;
-			}
-		}
-	}
-
-	if (!name_found) {
-		// set the new link to the first free one in the list
-		// the one with name == 0
-		int pos = ld->count;
-		for (int i = 0; i < ld->count; i++) {
-			if (ld->links[i].name == NULL) {
-				pos = i;
-				break;
-			}
-		}
-		link_set_name(&ld->links[pos], name);
-		if (pos == ld->count) {
-			++ld->count;
-		}
-	}
-
-	return 0;
-}
-
-int link_data_list_set_description(link_data_list_t *ld, char *name, char *description)
-{
-	int error = 0;
-	int name_found = 0;
-
-	for (int i = 0; i < ld->count; i++) {
-		if (ld->links[i].name != NULL) {
-			if (strcmp(ld->links[i].name, name) == 0) {
-				name_found = 1;
-
-				if (ld->links[i].description  != NULL) {
-					FREE_SAFE(ld->links[i].description );
-				}
-
-				unsigned long tmp_len = 0;
-				tmp_len = strlen(description);
-				ld->links[i].description = xmalloc(sizeof(char) * (tmp_len + 1));
-				memcpy(ld->links[i].description, description, tmp_len);
-				ld->links[i].description[tmp_len] = 0;
-
-				break;
-			}
-		}
-	}
-	if (!name_found) {
-		// error
-		error = EINVAL;
-	}
-	return error;
-}
-
-int link_data_list_set_type(link_data_list_t *ld, char *name, char *type)
-{
-	int error = 0;
-	int name_found = 0;
-
-	for (int i = 0; i < ld->count; i++) {
-		if (ld->links[i].name != NULL) {
-			if (strcmp(ld->links[i].name, name) == 0) {
-				name_found = 1;
-
-				if (ld->links[i].type  != NULL) {
-					FREE_SAFE(ld->links[i].type );
-				}
-
-				unsigned long tmp_len = 0;
-				tmp_len = strlen(type);
-				ld->links[i].type = xmalloc(sizeof(char) * (tmp_len + 1));
-				memcpy(ld->links[i].type, type, tmp_len);
-				ld->links[i].type[tmp_len] = 0;
-
-				break;
-			}
-		}
-	}
-	if (!name_found) {
-		// error
-		error = EINVAL;
-	}
-	return error;
-}
-
-int link_data_list_set_enabled(link_data_list_t *ld, char *name, char *enabled)
-{
-	int error = 0;
-	int name_found = 0;
-
-	for (int i = 0; i < ld->count; i++) {
-		if (ld->links[i].name != NULL) {
-			if (strcmp(ld->links[i].name, name) == 0) {
-				name_found = 1;
-
-				if (ld->links[i].enabled  != NULL) {
-					FREE_SAFE(ld->links[i].enabled );
-				}
-
-				unsigned long tmp_len = 0;
-				tmp_len = strlen(enabled);
-				ld->links[i].enabled = xmalloc(sizeof(char) * (tmp_len + 1));
-				memcpy(ld->links[i].enabled, enabled, tmp_len);
-				ld->links[i].enabled[tmp_len] = 0;
-
-				break;
-			}
-		}
-	}
-	if (!name_found) {
-		// error
-		error = EINVAL;
-	}
-	return error;
-}
-
-int link_data_list_set_delete(link_data_list_t *ld, char *name, bool delete)
-{
-	int error = 0;
-	int name_found = 0;
-
-	for (int i = 0; i < ld->count; i++) {
-		if (ld->links[i].name != NULL) {
-			if (strcmp(ld->links[i].name, name) == 0) {
-				name_found = 1;
-				ld->links[i].delete = delete;
-				break;
-			}
-		}
-	}
-	if (!name_found) {
-		// error
-		error = EINVAL;
-	}
-	return error;
-}
-
-void link_data_free(link_data_t *l)
-{
-	if (l->name) {
-		FREE_SAFE(l->name);
-	}
-
-	if (l->description) {
-		FREE_SAFE(l->description);
-	}
-
-	if (l->type) {
-		FREE_SAFE(l->type);
-	}
-
-	if (l->enabled) {
-		FREE_SAFE(l->enabled);
-	}
-}
-
-void link_data_list_free(link_data_list_t *ld)
-{
-	for (int i = 0; i < ld->count; i++) {
-		link_data_free(&ld->links[i]);
-	}
 }
 
 static int set_interface_description(char *name, char *description)
@@ -1160,7 +2198,7 @@ static int set_interface_description(char *name, char *description)
 	}
 
 	// if the file exists
-	if (access(desc_file_path, F_OK) == 0){
+	if (access(desc_file_path, F_OK) == 0) {
 		tmp_desc_file_path = get_plugin_file_path(TMP_INTERFACE_DESCRIPTION_FILENAME, true);
 		if (desc_file_path == NULL) {
 			SRP_LOG_ERRMSG("set_interface_description: couldn't get interface description file path\n");
@@ -1172,7 +2210,7 @@ static int set_interface_description(char *name, char *description)
 			goto error_out;
 		}
 
-		fp_tmp = fopen (tmp_desc_file_path, "a");
+		fp_tmp = fopen(tmp_desc_file_path, "a");
 		if (fp_tmp == NULL) {
 			goto error_out;
 		}
@@ -1237,10 +2275,10 @@ error_out:
 	}
 
 	return -1;
- }
+}
 
- static int get_interface_description(char *name, char **description)
- {
+static int get_interface_description(char *name, char **description)
+{
 	FILE *fp = NULL;
 	char *line = NULL;
 	size_t len = 0;
@@ -1299,6 +2337,8 @@ error_out:
 
 static char *get_plugin_file_path(const char *filename, bool create)
 {
+	// TODO: update this appropriately
+	int error = 0;
 	char *plugin_dir = NULL;
 	char *file_path = NULL;
 	size_t filename_len = 0;
@@ -1306,12 +2346,29 @@ static char *get_plugin_file_path(const char *filename, bool create)
 
 	plugin_dir = getenv(PLUGIN_DIR_ENV_VAR);
 	if (plugin_dir == NULL) {
-		SRP_LOG_ERR("Unable to get env var %s", PLUGIN_DIR_ENV_VAR);
+		//SRP_LOG_WRN("Unable to get env var %s", PLUGIN_DIR_ENV_VAR);
+		//SRP_LOG_INF("Setting the plugin data dir to: %s", PLUGIN_DIR_DEFAULT);
+		plugin_dir = PLUGIN_DIR_DEFAULT;
+	}
+
+	// check if plugin_dir exists
+	DIR* dir = opendir(plugin_dir);
+	if (dir) {
+		// dir exists
+		closedir(dir);
+	} else if (ENOENT == errno) {
+		error = mkdir(plugin_dir, 0777);
+		if (error == -1) {
+			SRP_LOG_ERR("Error creating dir: %s", plugin_dir);
+			return NULL;
+		}
+	} else {
+		SRP_LOG_ERRMSG("opendir failed");
 		return NULL;
 	}
 
 	filename_len = strlen(plugin_dir) + strlen(filename) + 1;
-	file_path= xmalloc(filename_len);
+	file_path = xmalloc(filename_len);
 
 	if (snprintf(file_path, filename_len, "%s%s", plugin_dir, filename) < 0) {
 		return NULL;
@@ -1323,6 +2380,7 @@ static char *get_plugin_file_path(const char *filename, bool create)
 			tmp = fopen(file_path, "w");
 			if (tmp == NULL) {
 				SRP_LOG_ERR("Error creating %s", file_path);
+				return NULL;
 			}
 			fclose(tmp);
 		} else {
@@ -1354,6 +2412,8 @@ static int interfaces_state_data_cb(sr_session_ctx_t *session, const char *modul
 	char interface_path_buffer[PATH_MAX] = {0};
 
 	if_state_t *tmp_ifs = NULL;
+
+	unsigned int mtu = 0;
 
 	struct {
 		char *name;
@@ -1642,6 +2702,14 @@ static int interfaces_state_data_cb(sr_session_ctx_t *session, const char *modul
 			}
 			SRP_LOG_DBG("%s = %s", xpath_buffer, interface_data.type);
 			lyd_new_path(*parent, ly_ctx, xpath_buffer, system_time, LYD_ANYDATA_CONSTSTRING, 0);
+		} else {
+			// default value of last-change should be system boot time
+			error = snprintf(xpath_buffer, sizeof(xpath_buffer), "%s/last-change", interface_path_buffer);
+			if (error < 0) {
+				goto error_out;
+			}
+			SRP_LOG_DBG("%s = %s", xpath_buffer, interface_data.type);
+			lyd_new_path(*parent, ly_ctx, xpath_buffer, system_boot_time, LYD_ANYDATA_CONSTSTRING, 0);
 		}
 
 		// if-index
@@ -1700,6 +2768,189 @@ static int interfaces_state_data_cb(sr_session_ctx_t *session, const char *modul
 
 					SRP_LOG_DBG("%s += %s", xpath_buffer, slave_list.slaves[i].slave_names[j]);
 					lyd_new_path(*parent, ly_ctx, xpath_buffer, slave_list.slaves[i].slave_names[j], LYD_ANYDATA_CONSTSTRING, 0);
+				}
+			}
+		}
+
+		// ietf-ip
+		// mtu
+		mtu = rtnl_link_get_mtu(link);
+
+		// list of ipv4 addresses
+		for (uint32_t i = 0; i < link_data_list.count; i++) {
+			if (link_data_list.links[i].name != NULL) { // in case we deleted a link it will be NULL
+				if (strcmp(link_data_list.links[i].name, interface_data.name ) == 0) {
+
+					// enabled
+					// TODO
+
+					// forwarding
+					uint8_t ipv4_forwarding = link_data_list.links[i].ipv4.forwarding;
+
+					error = snprintf(xpath_buffer, sizeof(xpath_buffer), "%s/ietf-ip:ipv4/forwarding", interface_path_buffer);
+					if (error < 0) {
+						goto error_out;
+					}
+
+					SRP_LOG_DBG("%s = %d", xpath_buffer, ipv4_forwarding);
+					lyd_new_path(*parent, ly_ctx, xpath_buffer, ipv4_forwarding == 0 ? "false" : "true", LYD_ANYDATA_CONSTSTRING, 0);
+
+					uint32_t ipv4_addr_count = link_data_list.links[i].ipv4.addr_list.count;
+
+					for (uint32_t j = 0; j < ipv4_addr_count; j++) {
+						if (link_data_list.links[i].ipv4.addr_list.addr[j].ip != NULL) { // in case we deleted an ip address it will be NULL
+							char *ip_addr = link_data_list.links[i].ipv4.addr_list.addr[j].ip;
+
+							if (mtu > 0) {
+								error = snprintf(xpath_buffer, sizeof(xpath_buffer), "%s/ietf-ip:ipv4/mtu", interface_path_buffer);
+								if (error < 0) {
+									goto error_out;
+								}
+								snprintf(tmp_buffer, sizeof(tmp_buffer), "%u", mtu);
+								SRP_LOG_DBG("%s = %s", xpath_buffer, tmp_buffer);
+								lyd_new_path(*parent, ly_ctx, xpath_buffer, tmp_buffer, LYD_ANYDATA_CONSTSTRING, 0);
+							}
+
+							error = snprintf(xpath_buffer, sizeof(xpath_buffer), "%s/ietf-ip:ipv4/address[ip='%s']/ip", interface_path_buffer, ip_addr);
+							if (error < 0) {
+								goto error_out;
+							}
+							// ip
+							SRP_LOG_DBG("%s = %s", xpath_buffer, link_data_list.links[i].ipv4.addr_list.addr[j].ip);
+							lyd_new_path(*parent, ly_ctx, xpath_buffer, link_data_list.links[i].ipv4.addr_list.addr[j].ip, LYD_ANYDATA_CONSTSTRING, 0);
+
+							// subnet
+							snprintf(tmp_buffer, sizeof(tmp_buffer), "%u", link_data_list.links[i].ipv4.addr_list.addr[j].subnet);
+
+							error = snprintf(xpath_buffer, sizeof(xpath_buffer), "%s/ietf-ip:ipv4/address[ip='%s']/prefix-length", interface_path_buffer, ip_addr);
+							if (error < 0) {
+								goto error_out;
+							}
+
+							SRP_LOG_DBG("%s = %s", xpath_buffer, tmp_buffer);
+							lyd_new_path(*parent, ly_ctx, xpath_buffer, tmp_buffer, LYD_ANYDATA_CONSTSTRING, 0);
+						}
+					}
+
+					// neighbors
+					uint32_t ipv4_neigh_count = link_data_list.links[i].ipv4.nbor_list.count;
+
+					for (uint32_t j = 0; j < ipv4_neigh_count; j++) {
+						if (link_data_list.links[i].ipv4.nbor_list.nbor[j].ip != NULL) { // in case we deleted an ip address it will be NULL
+							char *ip_addr = link_data_list.links[i].ipv4.nbor_list.nbor[j].ip;
+
+							error = snprintf(xpath_buffer, sizeof(xpath_buffer), "%s/ietf-ip:ipv4/neighbor[ip='%s']/ip", interface_path_buffer, ip_addr);
+							if (error < 0) {
+								goto error_out;
+							}
+							// ip
+							SRP_LOG_DBG("%s = %s", xpath_buffer, link_data_list.links[i].ipv4.nbor_list.nbor[j].ip);
+							lyd_new_path(*parent, ly_ctx, xpath_buffer, link_data_list.links[i].ipv4.nbor_list.nbor[j].ip, LYD_ANYDATA_CONSTSTRING, 0);
+
+							// link-layer-address
+							error = snprintf(xpath_buffer, sizeof(xpath_buffer), "%s/ietf-ip:ipv4/neighbor[ip='%s']/link-layer-address", interface_path_buffer, ip_addr);
+							if (error < 0) {
+								goto error_out;
+							}
+
+							SRP_LOG_DBG("%s = %s", xpath_buffer, link_data_list.links[i].ipv4.nbor_list.nbor[j].phys_addr);
+							lyd_new_path(*parent, ly_ctx, xpath_buffer, link_data_list.links[i].ipv4.nbor_list.nbor[j].phys_addr, LYD_ANYDATA_CONSTSTRING, 0);
+						}
+					}
+				}
+			}
+		}
+
+		// list of ipv6 addresses
+		for (uint32_t i = 0; i < link_data_list.count; i++) {
+			if (link_data_list.links[i].name != NULL) { // in case we deleted a link it will be NULL
+				if (strcmp(link_data_list.links[i].name, interface_data.name ) == 0) {
+
+					// enabled
+					uint8_t ipv6_enabled = link_data_list.links[i].ipv6.ip_data.enabled;
+
+					error = snprintf(xpath_buffer, sizeof(xpath_buffer), "%s/ietf-ip:ipv6/enabled", interface_path_buffer);
+					if (error < 0) {
+						goto error_out;
+					}
+
+					SRP_LOG_DBG("%s = %d", xpath_buffer, ipv6_enabled);
+					lyd_new_path(*parent, ly_ctx, xpath_buffer, ipv6_enabled == 0 ? "false" : "true", LYD_ANYDATA_CONSTSTRING, 0);
+
+					// forwarding
+					uint8_t ipv6_forwarding = link_data_list.links[i].ipv6.ip_data.forwarding;
+
+					error = snprintf(xpath_buffer, sizeof(xpath_buffer), "%s/ietf-ip:ipv6/forwarding", interface_path_buffer);
+					if (error < 0) {
+						goto error_out;
+					}
+
+					SRP_LOG_DBG("%s = %d", xpath_buffer, ipv6_forwarding);
+					lyd_new_path(*parent, ly_ctx, xpath_buffer, ipv6_forwarding == 0 ? "false" : "true", LYD_ANYDATA_CONSTSTRING, 0);
+
+					uint32_t ipv6_addr_count = link_data_list.links[i].ipv6.ip_data.addr_list.count;
+
+					for (uint32_t j = 0; j < ipv6_addr_count; j++) {
+						if (link_data_list.links[i].ipv6.ip_data.addr_list.addr[j].ip != NULL) { // in case we deleted an ip address it will be NULL
+							char *ip_addr = link_data_list.links[i].ipv6.ip_data.addr_list.addr[j].ip;
+
+							// mtu
+							if (mtu > 0 && ip_addr != NULL) {
+								error = snprintf(xpath_buffer, sizeof(xpath_buffer), "%s/ietf-ip:ipv6/mtu", interface_path_buffer);
+								if (error < 0) {
+									goto error_out;
+								}
+								snprintf(tmp_buffer, sizeof(tmp_buffer), "%u", mtu);
+								SRP_LOG_DBG("%s = %s", xpath_buffer, tmp_buffer);
+								lyd_new_path(*parent, ly_ctx, xpath_buffer, tmp_buffer, LYD_ANYDATA_CONSTSTRING, 0);
+							}
+
+							error = snprintf(xpath_buffer, sizeof(xpath_buffer), "%s/ietf-ip:ipv6/address[ip='%s']/ip", interface_path_buffer, ip_addr);
+							if (error < 0) {
+								goto error_out;
+							}
+							// ip
+							SRP_LOG_DBG("%s = %s", xpath_buffer, link_data_list.links[i].ipv6.ip_data.addr_list.addr[j].ip);
+							lyd_new_path(*parent, ly_ctx, xpath_buffer, link_data_list.links[i].ipv6.ip_data.addr_list.addr[j].ip, LYD_ANYDATA_CONSTSTRING, 0);
+
+							// subnet
+							snprintf(tmp_buffer, sizeof(tmp_buffer), "%u", link_data_list.links[i].ipv6.ip_data.addr_list.addr[j].subnet);
+
+							error = snprintf(xpath_buffer, sizeof(xpath_buffer), "%s/ietf-ip:ipv6/address[ip='%s']/prefix-length", interface_path_buffer, ip_addr);
+							if (error < 0) {
+								goto error_out;
+							}
+
+							SRP_LOG_DBG("%s = %s", xpath_buffer, tmp_buffer);
+							lyd_new_path(*parent, ly_ctx, xpath_buffer, tmp_buffer, LYD_ANYDATA_CONSTSTRING, 0);
+						}
+					}
+
+					// neighbors
+					uint32_t ipv6_neigh_count = link_data_list.links[i].ipv6.ip_data.nbor_list.count;
+
+					for (uint32_t j = 0; j < ipv6_neigh_count; j++) {
+						if (link_data_list.links[i].ipv6.ip_data.nbor_list.nbor[j].ip != NULL) { // in case we deleted an ip address it will be NULL
+							char *ip_addr = link_data_list.links[i].ipv6.ip_data.nbor_list.nbor[j].ip;
+
+							error = snprintf(xpath_buffer, sizeof(xpath_buffer), "%s/ietf-ip:ipv6/neighbor[ip='%s']/ip", interface_path_buffer, ip_addr);
+							if (error < 0) {
+								goto error_out;
+							}
+							// ip
+							SRP_LOG_DBG("%s = %s", xpath_buffer, link_data_list.links[i].ipv6.ip_data.nbor_list.nbor[j].ip);
+							lyd_new_path(*parent, ly_ctx, xpath_buffer, link_data_list.links[i].ipv6.ip_data.nbor_list.nbor[j].ip, LYD_ANYDATA_CONSTSTRING, 0);
+
+							// link-layer-address
+							error = snprintf(xpath_buffer, sizeof(xpath_buffer), "%s/ietf-ip:ipv6/neighbor[ip='%s']/link-layer-address", interface_path_buffer, ip_addr);
+							if (error < 0) {
+								goto error_out;
+							}
+
+							SRP_LOG_DBG("%s = %s", xpath_buffer, link_data_list.links[i].ipv6.ip_data.nbor_list.nbor[j].phys_addr);
+							lyd_new_path(*parent, ly_ctx, xpath_buffer, link_data_list.links[i].ipv6.ip_data.nbor_list.nbor[j].phys_addr, LYD_ANYDATA_CONSTSTRING, 0);
+						}
+					}
 				}
 			}
 		}

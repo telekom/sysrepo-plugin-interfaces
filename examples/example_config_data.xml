@@ -8,18 +8,35 @@
         <name>test_interface</name>
         <description>this is a test interface</description>
         <type>ianaift:other</type>
-        <enabled>false</enabled>
-    </interface>
+        <enabled>true</enabled>
 
-    <!-- TODO: add parent leaf etc.
-         - this will be updated once if-extensions and vlan encaps are implemented
-         - currently parent interface is hardcoded as eth0
-    -->
-    <interface>
-        <name>eth0.2</name>
-        <description>this is a test interface</description>
-        <type>ianaift:l2vlan</type>
-        <enabled>false</enabled>
-    </interface>
+        <ipv4 xmlns="urn:ietf:params:xml:ns:yang:ietf-ip">
+            <forwarding>true</forwarding>
+            <mtu>1500</mtu>
+            <address>
+                <ip>192.0.2.1</ip>
+                <prefix-length>24</prefix-length>
+            </address>
 
+            <neighbor>
+               <ip>192.0.2.2</ip>
+               <link-layer-address>00:00:5E:00:53:AB</link-layer-address>
+            </neighbor>
+        </ipv4>
+
+        <ipv6 xmlns="urn:ietf:params:xml:ns:yang:ietf-ip">
+            <enabled>true</enabled>
+            <forwarding>false</forwarding>
+            <mtu>1280</mtu>
+            <address>
+                <ip>2001:db8::10</ip>
+                <prefix-length>32</prefix-length>
+            </address>
+
+            <neighbor>
+               <ip>2001:db8::11</ip>
+               <link-layer-address>FF:00:FE:00:53:AB</link-layer-address>
+            </neighbor>
+        </ipv6>
+    </interface>
 </interfaces>

@@ -14,6 +14,9 @@ set(SOURCES
     src/interfaces.c
     src/utils/memory.c
     src/utils/if_state.c
+    src/utils/link_data.c
+    src/utils/ip_data.c
+    src/utils/ipv6_data.c
 )
 
 # get sysrepo version
