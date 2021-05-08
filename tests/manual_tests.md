@@ -87,7 +87,7 @@ $ sysrepocfg -X -x '/ietf-interfaces:interfaces/interface[name="lo"]/description
 </interfaces>
 ```
 
-The interface description is stored by the plugin, currently in a file which sould ensure that
+The interface description is stored by the plugin, currently in a file (`interface_description`) located in `IF_PLUGIN_DATA_DIR` which ensures that
 set descriptions are preserved between plugin runs.
 
 ### Interface type
@@ -322,7 +322,7 @@ in the state of the interface.
 using the routing part of netlink.
 
 `in-unicats-packets` won't be correct and will be mostly 0 for now,
-as there doesn't seme to be a way to retrieve or calculate
+as there doesn't seem to be a way to retrieve or calculate
 just the number of unicast packets with just netlink. ethtool uses ioctl for example, which
 will be device and driver specific.
 
@@ -338,7 +338,7 @@ This is retrieved through netlink.
 is retrieved through netlink.
 
 `in-unknown-protos` is set to the number of packets with unknown protocols received on
-the interface. The data is retrieved from netlink, through the IP6 SNMP data. 
+the interface. The data is retrieved from netlink, through the IP6 SNMP data.
 In most cases it will be 0.
 
 `out-octets` is the number of packets transmitted on the interface. It is retrieved
@@ -358,3 +358,211 @@ not enough space available in Linux. It is retrieved through netlink.
 
 `out-errors` tracks the number of outwards packets that weren't transmitted
 due to errors.
+
+
+## ietf-ip
+
+### Interface IPv6 enabled state
+
+We can enable/disable IPv6 addressing of an interface with the `enabled` node with the following command:
+```
+$ sysrepocfg -Evim -x '/ietf-interfaces:interfaces/interface[name="wlan0"]/ietf-ip:ipv6/enabled'
+```
+
+Add the following to the `wlan0` interface:
+```
+  <ipv6 xmlns="urn:ietf:params:xml:ns:yang:ietf-ip">
+      <enabled>false</enabled>
+  </ipv6>
+```
+
+Check that the IPv6 addressing has been disabled for the `wlan0` interface:
+```
+$ ip addr show wlan0
+4: wlan0: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc noqueue state UP group default qlen 1000
+```
+
+If previous IPv6 addresses existed, now they don't.
+
+After setting it through sysrepocfg, the outputs should look like this:
+```
+$ sysrepocfg -X -x '/ietf-interfaces:interfaces/interface[name="wlan0"]/ietf-ip:ipv6/enabled'
+<interfaces xmlns="urn:ietf:params:xml:ns:yang:ietf-interfaces">
+  <interface>
+    <name>wlan0</name>
+    <ipv6 xmlns="urn:ietf:params:xml:ns:yang:ietf-ip">
+      <forwarding>false</forwarding>
+    </ipv6>
+  </interface>
+</interfaces>
+```
+
+The IPv4 `enabled` node has not yet been implemented, since not all distribution have the disable_ipv4 file in:
+```/proc/sys/net/ipv6/conf/_interface-name_/disable_ipv4```
+
+### Interface address forwarding
+
+We can enable/disable IPv4 and IPv6 address forwarding of an interface with the `forwarding` node with the following command:
+```
+$ sysrepocfg -Evim -x '/ietf-interfaces:interfaces/interface[name="wlan0"]/ietf-ip:ipv6/forwarding'
+```
+
+Add the following to the `wlan0` interface:
+```
+  <ipv6 xmlns="urn:ietf:params:xml:ns:yang:ietf-ip">
+      <forwarding>false</forwarding>
+  </ipv6>
+```
+
+Check that the IPv6 forwarding has been disabled for the `wlan0` interface:
+```
+$  cat /proc/sys/net/ipv6/conf/wlan0/forwarding 
+0
+```
+
+After setting it through sysrepocfg, the outputs should look like this:
+```
+$ sysrepocfg -X -x '/ietf-interfaces:interfaces/interface[name="wlan0"]/ietf-ip:ipv6/forwarding'
+<interfaces xmlns="urn:ietf:params:xml:ns:yang:ietf-interfaces">
+  <interface>
+    <name>wlan0</name>
+    <ipv6 xmlns="urn:ietf:params:xml:ns:yang:ietf-ip">
+      <enabled>false</enabled>
+    </ipv6>
+  </interface>
+</interfaces>
+```
+
+The same can be done for IPv4, just replace ipv6 with ipv4 in the examples above.
+
+### Interface MTU (maximum transmission unit)
+
+We can set the IPv4 MTU of an interface with the following command:
+```
+$ sysrepocfg -Evim -x '/ietf-interfaces:interfaces/interface[name="lo"]/ietf-ip:ipv4/mtu'
+```
+
+Add the following to the `lo` an interface:
+```
+  <ipv4 xmlns="urn:ietf:params:xml:ns:yang:ietf-ip">
+      <mtu>1300</mtu>
+  </ipv4>
+```
+
+Check that the MTU is really set for the `lo` interface:
+```
+$ ip link show lo
+1: lo: <LOOPBACK,UP,LOWER_UP> mtu 1300 qdisc noqueue state UP mode DEFAULT group default qlen 1000
+    link/loopback 00:00:00:00:00:00 brd 00:00:00:00:00:00
+
+```
+
+After setting it through sysrepocfg, the outputs should look like this:
+```
+$ sysrepocfg -X -x '/ietf-interfaces:interfaces/interface[name="lo"]/ietf-ip:ipv4/mtu'
+<interfaces xmlns="urn:ietf:params:xml:ns:yang:ietf-interfaces">
+  <interface>
+    <name>lo</name>
+    <ipv4 xmlns="urn:ietf:params:xml:ns:yang:ietf-ip">
+      <mtu>1300</mtu>
+    </ipv4>
+  </interface>
+</interfaces>
+```
+
+The same can be done for IPv6, just replace ipv4 with ipv6 in the examples above.
+
+### Interface IP address and subnet
+
+We can set the IPv4 address and subnet of an interface with the following command:
+```
+$ sysrepocfg -Evim -x '/ietf-interfaces:interfaces/interface[name="lo"]/ietf-ip:ipv4/address'
+```
+
+Add the following to the `lo` interface:
+```
+  <ipv4 xmlns="urn:ietf:params:xml:ns:yang:ietf-ip">
+      <address>
+        <ip>127.0.0.0</ip>
+        <prefix-length>8</prefix-length>
+      </address>
+  </ipv4>
+```
+
+Check that the ip and subnet really are set for the `lo` interface:
+```
+$ ip addr show lo
+1: lo: <LOOPBACK,UP,LOWER_UP> mtu 1300 qdisc noqueue state UP group default qlen 1000
+    link/loopback 00:00:00:00:00:00 brd 00:00:00:00:00:00
+    inet 127.0.0.0/8 scope host secondary lo
+       valid_lft forever preferred_lft forever
+```
+
+After setting it through sysrepocfg, the outputs should look like this:
+```
+$ sysrepocfg -X -x '/ietf-interfaces:interfaces/interface[name="lo"]/ietf-ip:ipv4/address'
+<interfaces xmlns="urn:ietf:params:xml:ns:yang:ietf-interfaces">
+  <interface>
+    <name>lo</name>
+    <ipv4 xmlns="urn:ietf:params:xml:ns:yang:ietf-ip">
+      <address>
+        <ip>127.0.0.0</ip>
+        <prefix-length>8</prefix-length>
+      </address>
+    </ipv4>
+  </interface>
+</interfaces
+```
+
+The same can be done for IPv6, just replace ipv4 with ipv6 in the examples above and for the ip node add an ipv6 address.
+
+We can also use a netmask instead of prefix length but the following feature has to be enabled first:
+```
+ sysrepoctl --change ietf-ip --enable-feature ipv4-non-contiguous-netmasks
+```
+
+After that instead of `prefix-length` node use `netmask`:
+```
+<netmask>255.0.0.0</netmask>
+```
+
+### Interface neighbors
+
+We can set the IPv4 and IPv6 ip address and link layer address of an interfaces neighbor with the following command:
+```
+$ sysrepocfg -Evim -x '/ietf-interfaces:interfaces/interface[name="wlan0"]/ietf-ip:ipv4/neighbor'
+```
+
+Add the following to the `wlan0` interface:
+```
+  <ipv4 xmlns="urn:ietf:params:xml:ns:yang:ietf-ip">
+      <neighbor>
+        <ip>192.0.2.2</ip>
+        <link-layer-address>00:00:5E:00:53:AB</link-layer-address>
+      </neighbor>
+  </ipv4>
+```
+
+Check that the ip and link layer address really are set for the `wlan0` interface:
+```
+$ ip neigh show dev wlan0
+192.0.2.2 lladdr 00:00:5e:00:53:ab PERMANENT
+```
+
+After setting it through sysrepocfg, the outputs should look like this:
+```
+$ sysrepocfg -X -x '/ietf-interfaces:interfaces/interface[name="wlan0"]/ietf-ip:ipv4/neighbor'
+<interfaces xmlns="urn:ietf:params:xml:ns:yang:ietf-interfaces">
+  <interface>
+    <name>wlan0</name>
+    <ipv4 xmlns="urn:ietf:params:xml:ns:yang:ietf-ip">
+      <neighbor>
+        <ip>192.0.2.2</ip>
+        <link-layer-address>00:00:5E:00:53:AB</link-layer-address>
+      </neighbor>
+    </ipv4>
+  </interface>
+</interfaces
+```
+
+The same can be done for IPv6, just replace ipv4 with ipv6 in the examples above and for the ip node add an ipv6 address.
