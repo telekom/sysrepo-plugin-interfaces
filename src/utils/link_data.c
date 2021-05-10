@@ -19,6 +19,11 @@ void link_data_init(link_data_t *l)
 	l->delete = false;
 	ip_data_init(&l->ipv4);
 	ipv6_data_init(&l->ipv6);
+	l->extensions.parent_interface = NULL;
+	l->extensions.encapsulation.dot1q_vlan.outer_tag_type = NULL;
+	l->extensions.encapsulation.dot1q_vlan.outer_vlan_id = 0;
+	l->extensions.encapsulation.dot1q_vlan.second_tag_type = NULL;
+	l->extensions.encapsulation.dot1q_vlan.second_vlan_id = 0;
 }
 
 int link_data_list_init(link_data_list_t *ld)
@@ -452,6 +457,142 @@ static link_data_t *data_list_get_by_name(link_data_list_t *ld, char *name)
 	return l;
 }
 
+// TODO: update
+int link_data_list_set_parent(link_data_list_t *ld, char *name, char *parent)
+{
+	int error = 0;
+	int name_found = 0;
+
+	for (int i = 0; i < ld->count; i++) {
+		if (ld->links[i].name != NULL) {
+			if (strcmp(ld->links[i].name, name) == 0) {
+				name_found = 1;
+
+				if (ld->links[i].extensions.parent_interface  != NULL) {
+					FREE_SAFE(ld->links[i].extensions.parent_interface);
+				}
+
+				unsigned long tmp_len = 0;
+				tmp_len = strlen(parent);
+				ld->links[i].extensions.parent_interface = xmalloc(sizeof(char) * (tmp_len + 1));
+				memcpy(ld->links[i].extensions.parent_interface, parent, tmp_len);
+				ld->links[i].extensions.parent_interface[tmp_len] = 0;
+
+				break;
+			}
+		}
+	}
+	if (!name_found) {
+		// error
+		error = EINVAL;
+	}
+	return error;
+}
+
+int link_data_list_set_outer_vlan_id(link_data_list_t *ld, char *name, uint16_t outer_vlan_id)
+{
+	int error = 0;
+	int name_found = 0;
+
+	for (int i = 0; i < ld->count; i++) {
+		if (ld->links[i].name != NULL) {
+			if (strcmp(ld->links[i].name, name) == 0) {
+				name_found = 1;
+				ld->links[i].extensions.encapsulation.dot1q_vlan.outer_vlan_id = outer_vlan_id;
+				break;
+			}
+		}
+	}
+	if (!name_found) {
+		// error
+		error = EINVAL;
+	}
+	return error;
+}
+
+int link_data_list_set_outer_tag_type(link_data_list_t *ld, char *name, char *outer_tag_type)
+{
+	int error = 0;
+	int name_found = 0;
+
+	for (int i = 0; i < ld->count; i++) {
+		if (ld->links[i].name != NULL) {
+			if (strcmp(ld->links[i].name, name) == 0) {
+				name_found = 1;
+
+				if (ld->links[i].extensions.encapsulation.dot1q_vlan.outer_tag_type  != NULL) {
+					FREE_SAFE(ld->links[i].extensions.encapsulation.dot1q_vlan.outer_tag_type);
+				}
+
+				unsigned long tmp_len = 0;
+				tmp_len = strlen(outer_tag_type);
+				ld->links[i].extensions.encapsulation.dot1q_vlan.outer_tag_type = xmalloc(sizeof(char) * (tmp_len + 1));
+				memcpy(ld->links[i].extensions.encapsulation.dot1q_vlan.outer_tag_type, outer_tag_type, tmp_len);
+				ld->links[i].extensions.encapsulation.dot1q_vlan.outer_tag_type[tmp_len] = 0;
+
+				break;
+			}
+		}
+	}
+	if (!name_found) {
+		// error
+		error = EINVAL;
+	}
+	return error;
+}
+
+int link_data_list_set_second_vlan_id(link_data_list_t *ld, char *name, uint16_t second_vlan_id)
+{
+	int error = 0;
+	int name_found = 0;
+
+	for (int i = 0; i < ld->count; i++) {
+		if (ld->links[i].name != NULL) {
+			if (strcmp(ld->links[i].name, name) == 0) {
+				name_found = 1;
+				ld->links[i].extensions.encapsulation.dot1q_vlan.second_vlan_id = second_vlan_id;
+				break;
+			}
+		}
+	}
+	if (!name_found) {
+		// error
+		error = EINVAL;
+	}
+	return error;
+}
+
+int link_data_list_set_second_tag_type(link_data_list_t *ld, char *name, char *second_tag_type)
+{
+	int error = 0;
+	int name_found = 0;
+
+	for (int i = 0; i < ld->count; i++) {
+		if (ld->links[i].name != NULL) {
+			if (strcmp(ld->links[i].name, name) == 0) {
+				name_found = 1;
+
+				if (ld->links[i].extensions.encapsulation.dot1q_vlan.second_tag_type  != NULL) {
+					FREE_SAFE(ld->links[i].extensions.encapsulation.dot1q_vlan.second_tag_type);
+				}
+
+				unsigned long tmp_len = 0;
+				tmp_len = strlen(second_tag_type);
+				ld->links[i].extensions.encapsulation.dot1q_vlan.second_tag_type = xmalloc(sizeof(char) * (tmp_len + 1));
+				memcpy(ld->links[i].extensions.encapsulation.dot1q_vlan.second_tag_type, second_tag_type, tmp_len);
+				ld->links[i].extensions.encapsulation.dot1q_vlan.second_tag_type[tmp_len] = 0;
+
+				break;
+			}
+		}
+	}
+	if (!name_found) {
+		// error
+		error = EINVAL;
+	}
+	return error;
+}
+
 void link_data_free(link_data_t *l)
 {
 	if (l->name) {
@@ -472,6 +613,18 @@ void link_data_free(link_data_t *l)
 
 	ip_data_free(&l->ipv4);
 	ipv6_data_free(&l->ipv6);
+
+	if (l->extensions.parent_interface) {
+		FREE_SAFE(l->extensions.parent_interface);
+	}
+
+	if (l->extensions.encapsulation.dot1q_vlan.outer_tag_type) {
+		FREE_SAFE(l->extensions.encapsulation.dot1q_vlan.outer_tag_type);
+	}
+
+	if (l->extensions.encapsulation.dot1q_vlan.second_tag_type) {
+		FREE_SAFE(l->extensions.encapsulation.dot1q_vlan.second_tag_type);
+	}
 }
 
 void link_data_list_free(link_data_list_t *ld)

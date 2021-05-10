@@ -20,6 +20,20 @@ struct link_data_s {
 	bool delete;
 	ipv4_data_t ipv4;
 	ipv6_data_t ipv6;
+	struct {
+		struct {
+			struct {
+				char *outer_tag_type;
+				uint16_t outer_vlan_id;
+				char *second_tag_type;
+				uint16_t second_vlan_id;
+			} dot1q_vlan;
+			// TODO: add more interface types that can have a configurable L2 encapsulation
+		} encapsulation;
+
+		char *parent_interface;
+	// TOOD: cover more yang nodes from extensions
+	} extensions;
 };
 
 struct link_data_list_s {
@@ -63,6 +77,15 @@ int link_data_list_set_ipv6_cga(link_data_list_t *ld, char *name, char *cga);
 int link_data_list_set_ipv6_cta(link_data_list_t *ld, char *name, char *cta);
 int link_data_list_set_ipv6_tvl(link_data_list_t *ld, char *name, char *tvl);
 int link_data_list_set_ipv6_tpl(link_data_list_t *ld, char *name, char *tpl);
+
+// if-extensions options
+int link_data_list_set_parent(link_data_list_t *ld, char *name, char *parent);
+
+// vlan-encapsulation options
+int link_data_list_set_outer_tag_type(link_data_list_t *ld, char *name, char *outer_tag_type);
+int link_data_list_set_outer_vlan_id(link_data_list_t *ld, char *name, uint16_t outer_vlan_id);
+int link_data_list_set_second_tag_type(link_data_list_t *ld, char *name, char *second_tag_type);
+int link_data_list_set_second_vlan_id(link_data_list_t *ld, char *name, uint16_t second_vlan_id);
 
 void link_data_list_free(link_data_list_t *ld);
 
