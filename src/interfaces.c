@@ -31,9 +31,9 @@
 #include <linux/if.h>
 #include <pthread.h>
 #include <unistd.h>
-#include <utils/if_state.h>
+#include "utils/if_state.h"
 #include <arpa/inet.h>
-#include <utils/link_data.h>
+#include "utils/link_data.h"
 #include <time.h>
 #include <sys/sysinfo.h>
 
@@ -56,6 +56,7 @@
 #define TMP_INTERFACE_DESCRIPTION_FILENAME "/tmp_interface_description"
 #define CLASS_NET_LINE_LEN 1024
 #define ADDR_STR_BUF_SIZE 45 // max ip string length (15 for ipv4 and 45 for ipv6)
+#define MAX_IF_NAME_LEN IFNAMSIZ // 16 bytes
 
 // callbacks
 static int interfaces_module_change_cb(sr_session_ctx_t *session, const char *module_name, const char *xpath, sr_event_t event, uint32_t request_id, void *private_data);
@@ -626,7 +627,9 @@ static int interfaces_module_change_cb(sr_session_ctx_t *session, const char *mo
 						goto error_out;
 					}
 
-					if (system_interface) {
+					// check if system interface but also
+					// check if parent-interface node (virtual interfaces can have a system interface as parent)
+					if (system_interface && !(strstr(node_xpath, "/ietf-if-extensions:parent-interface") != NULL)) {
 						SRP_LOG_ERRMSG("Can't delete a system interface");
 						FREE_SAFE(node_xpath);
 						sr_free_change_iter(system_change_iter);
@@ -838,12 +841,52 @@ int set_config_value(const char *xpath, const char *value)
 				goto out;
 			}
 		}
+	} else if (strcmp(interface_node, "ietf-if-extensions:parent-interface") == 0) {
+		// change parent-interface
+		error = link_data_list_set_parent(&link_data_list, interface_node_name, (char *) value);
+		if (error != 0) {
+			SRP_LOG_ERRMSG("link_data_list_set_parent error");
+			error = SR_ERR_CALLBACK_FAILED;
+			goto out;
+		}
+	} else if (strstr(xpath_cpy, "ietf-if-extensions:encapsulation/ietf-if-vlan-encapsulation:dot1q-vlan/outer-tag/tag-type") != 0) {
+		error = link_data_list_set_outer_tag_type(&link_data_list, interface_node_name, (char *)value);
+		if (error != 0) {
+			SRP_LOG_ERRMSG("link_data_list_set_parent error");
+			error = SR_ERR_CALLBACK_FAILED;
+			goto out;
+		}
+	} else if (strstr(xpath_cpy, "ietf-if-extensions:encapsulation/ietf-if-vlan-encapsulation:dot1q-vlan/outer-tag/vlan-id") != 0) {
+		error = link_data_list_set_outer_vlan_id(&link_data_list, interface_node_name, (uint16_t) atoi(value));
+		if (error != 0) {
+			SRP_LOG_ERRMSG("link_data_list_set_parent error");
+			error = SR_ERR_CALLBACK_FAILED;
+			goto out;
+		}
+	} else if (strstr(xpath_cpy, "ietf-if-extensions:encapsulation/ietf-if-vlan-encapsulation:dot1q-vlan/second-tag/tag-type") != 0) {
+		error = link_data_list_set_second_tag_type(&link_data_list, interface_node_name, (char *)value);
+		if (error != 0) {
+			SRP_LOG_ERRMSG("link_data_list_set_parent error");
+			error = SR_ERR_CALLBACK_FAILED;
+			goto out;
+		}
+	} else if (strstr(xpath_cpy, "ietf-if-extensions:encapsulation/ietf-if-vlan-encapsulation:dot1q-vlan/second-tag/vlan-id") != 0) {
+		error = link_data_list_set_second_vlan_id(&link_data_list, interface_node_name, (uint16_t) atoi(value));
+		if (error != 0) {
+			SRP_LOG_ERRMSG("link_data_list_set_parent error");
+			error = SR_ERR_CALLBACK_FAILED;
+			goto out;
+		}
 	}
 
 	goto out;
 
 out:
 	FREE_SAFE(xpath_cpy);
+	if (xpath_cpy != NULL) {
+		FREE_SAFE(xpath_cpy);
+	}
+
 	return error ? SR_ERR_CALLBACK_FAILED : SR_ERR_OK;
 }
 
@@ -1006,9 +1049,11 @@ int update_link_info(link_data_list_t *ld, sr_change_oper_t operation)
 		char *type = ld->links[i].type;
 		char *description = ld->links[i].description;
 		char *enabled = ld->links[i].enabled;
+		char *parent_interface = ld->links[i].extensions.parent_interface;
+		uint16_t outer_vlan_id =  ld->links[i].extensions.encapsulation.dot1q_vlan.outer_vlan_id;
 		bool delete = ld->links[i].delete;
 
-		if (name == NULL) {
+		if (name == NULL || type == 0) {
 			continue;
 		}
 
@@ -1109,10 +1154,11 @@ int update_link_info(link_data_list_t *ld, sr_change_oper_t operation)
 
 			// handle vlan interfaces
 			if (strcmp(type, "vlan") == 0) {
-				// TODO: update this after if-extensions and if-vlan encaps is implemented
-				int master_index = rtnl_link_name2i(cache, "eth0");
+				// TODO: figure out how to add outer and second tags
+				// temporary solution could be using ip link command instead of libnl
+				int master_index = rtnl_link_name2i(cache, parent_interface);
 				rtnl_link_set_link(request, master_index);
-				rtnl_link_vlan_set_id(request, 10);
+				rtnl_link_vlan_set_id(request, outer_vlan_id);
 			}
 		}
 
@@ -1149,72 +1195,70 @@ int update_link_info(link_data_list_t *ld, sr_change_oper_t operation)
 				SRP_LOG_ERR("rtnl_link_change error (%d): %s", error, nl_geterror(error));
 				goto out;
 			}
-		} else {
-			if (operation != SR_OP_DELETED) {
-				// the interface doesn't exist
+		} else if (operation != SR_OP_DELETED) {
+			// the interface doesn't exist
 
-				// check if the interface is a system interface
-				// non-virtual interfaces can't be created
-				bool system_interface = false;
-				error = check_system_interface(name, &system_interface);
-				if (error) {
-					SRP_LOG_ERRMSG("check_system_interface error");
-					error = -1;
-					goto out;
-				}
+			// check if the interface is a system interface
+			// non-virtual interfaces can't be created
+			bool system_interface = false;
+			error = check_system_interface(name, &system_interface);
+			if (error) {
+				SRP_LOG_ERRMSG("check_system_interface error");
+				error = -1;
+				goto out;
+			}
 
-				if (system_interface || strcmp(type, "eth") == 0 || strcmp(type, "lo") == 0) {
-					SRP_LOG_ERR("Can't create non-virtual interface %s of type: %s", name, type);
-					error = -1;
-					goto out;
-				}
+			if (system_interface || strcmp(type, "eth") == 0 || strcmp(type, "lo") == 0) {
+				SRP_LOG_ERR("Can't create non-virtual interface %s of type: %s", name, type);
+				error = -1;
+				goto out;
+			}
 
-				// set the new name
-				rtnl_link_set_name(request, name);
+			// set the new name
+			rtnl_link_set_name(request, name);
 
-				// update the last-change state list
-				uint8_t state = rtnl_link_get_operstate(request);
+			// update the last-change state list
+			uint8_t state = rtnl_link_get_operstate(request);
 
-				if_state_list_add(&if_state_changes, state, name);
+			if_state_list_add(&if_state_changes, state, name);
 
-				// add the interface
-				// note: if type is not set, you can't add the new link
-				error = rtnl_link_add(socket, request, NLM_F_CREATE);
+			// add the interface
+			// note: if type is not set, you can't add the new link
+			error = rtnl_link_add(socket, request, NLM_F_CREATE);
+			if (error != 0) {
+				SRP_LOG_ERR("rtnl_link_add error (%d): %s", error, nl_geterror(error));
+				goto out;
+			}
+
+			// in order to add ipv4/ipv6 options we first have to create the interface
+			// and then get its interface index, because we need it inside add_interface_ipv4/ipv6
+			// and don't want to set it manually...
+			nl_cache_free(cache);
+			error = rtnl_link_alloc_cache(socket, AF_UNSPEC, &cache);
+			if (error != 0) {
+				SRP_LOG_ERR("rtnl_link_alloc_cache error (%d): %s", error, nl_geterror(error));
+				goto out;
+			}
+
+			old = rtnl_link_get_by_name(cache, name);
+
+			if (old != NULL) {
+				error = add_interface_ipv4(&ld->links[i], old, request, rtnl_link_get_ifindex(old));
 				if (error != 0) {
-					SRP_LOG_ERR("rtnl_link_add error (%d): %s", error, nl_geterror(error));
+					SRP_LOG_ERRMSG("add_interface_ipv4 error");
 					goto out;
 				}
 
-				// in order to add ipv4/ipv6 options we first have to create the interface
-				// and then get its interface index, because we need it inside add_interface_ipv4/ipv6
-				// and don't want to set it manually...
-				nl_cache_free(cache);
-				error = rtnl_link_alloc_cache(socket, AF_UNSPEC, &cache);
+				error = add_interface_ipv6(&ld->links[i], old, request, rtnl_link_get_ifindex(old));
 				if (error != 0) {
-					SRP_LOG_ERR("rtnl_link_alloc_cache error (%d): %s", error, nl_geterror(error));
+					SRP_LOG_ERRMSG("add_interface_ipv6 error");
 					goto out;
 				}
 
-				old = rtnl_link_get_by_name(cache, name);
-
-				if (old != NULL) {
-					error = add_interface_ipv4(&ld->links[i], old, request, rtnl_link_get_ifindex(old));
-					if (error != 0) {
-						SRP_LOG_ERRMSG("add_interface_ipv4 error");
-						goto out;
-					}
-
-					error = add_interface_ipv6(&ld->links[i], old, request, rtnl_link_get_ifindex(old));
-					if (error != 0) {
-						SRP_LOG_ERRMSG("add_interface_ipv6 error");
-						goto out;
-					}
-
-					error = rtnl_link_change(socket, old, request, 0);
-					if (error != 0) {
-						SRP_LOG_ERR("rtnl_link_change error (%d): %s", error, nl_geterror(error));
-						goto out;
-					}
+				error = rtnl_link_change(socket, old, request, 0);
+				if (error != 0) {
+					SRP_LOG_ERR("rtnl_link_change error (%d): %s", error, nl_geterror(error));
+					goto out;
 				}
 			}
 		}
@@ -1438,7 +1482,6 @@ static int remove_ipv6_address(ip_address_list_t *addr_list, struct nl_sock *soc
 					nl_addr_put(local_addr);
 					return -1;
 				}
-
 				rtnl_addr_put(addr);
 				nl_addr_put(local_addr);
 
@@ -1802,8 +1845,11 @@ int add_existing_links(link_data_list_t *ld)
 	char *description = NULL;
 	char *type = NULL;
 	char *enabled = NULL;
+	char *parent_interface = NULL;
+	uint16_t vlan_id = 0;
 	unsigned int mtu = 0;
 	char tmp_buffer[10] = {0};
+	char parent_buffer[MAX_IF_NAME_LEN] = {0};
 	int addr_family = 0;
 	char addr_str[ADDR_STR_BUF_SIZE];
 	char dst_addr_str[ADDR_STR_BUF_SIZE];
@@ -1852,6 +1898,20 @@ int add_existing_links(link_data_list_t *ld)
 
 		snprintf(tmp_buffer, sizeof(tmp_buffer), "%u", mtu);
 
+		// vlan
+		if (rtnl_link_is_vlan(link)) {
+			// parent interface
+			int parent_index = rtnl_link_get_link(link);
+			parent_interface = rtnl_link_i2name(cache, parent_index, parent_buffer, MAX_IF_NAME_LEN);
+
+			// outer vlan id
+			vlan_id = (uint16_t)rtnl_link_vlan_get_id(link);
+			if (vlan_id <= 0) {
+				SRP_LOG_ERRMSG("couldn't get vlan ID");
+				goto error_out;
+			}
+		}
+
 		error = link_data_list_add(ld, name);
 		if (error != 0) {
 			SRP_LOG_ERRMSG("link_data_list_add error");
@@ -1878,6 +1938,22 @@ int add_existing_links(link_data_list_t *ld)
 		if (error != 0) {
 			SRP_LOG_ERRMSG("link_data_list_set_enabled error");
 			goto error_out;
+		}
+
+		if (parent_interface != 0) {
+			error = link_data_list_set_parent(ld, name, parent_interface);
+			if (error != 0) {
+				SRP_LOG_ERRMSG("link_data_list_set_parent error");
+				goto error_out;
+			}
+		}
+
+		if (vlan_id != 0) {
+			error = link_data_list_set_outer_vlan_id(ld, name, vlan_id);
+			if (error != 0) {
+				SRP_LOG_ERRMSG("link_data_list_set_outer_vlan_id error");
+				goto error_out;
+			}
 		}
 
 		int if_index = rtnl_link_get_ifindex(link);

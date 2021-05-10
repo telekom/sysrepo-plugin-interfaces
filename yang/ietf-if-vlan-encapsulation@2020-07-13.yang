@@ -22,7 +22,7 @@ module ietf-if-vlan-encapsulation {
        Amendment 30: YANG Data Model";
   }
 
-  import ietf-interfaces-common {
+  import ietf-if-extensions {
     prefix if-ext;
     reference
       "RFC XXXX: Common Interface Extension YANG Data Models";
