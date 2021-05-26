@@ -36,6 +36,7 @@
 #include "utils/link_data.h"
 #include <time.h>
 #include <sys/sysinfo.h>
+#include "utils/if_nic_stats.h"
 
 #define BASE_YANG_MODEL "ietf-interfaces"
 #define BASE_IP_YANG_MODEL "ietf-ip"
@@ -2716,23 +2717,30 @@ static int interfaces_state_data_cb(sr_session_ctx_t *session, const char *modul
 			goto error_out;
 		}
 		interface_data.statistics.discontinuity_time = system_boot_time;
+
+		// gather interface statistics that are not accessable via netlink
+		nic_stats_t nic_stats = {0};
+		error = get_nic_stats(interface_data.name, &nic_stats);
+		if (error != 0) {
+			SRP_LOG_ERR("get_nic_stats error: %s", strerror(errno));
+		}
+
+		// Rx
 		interface_data.statistics.in_octets = rtnl_link_get_stat(link, RTNL_LINK_RX_BYTES);
-
-		// to discuss
-		interface_data.statistics.in_unicast_pkts = rtnl_link_get_stat(link, RTNL_LINK_RX_PACKETS) - rtnl_link_get_stat(link, RTNL_LINK_IP6_INMCASTPKTS);
-		// only this option involves broadcast packets => IP6 SNMP
-		interface_data.statistics.in_broadcast_pkts = rtnl_link_get_stat(link, RTNL_LINK_IP6_INBCASTPKTS);
-		interface_data.statistics.in_broadcast_pkts = 0;
-
+		interface_data.statistics.in_broadcast_pkts = nic_stats.rx_broadcast;
 		interface_data.statistics.in_multicast_pkts = rtnl_link_get_stat(link, RTNL_LINK_MULTICAST);
+		interface_data.statistics.in_unicast_pkts = nic_stats.rx_packets - nic_stats.rx_broadcast - interface_data.statistics.in_multicast_pkts;
+
 		interface_data.statistics.in_discards = (uint32_t) rtnl_link_get_stat(link, RTNL_LINK_RX_DROPPED);
 		interface_data.statistics.in_errors = (uint32_t) rtnl_link_get_stat(link, RTNL_LINK_RX_ERRORS);
 		interface_data.statistics.in_unknown_protos = (uint32_t) rtnl_link_get_stat(link, RTNL_LINK_IP6_INUNKNOWNPROTOS);
 
+		// Tx
 		interface_data.statistics.out_octets = rtnl_link_get_stat(link, RTNL_LINK_TX_BYTES);
-		interface_data.statistics.out_unicast_pkts = rtnl_link_get_stat(link, RTNL_LINK_TX_PACKETS) - rtnl_link_get_stat(link, RTNL_LINK_IP6_OUTMCASTPKTS);
-		interface_data.statistics.out_broadcast_pkts = rtnl_link_get_stat(link, RTNL_LINK_IP6_OUTBCASTPKTS);
-		interface_data.statistics.out_multicast_pkts = rtnl_link_get_stat(link, RTNL_LINK_IP6_OUTMCASTPKTS);
+		interface_data.statistics.out_broadcast_pkts = nic_stats.tx_broadcast;
+		interface_data.statistics.out_multicast_pkts = nic_stats.tx_multicast;
+		interface_data.statistics.out_unicast_pkts = nic_stats.tx_packets - nic_stats.tx_broadcast - nic_stats.tx_multicast;
+
 		interface_data.statistics.out_discards = (uint32_t) rtnl_link_get_stat(link, RTNL_LINK_TX_DROPPED);
 		interface_data.statistics.out_errors = (uint32_t) rtnl_link_get_stat(link, RTNL_LINK_TX_ERRORS);
 
