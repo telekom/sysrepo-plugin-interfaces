@@ -6,9 +6,9 @@
 typedef struct nic_stats_s nic_stats_t;
 
 struct nic_stats_s {
-    uint64_t rx_packets;
+	uint64_t rx_packets;
 	uint64_t rx_broadcast;
-    uint64_t tx_packets;
+	uint64_t tx_packets;
 	uint64_t tx_broadcast;
 	uint64_t tx_multicast;
 };
