@@ -4,6 +4,8 @@ import os
 import subprocess
 import signal
 import time
+import json
+import operator
 
 class InterfacesTestCase(unittest.TestCase):
     def setUp(self):
@@ -34,6 +36,17 @@ class InterfacesTestCase(unittest.TestCase):
             data = f.read()
             data = ctx.parse_data_mem(data, "xml", config=True, strict=True)
             self.session.replace_config_ly(data, "ietf-interfaces")
+
+class InterfaceNameTestCase(InterfacesTestCase):
+    def test_interface_name_get(self):
+        data = self.session.get_data_ly('/ietf-interfaces:interfaces')
+        interfaces = set(map(operator.itemgetter('name'), json.loads(data.print_mem("json"))['ietf-interfaces:interfaces']['interface']))
+
+        real_interfaces = set(os.listdir('/sys/class/net'))
+
+        self.assertEqual(real_interfaces, interfaces, "plugin and system interface list differ")
+
+        data.free()
 
 if __name__ == '__main__':
     unittest.main()
