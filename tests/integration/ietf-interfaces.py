@@ -37,7 +37,7 @@ class InterfacesTestCase(unittest.TestCase):
             data = ctx.parse_data_mem(data, "xml", config=True, strict=True)
             self.session.replace_config_ly(data, "ietf-interfaces")
 
-class InterfaceNameTestCase(InterfacesTestCase):
+class InterfaceTestCase(InterfacesTestCase):
     def test_interface_name_get(self):
         data = self.session.get_data_ly('/ietf-interfaces:interfaces')
         interfaces = set(map(operator.itemgetter('name'), json.loads(data.print_mem("json"))['ietf-interfaces:interfaces']['interface']))
@@ -47,6 +47,17 @@ class InterfaceNameTestCase(InterfacesTestCase):
         self.assertEqual(real_interfaces, interfaces, "plugin and system interface list differ")
 
         data.free()
+
+    def test_interface_description(self):
+        data = self.session.get_data_ly('/ietf-interfaces:interfaces')
+        interfaces = list(map(operator.itemgetter('description'), json.loads(data.print_mem("json"))['ietf-interfaces:interfaces']['interface']))
+
+        for i in interfaces:
+            self.assertEqual(i, "", "non empty interface description at startup")
+
+        data.free()
+
+
 
 if __name__ == '__main__':
     unittest.main()
