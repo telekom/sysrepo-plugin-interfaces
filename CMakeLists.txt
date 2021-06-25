@@ -17,6 +17,7 @@ set(SOURCES
     src/utils/link_data.c
     src/utils/ip_data.c
     src/utils/ipv6_data.c
+    src/utils/if_nic_stats.c
 )
 
 # get sysrepo version
