@@ -321,13 +321,9 @@ in the state of the interface.
 `in-octets` tracks the number of bytes received on an interface. It is retrieved through `libnl`
 using the routing part of netlink.
 
-`in-unicats-packets` won't be correct and will be mostly 0 for now,
-as there doesn't seem to be a way to retrieve or calculate
-just the number of unicast packets with just netlink. ethtool uses ioctl for example, which
-will be device and driver specific.
+`in-unicats-packets` ethtool is used to retrieve the rx_packets, rx_broadcast, rx_multicast and then rx_unicast is caluclated by subtracting the broadcast and multicast rx packets with the total number of rx packets (rx_unicast = rx_packets - rx_broadcast - rx_multicast).
 
-`in-broadcast-pkts` won't be correct and will mostly be 0 as netlink doesn't have a way to retrieve
-the number of broadcast packets received on an interface.
+`in-broadcast-pkts` ethtool is used to retrieve the rx_broadcast packets.
 
 `in-multicast-pkts` is set to the number of received multicast packets, retrieved through netlink.
 
@@ -344,14 +340,11 @@ In most cases it will be 0.
 `out-octets` is the number of packets transmitted on the interface. It is retrieved
 through netlink.
 
-`out-unicast-pkts` will mostly be 0 and incorrect, as netlink doesn't have
-a way to retrieve the number of transmitted unicast packets.
+`out-unicast-pkts` ethtool is used to retrieve the tx_packets, tx_broadcast, tx_multicast and then tx_unicast is caluclated by subtracting the broadcast and multicast tx packets with the total number of tx packets (tx_unicast = tx_packets - tx_broadcast - tx_multicast).
 
-`out-broadcast-pkts` will mostly be 0 and incorrect, as netlink doesn't have
-a way to retrieve the number of transimtted broadcast packets.
+`out-broadcast-pkts` ethtool is used to retrieve the tx_broadcast packets.
 
-`out-multicast-pkts` will be incorrect as netlink doesn't have a way
-to retrieve the number of transmitted multicast packets.
+`out-multicast-pkts` ethtool is used to retrieve the tx_multicast packets.
 
 `out-discards` tracks the number of outwards packets that were dropped due to
 not enough space available in Linux. It is retrieved through netlink.
