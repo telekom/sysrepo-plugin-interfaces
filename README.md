@@ -332,18 +332,18 @@ module: ietf-interfaces
          +--ro higher-layer-if*            interface-ref              DONE
          +--ro lower-layer-if*             interface-ref              DONE
          +--ro speed?                      yang:gauge64               DONE
-         +--ro statistics                                                  (several statistics nodes are not getting the correct values)
-            +--ro discontinuity-time    yang:date-and-time            DONE (needs minor adjustments)
+         +--ro statistics
+            +--ro discontinuity-time    yang:date-and-time            IN PROGRESS
             +--ro in-octets?            yang:counter64                DONE
-            +--ro in-unicast-pkts?      yang:counter64                IN PROGRESS (ioctl implementation needed instead of netlink)
-            +--ro in-broadcast-pkts?    yang:counter64                IN PROGRESS (ioctl implementation needed)
+            +--ro in-unicast-pkts?      yang:counter64                DONE
+            +--ro in-broadcast-pkts?    yang:counter64                DONE
             +--ro in-multicast-pkts?    yang:counter64                DONE
             +--ro in-discards?          yang:counter32                DONE
             +--ro in-errors?            yang:counter32                DONE
             +--ro in-unknown-protos?    yang:counter32                DONE
             +--ro out-octets?           yang:counter64                DONE
-            +--ro out-unicast-pkts?     yang:counter64                IN PROGRESS (ioctl implementation needed)
-            +--ro out-broadcast-pkts?   yang:counter64                IN PROGRESS (ioctl implementation needed)
+            +--ro out-unicast-pkts?     yang:counter64                DONE
+            +--ro out-broadcast-pkts?   yang:counter64                DONE
             +--ro out-multicast-pkts?   yang:counter64                DONE
             +--ro out-discards?         yang:counter32                DONE
             +--ro out-errors?           yang:counter32                DONE
@@ -380,13 +380,13 @@ module: ietf-if-vlan-encapsulation
    augment /if:interfaces/if:interface/if-ext:encapsulation
             /if-ext:encaps-type:
       +--:(dot1q-vlan)
-         +--rw dot1q-vlan
+         +--rw dot1q-vlan                                             QinQ not yet supported, second-tag is ignored and normal vlan is created
             +--rw outer-tag
-            |  +--rw tag-type    dot1q-tag-type                       DONE (but needs further discussion)
-            |  +--rw vlan-id     vlanid                               DONE (but needs further discussion)
+            |  +--rw tag-type    dot1q-tag-type                       IN PROGRESS (currently only normal vlan supported)
+            |  +--rw vlan-id     vlanid                               IN PROGRESS (currently only normal vlan supported)
             +--rw second-tag!
-               +--rw tag-type    dot1q-tag-type                       DONE (but needs further discussion)
-               +--rw vlan-id     vlanid                               DONE (but needs further discussion)
+               +--rw tag-type    dot1q-tag-type                       IN PROGRESS (currently only normal vlan supported)
+               +--rw vlan-id     vlanid                               IN PROGRESS (currently only normal vlan supported)
 
 module: ietf-ip
    augment /if:interfaces/if:interface:
