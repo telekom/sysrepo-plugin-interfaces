@@ -1,17 +1,29 @@
-#include <sys/types.h>
-#include <sys/ioctl.h>
-#include <net/if.h>
-#include <ifaddrs.h>
-#include <linux/sockios.h>
-#include <linux/ethtool.h>
-#include <unistd.h>
+/*
+ * telekom / sysrepo-plugin-interfaces
+ *
+ * This program is made available under the terms of the
+ * BSD 3-Clause license which is available at
+ * https://opensource.org/licenses/BSD-3-Clause
+ *
+ * SPDX-FileCopyrightText: 2021 Deutsche Telekom AG
+ * SPDX-FileContributor: Sartura Ltd.
+ *
+ * SPDX-License-Identifier: BSD-3-Clause
+ */
 
+#include <ifaddrs.h>
 #include <stdint.h>
-#include <string.h>
 #include <stdio.h>
-#include "memory.h"
+#include <string.h>
+#include <unistd.h>
+#include <net/if.h>
+#include <linux/ethtool.h>
+#include <linux/sockios.h>
+#include <sys/ioctl.h>
+#include <sys/types.h>
 
 #include "if_nic_stats.h"
+#include "memory.h"
 
 int get_nic_stats(char *if_name, nic_stats_t *nic_stats)
 {

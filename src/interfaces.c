@@ -1,42 +1,59 @@
-#include <netlink/addr.h>
-#include "utils/ip_data.h"
-#include <linux/if_addr.h>
-#include <linux/limits.h>
-#include <linux/if.h>
-#include <linux/ip.h>
-#include <sys/socket.h>
-#include <sys/stat.h>
-#include <sys/types.h>
+/*
+ * telekom / sysrepo-plugin-interfaces
+ *
+ * This program is made available under the terms of the
+ * BSD 3-Clause license which is available at
+ * https://opensource.org/licenses/BSD-3-Clause
+ *
+ * SPDX-FileCopyrightText: 2021 Deutsche Telekom AG
+ * SPDX-FileContributor: Sartura Ltd.
+ *
+ * SPDX-License-Identifier: BSD-3-Clause
+ */
+
+#include <arpa/inet.h>
 #include <dirent.h>
 #include <errno.h>
-#include <sysrepo.h>
-#include <sysrepo/xpath.h>
-#include <libyang/tree_data.h>
+#include <pthread.h>
+#include <string.h>
+#include <time.h>
+#include <unistd.h>
+
+#include <sys/socket.h>
+#include <sys/stat.h>
+#include <sys/sysinfo.h>
+#include <sys/types.h>
+#include <linux/if.h>
+#include <linux/if.h>
+#include <linux/if_addr.h>
+#include <linux/ip.h>
+#include <linux/limits.h>
+
+#include <netlink/addr.h>
 #include <netlink/cache.h>
 #include <netlink/errno.h>
 #include <netlink/netlink.h>
-#include "utils/memory.h"
-#include <string.h>
-#include <netlink/socket.h>
+#include <netlink/netlink.h>
+#include <netlink/route/addr.h>
 #include <netlink/route/link.h>
 #include <netlink/route/link/inet.h>
 #include <netlink/route/link/inet6.h>
-#include <netlink/route/addr.h>
-#include <netlink/route/neighbour.h>
-#include <netlink/route/tc.h>
-#include <netlink/route/qdisc.h>
 #include <netlink/route/link/vlan.h>
-#include <netlink/netlink.h>
+#include <netlink/route/neighbour.h>
+#include <netlink/route/qdisc.h>
+#include <netlink/route/tc.h>
+#include <netlink/socket.h>
+
 #include <libyang/libyang.h>
-#include <linux/if.h>
-#include <pthread.h>
-#include <unistd.h>
-#include "utils/if_state.h"
-#include <arpa/inet.h>
-#include "utils/link_data.h"
-#include <time.h>
-#include <sys/sysinfo.h>
+#include <libyang/tree_data.h>
+#include <sysrepo.h>
+#include <sysrepo/xpath.h>
+
 #include "utils/if_nic_stats.h"
+#include "utils/if_state.h"
+#include "utils/ip_data.h"
+#include "utils/link_data.h"
+#include "utils/memory.h"
 
 #define BASE_YANG_MODEL "ietf-interfaces"
 #define BASE_IP_YANG_MODEL "ietf-ip"
