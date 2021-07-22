@@ -77,14 +77,13 @@
 #define MAX_IF_NAME_LEN IFNAMSIZ // 16 bytes
 
 // callbacks
-static int interfaces_module_change_cb(sr_session_ctx_t *session, const char *module_name, const char *xpath, sr_event_t event, uint32_t request_id, void *private_data);
-static int interfaces_state_data_cb(sr_session_ctx_t *session, const char *module_name, const char *path, const char *request_xpath, uint32_t request_id, struct lyd_node **parent, void *private_data);
+static int interfaces_module_change_cb(sr_session_ctx_t *session, uint32_t subscription_id, const char *module_name, const char *xpath, sr_event_t event, uint32_t request_id, void *private_data);
+static int interfaces_state_data_cb(sr_session_ctx_t *session, uint32_t subscription_id, const char *module_name, const char *path, const char *request_xpath, uint32_t request_id, struct lyd_node **parent, void *private_data);
 
 // helper functions
 static bool system_running_datastore_is_empty_check(void);
 static int load_data(sr_session_ctx_t *session, link_data_list_t *ld);
 static bool check_system_interface(const char *interface_name, bool *system_interface);
-static char *interfaces_xpath_get(const struct lyd_node *node);
 int set_config_value(const char *xpath, const char *value);
 int add_interface_ipv4(link_data_t *ld, struct rtnl_link *old, struct rtnl_link *req, int if_idx);
 static int remove_ipv4_address(ip_address_list_t *addr_list, struct nl_sock *socket, struct rtnl_link *old);
@@ -133,24 +132,24 @@ int sr_plugin_init_cb(sr_session_ctx_t *session, void **private_data)
 
 	desc_file_path = get_plugin_file_path(INTERFACE_DESCRIPTION_FILENAME, true);
 	if (desc_file_path == NULL) {
-		SRP_LOG_ERRMSG("get_plugin_file_path error");
+		SRP_LOG_ERR("get_plugin_file_path error");
 		error = -1;
 		goto error_out;
 	}
 
 	error = link_data_list_init(&link_data_list);
 	if (error != 0) {
-		SRP_LOG_ERRMSG("link_data_list_init error");
+		SRP_LOG_ERR("link_data_list_init error");
 		goto out;
 	}
 
-	SRP_LOG_INFMSG("start session to startup datastore");
+	SRP_LOG_INF("start session to startup datastore");
 
 	if_state_list_init(&if_state_changes);
 
 	error = init_state_changes();
 	if (error != 0) {
-		SRP_LOG_ERRMSG("Error occurred while initializing threads to track interface changes... exiting");
+		SRP_LOG_ERR("Error occurred while initializing threads to track interface changes... exiting");
 		goto out;
 	}
 
@@ -164,25 +163,25 @@ int sr_plugin_init_cb(sr_session_ctx_t *session, void **private_data)
 	*private_data = startup_session;
 
 	if (system_running_datastore_is_empty_check() == true) {
-		SRP_LOG_INFMSG("running DS is empty, loading data");
+		SRP_LOG_INF("running DS is empty, loading data");
 
 		error = load_data(session, &link_data_list);
 		if (error) {
-			SRP_LOG_ERRMSG("load_data error");
+			SRP_LOG_ERR("load_data error");
 			goto error_out;
 		}
 
-		error = sr_copy_config(startup_session, BASE_YANG_MODEL, SR_DS_RUNNING, 0, 0);
+		error = sr_copy_config(startup_session, BASE_YANG_MODEL, SR_DS_RUNNING, 0);
 		if (error) {
 			SRP_LOG_ERR("sr_copy_config error (%d): %s", error, sr_strerror(error));
 			goto error_out;
 		}
 	}
 
-	SRP_LOG_INFMSG("subscribing to module change");
+	SRP_LOG_INF("subscribing to module change");
 
 	// sub to any module change - for now
-	error = sr_module_change_subscribe(session, BASE_YANG_MODEL, "/" BASE_YANG_MODEL ":*//*", interfaces_module_change_cb, *private_data, 0, SR_SUBSCR_DEFAULT, &subscription);
+	error = sr_module_change_subscribe(session, BASE_YANG_MODEL, "/" BASE_YANG_MODEL ":*//.", interfaces_module_change_cb, *private_data, 0, SR_SUBSCR_DEFAULT, &subscription);
 	if (error) {
 		SRP_LOG_ERR("sr_module_change_subscribe error (%d): %s", error, sr_strerror(error));
 		goto error_out;
@@ -194,7 +193,7 @@ int sr_plugin_init_cb(sr_session_ctx_t *session, void **private_data)
 		goto error_out;
 	}
 
-	SRP_LOG_INFMSG("plugin init done");
+	SRP_LOG_INF("plugin init done");
 
 	FREE_SAFE(desc_file_path);
 
@@ -550,7 +549,7 @@ static int load_data(sr_session_ctx_t *session, link_data_list_t *ld)
 		}
 	}
 
-	error = sr_apply_changes(session, 0, 0);
+	error = sr_apply_changes(session, 0);
 	if (error) {
 		SRP_LOG_ERR("sr_apply_changes error (%d): %s", error, sr_strerror(error));
 		goto error_out;
@@ -575,10 +574,10 @@ void sr_plugin_cleanup_cb(sr_session_ctx_t *session, void *private_data)
 	if_state_list_free(&if_state_changes);
 	nl_cache_mngr_free(link_manager);
 
-	SRP_LOG_INFMSG("plugin cleanup finished");
+	SRP_LOG_INF("plugin cleanup finished");
 }
 
-static int interfaces_module_change_cb(sr_session_ctx_t *session, const char *module_name, const char *xpath, sr_event_t event, uint32_t request_id, void *private_data)
+static int interfaces_module_change_cb(sr_session_ctx_t *session, uint32_t subscription_id, const char *module_name, const char *xpath, sr_event_t event, uint32_t request_id, void *private_data)
 {
 	int error = 0;
 	sr_session_ctx_t *startup_session = (sr_session_ctx_t *) private_data;
@@ -587,11 +586,9 @@ static int interfaces_module_change_cb(sr_session_ctx_t *session, const char *mo
 	const struct lyd_node *node = NULL;
 	const char *prev_value = NULL;
 	const char *prev_list = NULL;
-	bool prev_default = false;
+	int prev_default = false;
 	char *node_xpath = NULL;
-	const char *node_value = NULL;
-	struct lyd_node_leaf_list *node_leaf_list;
-	struct lys_node_leaf *schema_node_leaf;
+	char *node_value = NULL;
 
 	SRP_LOG_INF("module_name: %s, xpath: %s, event: %d, request_id: %u", module_name, xpath, event, request_id);
 
@@ -602,7 +599,7 @@ static int interfaces_module_change_cb(sr_session_ctx_t *session, const char *mo
 	}
 
 	if (event == SR_EV_DONE) {
-		error = sr_copy_config(startup_session, BASE_YANG_MODEL, SR_DS_RUNNING, 0, 0);
+		error = sr_copy_config(startup_session, BASE_YANG_MODEL, SR_DS_RUNNING, 0);
 		if (error) {
 			SRP_LOG_ERR("sr_copy_config error (%d): %s", error, sr_strerror(error));
 			goto error_out;
@@ -616,15 +613,10 @@ static int interfaces_module_change_cb(sr_session_ctx_t *session, const char *mo
 			goto error_out;
 		}
 		while (sr_get_change_tree_next(session, system_change_iter, &operation, &node, &prev_value, &prev_list, &prev_default) == SR_ERR_OK) {
-			node_xpath = interfaces_xpath_get(node);
+			node_xpath = lyd_path(node, LYD_PATH_STD, NULL, 0);
 
 			if (node->schema->nodetype == LYS_LEAF || node->schema->nodetype == LYS_LEAFLIST) {
-				node_leaf_list = (struct lyd_node_leaf_list *) node;
-				node_value = node_leaf_list->value_str;
-				if (node_value == NULL) {
-					schema_node_leaf = (struct lys_node_leaf *) node_leaf_list->schema;
-					node_value = schema_node_leaf->dflt ? schema_node_leaf->dflt : "";
-				}
+				node_value = xstrdup(lyd_get_value(node));
 			}
 
 			SRP_LOG_DBG("node_xpath: %s; prev_val: %s; node_val: %s; operation: %d", node_xpath, prev_value, node_value, operation);
@@ -641,14 +633,14 @@ static int interfaces_module_change_cb(sr_session_ctx_t *session, const char *mo
 					bool system_interface = false;
 					error = check_system_interface(node_value, &system_interface);
 					if (error) {
-						SRP_LOG_ERRMSG("check_system_interface error");
+						SRP_LOG_ERR("check_system_interface error");
 						goto error_out;
 					}
 
 					// check if system interface but also
 					// check if parent-interface node (virtual interfaces can have a system interface as parent)
 					if (system_interface && !(strstr(node_xpath, "/ietf-if-extensions:parent-interface") != NULL)) {
-						SRP_LOG_ERRMSG("Can't delete a system interface");
+						SRP_LOG_ERR("Can't delete a system interface");
 						FREE_SAFE(node_xpath);
 						sr_free_change_iter(system_change_iter);
 						return SR_ERR_INVAL_ARG;
@@ -662,12 +654,13 @@ static int interfaces_module_change_cb(sr_session_ctx_t *session, const char *mo
 				}
 			}
 			FREE_SAFE(node_xpath);
-			node_value = NULL;
+			FREE_SAFE(node_value);
 		}
+
 		error = update_link_info(&link_data_list, operation);
 		if (error) {
 			error = SR_ERR_CALLBACK_FAILED;
-			SRP_LOG_ERRMSG("update_link_info error");
+			SRP_LOG_ERR("update_link_info error");
 			goto error_out;
 		}
 	}
@@ -676,8 +669,16 @@ static int interfaces_module_change_cb(sr_session_ctx_t *session, const char *mo
 error_out:
 	// nothing for now
 out:
-	FREE_SAFE(node_xpath);
-	sr_free_change_iter(system_change_iter);
+	if (node_xpath != NULL) {
+		FREE_SAFE(node_xpath);
+	}
+	if (node_value != NULL) {
+		FREE_SAFE(node_value);
+	}
+	if (system_change_iter != NULL) {
+		sr_free_change_iter(system_change_iter);
+	}
+
 	return error ? SR_ERR_CALLBACK_FAILED : SR_ERR_OK;
 }
 
@@ -693,7 +694,7 @@ int set_config_value(const char *xpath, const char *value)
 
 	interface_node = sr_xpath_node_name((char *) xpath);
 	if (interface_node == NULL) {
-		SRP_LOG_ERRMSG("sr_xpath_node_name error");
+		SRP_LOG_ERR("sr_xpath_node_name error");
 		error = SR_ERR_CALLBACK_FAILED;
 		goto out;
 	}
@@ -701,14 +702,14 @@ int set_config_value(const char *xpath, const char *value)
 	interface_node_name = sr_xpath_key_value((char *) xpath, "interface", "name", &state);
 
 	if (interface_node_name == NULL) {
-		SRP_LOG_ERRMSG("sr_xpath_key_value error");
+		SRP_LOG_ERR("sr_xpath_key_value error");
 		error = SR_ERR_CALLBACK_FAILED;
 		goto out;
 	}
 
 	error = link_data_list_add(&link_data_list, interface_node_name);
 	if (error != 0) {
-		SRP_LOG_ERRMSG("link_data_list_add error");
+		SRP_LOG_ERR("link_data_list_add error");
 		error = SR_ERR_CALLBACK_FAILED;
 		goto out;
 	}
@@ -717,7 +718,7 @@ int set_config_value(const char *xpath, const char *value)
 		// change desc
 		error = link_data_list_set_description(&link_data_list, interface_node_name, (char *) value);
 		if (error != 0) {
-			SRP_LOG_ERRMSG("link_data_list_set_description error");
+			SRP_LOG_ERR("link_data_list_set_description error");
 			error = SR_ERR_CALLBACK_FAILED;
 			goto out;
 		}
@@ -727,14 +728,14 @@ int set_config_value(const char *xpath, const char *value)
 		// convert the iana-if-type to a "real" interface type which libnl understands
 		char *interface_type = convert_ianaiftype((char *) value);
 		if (interface_type == NULL) {
-			SRP_LOG_ERRMSG("convert_ianaiftype error");
+			SRP_LOG_ERR("convert_ianaiftype error");
 			error = SR_ERR_CALLBACK_FAILED;
 			goto out;
 		}
 
 		error = link_data_list_set_type(&link_data_list, interface_node_name, interface_type);
 		if (error != 0) {
-			SRP_LOG_ERRMSG("link_data_list_set_type error");
+			SRP_LOG_ERR("link_data_list_set_type error");
 			error = SR_ERR_CALLBACK_FAILED;
 			goto out;
 		}
@@ -742,7 +743,7 @@ int set_config_value(const char *xpath, const char *value)
 		// change enabled
 		error = link_data_list_set_enabled(&link_data_list, interface_node_name, (char *) value);
 		if (error != 0) {
-			SRP_LOG_ERRMSG("link_data_list_set_enabled error");
+			SRP_LOG_ERR("link_data_list_set_enabled error");
 			error = SR_ERR_CALLBACK_FAILED;
 			goto out;
 		}
@@ -863,35 +864,35 @@ int set_config_value(const char *xpath, const char *value)
 		// change parent-interface
 		error = link_data_list_set_parent(&link_data_list, interface_node_name, (char *) value);
 		if (error != 0) {
-			SRP_LOG_ERRMSG("link_data_list_set_parent error");
+			SRP_LOG_ERR("link_data_list_set_parent error");
 			error = SR_ERR_CALLBACK_FAILED;
 			goto out;
 		}
 	} else if (strstr(xpath_cpy, "ietf-if-extensions:encapsulation/ietf-if-vlan-encapsulation:dot1q-vlan/outer-tag/tag-type") != 0) {
 		error = link_data_list_set_outer_tag_type(&link_data_list, interface_node_name, (char *)value);
 		if (error != 0) {
-			SRP_LOG_ERRMSG("link_data_list_set_parent error");
+			SRP_LOG_ERR("link_data_list_set_parent error");
 			error = SR_ERR_CALLBACK_FAILED;
 			goto out;
 		}
 	} else if (strstr(xpath_cpy, "ietf-if-extensions:encapsulation/ietf-if-vlan-encapsulation:dot1q-vlan/outer-tag/vlan-id") != 0) {
 		error = link_data_list_set_outer_vlan_id(&link_data_list, interface_node_name, (uint16_t) atoi(value));
 		if (error != 0) {
-			SRP_LOG_ERRMSG("link_data_list_set_parent error");
+			SRP_LOG_ERR("link_data_list_set_parent error");
 			error = SR_ERR_CALLBACK_FAILED;
 			goto out;
 		}
 	} else if (strstr(xpath_cpy, "ietf-if-extensions:encapsulation/ietf-if-vlan-encapsulation:dot1q-vlan/second-tag/tag-type") != 0) {
 		error = link_data_list_set_second_tag_type(&link_data_list, interface_node_name, (char *)value);
 		if (error != 0) {
-			SRP_LOG_ERRMSG("link_data_list_set_parent error");
+			SRP_LOG_ERR("link_data_list_set_parent error");
 			error = SR_ERR_CALLBACK_FAILED;
 			goto out;
 		}
 	} else if (strstr(xpath_cpy, "ietf-if-extensions:encapsulation/ietf-if-vlan-encapsulation:dot1q-vlan/second-tag/vlan-id") != 0) {
 		error = link_data_list_set_second_vlan_id(&link_data_list, interface_node_name, (uint16_t) atoi(value));
 		if (error != 0) {
-			SRP_LOG_ERRMSG("link_data_list_set_parent error");
+			SRP_LOG_ERR("link_data_list_set_parent error");
 			error = SR_ERR_CALLBACK_FAILED;
 			goto out;
 		}
@@ -937,14 +938,14 @@ int delete_config_value(const char *xpath, const char *value)
 
 	interface_node = sr_xpath_node_name((char *) xpath);
 	if (interface_node == NULL) {
-		SRP_LOG_ERRMSG("sr_xpath_node_name error");
+		SRP_LOG_ERR("sr_xpath_node_name error");
 		error = SR_ERR_CALLBACK_FAILED;
 		goto out;
 	}
 
 	interface_node_name = sr_xpath_key_value((char *) xpath, "interface", "name", &state);
 	if (interface_node_name == NULL) {
-		SRP_LOG_ERRMSG("sr_xpath_key_value error");
+		SRP_LOG_ERR("sr_xpath_key_value error");
 		error = SR_ERR_CALLBACK_FAILED;
 		goto out;
 	}
@@ -953,7 +954,7 @@ int delete_config_value(const char *xpath, const char *value)
 		// mark for deletion
 		error = link_data_list_set_delete(&link_data_list, interface_node_name, true);
 		if (error != 0) {
-			SRP_LOG_ERRMSG("link_data_list_set_delete error");
+			SRP_LOG_ERR("link_data_list_set_delete error");
 			error = SR_ERR_CALLBACK_FAILED;
 			goto out;
 		}
@@ -961,7 +962,7 @@ int delete_config_value(const char *xpath, const char *value)
 		// set description to empty string
 		error = link_data_list_set_description(&link_data_list, interface_node_name, "");
 		if (error != 0) {
-			SRP_LOG_ERRMSG("link_data_list_set_description error");
+			SRP_LOG_ERR("link_data_list_set_description error");
 			error = SR_ERR_CALLBACK_FAILED;
 			goto out;
 		}
@@ -969,7 +970,7 @@ int delete_config_value(const char *xpath, const char *value)
 		// set enabled to false
 		error = link_data_list_set_enabled(&link_data_list, interface_node_name, "");
 		if (error != 0) {
-			SRP_LOG_ERRMSG("link_data_list_set_enabled error");
+			SRP_LOG_ERR("link_data_list_set_enabled error");
 			error = SR_ERR_CALLBACK_FAILED;
 			goto out;
 		}
@@ -1047,7 +1048,7 @@ int update_link_info(link_data_list_t *ld, sr_change_oper_t operation)
 
 	socket = nl_socket_alloc();
 	if (socket == NULL) {
-		SRP_LOG_ERRMSG("nl_socket_alloc error: invalid socket");
+		SRP_LOG_ERR("nl_socket_alloc error: invalid socket");
 		goto out;
 	}
 
@@ -1136,7 +1137,7 @@ int update_link_info(link_data_list_t *ld, sr_change_oper_t operation)
 			if (ipv4_neigh_count > 0) {
 				error = remove_neighbors(&ld->links[i].ipv4.nbor_list, socket, AF_INET, index);
 				if (error != 0) {
-					SRP_LOG_ERRMSG("remove_neighbors error");
+					SRP_LOG_ERR("remove_neighbors error");
 					goto out;
 				}
 			}
@@ -1147,7 +1148,7 @@ int update_link_info(link_data_list_t *ld, sr_change_oper_t operation)
 			if (ipv6_neigh_count > 0) {
 				error = remove_neighbors(&ld->links[i].ipv6.ip_data.nbor_list, socket, AF_INET6, index);
 				if (error != 0) {
-					SRP_LOG_ERRMSG("remove_neighbors error");
+					SRP_LOG_ERR("remove_neighbors error");
 					goto out;
 				}
 			}
@@ -1176,7 +1177,8 @@ int update_link_info(link_data_list_t *ld, sr_change_oper_t operation)
 				// temporary solution could be using ip link command instead of libnl
 				int master_index = rtnl_link_name2i(cache, parent_interface);
 				rtnl_link_set_link(request, master_index);
-				rtnl_link_vlan_set_id(request, outer_vlan_id);
+
+				error = rtnl_link_vlan_set_id(request, outer_vlan_id);
 			}
 		}
 
@@ -1197,13 +1199,13 @@ int update_link_info(link_data_list_t *ld, sr_change_oper_t operation)
 			// add ipv4/ipv6 options
 			error = add_interface_ipv4(&ld->links[i], old, request, rtnl_link_get_ifindex(old));
 			if (error != 0) {
-				SRP_LOG_ERRMSG("add_interface_ipv4 error");
+				SRP_LOG_ERR("add_interface_ipv4 error");
 				goto out;
 			}
 
 			error = add_interface_ipv6(&ld->links[i], old, request, rtnl_link_get_ifindex(old));
 			if (error != 0) {
-				SRP_LOG_ERRMSG("add_interface_ipv6 error");
+				SRP_LOG_ERR("add_interface_ipv6 error");
 				goto out;
 			}
 
@@ -1221,7 +1223,7 @@ int update_link_info(link_data_list_t *ld, sr_change_oper_t operation)
 			bool system_interface = false;
 			error = check_system_interface(name, &system_interface);
 			if (error) {
-				SRP_LOG_ERRMSG("check_system_interface error");
+				SRP_LOG_ERR("check_system_interface error");
 				error = -1;
 				goto out;
 			}
@@ -1263,13 +1265,13 @@ int update_link_info(link_data_list_t *ld, sr_change_oper_t operation)
 			if (old != NULL) {
 				error = add_interface_ipv4(&ld->links[i], old, request, rtnl_link_get_ifindex(old));
 				if (error != 0) {
-					SRP_LOG_ERRMSG("add_interface_ipv4 error");
+					SRP_LOG_ERR("add_interface_ipv4 error");
 					goto out;
 				}
 
 				error = add_interface_ipv6(&ld->links[i], old, request, rtnl_link_get_ifindex(old));
 				if (error != 0) {
-					SRP_LOG_ERRMSG("add_interface_ipv6 error");
+					SRP_LOG_ERR("add_interface_ipv6 error");
 					goto out;
 				}
 
@@ -1378,7 +1380,7 @@ int add_interface_ipv4(link_data_t *ld, struct rtnl_link *old, struct rtnl_link 
 	// address list
 	socket = nl_socket_alloc();
 	if (socket == NULL) {
-		SRP_LOG_ERRMSG("nl_socket_alloc error: invalid socket");
+		SRP_LOG_ERR("nl_socket_alloc error: invalid socket");
 		goto out;
 	}
 
@@ -1546,7 +1548,7 @@ int add_interface_ipv6(link_data_t *ld, struct rtnl_link *old, struct rtnl_link 
 	// address list
 	socket = nl_socket_alloc();
 	if (socket == NULL) {
-		SRP_LOG_ERRMSG("nl_socket_alloc error: invalid socket");
+		SRP_LOG_ERR("nl_socket_alloc error: invalid socket");
 		goto out;
 	}
 
@@ -1790,7 +1792,7 @@ int write_to_proc_file(const char *dir_path, char *interface, const char *fn, in
 	error = snprintf(tmp_buffer, sizeof(tmp_buffer), "%s/%s/%s", dir_path, interface, fn);
 	if (error < 0) {
 		// snprintf error
-		SRP_LOG_ERRMSG("snprintf failed");
+		SRP_LOG_ERR("snprintf failed");
 		goto out;
 	}
 
@@ -1824,7 +1826,7 @@ static int read_from_proc_file(const char *dir_path, char *interface, const char
 	error = snprintf(tmp_buffer, sizeof(tmp_buffer), "%s/%s/%s", dir_path, interface, fn);
 	if (error < 0) {
 		// snprintf error
-		SRP_LOG_ERRMSG("snprintf failed");
+		SRP_LOG_ERR("snprintf failed");
 		goto out;
 	}
 
@@ -1875,7 +1877,7 @@ int add_existing_links(link_data_list_t *ld)
 
 	socket = nl_socket_alloc();
 	if (socket == NULL) {
-		SRP_LOG_ERRMSG("nl_socket_alloc error: invalid socket");
+		SRP_LOG_ERR("nl_socket_alloc error: invalid socket");
 		goto error_out;
 	}
 
@@ -1896,13 +1898,13 @@ int add_existing_links(link_data_list_t *ld)
 	while (link != NULL) {
 		name = rtnl_link_get_name(link);
 		if (name == NULL) {
-			SRP_LOG_ERRMSG("rtnl_link_get_name error");
+			SRP_LOG_ERR("rtnl_link_get_name error");
 			goto error_out;
 		}
 
 		error = get_interface_description(name, &description);
 		if (error != 0) {
-			SRP_LOG_ERRMSG("get_interface_description error");
+			SRP_LOG_ERR("get_interface_description error");
 			// don't return in case of error
 			// some interfaces may not have a description already set (wlan0, etc.)
 		}
@@ -1925,21 +1927,21 @@ int add_existing_links(link_data_list_t *ld)
 			// outer vlan id
 			vlan_id = (uint16_t)rtnl_link_vlan_get_id(link);
 			if (vlan_id <= 0) {
-				SRP_LOG_ERRMSG("couldn't get vlan ID");
+				SRP_LOG_ERR("couldn't get vlan ID");
 				goto error_out;
 			}
 		}
 
 		error = link_data_list_add(ld, name);
 		if (error != 0) {
-			SRP_LOG_ERRMSG("link_data_list_add error");
+			SRP_LOG_ERR("link_data_list_add error");
 			goto error_out;
 		}
 
 		if (description != NULL) {
 			error = link_data_list_set_description(ld, name, description);
 			if (error != 0) {
-				SRP_LOG_ERRMSG("link_data_list_set_description error");
+				SRP_LOG_ERR("link_data_list_set_description error");
 				goto error_out;
 			}
 		}
@@ -1947,21 +1949,21 @@ int add_existing_links(link_data_list_t *ld)
 		if (type != NULL) {
 			error = link_data_list_set_type(ld, name, type);
 			if (error != 0) {
-				SRP_LOG_ERRMSG("link_data_list_set_type error");
+				SRP_LOG_ERR("link_data_list_set_type error");
 				goto error_out;
 			}
 		}
 
 		error = link_data_list_set_enabled(ld, name, enabled);
 		if (error != 0) {
-			SRP_LOG_ERRMSG("link_data_list_set_enabled error");
+			SRP_LOG_ERR("link_data_list_set_enabled error");
 			goto error_out;
 		}
 
 		if (parent_interface != 0) {
 			error = link_data_list_set_parent(ld, name, parent_interface);
 			if (error != 0) {
-				SRP_LOG_ERRMSG("link_data_list_set_parent error");
+				SRP_LOG_ERR("link_data_list_set_parent error");
 				goto error_out;
 			}
 		}
@@ -1969,7 +1971,7 @@ int add_existing_links(link_data_list_t *ld)
 		if (vlan_id != 0) {
 			error = link_data_list_set_outer_vlan_id(ld, name, vlan_id);
 			if (error != 0) {
-				SRP_LOG_ERRMSG("link_data_list_set_outer_vlan_id error");
+				SRP_LOG_ERR("link_data_list_set_outer_vlan_id error");
 				goto error_out;
 			}
 		}
@@ -1993,7 +1995,7 @@ int add_existing_links(link_data_list_t *ld)
 
 			char *dst_addr = nl_addr2str(nl_dst_addr, dst_addr_str, sizeof(dst_addr_str));
 			if (dst_addr == NULL) {
-				SRP_LOG_ERRMSG("nl_addr2str error");
+				SRP_LOG_ERR("nl_addr2str error");
 				goto error_out;
 			}
 
@@ -2011,7 +2013,7 @@ int add_existing_links(link_data_list_t *ld)
 
 				char *ll_addr_s = nl_addr2str(ll_addr, ll_addr_str, sizeof(ll_addr_str));
 				if (NULL == ll_addr_s) {
-					SRP_LOG_ERRMSG("nl_addr2str error");
+					SRP_LOG_ERR("nl_addr2str error");
 					goto error_out;
 				}
 
@@ -2056,7 +2058,7 @@ int add_existing_links(link_data_list_t *ld)
 		for (int i=0; i < addr_count; i++) {
 			struct nl_addr *nl_addr_local = rtnl_addr_get_local(addr);
 			if (nl_addr_local == NULL) {
-				SRP_LOG_ERRMSG("rtnl_addr_get_local error");
+				SRP_LOG_ERR("rtnl_addr_get_local error");
 				goto error_out;
 			}
 
@@ -2070,7 +2072,7 @@ int add_existing_links(link_data_list_t *ld)
 
 			const char*addr_s = nl_addr2str(nl_addr_local, addr_str, sizeof(addr_str));
 			if (NULL == addr_s) {
-				SRP_LOG_ERRMSG("nl_addr2str error");
+				SRP_LOG_ERR("nl_addr2str error");
 				goto error_out;
 			}
 
@@ -2079,7 +2081,7 @@ int add_existing_links(link_data_list_t *ld)
 			// get address
 			char *token = strtok(str, "/");
 			if (token == NULL) {
-				SRP_LOG_ERRMSG("couldn't parse ip address");
+				SRP_LOG_ERR("couldn't parse ip address");
 
 				FREE_SAFE(str);
 				goto error_out;
@@ -2283,7 +2285,7 @@ static int set_interface_description(char *name, char *description)
 
 	desc_file_path = get_plugin_file_path(INTERFACE_DESCRIPTION_FILENAME, false);
 	if (desc_file_path == NULL) {
-		SRP_LOG_ERRMSG("set_interface_description: couldn't get interface description file path\n");
+		SRP_LOG_ERR("set_interface_description: couldn't get interface description file path\n");
 		goto error_out;
 	}
 
@@ -2295,7 +2297,7 @@ static int set_interface_description(char *name, char *description)
 	if (access(desc_file_path, F_OK) == 0) {
 		tmp_desc_file_path = get_plugin_file_path(TMP_INTERFACE_DESCRIPTION_FILENAME, true);
 		if (desc_file_path == NULL) {
-			SRP_LOG_ERRMSG("set_interface_description: couldn't get interface description file path\n");
+			SRP_LOG_ERR("set_interface_description: couldn't get interface description file path\n");
 			goto error_out;
 		}
 
@@ -2384,7 +2386,7 @@ static int get_interface_description(char *name, char **description)
 
 	desc_file_path = get_plugin_file_path(INTERFACE_DESCRIPTION_FILENAME, false);
 	if (desc_file_path == NULL) {
-		SRP_LOG_ERRMSG("get_interface_description: couldn't get interface description file path\n");
+		SRP_LOG_ERR("get_interface_description: couldn't get interface description file path\n");
 		return -1;
 	}
 
@@ -2457,7 +2459,7 @@ static char *get_plugin_file_path(const char *filename, bool create)
 			return NULL;
 		}
 	} else {
-		SRP_LOG_ERRMSG("opendir failed");
+		SRP_LOG_ERR("opendir failed");
 		return NULL;
 	}
 
@@ -2486,7 +2488,7 @@ static char *get_plugin_file_path(const char *filename, bool create)
 	return file_path;
 }
 
-static int interfaces_state_data_cb(sr_session_ctx_t *session, const char *module_name, const char *path, const char *request_xpath, uint32_t request_id, struct lyd_node **parent, void *private_data)
+static int interfaces_state_data_cb(sr_session_ctx_t *session, uint32_t subscription_id, const char *module_name, const char *path, const char *request_xpath, uint32_t request_id, struct lyd_node **parent, void *private_data)
 {
 	int error = SR_ERR_OK;
 	const struct ly_ctx *ly_ctx = NULL;
@@ -2585,12 +2587,12 @@ static int interfaces_state_data_cb(sr_session_ctx_t *session, const char *modul
 			error = SR_ERR_CALLBACK_FAILED;
 			goto error_out;
 		}
-		*parent = lyd_new_path(NULL, ly_ctx, request_xpath, NULL, 0, 0);
+		lyd_new_path(*parent, ly_ctx, request_xpath, NULL, 0, NULL);
 	}
 
 	socket = nl_socket_alloc();
 	if (socket == NULL) {
-		SRP_LOG_ERRMSG("nl_socket_alloc error: invalid socket");
+		SRP_LOG_ERR("nl_socket_alloc error: invalid socket");
 		goto error_out;
 	}
 
@@ -2696,7 +2698,7 @@ static int interfaces_state_data_cb(sr_session_ctx_t *session, const char *modul
 
 		error = get_interface_description(interface_data.name, &interface_data.description);
 		if (error != 0) {
-			SRP_LOG_ERRMSG("get_interface_description error");
+			SRP_LOG_ERR("get_interface_description error");
 			// don't exit, as some interfaces might not have a description
 		}
 
@@ -2769,7 +2771,7 @@ static int interfaces_state_data_cb(sr_session_ctx_t *session, const char *modul
 			goto error_out;
 		}
 		SRP_LOG_DBG("%s = %s", xpath_buffer, interface_data.name);
-		lyd_new_path(*parent, ly_ctx, xpath_buffer, interface_data.name, LYD_ANYDATA_CONSTSTRING, 0);
+		lyd_new_path(*parent, ly_ctx, xpath_buffer, interface_data.name, LYD_ANYDATA_STRING, 0);
 
 		// description
 		error = snprintf(xpath_buffer, sizeof(xpath_buffer), "%s/description", interface_path_buffer);
@@ -2777,7 +2779,7 @@ static int interfaces_state_data_cb(sr_session_ctx_t *session, const char *modul
 			goto error_out;
 		}
 		SRP_LOG_DBG("%s = %s", xpath_buffer, interface_data.description);
-		lyd_new_path(*parent, ly_ctx, xpath_buffer, interface_data.description, LYD_ANYDATA_CONSTSTRING, 0);
+		lyd_new_path(*parent, ly_ctx, xpath_buffer, interface_data.description, LYD_ANYDATA_STRING, 0);
 
 		// type
 		error = snprintf(xpath_buffer, sizeof(xpath_buffer), "%s/type", interface_path_buffer);
@@ -2785,7 +2787,7 @@ static int interfaces_state_data_cb(sr_session_ctx_t *session, const char *modul
 			goto error_out;
 		}
 		SRP_LOG_DBG("%s = %s", xpath_buffer, interface_data.type);
-		lyd_new_path(*parent, ly_ctx, xpath_buffer, interface_data.type, LYD_ANYDATA_CONSTSTRING, 0);
+		lyd_new_path(*parent, ly_ctx, xpath_buffer, interface_data.type, LYD_ANYDATA_STRING, 0);
 
 		// oper-status
 		error = snprintf(xpath_buffer, sizeof(xpath_buffer), "%s/oper-status", interface_path_buffer);
@@ -2793,7 +2795,7 @@ static int interfaces_state_data_cb(sr_session_ctx_t *session, const char *modul
 			goto error_out;
 		}
 		SRP_LOG_DBG("%s = %s", xpath_buffer, interface_data.oper_status);
-		lyd_new_path(*parent, ly_ctx, xpath_buffer, (char *) interface_data.oper_status, LYD_ANYDATA_CONSTSTRING, 0);
+		lyd_new_path(*parent, ly_ctx, xpath_buffer, (char *) interface_data.oper_status, LYD_ANYDATA_STRING, 0);
 
 		// last-change -> only if changed at one point
 		if (interface_data.last_change != NULL) {
@@ -2802,7 +2804,7 @@ static int interfaces_state_data_cb(sr_session_ctx_t *session, const char *modul
 				goto error_out;
 			}
 			SRP_LOG_DBG("%s = %s", xpath_buffer, interface_data.type);
-			lyd_new_path(*parent, ly_ctx, xpath_buffer, system_time, LYD_ANYDATA_CONSTSTRING, 0);
+			lyd_new_path(*parent, ly_ctx, xpath_buffer, system_time, LYD_ANYDATA_STRING, 0);
 		} else {
 			// default value of last-change should be system boot time
 			error = snprintf(xpath_buffer, sizeof(xpath_buffer), "%s/last-change", interface_path_buffer);
@@ -2810,7 +2812,7 @@ static int interfaces_state_data_cb(sr_session_ctx_t *session, const char *modul
 				goto error_out;
 			}
 			SRP_LOG_DBG("%s = %s", xpath_buffer, interface_data.type);
-			lyd_new_path(*parent, ly_ctx, xpath_buffer, system_boot_time, LYD_ANYDATA_CONSTSTRING, 0);
+			lyd_new_path(*parent, ly_ctx, xpath_buffer, system_boot_time, LYD_ANYDATA_STRING, 0);
 		}
 
 		// if-index
@@ -2820,7 +2822,7 @@ static int interfaces_state_data_cb(sr_session_ctx_t *session, const char *modul
 		}
 		SRP_LOG_DBG("%s = %d", xpath_buffer, interface_data.if_index);
 		snprintf(tmp_buffer, sizeof(tmp_buffer), "%u", interface_data.if_index);
-		lyd_new_path(*parent, ly_ctx, xpath_buffer, tmp_buffer, LYD_ANYDATA_CONSTSTRING, 0);
+		lyd_new_path(*parent, ly_ctx, xpath_buffer, tmp_buffer, LYD_ANYDATA_STRING, 0);
 
 		// phys-address
 		error = snprintf(xpath_buffer, sizeof(xpath_buffer), "%s/phys-address", interface_path_buffer);
@@ -2828,7 +2830,7 @@ static int interfaces_state_data_cb(sr_session_ctx_t *session, const char *modul
 			goto error_out;
 		}
 		SRP_LOG_DBG("%s = %s", xpath_buffer, interface_data.phys_address);
-		lyd_new_path(*parent, ly_ctx, xpath_buffer, interface_data.phys_address, LYD_ANYDATA_CONSTSTRING, 0);
+		lyd_new_path(*parent, ly_ctx, xpath_buffer, interface_data.phys_address, LYD_ANYDATA_STRING, 0);
 
 		// speed
 		error = snprintf(xpath_buffer, sizeof(xpath_buffer), "%s/speed", interface_path_buffer);
@@ -2837,7 +2839,7 @@ static int interfaces_state_data_cb(sr_session_ctx_t *session, const char *modul
 		}
 		SRP_LOG_DBG("%s = %s", xpath_buffer, interface_data.speed);
 		snprintf(tmp_buffer, sizeof(tmp_buffer), "%lu", interface_data.speed);
-		lyd_new_path(*parent, ly_ctx, xpath_buffer, tmp_buffer, LYD_ANYDATA_CONSTSTRING, 0);
+		lyd_new_path(*parent, ly_ctx, xpath_buffer, tmp_buffer, LYD_ANYDATA_STRING, 0);
 
 		// higher-layer-if
 		for (uint64_t i = 0; i < master_list.count; i++) {
@@ -2850,7 +2852,7 @@ static int interfaces_state_data_cb(sr_session_ctx_t *session, const char *modul
 					}
 
 					SRP_LOG_DBG("%s += %s", xpath_buffer, master_list.masters[i].master_names[j]);
-					lyd_new_path(*parent, ly_ctx, xpath_buffer, master_list.masters[i].master_names[j], LYD_ANYDATA_CONSTSTRING, 0);
+					lyd_new_path(*parent, ly_ctx, xpath_buffer, master_list.masters[i].master_names[j], LYD_ANYDATA_STRING, 0);
 
 					FREE_SAFE(interface_data.higher_layer_if.masters[i]);
 				}
@@ -2868,7 +2870,7 @@ static int interfaces_state_data_cb(sr_session_ctx_t *session, const char *modul
 					}
 
 					SRP_LOG_DBG("%s += %s", xpath_buffer, slave_list.slaves[i].slave_names[j]);
-					lyd_new_path(*parent, ly_ctx, xpath_buffer, slave_list.slaves[i].slave_names[j], LYD_ANYDATA_CONSTSTRING, 0);
+					lyd_new_path(*parent, ly_ctx, xpath_buffer, slave_list.slaves[i].slave_names[j], LYD_ANYDATA_STRING, 0);
 				}
 			}
 		}
@@ -2894,7 +2896,7 @@ static int interfaces_state_data_cb(sr_session_ctx_t *session, const char *modul
 					}
 
 					SRP_LOG_DBG("%s = %d", xpath_buffer, ipv4_forwarding);
-					lyd_new_path(*parent, ly_ctx, xpath_buffer, ipv4_forwarding == 0 ? "false" : "true", LYD_ANYDATA_CONSTSTRING, 0);
+					lyd_new_path(*parent, ly_ctx, xpath_buffer, ipv4_forwarding == 0 ? "false" : "true", LYD_ANYDATA_STRING, 0);
 
 					uint32_t ipv4_addr_count = link_data_list.links[i].ipv4.addr_list.count;
 
@@ -2909,7 +2911,7 @@ static int interfaces_state_data_cb(sr_session_ctx_t *session, const char *modul
 								}
 								snprintf(tmp_buffer, sizeof(tmp_buffer), "%u", mtu);
 								SRP_LOG_DBG("%s = %s", xpath_buffer, tmp_buffer);
-								lyd_new_path(*parent, ly_ctx, xpath_buffer, tmp_buffer, LYD_ANYDATA_CONSTSTRING, 0);
+								lyd_new_path(*parent, ly_ctx, xpath_buffer, tmp_buffer, LYD_ANYDATA_STRING, 0);
 							}
 
 							error = snprintf(xpath_buffer, sizeof(xpath_buffer), "%s/ietf-ip:ipv4/address[ip='%s']/ip", interface_path_buffer, ip_addr);
@@ -2918,7 +2920,7 @@ static int interfaces_state_data_cb(sr_session_ctx_t *session, const char *modul
 							}
 							// ip
 							SRP_LOG_DBG("%s = %s", xpath_buffer, link_data_list.links[i].ipv4.addr_list.addr[j].ip);
-							lyd_new_path(*parent, ly_ctx, xpath_buffer, link_data_list.links[i].ipv4.addr_list.addr[j].ip, LYD_ANYDATA_CONSTSTRING, 0);
+							lyd_new_path(*parent, ly_ctx, xpath_buffer, link_data_list.links[i].ipv4.addr_list.addr[j].ip, LYD_ANYDATA_STRING, 0);
 
 							// subnet
 							snprintf(tmp_buffer, sizeof(tmp_buffer), "%u", link_data_list.links[i].ipv4.addr_list.addr[j].subnet);
@@ -2929,7 +2931,7 @@ static int interfaces_state_data_cb(sr_session_ctx_t *session, const char *modul
 							}
 
 							SRP_LOG_DBG("%s = %s", xpath_buffer, tmp_buffer);
-							lyd_new_path(*parent, ly_ctx, xpath_buffer, tmp_buffer, LYD_ANYDATA_CONSTSTRING, 0);
+							lyd_new_path(*parent, ly_ctx, xpath_buffer, tmp_buffer, LYD_ANYDATA_STRING, 0);
 						}
 					}
 
@@ -2946,7 +2948,7 @@ static int interfaces_state_data_cb(sr_session_ctx_t *session, const char *modul
 							}
 							// ip
 							SRP_LOG_DBG("%s = %s", xpath_buffer, link_data_list.links[i].ipv4.nbor_list.nbor[j].ip);
-							lyd_new_path(*parent, ly_ctx, xpath_buffer, link_data_list.links[i].ipv4.nbor_list.nbor[j].ip, LYD_ANYDATA_CONSTSTRING, 0);
+							lyd_new_path(*parent, ly_ctx, xpath_buffer, link_data_list.links[i].ipv4.nbor_list.nbor[j].ip, LYD_ANYDATA_STRING, 0);
 
 							// link-layer-address
 							error = snprintf(xpath_buffer, sizeof(xpath_buffer), "%s/ietf-ip:ipv4/neighbor[ip='%s']/link-layer-address", interface_path_buffer, ip_addr);
@@ -2955,7 +2957,7 @@ static int interfaces_state_data_cb(sr_session_ctx_t *session, const char *modul
 							}
 
 							SRP_LOG_DBG("%s = %s", xpath_buffer, link_data_list.links[i].ipv4.nbor_list.nbor[j].phys_addr);
-							lyd_new_path(*parent, ly_ctx, xpath_buffer, link_data_list.links[i].ipv4.nbor_list.nbor[j].phys_addr, LYD_ANYDATA_CONSTSTRING, 0);
+							lyd_new_path(*parent, ly_ctx, xpath_buffer, link_data_list.links[i].ipv4.nbor_list.nbor[j].phys_addr, LYD_ANYDATA_STRING, 0);
 						}
 					}
 				}
@@ -2976,7 +2978,7 @@ static int interfaces_state_data_cb(sr_session_ctx_t *session, const char *modul
 					}
 
 					SRP_LOG_DBG("%s = %d", xpath_buffer, ipv6_enabled);
-					lyd_new_path(*parent, ly_ctx, xpath_buffer, ipv6_enabled == 0 ? "false" : "true", LYD_ANYDATA_CONSTSTRING, 0);
+					lyd_new_path(*parent, ly_ctx, xpath_buffer, ipv6_enabled == 0 ? "false" : "true", LYD_ANYDATA_STRING, 0);
 
 					// forwarding
 					uint8_t ipv6_forwarding = link_data_list.links[i].ipv6.ip_data.forwarding;
@@ -2987,7 +2989,7 @@ static int interfaces_state_data_cb(sr_session_ctx_t *session, const char *modul
 					}
 
 					SRP_LOG_DBG("%s = %d", xpath_buffer, ipv6_forwarding);
-					lyd_new_path(*parent, ly_ctx, xpath_buffer, ipv6_forwarding == 0 ? "false" : "true", LYD_ANYDATA_CONSTSTRING, 0);
+					lyd_new_path(*parent, ly_ctx, xpath_buffer, ipv6_forwarding == 0 ? "false" : "true", LYD_ANYDATA_STRING, 0);
 
 					uint32_t ipv6_addr_count = link_data_list.links[i].ipv6.ip_data.addr_list.count;
 
@@ -3003,7 +3005,7 @@ static int interfaces_state_data_cb(sr_session_ctx_t *session, const char *modul
 								}
 								snprintf(tmp_buffer, sizeof(tmp_buffer), "%u", mtu);
 								SRP_LOG_DBG("%s = %s", xpath_buffer, tmp_buffer);
-								lyd_new_path(*parent, ly_ctx, xpath_buffer, tmp_buffer, LYD_ANYDATA_CONSTSTRING, 0);
+								lyd_new_path(*parent, ly_ctx, xpath_buffer, tmp_buffer, LYD_ANYDATA_STRING, 0);
 							}
 
 							error = snprintf(xpath_buffer, sizeof(xpath_buffer), "%s/ietf-ip:ipv6/address[ip='%s']/ip", interface_path_buffer, ip_addr);
@@ -3012,7 +3014,7 @@ static int interfaces_state_data_cb(sr_session_ctx_t *session, const char *modul
 							}
 							// ip
 							SRP_LOG_DBG("%s = %s", xpath_buffer, link_data_list.links[i].ipv6.ip_data.addr_list.addr[j].ip);
-							lyd_new_path(*parent, ly_ctx, xpath_buffer, link_data_list.links[i].ipv6.ip_data.addr_list.addr[j].ip, LYD_ANYDATA_CONSTSTRING, 0);
+							lyd_new_path(*parent, ly_ctx, xpath_buffer, link_data_list.links[i].ipv6.ip_data.addr_list.addr[j].ip, LYD_ANYDATA_STRING, 0);
 
 							// subnet
 							snprintf(tmp_buffer, sizeof(tmp_buffer), "%u", link_data_list.links[i].ipv6.ip_data.addr_list.addr[j].subnet);
@@ -3023,7 +3025,7 @@ static int interfaces_state_data_cb(sr_session_ctx_t *session, const char *modul
 							}
 
 							SRP_LOG_DBG("%s = %s", xpath_buffer, tmp_buffer);
-							lyd_new_path(*parent, ly_ctx, xpath_buffer, tmp_buffer, LYD_ANYDATA_CONSTSTRING, 0);
+							lyd_new_path(*parent, ly_ctx, xpath_buffer, tmp_buffer, LYD_ANYDATA_STRING, 0);
 						}
 					}
 
@@ -3040,7 +3042,7 @@ static int interfaces_state_data_cb(sr_session_ctx_t *session, const char *modul
 							}
 							// ip
 							SRP_LOG_DBG("%s = %s", xpath_buffer, link_data_list.links[i].ipv6.ip_data.nbor_list.nbor[j].ip);
-							lyd_new_path(*parent, ly_ctx, xpath_buffer, link_data_list.links[i].ipv6.ip_data.nbor_list.nbor[j].ip, LYD_ANYDATA_CONSTSTRING, 0);
+							lyd_new_path(*parent, ly_ctx, xpath_buffer, link_data_list.links[i].ipv6.ip_data.nbor_list.nbor[j].ip, LYD_ANYDATA_STRING, 0);
 
 							// link-layer-address
 							error = snprintf(xpath_buffer, sizeof(xpath_buffer), "%s/ietf-ip:ipv6/neighbor[ip='%s']/link-layer-address", interface_path_buffer, ip_addr);
@@ -3049,7 +3051,7 @@ static int interfaces_state_data_cb(sr_session_ctx_t *session, const char *modul
 							}
 
 							SRP_LOG_DBG("%s = %s", xpath_buffer, link_data_list.links[i].ipv6.ip_data.nbor_list.nbor[j].phys_addr);
-							lyd_new_path(*parent, ly_ctx, xpath_buffer, link_data_list.links[i].ipv6.ip_data.nbor_list.nbor[j].phys_addr, LYD_ANYDATA_CONSTSTRING, 0);
+							lyd_new_path(*parent, ly_ctx, xpath_buffer, link_data_list.links[i].ipv6.ip_data.nbor_list.nbor[j].phys_addr, LYD_ANYDATA_STRING, 0);
 						}
 					}
 				}
@@ -3063,7 +3065,7 @@ static int interfaces_state_data_cb(sr_session_ctx_t *session, const char *modul
 			goto error_out;
 		}
 		SRP_LOG_DBG("%s = %s", xpath_buffer, interface_data.statistics.discontinuity_time);
-		lyd_new_path(*parent, ly_ctx, xpath_buffer, interface_data.statistics.discontinuity_time, LYD_ANYDATA_CONSTSTRING, 0);
+		lyd_new_path(*parent, ly_ctx, xpath_buffer, interface_data.statistics.discontinuity_time, LYD_ANYDATA_STRING, 0);
 
 		// in-octets
 		error = snprintf(xpath_buffer, sizeof(xpath_buffer), "%s/statistics/in-octets", interface_path_buffer);
@@ -3071,7 +3073,7 @@ static int interfaces_state_data_cb(sr_session_ctx_t *session, const char *modul
 			goto error_out;
 		}
 		snprintf(tmp_buffer, sizeof(tmp_buffer), "%lu", interface_data.statistics.in_octets);
-		lyd_new_path(*parent, ly_ctx, xpath_buffer, tmp_buffer, LYD_ANYDATA_CONSTSTRING, 0);
+		lyd_new_path(*parent, ly_ctx, xpath_buffer, tmp_buffer, LYD_ANYDATA_STRING, 0);
 
 		// in-unicast-pkts
 		error = snprintf(xpath_buffer, sizeof(xpath_buffer), "%s/statistics/in-unicast-pkts", interface_path_buffer);
@@ -3079,7 +3081,7 @@ static int interfaces_state_data_cb(sr_session_ctx_t *session, const char *modul
 			goto error_out;
 		}
 		snprintf(tmp_buffer, sizeof(tmp_buffer), "%lu", interface_data.statistics.in_unicast_pkts);
-		lyd_new_path(*parent, ly_ctx, xpath_buffer, tmp_buffer, LYD_ANYDATA_CONSTSTRING, 0);
+		lyd_new_path(*parent, ly_ctx, xpath_buffer, tmp_buffer, LYD_ANYDATA_STRING, 0);
 
 		// in-broadcast-pkts
 		error = snprintf(xpath_buffer, sizeof(xpath_buffer), "%s/statistics/in-broadcast-pkts", interface_path_buffer);
@@ -3087,7 +3089,7 @@ static int interfaces_state_data_cb(sr_session_ctx_t *session, const char *modul
 			goto error_out;
 		}
 		snprintf(tmp_buffer, sizeof(tmp_buffer), "%lu", interface_data.statistics.in_broadcast_pkts);
-		lyd_new_path(*parent, ly_ctx, xpath_buffer, tmp_buffer, LYD_ANYDATA_CONSTSTRING, 0);
+		lyd_new_path(*parent, ly_ctx, xpath_buffer, tmp_buffer, LYD_ANYDATA_STRING, 0);
 
 		// in-multicast-pkts
 		error = snprintf(xpath_buffer, sizeof(xpath_buffer), "%s/statistics/in-multicast-pkts", interface_path_buffer);
@@ -3095,7 +3097,7 @@ static int interfaces_state_data_cb(sr_session_ctx_t *session, const char *modul
 			goto error_out;
 		}
 		snprintf(tmp_buffer, sizeof(tmp_buffer), "%lu", interface_data.statistics.in_multicast_pkts);
-		lyd_new_path(*parent, ly_ctx, xpath_buffer, tmp_buffer, LYD_ANYDATA_CONSTSTRING, 0);
+		lyd_new_path(*parent, ly_ctx, xpath_buffer, tmp_buffer, LYD_ANYDATA_STRING, 0);
 
 		// in-discards
 		error = snprintf(xpath_buffer, sizeof(xpath_buffer), "%s/statistics/in-discards", interface_path_buffer);
@@ -3103,7 +3105,7 @@ static int interfaces_state_data_cb(sr_session_ctx_t *session, const char *modul
 			goto error_out;
 		}
 		snprintf(tmp_buffer, sizeof(tmp_buffer), "%u", interface_data.statistics.in_discards);
-		lyd_new_path(*parent, ly_ctx, xpath_buffer, tmp_buffer, LYD_ANYDATA_CONSTSTRING, 0);
+		lyd_new_path(*parent, ly_ctx, xpath_buffer, tmp_buffer, LYD_ANYDATA_STRING, 0);
 
 		// in-errors
 		error = snprintf(xpath_buffer, sizeof(xpath_buffer), "%s/statistics/in-errors", interface_path_buffer);
@@ -3111,7 +3113,7 @@ static int interfaces_state_data_cb(sr_session_ctx_t *session, const char *modul
 			goto error_out;
 		}
 		snprintf(tmp_buffer, sizeof(tmp_buffer), "%u", interface_data.statistics.in_errors);
-		lyd_new_path(*parent, ly_ctx, xpath_buffer, tmp_buffer, LYD_ANYDATA_CONSTSTRING, 0);
+		lyd_new_path(*parent, ly_ctx, xpath_buffer, tmp_buffer, LYD_ANYDATA_STRING, 0);
 
 		// in-unknown-protos
 		error = snprintf(xpath_buffer, sizeof(xpath_buffer), "%s/statistics/in-unknown-protos", interface_path_buffer);
@@ -3119,7 +3121,7 @@ static int interfaces_state_data_cb(sr_session_ctx_t *session, const char *modul
 			goto error_out;
 		}
 		snprintf(tmp_buffer, sizeof(tmp_buffer), "%u", interface_data.statistics.in_unknown_protos);
-		lyd_new_path(*parent, ly_ctx, xpath_buffer, tmp_buffer, LYD_ANYDATA_CONSTSTRING, 0);
+		lyd_new_path(*parent, ly_ctx, xpath_buffer, tmp_buffer, LYD_ANYDATA_STRING, 0);
 
 		// out-octets
 		error = snprintf(xpath_buffer, sizeof(xpath_buffer), "%s/statistics/out-octets", interface_path_buffer);
@@ -3127,7 +3129,7 @@ static int interfaces_state_data_cb(sr_session_ctx_t *session, const char *modul
 			goto error_out;
 		}
 		snprintf(tmp_buffer, sizeof(tmp_buffer), "%lu", interface_data.statistics.out_octets);
-		lyd_new_path(*parent, ly_ctx, xpath_buffer, tmp_buffer, LYD_ANYDATA_CONSTSTRING, 0);
+		lyd_new_path(*parent, ly_ctx, xpath_buffer, tmp_buffer, LYD_ANYDATA_STRING, 0);
 
 		// out-unicast-pkts
 		error = snprintf(xpath_buffer, sizeof(xpath_buffer), "%s/statistics/out-unicast-pkts", interface_path_buffer);
@@ -3135,7 +3137,7 @@ static int interfaces_state_data_cb(sr_session_ctx_t *session, const char *modul
 			goto error_out;
 		}
 		snprintf(tmp_buffer, sizeof(tmp_buffer), "%lu", interface_data.statistics.out_unicast_pkts);
-		lyd_new_path(*parent, ly_ctx, xpath_buffer, tmp_buffer, LYD_ANYDATA_CONSTSTRING, 0);
+		lyd_new_path(*parent, ly_ctx, xpath_buffer, tmp_buffer, LYD_ANYDATA_STRING, 0);
 
 		// out-broadcast-pkts
 		error = snprintf(xpath_buffer, sizeof(xpath_buffer), "%s/statistics/out-broadcast-pkts", interface_path_buffer);
@@ -3143,7 +3145,7 @@ static int interfaces_state_data_cb(sr_session_ctx_t *session, const char *modul
 			goto error_out;
 		}
 		snprintf(tmp_buffer, sizeof(tmp_buffer), "%lu", interface_data.statistics.out_broadcast_pkts);
-		lyd_new_path(*parent, ly_ctx, xpath_buffer, tmp_buffer, LYD_ANYDATA_CONSTSTRING, 0);
+		lyd_new_path(*parent, ly_ctx, xpath_buffer, tmp_buffer, LYD_ANYDATA_STRING, 0);
 
 		// out-multicast-pkts
 		error = snprintf(xpath_buffer, sizeof(xpath_buffer), "%s/statistics/out-multicast-pkts", interface_path_buffer);
@@ -3151,7 +3153,7 @@ static int interfaces_state_data_cb(sr_session_ctx_t *session, const char *modul
 			goto error_out;
 		}
 		snprintf(tmp_buffer, sizeof(tmp_buffer), "%lu", interface_data.statistics.out_multicast_pkts);
-		lyd_new_path(*parent, ly_ctx, xpath_buffer, tmp_buffer, LYD_ANYDATA_CONSTSTRING, 0);
+		lyd_new_path(*parent, ly_ctx, xpath_buffer, tmp_buffer, LYD_ANYDATA_STRING, 0);
 
 		// out-discards
 		error = snprintf(xpath_buffer, sizeof(xpath_buffer), "%s/statistics/out-discards", interface_path_buffer);
@@ -3159,7 +3161,7 @@ static int interfaces_state_data_cb(sr_session_ctx_t *session, const char *modul
 			goto error_out;
 		}
 		snprintf(tmp_buffer, sizeof(tmp_buffer), "%u", interface_data.statistics.out_discards);
-		lyd_new_path(*parent, ly_ctx, xpath_buffer, tmp_buffer, LYD_ANYDATA_CONSTSTRING, 0);
+		lyd_new_path(*parent, ly_ctx, xpath_buffer, tmp_buffer, LYD_ANYDATA_STRING, 0);
 
 		// out-errors
 		error = snprintf(xpath_buffer, sizeof(xpath_buffer), "%s/statistics/out-errors", interface_path_buffer);
@@ -3167,7 +3169,7 @@ static int interfaces_state_data_cb(sr_session_ctx_t *session, const char *modul
 			goto error_out;
 		}
 		snprintf(tmp_buffer, sizeof(tmp_buffer), "%u", interface_data.statistics.out_errors);
-		lyd_new_path(*parent, ly_ctx, xpath_buffer, tmp_buffer, LYD_ANYDATA_CONSTSTRING, 0);
+		lyd_new_path(*parent, ly_ctx, xpath_buffer, tmp_buffer, LYD_ANYDATA_STRING, 0);
 
 		// free all allocated data
 		FREE_SAFE(interface_data.phys_address);
@@ -3245,33 +3247,6 @@ static int get_system_boot_time(char boot_datetime[])
 	return 0;
 }
 
-static char *interfaces_xpath_get(const struct lyd_node *node)
-{
-	char *xpath_node = NULL;
-	char *xpath_leaflist_open_bracket = NULL;
-	size_t xpath_trimed_size = 0;
-	char *xpath_trimed = NULL;
-
-	if (node->schema->nodetype == LYS_LEAFLIST) {
-		xpath_node = lyd_path(node);
-		xpath_leaflist_open_bracket = strrchr(xpath_node, '[');
-		if (xpath_leaflist_open_bracket == NULL) {
-			return xpath_node;
-		}
-
-		xpath_trimed_size = (size_t) xpath_leaflist_open_bracket - (size_t) xpath_node + 1;
-		xpath_trimed = xcalloc(1, xpath_trimed_size);
-		strncpy(xpath_trimed, xpath_node, xpath_trimed_size - 1);
-		xpath_trimed[xpath_trimed_size - 1] = '\0';
-
-		FREE_SAFE(xpath_node);
-
-		return xpath_trimed;
-	} else {
-		return lyd_path(node);
-	}
-}
-
 static int init_state_changes(void)
 {
 	int error = 0;
@@ -3295,7 +3270,7 @@ static int init_state_changes(void)
 
 	socket = nl_socket_alloc();
 	if (socket == NULL) {
-		SRP_LOG_ERRMSG("nl_socket_alloc error: invalid socket");
+		SRP_LOG_ERR("nl_socket_alloc error: invalid socket");
 		return -1;
 	}
 
@@ -3381,7 +3356,7 @@ static void cache_change_cb(struct nl_cache *cache, struct nl_object *obj, int v
 	if_state_t *tmp_st = NULL;
 	uint8_t tmp_state = 0;
 
-	SRP_LOG_DBGMSG("entered cb function for a link manager");
+	SRP_LOG_DBG("entered cb function for a link manager");
 
 	link = (struct rtnl_link *) nl_cache_get_first(cache);
 
@@ -3437,7 +3412,7 @@ int main(void)
 
 	error = sr_plugin_init_cb(session, &private_data);
 	if (error) {
-		SRP_LOG_ERRMSG("sr_plugin_init_cb error");
+		SRP_LOG_ERR("sr_plugin_init_cb error");
 		goto out;
 	}
 
@@ -3458,7 +3433,7 @@ out:
 
 static void sigint_handler(__attribute__((unused)) int signum)
 {
-	SRP_LOG_INFMSG("Sigint called, exiting...");
+	SRP_LOG_INF("Sigint called, exiting...");
 	exit_application = 1;
 }
 
