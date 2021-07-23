@@ -1,0 +1,149 @@
+<dhcpv6-client xmlns="urn:ietf:params:xml:ns:yang:ietf-dhcpv6-client">
+
+  <enabled>true</enabled>
+  <client-if>
+    <if-name>enp0s31f6</if-name>
+    <enabled>true</enabled>
+    <duid>0004550e8400e29b11d4a716446655440002</duid>
+    <client-configured-options>
+
+      <option-request-option>
+       <!-- currently dhclient doesn't support sending oro options, just requesting them
+        <oro-option>5</oro-option>
+        <oro-option>6</oro-option>
+        <oro-option>7</oro-option> -->
+      </option-request-option>
+
+      <!-- currently not used
+        <status-code-option>
+          <status-code>1</status-code>  SOLICIT ; https://www.iana.org/assignments/dhcpv6-parameters/dhcpv6-parameters.xhtml
+          <status-message>SOLICIT</status-message>
+      </status-code-option>
+      -->
+
+      <rapid-commit-option>
+        <!--
+          presence "Enable sending of this option";
+          description "OPTION_RAPID_COMMIT (14) Rapid Commit Option
+          container."; -->
+      </rapid-commit-option>
+
+      <user-class-option>
+        <user-class-data-instance>
+          <user-class-data-id>137</user-class-data-id>
+          <user-class-data>HR</user-class-data>
+        </user-class-data-instance>
+
+        <user-class-data-instance>
+          <user-class-data-id>140</user-class-data-id>
+          <user-class-data>MANAGMENT</user-class-data>
+        </user-class-data-instance>
+      </user-class-option>
+
+<!-- vendor class option is currently not supported for IPv6 in dhclient
+      <vendor-class-option>
+        <vendor-class-option-instances>
+          <enterprise-number>123456278</enterprise-number>
+          <vendor-class-data-element>
+            <vendor-class-data-id>3</vendor-class-data-id>
+            <vendor-class-data>Opaque field</vendor-class-data>
+          </vendor-class-data-element>
+
+          <vendor-class-data-element>
+            <vendor-class-data-id>5</vendor-class-data-id>
+            <vendor-class-data>Opaque field asd</vendor-class-data>
+          </vendor-class-data-element>
+
+          <vendor-class-data-element>
+            <vendor-class-data-id>44</vendor-class-data-id>
+            <vendor-class-data>Opaque field asd</vendor-class-data>
+          </vendor-class-data-element>
+
+
+        </vendor-class-option-instances>
+
+        <vendor-class-option-instances>
+          <enterprise-number>133678</enterprise-number>
+          <vendor-class-data-element>
+            <vendor-class-data-id>2</vendor-class-data-id>
+            <vendor-class-data>Opaque field</vendor-class-data>
+          </vendor-class-data-element>
+        </vendor-class-option-instances>
+
+          <vendor-class-option-instances>
+          <enterprise-number>3</enterprise-number>
+          <vendor-class-data-element>
+            <vendor-class-data-id>6</vendor-class-data-id>
+            <vendor-class-data>Opaque field representing a vendor class
+              of which the client is a member.</vendor-class-data>
+          </vendor-class-data-element>
+        </vendor-class-option-instances>
+      </vendor-class-option>       -->
+
+      <vendor-specific-information-options>
+        
+        <!-- current implemention of dhclient only provides request of vendor options
+        <vendor-specific-information-option>
+        
+        and not sending them...
+          <enterprise-number>12345678</enterprise-number>
+          <vendor-option-data>
+            <sub-option-code>7777</sub-option-code>
+            <sub-option-data>1111</sub-option-data> 
+          </vendor-option-data>
+
+          <vendor-option-data>
+            <sub-option-code>2222</sub-option-code>
+            <sub-option-data>3333</sub-option-data> 
+          </vendor-option-data>
+
+          <vendor-option-data>
+            <sub-option-code>4444</sub-option-code>
+            <sub-option-data>5555</sub-option-data>
+          </vendor-option-data>
+        </vendor-specific-information-option>
+
+
+       <vendor-specific-information-option>
+          <enterprise-number>1111111</enterprise-number>
+          <vendor-option-data>
+            <sub-option-code>0000</sub-option-code>
+            <sub-option-data>1111</sub-option-data> 
+          </vendor-option-data>
+
+          <vendor-option-data>
+            <sub-option-code>2222</sub-option-code>
+            <sub-option-data>3333</sub-option-data> 
+          </vendor-option-data>
+
+          <vendor-option-data>
+            <sub-option-code>4444</sub-option-code>
+            <sub-option-data>5555</sub-option-data> 
+          </vendor-option-data> 
+        </vendor-specific-information-option>
+-->
+      </vendor-specific-information-options>
+
+      <reconfigure-accept-option>
+        <!--
+          presence "Enable sending of this option";
+          description "OPTION_RECONF_ACCEPT (20)  Reconfigure Accept
+          Option container.";
+        -->
+      </reconfigure-accept-option>
+
+    </client-configured-options>
+
+   <!--
+    <ia-na>
+      <ia-id>12</ia-id>
+      <ia-na-options></ia-na-options>
+    </ia-na>
+
+    <ia-pd>
+      <ia-id>13</ia-id>
+      <ia-pd-options></ia-pd-options>
+    </ia-pd> -->
+
+ </client-if>
+</dhcpv6-client>
