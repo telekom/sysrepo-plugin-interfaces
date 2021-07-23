@@ -1,9 +1,5 @@
-if(DHCPv6_CLIENT)
-    include(${CMAKE_CURRENT_SOURCE_DIR}/src/utils/dhcpv6_client/CMakeLists.txt)
-endif()
-
 cmake_minimum_required(VERSION 3.0)
-project(sysrepo-plugin-interfaces C)
+project(sysrepo-plugin-dhcpv6-client C)
 
 include(CompileOptions.cmake)
 
@@ -15,13 +11,14 @@ include_directories(
 )
 
 set(SOURCES
-    src/interfaces.c
+    src/dhcpv6.c
+    src/utils/dhcpv6_client/dhcpv6_client/dhcpv6_client.c
+    src/utils/dhcpv6_client/dhcpv6_client_list/dhcpv6_client_list_add.c
+    src/utils/dhcpv6_client/dhcpv6_client_list/dhcpv6_client_list_remove.c
+    src/utils/dhcpv6_client/dhcpv6_client_list/dhcpv6_client_list_modify.c
+    src/utils/dhcpv6_client/dhcpv6_client_config/dhcpv6_client_config.c
+    src/utils/dhcpv6_client/dhcpv6_client_config/dhcpv6_client_config_file/dhcpv6_client_config_file.c
     src/utils/memory.c
-    src/utils/if_state.c
-    src/utils/link_data.c
-    src/utils/ip_data.c
-    src/utils/ipv6_data.c
-    src/utils/if_nic_stats.c
 )
 
 # get sysrepo version
@@ -45,13 +42,11 @@ else()
     install(TARGETS ${CMAKE_PROJECT_NAME} DESTINATION bin)
 endif()
 
-
 set_target_properties(${CMAKE_PROJECT_NAME} PROPERTIES OUTPUT_NAME ${CMAKE_PROJECT_NAME} PREFIX "")
 
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/cmake/Modules")
 find_package(SYSREPO REQUIRED)
 find_package(LIBYANG REQUIRED)
-find_package(NL REQUIRED)
 
 # pthread api
 set(THREADS_PREFER_PTHREAD_FLAG ON)
@@ -61,17 +56,10 @@ target_link_libraries(
     ${PROJECT_NAME}
     ${SYSREPO_LIBRARIES}
     ${LIBYANG_LIBRARIES}
-    ${NL_LIBRARIES}
     Threads::Threads
 )
 
 include_directories(
     ${SYSREPO_INCLUDE_DIRS}
     ${LIBYANG_INCLUDE_DIRS}
-    ${NL_INCLUDE_DIRS}
 )
-
-if(ENABLE_BUILD_TESTS)
-	find_package(CMOCKA REQUIRED)
-    include (CTest)
-endif()
