@@ -1,5 +1,4 @@
 <dhcpv6-client xmlns="urn:ietf:params:xml:ns:yang:ietf-dhcpv6-client">
-
   <enabled>true</enabled>
   <client-if>
     <if-name>enp0s31f6</if-name>
@@ -30,7 +29,7 @@
 
       <user-class-option>
         <user-class-data-instance>
-          <user-class-data-id>137</user-class-data-id>
+          <user-class-data-id>137</user-class-data-id> <!-- the id will be ignored by the plugin since dhclient doesn't support it -->
           <user-class-data>HR</user-class-data>
         </user-class-data-instance>
 
@@ -82,10 +81,9 @@
 
       <vendor-specific-information-options>
         
-        <!-- current implemention of dhclient only provides request of vendor options
+        <!-- current implemention of dhclient only provides request of vendor options and not sending them...
+
         <vendor-specific-information-option>
-        
-        and not sending them...
           <enterprise-number>12345678</enterprise-number>
           <vendor-option-data>
             <sub-option-code>7777</sub-option-code>
@@ -121,7 +119,7 @@
             <sub-option-data>5555</sub-option-data> 
           </vendor-option-data> 
         </vendor-specific-information-option>
--->
+        -->
       </vendor-specific-information-options>
 
       <reconfigure-accept-option>
