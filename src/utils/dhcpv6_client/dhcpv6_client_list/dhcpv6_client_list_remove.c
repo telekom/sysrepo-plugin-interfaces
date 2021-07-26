@@ -1,3 +1,16 @@
+/*
+ * telekom / sysrepo-plugin-interfaces
+ *
+ * This program is made available under the terms of the
+ * BSD 3-Clause license which is available at
+ * https://opensource.org/licenses/BSD-3-Clause
+ *
+ * SPDX-FileCopyrightText: 2021 Deutsche Telekom AG
+ * SPDX-FileContributor: Sartura Ltd.
+ *
+ * SPDX-License-Identifier: BSD-3-Clause
+ */
+
 #include "dhcpv6_client_list.h"
 
 int dhcpv6_client_list_set_del_if(config_data_list_t *ccl, char *if_name)
