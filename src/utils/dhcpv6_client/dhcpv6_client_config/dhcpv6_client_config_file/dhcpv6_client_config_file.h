@@ -23,7 +23,7 @@
 #include <net/if.h>
 #include <ctype.h>
 
-#define DHCLIENT_CONFIG_FILE "dhclient.conf" // TODO: update to /etc/dhclient.conf later
+#define DHCLIENT_CONFIG_FILE "/etc/dhclient.conf"
 #define TMP_DHCLIENT_CONFIG_FILE "tmp_dhclient.conf"
 #define BAK_DHCLIENT_CONFIG_FILE "dhclient.conf.bak"
 
