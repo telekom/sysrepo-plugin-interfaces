@@ -21,7 +21,22 @@ Scanning dependencies of target sysrepo-plugin-interfaces
 [ 33%] Building C object CMakeFiles/sysrepo-plugin-interfaces.dir/src/interfaces.c.o
 [ 66%] Linking C executable sysrepo-plugin-interfaces
 [100%] Built target sysrepo-plugin-interfaces
+```
 
+For building both the dhcpv6-client and interfaces plugin add the `-DDHCPv6_CLIENT` flag to cmake:
+
+```
+$ cmake -DDHCPv6_CLIENT=ON \
+		-DCMAKE_EXPORT_COMPILE_COMMANDS=ON \
+		-DCMAKE_PREFIX_PATH=${SYSREPO_DIR} \
+		-DCMAKE_INSTALL_PREFIX=${SYSREPO_DIR} \
+		-DCMAKE_BUILD_TYPE=Debug \
+		..
+```
+
+Lastly, invoke the build and install using `make`:
+
+```
 $ make && make install
 [...]
 [100%] Built target sysrepo-plugin-interfaces
@@ -45,6 +60,7 @@ $ export PATH="${SYSREPO_DIR}/bin:${PATH}"
 ## Running and Examples
 
 This plugin is installed as the `sysrepo-plugin-interfaces` binary to `${SYSREPO_DIR}/bin/` directory path, if installed with the setup-dev scripts.
+If `-DDHCPv6_CLIENT` cmake flag was used the plugin will additionally install the `sysrepo-plugin-dhcpv6-client` binary.
 
 The `IF_PLUGIN_DATA_DIR` environment variable will be used to save internal plugin information that is used to load and store data of some yang nodes.
 Currently it only stores data for the `description` node of the `ietf-interfaces` yang model in the file `interface_description`.
@@ -72,6 +88,13 @@ $ sysrepoctl -i yang/ietf-ip@2014-06-16.yang
 $ sysrepoctl -i yang/ietf-if-extensions@2020-07-29.yang
 $ sysrepoctl -i yang/ieee802-dot1q-types.yang
 $ sysrepoctl -i yang/ietf-if-vlan-encapsulation@2020-07-13.yang
+```
+
+If dhcpv6-client is used the following YANG models have to be installed:
+
+```
+$ sysrepoctl -i ./yang/dhcpv6-client/ietf-dhcpv6-common.yang
+$ sysrepoctl -i ./yang/dhcpv6-client/ietf-dhcpv6-client.yang
 ```
 
 `sub-interfaces` feature has to be enabled:
@@ -264,7 +287,25 @@ The following items are operational state data:
 
 * `interfaces-state` is obsolete
 
+The `ietf-dhcpv6-client` YANG module consists of the following `container` paths:
 
+* `/ietf-dhcpv6-client:dhcpv6-client` — configuration and operational data for the system
+
+The following leaves are for configuration:
+
+* `if-name`
+* `enabled`
+* `duid`
+* `enabled`
+
+The following groupings are also used for configuration (`dhc6` prefix is used to denote `ietf-dhcpv6-common` YANG model):
+
+* `option-request-option-group`
+* `dhc6:rapid-commit-option-group`
+* `user-class-option-group`
+* `vendor-class-option-group`
+* `dhc6:vendor-specific-information-option-group`
+* `dhc6:reconfigure-accept-option-group`
 
 ## Testing
 The `tests/manual_tests.md` file contains a list of sysrepo commands that can be used to test
@@ -392,4 +433,93 @@ module: ietf-ip
             |       {ipv6-privacy-autoconf}?
             +--rw temporary-preferred-lifetime?   uint32
                   {ipv6-privacy-autoconf}?                            NA
+```
+
+DHCPv6 client
+
+```
+module: ietf-dhcpv6-client
+  +--rw dhcpv6-client
+        +--rw enabled?                     boolean                      IN PROGRESS
+        +--rw duid?                        dhc6:duid                    DONE
+        +--rw client-configured-options
+        |  +--rw option-request-option
+        |  |  +--rw oro-option*   uint16                                DONE
+        |  +--rw user-class-option!
+        |  |  +--rw user-class-data-instance* [user-class-data-id]
+        |  |     +--rw user-class-data-id    uint8                      NA (only string value is used)
+        |  |     +--rw user-class-data?      string                     DONE
+        |  +--rw vendor-class-option                                    NA (not supported by dhclient)
+        |     +--rw vendor-class-option-instances* [enterprise-number]
+        |        +--rw enterprise-number            uint32
+        |        +--rw vendor-class-data-element* [vendor-class-data-id]
+        |           +--rw vendor-class-data-id    uint8
+        |           +--rw vendor-class-data?      string
+        +--rw ia-na* [ia-id] {non-temporary-address}?                   IN PROGRESS
+        |  +--rw ia-id            uint32
+        |  +--rw ia-na-options
+        |  +--ro lease-state
+        |     +--ro ia-na-address?        inet:ipv6-address
+        |     +--ro lease-t1?             dhc6:timer-seconds32
+        |     +--ro lease-t2?             dhc6:timer-seconds32
+        |     +--ro preferred-lifetime?   dhc6:timer-seconds32
+        |     +--ro valid-lifetime?       dhc6:timer-seconds32
+        |     +--ro allocation-time?      yang:date-and-time
+        |     +--ro last-renew-rebind?    yang:date-and-time
+        |     +--ro server-duid?          dhc6:duid
+        +--rw ia-ta* [ia-id] {temporary-address}?                       IN PROGRESS
+        |  +--rw ia-id            uint32
+        |  +--rw ia-ta-options
+        |  +--ro lease-state
+        |     +--ro ia-ta-address?        inet:ipv6-address
+        |     +--ro preferred-lifetime?   dhc6:timer-seconds32
+        |     +--ro valid-lifetime?       dhc6:timer-seconds32
+        |     +--ro allocation-time?      yang:date-and-time
+        |     +--ro last-renew-rebind?    yang:date-and-time
+        |     +--ro server-duid?          dhc6:duid
+        +--rw ia-pd* [ia-id] {prefix-delegation}?                       IN PROGRESS
+        |  +--rw ia-id            uint32
+        |  +--rw ia-pd-options
+        |  +--ro lease-state
+        |     +--ro ia-pd-prefix?         inet:ipv6-prefix
+        |     +--ro lease-t1?             dhc6:timer-seconds32
+        |     +--ro lease-t2?             dhc6:timer-seconds32
+        |     +--ro preferred-lifetime?   dhc6:timer-seconds32
+        |     +--ro valid-lifetime?       dhc6:timer-seconds32
+        |     +--ro allocation-time?      yang:date-and-time
+        |     +--ro last-renew-rebind?    yang:date-and-time
+        |     +--ro server-duid?          dhc6:duid
+        +--ro solicit-count?               uint32                       IN PROGRESS
+        +--ro advertise-count?             uint32                       IN PROGRESS
+        +--ro request-count?               uint32                       IN PROGRESS
+        +--ro confirm-count?               uint32                       IN PROGRESS
+        +--ro renew-count?                 uint32                       IN PROGRESS
+        +--ro rebind-count?                uint32                       IN PROGRESS
+        +--ro reply-count?                 uint32                       IN PROGRESS
+        +--ro release-count?               uint32                       IN PROGRESS
+        +--ro decline-count?               uint32                       IN PROGRESS
+        +--ro reconfigure-count?           uint32                       IN PROGRESS
+        +--ro information-request-count?   uint32                       IN PROGRESS
+
+  notifications:                                                        NA (currently not in progress, planned for future)
+    +---n invalid-ia-address-detected {non-temporary-address or temporary-address}?
+    |  +--ro ia-id                 uint32
+    |  +--ro ia-na-t1-timer?       uint32
+    |  +--ro ia-na-t2-timer?       uint32
+    |  +--ro invalid-address?      inet:ipv6-address
+    |  +--ro preferred-lifetime?   uint32
+    |  +--ro valid-lifetime?       uint32
+    |  +--ro ia-options?           binary
+    |  +--ro description?          string
+    +---n transmission-failed
+    |  +--ro failure-type    enumeration
+    |  +--ro description?    string
+    +---n unsuccessful-status-code
+    |  +--ro server-duid    dhc6:duid
+    +---n server-duid-changed {non-temporary-address or prefix-delegation or temporary-address}?
+       +--ro new-server-duid         dhc6:duid
+       +--ro previous-server-duid    dhc6:duid
+       +--ro lease-ia-na?            -> ../../dhcpv6-client/client-if/ia-na/ia-id {non-temporary-address}?
+       +--ro lease-ia-ta?            -> ../../dhcpv6-client/client-if/ia-ta/ia-id {temporary-address}?
+       +--ro lease-ia-pd?            -> ../../dhcpv6-client/client-if/ia-pd/ia-id {prefix-delegation}?
 ```

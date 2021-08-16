@@ -9,6 +9,11 @@ To import the example data run the following command:
 sysrepocfg --edit=examples/example_config_data.xml -m "ietf-interfaces"
 ```
 
+And to import the dhcpv6-client example data run the following command:
+```
+sysrepocfg --edit=examples/example_dhcpv6_client.xml -m "ietf-dhcpv6-client"
+```
+
 ## ietf-interfaces
 First we can confirm that the datastore contains any data at all.
 
@@ -559,3 +564,114 @@ $ sysrepocfg -X -x '/ietf-interfaces:interfaces/interface[name="wlan0"]/ietf-ip:
 ```
 
 The same can be done for IPv6, just replace ipv4 with ipv6 in the examples above and for the ip node add an ipv6 address.
+
+
+
+## ietf-dhcpv6-client
+
+First we can confirm that the datastore contains any data at all.
+
+```
+$ sysrepocfg -X -m ietf-dhcpv6-client
+<dhcpv6-client xmlns="urn:ietf:params:xml:ns:yang:ietf-dhcpv6-client">
+  <enabled>true</enabled>
+  <client-if>
+    <if-name>enp0s31f6</if-name>
+    <enabled>true</enabled>
+    <duid>0004550e8400e29b11d4a716446655440002</duid>
+    <client-configured-options>
+      <rapid-commit-option/>
+      <user-class-option>
+        <user-class-data-instance>
+          <user-class-data-id>137</user-class-data-id>
+          <user-class-data>HR</user-class-data>
+        </user-class-data-instance>
+        <user-class-data-instance>
+          <user-class-data-id>140</user-class-data-id>
+          <user-class-data>MANAGMENT</user-class-data>
+        </user-class-data-instance>
+      </user-class-option>
+      <reconfigure-accept-option/>
+    </client-configured-options>
+  </client-if>
+</dhcpv6-client>
+```
+
+We can also check the `/etc/dhclient.conf` file to see if it's been configured properly:
+```
+$ cat /etc/dhclient.conf
+interface "enp0s31f6" {
+        send dhcp6.client-id "0004550e8400e29b11d4a716446655440002";
+        request dhcp6.oro;
+        request dhcp6.rapid-commit;
+        send user-class "HR";
+        send user-class "MANAGMENT";
+        send dhcp6.reconf-accept;
+        request dhcp6.vendor-opts;
+}
+```
+
+### dhcpv6-client duid
+
+```
+$ sysrepocfg -X -x  "/ietf-dhcpv6-client:dhcpv6-client/client-if[if-name='enp0s31f6']/duid"
+<dhcpv6-client xmlns="urn:ietf:params:xml:ns:yang:ietf-dhcpv6-client">
+  <client-if>
+    <if-name>enp0s31f6</if-name>
+    <duid>0004550e8400e29b11d4a716446655440002</duid>
+  </client-if>
+</dhcpv6-client>
+```
+
+### dhcpv6-client rapid-commit-option
+
+```
+$ sysrepocfg -X -x  "/ietf-dhcpv6-client:dhcpv6-client/client-if[if-name='enp0s31f6']/client-configured-options/rapid-commit-option"
+<dhcpv6-client xmlns="urn:ietf:params:xml:ns:yang:ietf-dhcpv6-client">
+  <client-if>
+    <if-name>enp0s31f6</if-name>
+    <client-configured-options>
+      <rapid-commit-option/>
+    </client-configured-options>
+  </client-if>
+</dhcpv6-client>
+```
+
+The presence of this empty container indicates that rapid commit option should be requested by the client.
+
+### dhcpv6-client user-class
+
+```
+$ sysrepocfg -X -x  " /ietf-dhcpv6-client:dhcpv6-client/client-if[if-name='enp0s31f6']/client-configured-options/user-class-option/user-class-data-instance[user-class-data-id='137']/user-class-data"
+<dhcpv6-client xmlns="urn:ietf:params:xml:ns:yang:ietf-dhcpv6-client">
+  <client-if>
+    <if-name>enp0s31f6</if-name>
+    <client-configured-options>
+      <user-class-option>
+        <user-class-data-instance>
+          <user-class-data-id>137</user-class-data-id>
+          <user-class-data>HR</user-class-data>
+        </user-class-data-instance>
+      </user-class-option>
+    </client-configured-options>
+  </client-if>
+</dhcpv6-client>
+```
+
+The user-class-data-id is ignored by the plugin because it is not supported by dhclient.
+
+### dhcpv6-client reconfigure-accept-option
+
+```
+$ sysrepocfg -X -x " /ietf-dhcpv6-client:dhcpv6-client/client-if[if-name='enp0s31f6']/client-configured-options/reconfigure-accept-option"
+<dhcpv6-client xmlns="urn:ietf:params:xml:ns:yang:ietf-dhcpv6-client">
+  <client-if>
+    <if-name>enp0s31f6</if-name>
+    <client-configured-options>
+      <reconfigure-accept-option/>
+    </client-configured-options>
+  </client-if>
+</dhcpv6-client>
+```
+
+The presence of this empty container indicates that reconfigure accept option should be requested by the client.

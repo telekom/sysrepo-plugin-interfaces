@@ -23,6 +23,8 @@ The goal of this project is to provide a method of configuring networking on gen
 
 This Sysrepo plugin is based on the `ietf-interfaces` YANG module which contains "a collection of YANG definitions for managing network interfaces". More information about the specific YANG module can be found in [RFC 7223: A YANG Data Model for Interface Management](https://datatracker.ietf.org/doc/html/rfc7223).
 
+Additionally, the plugin also supports DHCPv6 client configuration which is based on the `ietf-dhcpv6-client` YANG module and uses [ISC dhclient](https://kb.isc.org/docs/isc-dhcp-44-manual-pages-dhclient). The dhcpv6-client plugin is built as a separate plugin.
+
 ## Development
 
 Besides the usual C development environment, the following additional dependencies are required:
@@ -31,6 +33,7 @@ Besides the usual C development environment, the following additional dependenci
 * sysrepo
 * pthreads
 * netlink
+* dhclient
 
 ### Build
 
@@ -54,6 +57,12 @@ The default configuration builds the plugin as a stand-alone foreground applicat
 $ cmake -DPLUGIN=ON ..
 ```
 
+For building both the dhcpv6-client and interfaces plugin add the `-DDHCPv6_CLIENT` flag to cmake:
+
+```
+$ cmake -DDHCPv6_CLIENT=ON ..
+```
+
 Lastly, invoke the build and install using `make`:
 
 ```
@@ -69,6 +78,13 @@ $ sysrepoctl -i ./yang/ietf-ip@2014-06-16.yang
 $ sysrepoctl -i ./yang/ietf-if-extensions@2020-07-29.yang
 $ sysrepoctl -i ./yang/ieee802-dot1q-types.yang
 $ sysrepoctl -i ./yang/ietf-if-vlan-encapsulation@2020-07-13.yang
+```
+
+If dhcpv6-client is to be used additional YANG modules have to be loaded into the Sysrepo datastore. This can be achieved by invoking the following commands:
+
+```
+$ sysrepoctl -i ./yang/dhcpv6-client/ietf-dhcpv6-common.yang
+$ sysrepoctl -i ./yang/dhcpv6-client/ietf-dhcpv6-client.yang
 ```
 
 ## Code of Conduct
