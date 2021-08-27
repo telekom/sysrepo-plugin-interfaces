@@ -17,12 +17,15 @@
 #define DHCPV6_CLIENT_YANG_MODEL "/" BASE_YANG_MODEL ":dhcpv6-client"
 
 #define SYSREPOCFG_EMPTY_CHECK_COMMAND "sysrepocfg -X -d running -m " BASE_YANG_MODEL
+#define DHCLIENT_RELEASE "dhclient -r"
+#define DHCLIENT_ENABLE "dhclient"
 
 static int dhcpv6_client_module_change_cb(sr_session_ctx_t *session, uint32_t subscription_id, const char *module_name, const char *xpath, sr_event_t event, uint32_t request_id, void *private_data);
 static int dhcpv6_client_state_data_cb(sr_session_ctx_t *session, uint32_t subscription_id, const char *module_name, const char *path, const char *request_xpath, uint32_t request_id, struct lyd_node **parent, void *private_data);
 
 // utils
 static bool is_running_datastore_empty(void);
+static int dhcpv6_client_restart(void);
 
 int dhcpv6_client_init(sr_session_ctx_t *session, sr_session_ctx_t *startup_session)
 {
@@ -178,6 +181,13 @@ static int dhcpv6_client_module_change_cb(sr_session_ctx_t *session, uint32_t su
 			SRP_LOG_ERR("dhcpv6_client_list_check_remove_interface error");
 			goto out;
 		}
+
+		// restart the dhclient service in order to update the new options
+		error = dhcpv6_client_restart();
+		if (error != 0) {
+			SRP_LOG_ERR("dhcpv6_client_restart error");
+			goto out;
+		}
 	}
 
 out:
@@ -194,6 +204,25 @@ out:
 	}
 
 	return error ? SR_ERR_CALLBACK_FAILED : SR_ERR_OK;
+}
+
+static int dhcpv6_client_restart(void)
+{
+	int error = 0;
+
+	error = system(DHCLIENT_RELEASE);
+	if (error != 0) {
+		SRP_LOG_ERR("\"%s\" failed with return value: %d", DHCLIENT_RELEASE, error);
+		return -1;
+	}
+
+	error = system(DHCLIENT_ENABLE);
+	if (error != 0) {
+		SRP_LOG_ERR("\"%s\" failed with return value: %d", DHCLIENT_ENABLE, error);
+		return -1;
+	}
+
+	return error;
 }
 
 static int dhcpv6_client_state_data_cb(sr_session_ctx_t *session, uint32_t subscription_id, const char *module_name, const char *path, const char *request_xpath, uint32_t request_id, struct lyd_node **parent, void *private_data)
