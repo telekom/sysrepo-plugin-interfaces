@@ -21,6 +21,6 @@
 #include <sysrepo/xpath.h>
 
 int dhcpv6_client_config_load_data(sr_session_ctx_t *session);
-int dhcpv6_client_config_set_value(sr_change_oper_t operation, const char *xpath, const char *value, const char *prev_value, config_data_list_t *ccl);
+int dhcpv6_client_config_set_value(sr_session_ctx_t *session, sr_change_oper_t operation, const char *xpath, const char *value, const char *prev_value, config_data_list_t *ccl);
 
 #endif /* DHCPV6_CLIENT_CONFIG_ONCE_H */

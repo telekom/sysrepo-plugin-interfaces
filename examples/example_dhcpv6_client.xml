@@ -10,7 +10,8 @@
        <!-- currently dhclient doesn't support sending oro options, just requesting them
         <oro-option>5</oro-option>
         <oro-option>6</oro-option>
-        <oro-option>7</oro-option> -->
+       <oro-option>7</oro-option> -->
+       <oro-option>5</oro-option> <!-- but we have to add at least one option since an empty list container won't be added to the datastore -->
       </option-request-option>
 
       <!-- currently not used
@@ -80,7 +81,6 @@
       </vendor-class-option>       -->
 
       <vendor-specific-information-options>
-        
         <!-- current implemention of dhclient only provides request of vendor options and not sending them...
 
         <vendor-specific-information-option>
@@ -120,6 +120,11 @@
           </vendor-option-data> 
         </vendor-specific-information-option>
         -->
+
+        <!-- but we have to add at least one option since an empty list container won't be added to the datastore -->
+        <vendor-specific-information-option>
+          <enterprise-number>1111111</enterprise-number>
+        </vendor-specific-information-option>
       </vendor-specific-information-options>
 
       <reconfigure-accept-option>

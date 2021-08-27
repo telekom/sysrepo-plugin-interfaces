@@ -18,7 +18,7 @@ int dhcpv6_client_config_load_data(sr_session_ctx_t *session)
 	return 0;
 }
 
-int dhcpv6_client_config_set_value(sr_change_oper_t operation, const char *xpath, const char *value, const char *prev_value, config_data_list_t *ccl)
+int dhcpv6_client_config_set_value(sr_session_ctx_t *session, sr_change_oper_t operation, const char *xpath, const char *value, const char *prev_value, config_data_list_t *ccl)
 {
 	/* if operation is SR_OP_CREATED, business as usual,
 	 * if operation is SR_OP_MODIFIED, call deletion for prev_value and creation for value
@@ -44,6 +44,9 @@ int dhcpv6_client_config_set_value(sr_change_oper_t operation, const char *xpath
 
 	//xpath_cpy_vendor_class_id = xstrdup(xpath);
 	//xpath_cpy_vendor_specific_sub_opt_code = xstrdup(xpath);
+	char *xpath_cpy = NULL;
+
+	xpath_cpy = xstrdup(xpath); // used to check container value for oro and vendor specific options
 
 	leaf_node = sr_xpath_node_name((char *) xpath);
 	if (leaf_node == NULL) {
@@ -75,6 +78,8 @@ int dhcpv6_client_config_set_value(sr_change_oper_t operation, const char *xpath
 			}
 		} else if (strcmp("enabled", leaf_node) == 0) {
 			// TODO: implement
+			// to enable run: dhclient -6 "if_name"
+			// to disable run: dhclient -6 -r "if_name"
 
 		} else if (strcmp("duid", leaf_node) == 0) {
 			if (operation == SR_OP_CREATED) {
@@ -103,7 +108,7 @@ int dhcpv6_client_config_set_value(sr_change_oper_t operation, const char *xpath
 					goto error_out;
 				}
 			}
-		} else if (strcmp("option-request-option", leaf_node) == 0) {
+		} else if (strstr(xpath_cpy, "option-request-option") != NULL) {
 			/* only request is supported in dhclient:
 			 *	'send dhcp6.oro' syntax is deprecated, please use the 'request' syntax ("man dhclient.conf")
 			 * so just add: "request dhcp6.oro"
@@ -123,16 +128,18 @@ int dhcpv6_client_config_set_value(sr_change_oper_t operation, const char *xpath
 			}
 		} else if (strstr(leaf_node, "oro-option") != NULL) { // strstr because e.g.: oro-option[.='5']
 			if (operation == SR_OP_CREATED) {
-				SRP_LOG_ERR("adding (sending) a list of ORO is not supported by dhclient");
-				goto error_out;
+				SRP_LOG_INF("adding (sending) a list of ORO is not supported by dhclient");
+				//goto error_out;
+				/* currently this is not an error since the empty container won't be added to the datastore
+				 * the oro options will be ignored, but if the container is present "request dhcp6.oro;" will be added to the dhclient.conf file */
 				/*error = dhcpv6_client_list_add_oro(ccl, interface_node_name, (char *)value);
 				if (error != 0) {
 					SRP_LOG_ERR("dhcpv6_client_list_add_oro error");
 					goto error_out;
 				}*/
 			} else if (operation == SR_OP_MODIFIED) {
-				SRP_LOG_ERR("modification of ORO is not supported");
-				goto error_out;
+				SRP_LOG_INF("modification of ORO is not supported");
+				//goto error_out;
 				/*
 				error = dhcpv6_client_list_modify_oro(ccl, interface_node_name, (char *)prev_value, (char *)value);
 				if (error != 0) {
@@ -140,8 +147,8 @@ int dhcpv6_client_config_set_value(sr_change_oper_t operation, const char *xpath
 					goto error_out;
 				}*/
 			} else if (operation == SR_OP_DELETED) {
-				SRP_LOG_ERR("deleting list of ORO is not supported by dhclient");
-				goto error_out;
+				SRP_LOG_INF("deleting list of ORO is not supported by dhclient");
+				//goto error_out;
 				/*error = dhcpv6_client_list_remove_oro(ccl, interface_node_name, (char *)value);
 				if (error != 0) {
 					SRP_LOG_ERR("dhcpv6_client_list_remove_oro error");
@@ -187,33 +194,38 @@ int dhcpv6_client_config_set_value(sr_change_oper_t operation, const char *xpath
 		} else if (strcmp("vendor-class-data-id", leaf_node) == 0) {
 			SRP_LOG_ERR("vendor class option is not currently supported in dhclient");
 			goto error_out;
-		} else if (strcmp("vendor-specific-information-options", leaf_node) == 0) {
-			if (operation == SR_OP_CREATED) {
-				// currently only increments the counter
-				error = dhcpv6_client_list_add_vnd_spec_opt(ccl, interface_node_name);
-				if (error != 0) {
-					SRP_LOG_ERR("dhcpv6_client_list_add_vnd_spec_opt error");
-					goto error_out;
-				}
-			} else if (operation == SR_OP_DELETED) {
-				// currently only decrements the counter
-				error = dhcpv6_client_list_remove_vnd_spec_opt(ccl, interface_node_name);
-				if (error != 0) {
-					SRP_LOG_ERR("dhcpv6_client_list_remove_vnd_spec_opt error");
-					goto error_out;
+		} else if (strstr(xpath_cpy, "vendor-specific-information-options") != NULL) {
+
+			if (strcmp("enterprise-number", leaf_node) == 0) {
+				SRP_LOG_INF("sending enterprise-number by client is currently not supported by dhclient");
+				//goto error_out; // commented out because if we error out on this the whole container won't be present in the datastore
+				/* so we're just ignoring everything related to ent num, sub opt code and sub opt data and we're only requesting this info from the server with:
+				* "request dhcp6.vendor-opts;" */
+			} else if (strcmp("sub-option-code", leaf_node) == 0) {
+				SRP_LOG_INF("sending sub-option-code by client is currently not supported by dhclient");
+				//goto error_out;
+			} else if (strcmp("sub-option-data", leaf_node) == 0) {
+				SRP_LOG_INF("sending sub-option-code by client is currently not supported by dhclient");
+				//goto error_out;
+			} else {
+				if (operation == SR_OP_CREATED) {
+					// currently only increments the counter
+					error = dhcpv6_client_list_add_vnd_spec_opt(ccl, interface_node_name);
+					if (error != 0) {
+						SRP_LOG_ERR("dhcpv6_client_list_add_vnd_spec_opt error");
+						goto error_out;
+					}
+				} else if (operation == SR_OP_DELETED) {
+					// currently only decrements the counter
+					error = dhcpv6_client_list_remove_vnd_spec_opt(ccl, interface_node_name);
+					if (error != 0) {
+						SRP_LOG_ERR("dhcpv6_client_list_remove_vnd_spec_opt error");
+						goto error_out;
+					}
 				}
 			}
 		}
-		else if (strcmp("enterprise-number", leaf_node) == 0) {
-			SRP_LOG_ERR("sending enterprise-number by client is currently not supported by dhclient");
-			goto error_out;
-		} else if (strcmp("sub-option-code", leaf_node) == 0) {
-			SRP_LOG_ERR("sending sub-option-code by client is currently not supported by dhclient");
-			goto error_out;
-		}  else if (strcmp("sub-option-data", leaf_node) == 0) {
-			SRP_LOG_ERR("sending sub-option-code by client is currently not supported by dhclient");
-			goto error_out;
-		}  /* vendor class is not implemented in dhclient
+		/* vendor class is not implemented in dhclient
 		 else if (strcmp("vendor-class-data-id", leaf_node) == 0) {
 			// set when vendor-class-data leaf is processed
 			// when vendor class data id is changed it is always followed with vendor class data
@@ -292,6 +304,7 @@ int dhcpv6_client_config_set_value(sr_change_oper_t operation, const char *xpath
 	FREE_SAFE(xpath_cpy_vendor_class_id);
 	FREE_SAFE(xpath_cpy_vendor_specific_sub_opt_code);
 	*/
+	FREE_SAFE(xpath_cpy);
 
 	return SR_ERR_OK;
 
@@ -311,6 +324,9 @@ error_out:
 	if (xpath_cpy_vendor_specific_sub_opt_code != NULL) {
 		FREE_SAFE(xpath_cpy_vendor_specific_sub_opt_code);
 	}*/
+	if (xpath_cpy != NULL) {
+		FREE_SAFE(xpath_cpy);
+	}
 
 	return SR_ERR_CALLBACK_FAILED;
 }

@@ -148,7 +148,7 @@ static int dhcpv6_client_module_change_cb(sr_session_ctx_t *session, uint32_t su
 
 				SRP_LOG_DBG("node_xpath: %s; prev_val: %s; node_val: %s; operation: %d", node_xpath, prev_value, node_value, operation);
 
-				error = dhcpv6_client_config_set_value(operation, node_xpath, node_value, prev_value, &client_config_list);
+				error = dhcpv6_client_config_set_value(session, operation, node_xpath, node_value, prev_value, &client_config_list);
 				if (error != 0) {
 					SRP_LOG_ERR("set_config_value error (%d)", error);
 					goto out;
