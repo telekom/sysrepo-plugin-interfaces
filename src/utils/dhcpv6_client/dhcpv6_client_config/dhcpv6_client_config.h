@@ -14,6 +14,7 @@
 #ifndef DHCPV6_CLIENT_CONFIG_ONCE_H
 #define DHCPV6_CLIENT_CONFIG_ONCE_H
 
+#include "../dhcpv6_client/dhcpv6_client.h"
 #include "../dhcpv6_client_list/dhcpv6_client_list.h"
 #include "../../memory.h"
 

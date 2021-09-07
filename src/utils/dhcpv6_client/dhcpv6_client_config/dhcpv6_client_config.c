@@ -77,10 +77,19 @@ int dhcpv6_client_config_set_value(sr_session_ctx_t *session, sr_change_oper_t o
 				}
 			}
 		} else if (strcmp("enabled", leaf_node) == 0) {
-			// TODO: implement
-			// to enable run: dhclient -6 "if_name"
-			// to disable run: dhclient -6 -r "if_name"
-
+			if (strcmp((char *)value, "true") == 0) {
+				error = dhcpv6_client_enable(interface_node_name);
+				if (error != 0) {
+					SRP_LOG_ERR("dhcpv6_client_enable error");
+					goto error_out;
+				}
+			} else {
+				error = dhcpv6_client_release(interface_node_name);
+				if (error != 0) {
+					SRP_LOG_ERR("dhcpv6_client_release error");
+					goto error_out;
+				}
+			}
 		} else if (strcmp("duid", leaf_node) == 0) {
 			if (operation == SR_OP_CREATED) {
 				error = dhcpv6_client_list_add_duid(ccl, interface_node_name, (char *)value);

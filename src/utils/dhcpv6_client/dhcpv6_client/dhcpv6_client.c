@@ -17,8 +17,12 @@
 #define DHCPV6_CLIENT_YANG_MODEL "/" BASE_YANG_MODEL ":dhcpv6-client"
 
 #define SYSREPOCFG_EMPTY_CHECK_COMMAND "sysrepocfg -X -d running -m " BASE_YANG_MODEL
-#define DHCLIENT_RELEASE "dhclient -r"
+
+#define DHCLIENT_RELEASE "dhclient -6 -r"
+#define RELEASE_CMD_LEN 15 + IFNAMSIZ // 14 is the length of "dhclient -6 -r" string and +1 for the space
+
 #define DHCLIENT_ENABLE "dhclient"
+#define ENABLE_CMD_LEN 9 + IFNAMSIZ // 8 is the length of "dhclient -6" string and +1 for the space
 
 static int dhcpv6_client_module_change_cb(sr_session_ctx_t *session, uint32_t subscription_id, const char *module_name, const char *xpath, sr_event_t event, uint32_t request_id, void *private_data);
 static int dhcpv6_client_state_data_cb(sr_session_ctx_t *session, uint32_t subscription_id, const char *module_name, const char *path, const char *request_xpath, uint32_t request_id, struct lyd_node **parent, void *private_data);
@@ -219,6 +223,46 @@ static int dhcpv6_client_restart(void)
 	error = system(DHCLIENT_ENABLE);
 	if (error != 0) {
 		SRP_LOG_ERR("\"%s\" failed with return value: %d", DHCLIENT_ENABLE, error);
+		return -1;
+	}
+
+	return error;
+}
+
+int dhcpv6_client_enable(char *if_name)
+{
+	int error = 0;
+	char cmd[ENABLE_CMD_LEN] = {0};
+
+	error = snprintf(cmd, ENABLE_CMD_LEN, "dhclient -6 %s", if_name);
+	if (error < 0) {
+		SRP_LOG_ERR("snprintf error");
+		return -1;
+	}
+
+	error = system(cmd);
+	if (error != 0) {
+		SRP_LOG_ERR("\"%s\" failed with return value: %d", cmd, error);
+		return -1;
+	}
+
+	return error;
+}
+
+int dhcpv6_client_release(char *if_name)
+{
+	int error = 0;
+	char cmd[RELEASE_CMD_LEN] = {0};
+
+	error = snprintf(cmd, RELEASE_CMD_LEN, "dhclient -6 -r %s", if_name);
+	if (error < 0) {
+		SRP_LOG_ERR("snprintf error");
+		return -1;
+	}
+
+	error = system(cmd);
+	if (error != 0) {
+		SRP_LOG_ERR("\"%s\" failed with return value: %d", cmd, error);
 		return -1;
 	}
 

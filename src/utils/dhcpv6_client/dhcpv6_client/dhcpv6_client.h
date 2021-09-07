@@ -23,6 +23,7 @@
 #include <string.h>
 #include <stdbool.h>
 #include <libgen.h>
+#include <net/if.h>
 
 #include "../../memory.h"
 #include "../dhcpv6_client_list/dhcpv6_client_list.h"
@@ -34,5 +35,8 @@ static config_data_list_t client_config_list = {0};
 
 int dhcpv6_client_subscribe(sr_session_ctx_t *session, void **private_data, sr_subscription_ctx_t **subscription);
 int dhcpv6_client_init(sr_session_ctx_t *session, sr_session_ctx_t *startup_session);
+
+int dhcpv6_client_enable(char *if_name);
+int dhcpv6_client_release(char *if_name);
 
 #endif /* DHCPV6_CLIENT_ONCE_H */
