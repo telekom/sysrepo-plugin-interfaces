@@ -11,6 +11,7 @@
  * SPDX-License-Identifier: BSD-3-Clause
  */
 
+#include <linux/limits.h>
 #include <sysrepo.h>
 #include <sysrepo/xpath.h>
 #include <libyang/libyang.h>

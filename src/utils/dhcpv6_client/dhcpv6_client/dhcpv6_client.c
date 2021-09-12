@@ -304,7 +304,7 @@ int dhcpv6_client_state_data_cb(sr_session_ctx_t *session, uint32_t subscription
 
 	// iterate through the gathered operational data and
 	// create new nodes in the data tree based on corresponding xpaths
-	error = dhcpv6_client_oper_create(oper_data, parent, ly_ctx); // send parent and ly_ctx as well
+	error = dhcpv6_client_oper_create(oper_data, parent, ly_ctx);
 	if (error != 0) {
 		SRP_LOG_ERR("dhcpv6_client_oper_create error");
 		goto error_out;
