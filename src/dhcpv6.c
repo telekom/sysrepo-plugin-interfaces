@@ -21,7 +21,6 @@ int sr_plugin_init_cb(sr_session_ctx_t *session, void **private_data)
 	int error = SR_ERR_OK;
 	sr_conn_ctx_t *connection = NULL;
 	sr_session_ctx_t *startup_session = NULL;
-	sr_subscription_ctx_t *subscription = NULL;
 
 	*private_data = NULL;
 
@@ -49,7 +48,7 @@ int sr_plugin_init_cb(sr_session_ctx_t *session, void **private_data)
 	SRP_LOG_INF("subscribing to 'dhcpv6-client' module changes");
 
 	/* subscribe to dhcpv6-client changes */
-	error = dhcpv6_client_subscribe(session, private_data, &subscription);
+	error = dhcpv6_client_subscribe(session, private_data);
 	if (error) {
 		SRP_LOG_ERR("dhcpv6_client_subscribe error (%d): %s", error, sr_strerror(error));
 		goto error_out;
@@ -57,14 +56,10 @@ int sr_plugin_init_cb(sr_session_ctx_t *session, void **private_data)
 
 	SRP_LOG_INF("plugin init done");
 
-    sr_unsubscribe(subscription);
-
 	goto out;
 
 error_out:
-	if (subscription != NULL) {
-		sr_unsubscribe(subscription);
-	}
+
 out:
 	return error ? SR_ERR_CALLBACK_FAILED : SR_ERR_OK;
 }

@@ -25,7 +25,7 @@
 #define ENABLE_CMD_LEN 9 + IFNAMSIZ // 8 is the length of "dhclient -6" string and +1 for the space
 
 static int dhcpv6_client_module_change_cb(sr_session_ctx_t *session, uint32_t subscription_id, const char *module_name, const char *xpath, sr_event_t event, uint32_t request_id, void *private_data);
-static int dhcpv6_client_state_data_cb(sr_session_ctx_t *session, uint32_t subscription_id, const char *module_name, const char *path, const char *request_xpath, uint32_t request_id, struct lyd_node **parent, void *private_data);
+int dhcpv6_client_state_data_cb(sr_session_ctx_t *session, uint32_t subscription_id, const char *module_name, const char *path, const char *request_xpath, uint32_t request_id, struct lyd_node **parent, void *private_data);
 
 // utils
 static bool is_running_datastore_empty(void);
@@ -80,23 +80,34 @@ out:
 	return is_empty;
 }
 
-int dhcpv6_client_subscribe(sr_session_ctx_t *session, void **private_data, sr_subscription_ctx_t **subscription)
+int dhcpv6_client_subscribe(sr_session_ctx_t *session, void **private_data)
 {
 	int error = SR_ERR_OK;
+	sr_subscription_ctx_t *subscription = NULL;
 
-	error = sr_module_change_subscribe(session, BASE_YANG_MODEL, "/" BASE_YANG_MODEL ":*//.", dhcpv6_client_module_change_cb, *private_data, 0, SR_SUBSCR_DEFAULT, subscription);
+	error = sr_module_change_subscribe(session, BASE_YANG_MODEL, "/" BASE_YANG_MODEL ":*//.", dhcpv6_client_module_change_cb, *private_data, 0, SR_SUBSCR_DEFAULT, &subscription);
 	if (error) {
 		SRP_LOG_ERR("sr_module_change_subscribe error (%d): %s", error, sr_strerror(error));
-		return error;
+		goto error_out;
 	}
 
-	error = sr_oper_get_items_subscribe(session, BASE_YANG_MODEL, DHCPV6_CLIENT_YANG_MODEL "/*", dhcpv6_client_state_data_cb, NULL, SR_SUBSCR_DEFAULT, subscription);
+	error = sr_oper_get_items_subscribe(session, BASE_YANG_MODEL, DHCPV6_CLIENT_YANG_MODEL "/*", dhcpv6_client_state_data_cb, NULL, SR_SUBSCR_CTX_REUSE, &subscription);
 	if (error) {
 		SRP_LOG_ERR("sr_oper_get_items_subscribe error (%d): %s", error, sr_strerror(error));
-		return error;
+		goto error_out;
 	}
 
-	return error;
+	sr_unsubscribe(subscription);
+
+	goto out;
+
+error_out:
+	if (subscription != NULL) {
+		sr_unsubscribe(subscription);
+	}
+
+out:
+	return error ? SR_ERR_CALLBACK_FAILED : SR_ERR_OK;
 }
 
 static int dhcpv6_client_module_change_cb(sr_session_ctx_t *session, uint32_t subscription_id, const char *module_name, const char *xpath, sr_event_t event, uint32_t request_id, void *private_data)
@@ -269,7 +280,44 @@ int dhcpv6_client_release(char *if_name)
 	return error;
 }
 
-static int dhcpv6_client_state_data_cb(sr_session_ctx_t *session, uint32_t subscription_id, const char *module_name, const char *path, const char *request_xpath, uint32_t request_id, struct lyd_node **parent, void *private_data)
+int dhcpv6_client_state_data_cb(sr_session_ctx_t *session, uint32_t subscription_id, const char *module_name, const char *path, const char *request_xpath, uint32_t request_id, struct lyd_node **parent, void *private_data)
 {
-	return 0;
+	int error = SR_ERR_OK;
+	const struct ly_ctx *ly_ctx = NULL;
+	oper_data_t *oper_data = {0};
+
+	if (*parent == NULL) {
+		ly_ctx = sr_get_context(sr_session_get_connection(session));
+		if (ly_ctx == NULL) {
+			error = SR_ERR_CALLBACK_FAILED;
+			goto error_out;
+		}
+		lyd_new_path(*parent, ly_ctx, request_xpath, NULL, 0, NULL);
+	}
+
+	// parse the dhclient6.leases file to gather operational data
+	error = dhcpv6_client_leases_file_parse(oper_data);
+	if (error != 0) {
+		SRP_LOG_ERR("dhcpv6_client_leases_file_parse error");
+		goto error_out;
+	}
+
+	// iterate through the gathered operational data and
+	// create new nodes in the data tree based on corresponding xpaths
+	error = dhcpv6_client_oper_create(oper_data, parent, ly_ctx); // send parent and ly_ctx as well
+	if (error != 0) {
+		SRP_LOG_ERR("dhcpv6_client_oper_create error");
+		goto error_out;
+	}
+
+	// cleanup oper_data
+	dhcpv6_client_oper_cleanup(oper_data);
+
+	goto out;
+
+error_out:
+	error = SR_ERR_CALLBACK_FAILED;
+
+out:
+	return error ? SR_ERR_CALLBACK_FAILED : SR_ERR_OK;
 }

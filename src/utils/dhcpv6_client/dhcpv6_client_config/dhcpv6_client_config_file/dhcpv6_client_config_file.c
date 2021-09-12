@@ -716,11 +716,12 @@ error_out:
 // TODO: move to utils.c
 char *strstrip(char *s)
 {
-	// stolen from Linux kernel and modified to remove " and ; from s
+	// stolen from Linux kernel and modified to remove '"', ':', ';' from s
 	size_t size = 0;
 	char *end = 0;
 	int double_quote = 34; // " ascii integer
 	int semicolon = 59; // ; ascii integer
+	int colon = 58; // : ascii integer
 
 	// check if double quote is at start of string
 	if (s[0] == double_quote) {
@@ -734,7 +735,7 @@ char *strstrip(char *s)
 	}
 
 	end = s + size - 1;
-	while ((end >= s && isspace(*end)) || *end == double_quote || *end == semicolon) { // also remove double quote and ";"
+	while ((end >= s && isspace(*end)) || *end == double_quote || *end == semicolon || *end == colon) { // also remove double quote and ";"
 		end--;
 	}
 

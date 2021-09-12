@@ -18,6 +18,8 @@ set(SOURCES
     src/utils/dhcpv6_client/dhcpv6_client_list/dhcpv6_client_list_modify.c
     src/utils/dhcpv6_client/dhcpv6_client_config/dhcpv6_client_config.c
     src/utils/dhcpv6_client/dhcpv6_client_config/dhcpv6_client_config_file/dhcpv6_client_config_file.c
+    src/utils/dhcpv6_client/dhcpv6_client_oper/dhcpv6_client_oper.c
+    src/utils/dhcpv6_client/dhcpv6_client_oper/dhcpv6_client_leases_file/dhcpv6_client_leases_file.c
     src/utils/memory.c
 )
 
