@@ -18,11 +18,11 @@
 
 #define SYSREPOCFG_EMPTY_CHECK_COMMAND "sysrepocfg -X -d running -m " BASE_YANG_MODEL
 
-#define DHCLIENT_RELEASE "dhclient -6 -r"
-#define RELEASE_CMD_LEN 15 + IFNAMSIZ // 14 is the length of "dhclient -6 -r" string and +1 for the space
+#define DHCLIENT_RELEASE "dhclient -r"
+#define RELEASE_CMD_LEN 12 + IFNAMSIZ // 11 is the length of "dhclient -r" string and +1 for the space
 
-#define DHCLIENT_ENABLE "dhclient"
-#define ENABLE_CMD_LEN 9 + IFNAMSIZ // 8 is the length of "dhclient -6" string and +1 for the space
+#define DHCLIENT_ENABLE "dhclient -6 -nw"
+#define ENABLE_CMD_LEN 16 + IFNAMSIZ // 15 is the length of "dhclient -6 -nw" string and +1 for the space
 
 static int dhcpv6_client_module_change_cb(sr_session_ctx_t *session, uint32_t subscription_id, const char *module_name, const char *xpath, sr_event_t event, uint32_t request_id, void *private_data);
 int dhcpv6_client_state_data_cb(sr_session_ctx_t *session, uint32_t subscription_id, const char *module_name, const char *path, const char *request_xpath, uint32_t request_id, struct lyd_node **parent, void *private_data);
@@ -80,34 +80,23 @@ out:
 	return is_empty;
 }
 
-int dhcpv6_client_subscribe(sr_session_ctx_t *session, void **private_data)
+int dhcpv6_client_subscribe(sr_session_ctx_t *session, void **private_data, sr_subscription_ctx_t **subscription)
 {
 	int error = SR_ERR_OK;
-	sr_subscription_ctx_t *subscription = NULL;
 
-	error = sr_module_change_subscribe(session, BASE_YANG_MODEL, "/" BASE_YANG_MODEL ":*//.", dhcpv6_client_module_change_cb, *private_data, 0, SR_SUBSCR_DEFAULT, &subscription);
+	error = sr_module_change_subscribe(session, BASE_YANG_MODEL, "/" BASE_YANG_MODEL ":*//.", dhcpv6_client_module_change_cb, *private_data, 0, SR_SUBSCR_DEFAULT, subscription);
 	if (error) {
 		SRP_LOG_ERR("sr_module_change_subscribe error (%d): %s", error, sr_strerror(error));
-		goto error_out;
+		return error;
 	}
 
-	error = sr_oper_get_items_subscribe(session, BASE_YANG_MODEL, DHCPV6_CLIENT_YANG_MODEL "/*", dhcpv6_client_state_data_cb, NULL, SR_SUBSCR_CTX_REUSE, &subscription);
+	error = sr_oper_get_items_subscribe(session, BASE_YANG_MODEL, DHCPV6_CLIENT_YANG_MODEL "/*", dhcpv6_client_state_data_cb, NULL, SR_SUBSCR_DEFAULT, subscription);
 	if (error) {
 		SRP_LOG_ERR("sr_oper_get_items_subscribe error (%d): %s", error, sr_strerror(error));
-		goto error_out;
+		return error;
 	}
 
-	sr_unsubscribe(subscription);
-
-	goto out;
-
-error_out:
-	if (subscription != NULL) {
-		sr_unsubscribe(subscription);
-	}
-
-out:
-	return error ? SR_ERR_CALLBACK_FAILED : SR_ERR_OK;
+	return error;
 }
 
 static int dhcpv6_client_module_change_cb(sr_session_ctx_t *session, uint32_t subscription_id, const char *module_name, const char *xpath, sr_event_t event, uint32_t request_id, void *private_data)
@@ -245,7 +234,7 @@ int dhcpv6_client_enable(char *if_name)
 	int error = 0;
 	char cmd[ENABLE_CMD_LEN] = {0};
 
-	error = snprintf(cmd, ENABLE_CMD_LEN, "dhclient -6 %s", if_name);
+	error = snprintf(cmd, ENABLE_CMD_LEN, "dhclient -6 -nw %s", if_name);
 	if (error < 0) {
 		SRP_LOG_ERR("snprintf error");
 		return -1;
@@ -265,7 +254,7 @@ int dhcpv6_client_release(char *if_name)
 	int error = 0;
 	char cmd[RELEASE_CMD_LEN] = {0};
 
-	error = snprintf(cmd, RELEASE_CMD_LEN, "dhclient -6 -r %s", if_name);
+	error = snprintf(cmd, RELEASE_CMD_LEN, "dhclient -r %s", if_name);
 	if (error < 0) {
 		SRP_LOG_ERR("snprintf error");
 		return -1;

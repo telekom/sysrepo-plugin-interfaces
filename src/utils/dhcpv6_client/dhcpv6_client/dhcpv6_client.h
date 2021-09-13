@@ -35,7 +35,7 @@
 /* client config list which holds all configuration parameters for each interface */
 static config_data_list_t client_config_list = {0};
 
-int dhcpv6_client_subscribe(sr_session_ctx_t *session, void **private_data);
+int dhcpv6_client_subscribe(sr_session_ctx_t *session, void **private_data, sr_subscription_ctx_t **subscription);
 int dhcpv6_client_init(sr_session_ctx_t *session, sr_session_ctx_t *startup_session);
 
 int dhcpv6_client_enable(char *if_name);
