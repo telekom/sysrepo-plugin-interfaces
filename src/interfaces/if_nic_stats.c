@@ -23,7 +23,7 @@
 #include <sys/types.h>
 
 #include "if_nic_stats.h"
-#include "memory.h"
+#include "utils/memory.h"
 
 int get_nic_stats(char *if_name, nic_stats_t *nic_stats)
 {

@@ -11,7 +11,7 @@
  * SPDX-License-Identifier: BSD-3-Clause
  */
 
-#include "utils/ip_data.h"
+#include "ip_data.h"
 #include "utils/memory.h"
 #include <stdlib.h>
 #include <string.h>

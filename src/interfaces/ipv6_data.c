@@ -11,7 +11,7 @@
  * SPDX-License-Identifier: BSD-3-Clause
  */
 
-#include "utils/ipv6_data.h"
+#include "ipv6_data.h"
 #include <string.h>
 #include <stdlib.h>
 

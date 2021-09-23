@@ -49,10 +49,10 @@
 #include <sysrepo.h>
 #include <sysrepo/xpath.h>
 
-#include "utils/if_nic_stats.h"
-#include "utils/if_state.h"
-#include "utils/ip_data.h"
-#include "utils/link_data.h"
+#include "if_nic_stats.h"
+#include "if_state.h"
+#include "ip_data.h"
+#include "link_data.h"
 #include "utils/memory.h"
 
 #define BASE_YANG_MODEL "ietf-interfaces"

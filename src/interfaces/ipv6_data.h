@@ -14,7 +14,7 @@
 #ifndef IPv6_DATA_H_ONCE
 #define IPv6_DATA_H_ONCE
 
-#include <utils/ip_data.h>
+#include "ip_data.h"
 
 typedef struct ipv6_data_s ipv6_data_t;
 typedef struct ipv6_autoconf_s ipv6_autoconf_t;

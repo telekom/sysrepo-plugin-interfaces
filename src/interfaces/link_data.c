@@ -12,10 +12,10 @@
  */
 
 #include <linux/if.h>
-#include "utils/ip_data.h"
-#include "utils/ipv4_data.h"
-#include "utils/ipv6_data.h"
-#include "utils/link_data.h"
+#include "ip_data.h"
+#include "ipv4_data.h"
+#include "ipv6_data.h"
+#include "link_data.h"
 #include "utils/memory.h"
 #include <string.h>
 #include <errno.h>

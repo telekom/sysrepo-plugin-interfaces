@@ -16,9 +16,9 @@
 
 #include <stdint.h>
 #include <stdbool.h>
-#include "utils/ip_data.h"
-#include "utils/ipv4_data.h"
-#include "utils/ipv6_data.h"
+#include "ip_data.h"
+#include "ipv4_data.h"
+#include "ipv6_data.h"
 
 #define LD_MAX_LINKS 100 // TODO: check this
 
