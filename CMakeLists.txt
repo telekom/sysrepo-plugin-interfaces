@@ -33,9 +33,14 @@ include_directories(
 )
 
 option(INTERFACES_PLUGIN "Enable interfaces plugin" ON)
+option(ROUTING_PLUGIN "Enable interfaces plugin" ON)
 
 if(INTERFACES_PLUGIN)
 	add_subdirectory(src/interfaces)
+endif()
+
+if(ROUTING_PLUGIN)
+	add_subdirectory(src/routing)
 endif()
 
 if(ENABLE_BUILD_TESTS)
