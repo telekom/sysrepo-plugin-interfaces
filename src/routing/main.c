@@ -31,7 +31,7 @@ int main(void)
 
 	error = sr_plugin_init_cb(session, &private_data);
 	if (error) {
-		SRP_LOG_ERRMSG("sr_plugin_init_cb error");
+		SRP_LOG_ERR("sr_plugin_init_cb error");
 		goto out;
 	}
 
@@ -51,6 +51,6 @@ out:
 
 static void sigint_handler(__attribute__((unused)) int signum)
 {
-	SRP_LOG_INFMSG("Sigint called, exiting...");
+	SRP_LOG_INF("Sigint called, exiting...");
 	exit_application = 1;
 }

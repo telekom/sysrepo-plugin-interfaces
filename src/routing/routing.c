@@ -63,8 +63,8 @@
 #define SYSREPOCFG_EMPTY_CHECK_COMMAND "sysrepocfg -X -d running -m " BASE_YANG_MODEL
 
 // module changes
-static int routing_module_change_control_plane_protocol_list_cb(sr_session_ctx_t *session, const char *module_name, const char *xpath, sr_event_t event, uint32_t request_id, void *private_data);
-static int routing_module_change_rib_list_cb(sr_session_ctx_t *session, const char *module_name, const char *xpath, sr_event_t event, uint32_t request_id, void *private_data);
+static int routing_module_change_control_plane_protocol_list_cb(sr_session_ctx_t *session, uint32_t subscription_id, const char *module_name, const char *xpath, sr_event_t event, uint32_t request_id, void *private_data);
+static int routing_module_change_rib_list_cb(sr_session_ctx_t *session, uint32_t subscription_id, const char *module_name, const char *xpath, sr_event_t event, uint32_t request_id, void *private_data);
 
 // module changes helpers - changing/deleting values
 
@@ -79,11 +79,11 @@ static int routing_rib_set_address_family(const char *name, const char *address_
 static int routing_rib_set_description(const char *name, const char *description);
 
 // operational callbacks
-static int routing_oper_get_interfaces_cb(sr_session_ctx_t *session, const char *module_name, const char *path, const char *request_xpath, uint32_t request_id, struct lyd_node **parent, void *private_data);
-static int routing_oper_get_rib_routes_cb(sr_session_ctx_t *session, const char *module_name, const char *path, const char *request_xpath, uint32_t request_id, struct lyd_node **parent, void *private_data);
+static int routing_oper_get_interfaces_cb(sr_session_ctx_t *session, uint32_t subscription_id, const char *module_name, const char *path, const char *request_xpath, uint32_t request_id, struct lyd_node **parent, void *private_data);
+static int routing_oper_get_rib_routes_cb(sr_session_ctx_t *session, uint32_t subscription_id, const char *module_name, const char *path, const char *request_xpath, uint32_t request_id, struct lyd_node **parent, void *private_data);
 
 // rpc callbacks
-static int routing_rpc_active_route_cb(sr_session_ctx_t *session, const char *xpath, const sr_val_t *input, const size_t input_cnt, sr_event_t event, uint32_t request_id, sr_val_t **output, size_t *output_cnt, void *private_data);
+static int routing_rpc_active_route_cb(sr_session_ctx_t *session, uint32_t subscription_id, const char *xpath, const sr_val_t *input, const size_t input_cnt, sr_event_t event, uint32_t request_id, sr_val_t **output, size_t *output_cnt, void *private_data);
 
 // initial loading into the datastore
 static int routing_load_data(sr_session_ctx_t *session);
@@ -117,20 +117,20 @@ int sr_plugin_init_cb(sr_session_ctx_t *session, void **private_data)
 	*private_data = startup_session;
 
 	if (routing_running_datastore_is_empty()) {
-		SRP_LOG_INFMSG("running datasore is empty -> loading data");
+		SRP_LOG_INF("running datasore is empty -> loading data");
 		error = routing_load_data(session);
 		if (error) {
-			SRP_LOG_ERRMSG("error loading initial data into the datastore... exiting");
+			SRP_LOG_ERR("error loading initial data into the datastore... exiting");
 			goto error_out;
 		}
-		error = sr_copy_config(startup_session, BASE_YANG_MODEL, SR_DS_RUNNING, 0, 0);
+		error = sr_copy_config(startup_session, BASE_YANG_MODEL, SR_DS_RUNNING, 0);
 		if (error) {
 			SRP_LOG_ERR("sr_copy_config error (%d): %s", error, sr_strerror(error));
 			goto error_out;
 		}
 	}
 
-	SRP_LOG_INFMSG("subscribing to module change");
+	SRP_LOG_INF("subscribing to module change");
 
 	// control-plane-protocol list module changes
 	error = sr_module_change_subscribe(session, BASE_YANG_MODEL, ROUTING_CONTROL_PLANE_PROTOCOL_LIST_YANG_PATH "//*", routing_module_change_control_plane_protocol_list_cb, *private_data, 0, SR_SUBSCR_DEFAULT, &subscription);
@@ -146,7 +146,7 @@ int sr_plugin_init_cb(sr_session_ctx_t *session, void **private_data)
 		goto error_out;
 	}
 
-	SRP_LOG_INFMSG("subscribing to interfaces operational data");
+	SRP_LOG_INF("subscribing to interfaces operational data");
 
 	// interface leaf-list oper data
 	error = sr_oper_get_items_subscribe(session, BASE_YANG_MODEL, ROUTING_INTERFACE_LEAF_LIST_YANG_PATH, routing_oper_get_interfaces_cb, NULL, SR_SUBSCR_CTX_REUSE, &subscription);
@@ -162,7 +162,7 @@ int sr_plugin_init_cb(sr_session_ctx_t *session, void **private_data)
 		goto error_out;
 	}
 
-	SRP_LOG_INFMSG("subscribing to plugin RPCs/actions");
+	SRP_LOG_INF("subscribing to plugin RPCs/actions");
 
 	// active-route RPC/action
 	error = sr_rpc_subscribe(session, ROUTING_RIB_LIST_ACTIVE_ROUTE_RPC_PATH, routing_rpc_active_route_cb, NULL, 1, SR_SUBSCR_CTX_REUSE, &subscription);
@@ -182,7 +182,7 @@ void sr_plugin_cleanup_cb(sr_session_ctx_t *session, void *private_data)
 {
 }
 
-static int routing_module_change_control_plane_protocol_list_cb(sr_session_ctx_t *session, const char *module_name, const char *xpath, sr_event_t event, uint32_t request_id, void *private_data)
+static int routing_module_change_control_plane_protocol_list_cb(sr_session_ctx_t *session, uint32_t subscription_id, const char *module_name, const char *xpath, sr_event_t event, uint32_t request_id, void *private_data)
 {
 	int error = 0;
 
@@ -194,13 +194,11 @@ static int routing_module_change_control_plane_protocol_list_cb(sr_session_ctx_t
 
 	// libyang
 	const struct lyd_node *node = NULL;
-	struct lyd_node_leaf_list *node_leaf_list;
-	struct lys_node_leaf *schema_node_leaf;
 
 	// temp helper vars
 	const char *prev_value = NULL;
 	const char *prev_list = NULL;
-	bool prev_default = false;
+	int prev_default = false;
 	char *node_xpath = NULL;
 	const char *node_value = NULL;
 
@@ -216,7 +214,7 @@ static int routing_module_change_control_plane_protocol_list_cb(sr_session_ctx_t
 		error = -1;
 		goto error_out;
 	} else if (event == SR_EV_DONE) {
-		error = sr_copy_config(startup_session, BASE_YANG_MODEL, SR_DS_RUNNING, 0, 0);
+		error = sr_copy_config(startup_session, BASE_YANG_MODEL, SR_DS_RUNNING, 0);
 		if (error) {
 			SRP_LOG_ERR("sr_copy_config error (%d): %s", error, sr_strerror(error));
 			goto error_out;
@@ -232,12 +230,7 @@ static int routing_module_change_control_plane_protocol_list_cb(sr_session_ctx_t
 			node_xpath = routing_xpath_get(node);
 
 			if (node->schema->nodetype == LYS_LEAF || node->schema->nodetype == LYS_LEAFLIST) {
-				node_leaf_list = (struct lyd_node_leaf_list *) node;
-				node_value = node_leaf_list->value_str;
-				if (node_value == NULL) {
-					schema_node_leaf = (struct lys_node_leaf *) node_leaf_list->schema;
-					node_value = schema_node_leaf->dflt ? schema_node_leaf->dflt : "";
-				}
+				node_value = xstrdup(lyd_get_value(node));
 			}
 
 			SRP_LOG_DBG("node_xpath: %s; prev_val: %s; node_val: %s; operation: %d", node_xpath, prev_value, node_value, operation);
@@ -250,7 +243,7 @@ static int routing_module_change_control_plane_protocol_list_cb(sr_session_ctx_t
 				if (strncmp(node_name, "description", sizeof("description") - 1) == 0) {
 					error = routing_control_plane_protocol_set_description(type_key, name_key, node_value);
 					if (error != 0) {
-						SRP_LOG_ERRMSG("routing_control_plane_protocol_set_description failed");
+						SRP_LOG_ERR("routing_control_plane_protocol_set_description failed");
 						goto error_out;
 					}
 				}
@@ -272,7 +265,7 @@ out:
 	return error != 0 ? SR_ERR_CALLBACK_FAILED : SR_ERR_OK;
 }
 
-static int routing_module_change_rib_list_cb(sr_session_ctx_t *session, const char *module_name, const char *xpath, sr_event_t event, uint32_t request_id, void *private_data)
+static int routing_module_change_rib_list_cb(sr_session_ctx_t *session, uint32_t subscription_id, const char *module_name, const char *xpath, sr_event_t event, uint32_t request_id, void *private_data)
 {
 	int error = 0;
 
@@ -284,13 +277,11 @@ static int routing_module_change_rib_list_cb(sr_session_ctx_t *session, const ch
 
 	// libyang
 	const struct lyd_node *node = NULL;
-	struct lyd_node_leaf_list *node_leaf_list;
-	struct lys_node_leaf *schema_node_leaf;
 
 	// temp helper vars
 	const char *prev_value = NULL;
 	const char *prev_list = NULL;
-	bool prev_default = false;
+	int prev_default = false;
 	char *node_xpath = NULL;
 	const char *node_value = NULL;
 
@@ -305,7 +296,7 @@ static int routing_module_change_rib_list_cb(sr_session_ctx_t *session, const ch
 		error = -1;
 		goto error_out;
 	} else if (event == SR_EV_DONE) {
-		error = sr_copy_config(startup_session, BASE_YANG_MODEL, SR_DS_RUNNING, 0, 0);
+		error = sr_copy_config(startup_session, BASE_YANG_MODEL, SR_DS_RUNNING, 0);
 		if (error) {
 			SRP_LOG_ERR("sr_copy_config error (%d): %s", error, sr_strerror(error));
 			goto error_out;
@@ -321,12 +312,7 @@ static int routing_module_change_rib_list_cb(sr_session_ctx_t *session, const ch
 			node_xpath = routing_xpath_get(node);
 
 			if (node->schema->nodetype == LYS_LEAF || node->schema->nodetype == LYS_LEAFLIST) {
-				node_leaf_list = (struct lyd_node_leaf_list *) node;
-				node_value = node_leaf_list->value_str;
-				if (node_value == NULL) {
-					schema_node_leaf = (struct lys_node_leaf *) node_leaf_list->schema;
-					node_value = schema_node_leaf->dflt ? schema_node_leaf->dflt : "";
-				}
+				node_value = xstrdup(lyd_get_value(node));
 			}
 
 			SRP_LOG_DBG("node_xpath: %s; prev_val: %s; node_val: %s; operation: %d", node_xpath, prev_value, node_value, operation);
@@ -338,7 +324,7 @@ static int routing_module_change_rib_list_cb(sr_session_ctx_t *session, const ch
 				if (strncmp(node_name, "description", sizeof("description") - 1) == 0) {
 					error = routing_rib_set_description(name_key, node_value);
 					if (error != 0) {
-						SRP_LOG_ERRMSG("routing_rib_set_description failed");
+						SRP_LOG_ERR("routing_rib_set_description failed");
 						goto error_out;
 					}
 				}
@@ -389,7 +375,7 @@ static int routing_control_plane_protocol_set_description(const char *type, cons
 	snprintf(path_buffer, sizeof(path_buffer), "%s%s%s", data_dir, (data_dir[strlen(data_dir) - 1] == '/' ? "" : "/"), ROUTING_PROTOS_MAP_FNAME);
 
 	if (access(path_buffer, F_OK) != 0) {
-		SRP_LOG_ERRMSG("protocols map file doesnt exist - error");
+		SRP_LOG_ERR("protocols map file doesnt exist - error");
 		goto error_out;
 	} else {
 		fptr = fopen(path_buffer, "r");
@@ -574,7 +560,7 @@ static char *routing_xpath_get(const struct lyd_node *node)
 	char *xpath_trimed = NULL;
 
 	if (node->schema->nodetype == LYS_LEAFLIST) {
-		xpath_node = lyd_path(node);
+		xpath_node = lyd_path(node, LYD_PATH_STD, NULL, 0);
 		xpath_leaflist_open_bracket = strrchr(xpath_node, '[');
 		if (xpath_leaflist_open_bracket == NULL) {
 			return xpath_node;
@@ -589,14 +575,15 @@ static char *routing_xpath_get(const struct lyd_node *node)
 
 		return xpath_trimed;
 	} else {
-		return lyd_path(node);
+		return lyd_path(node, LYD_PATH_STD, NULL, 0);
 	}
 }
 
-static int routing_oper_get_interfaces_cb(sr_session_ctx_t *session, const char *module_name, const char *path, const char *request_xpath, uint32_t request_id, struct lyd_node **parent, void *private_data)
+static int routing_oper_get_interfaces_cb(sr_session_ctx_t *session, uint32_t subscription_id, const char *module_name, const char *path, const char *request_xpath, uint32_t request_id, struct lyd_node **parent, void *private_data)
 {
 	// error handling
 	int error = SR_ERR_OK;
+	LY_ERR ly_err = LY_SUCCESS;
 
 	// libyang
 	const struct ly_ctx *ly_ctx = NULL;
@@ -611,12 +598,16 @@ static int routing_oper_get_interfaces_cb(sr_session_ctx_t *session, const char 
 		if (ly_ctx == NULL) {
 			goto error_out;
 		}
-		lyd_new_path(*parent, ly_ctx, request_xpath, NULL, LYD_ANYDATA_CONSTSTRING, 0);
+		ly_err = lyd_new_path(*parent, ly_ctx, request_xpath, NULL, 0, NULL);
+		if (ly_err != LY_SUCCESS) {
+			SRP_LOG_ERR("unable to create new node");
+			goto error_out;
+		}
 	}
 
 	socket = nl_socket_alloc();
 	if (socket == NULL) {
-		SRP_LOG_ERRMSG("unable to init nl_sock struct...");
+		SRP_LOG_ERR("unable to init nl_sock struct...");
 		goto error_out;
 	}
 
@@ -632,13 +623,18 @@ static int routing_oper_get_interfaces_cb(sr_session_ctx_t *session, const char 
 		goto error_out;
 	}
 
-	SRP_LOG_DBGMSG("adding interfaces to the list");
+	SRP_LOG_DBG("adding interfaces to the list");
 
 	link = (struct rtnl_link *) nl_cache_get_first(cache);
 	while (link) {
 		const char *name = rtnl_link_get_name(link);
 		SRP_LOG_DBG("adding interface '%s' ", name);
-		lyd_new_path(*parent, ly_ctx, ROUTING_INTERFACE_LEAF_LIST_YANG_PATH, (void *) name, LYD_ANYDATA_STRING, 0);
+		ly_err = lyd_new_path(*parent, ly_ctx, ROUTING_INTERFACE_LEAF_LIST_YANG_PATH, (void *) name, 0, NULL);
+		if (ly_err != LY_SUCCESS) {
+			SRP_LOG_ERR("unable to create new interface node");
+			goto error_out;
+		}
+
 		link = (struct rtnl_link *) nl_cache_get_next((struct nl_object *) link);
 	}
 
@@ -660,10 +656,11 @@ static void foreach_nexthop(struct rtnl_nexthop *nh, void *arg)
 	route_next_hop_add_list(nexthop, rtnl_route_nh_get_ifindex(nh), rtnl_route_nh_get_gateway(nh));
 }
 
-static int routing_oper_get_rib_routes_cb(sr_session_ctx_t *session, const char *module_name, const char *path, const char *request_xpath, uint32_t request_id, struct lyd_node **parent, void *private_data)
+static int routing_oper_get_rib_routes_cb(sr_session_ctx_t *session, uint32_t subscription_id, const char *module_name, const char *path, const char *request_xpath, uint32_t request_id, struct lyd_node **parent, void *private_data)
 {
 	int error = SR_ERR_OK;
 	int nl_err = 0;
+	LY_ERR ly_err = LY_SUCCESS;
 
 	// libyang
 	const struct ly_ctx *ly_ctx = NULL;
@@ -684,12 +681,12 @@ static int routing_oper_get_rib_routes_cb(sr_session_ctx_t *session, const char 
 
 	ly_ctx = sr_get_context(sr_session_get_connection(session));
 
-	ly_uv4mod = ly_ctx_get_module(ly_ctx, "ietf-ipv4-unicast-routing", "2018-03-13", 0);
-	ly_uv6mod = ly_ctx_get_module(ly_ctx, "ietf-ipv6-unicast-routing", "2018-03-13", 0);
+	ly_uv4mod = ly_ctx_get_module(ly_ctx, "ietf-ipv4-unicast-routing", "2018-03-13");
+	ly_uv6mod = ly_ctx_get_module(ly_ctx, "ietf-ipv6-unicast-routing", "2018-03-13");
 
 	socket = nl_socket_alloc();
 	if (socket == NULL) {
-		SRP_LOG_ERRMSG("unable to init nl_sock struct...");
+		SRP_LOG_ERR("unable to init nl_sock struct...");
 		goto error_out;
 	}
 
@@ -734,7 +731,11 @@ static int routing_oper_get_rib_routes_cb(sr_session_ctx_t *session, const char 
 		const int ADDR_FAMILY = ribs.list[hash_iter].address_family;
 		const char *TABLE_NAME = ribs.list[hash_iter].name;
 		snprintf(routes_buffer, sizeof(routes_buffer), "%s[name='%s-%s']/routes", ROUTING_RIB_LIST_YANG_PATH, ADDR_FAMILY == AF_INET ? "ipv4" : "ipv6", TABLE_NAME);
-		routes_node = lyd_new_path(*parent, ly_ctx, routes_buffer, NULL, LYD_ANYDATA_CONSTSTRING, LYD_PATH_OPT_UPDATE);
+		ly_err = lyd_new_path(*parent, ly_ctx, routes_buffer, NULL, LYD_NEW_PATH_UPDATE, &routes_node);
+		if (ly_err != LY_SUCCESS) {
+			SRP_LOG_ERR("unable to create new routes node");
+			goto error_out;
+		}
 
 		for (int i = 0; i < ROUTES_HASH->size; i++) {
 			struct route_list *list_ptr = &ROUTES_HASH->list_route[i];
@@ -751,16 +752,29 @@ static int routing_oper_get_rib_routes_cb(sr_session_ctx_t *session, const char 
 			for (int j = 0; j < list_ptr->size; j++) {
 				const struct route *ROUTE = &list_ptr->list[j];
 				// create a new list and after that add properties to it
-				ly_node = lyd_new_path(routes_node, ly_ctx, "routes/route", NULL, LYD_ANYDATA_CONSTSTRING, 0);
+				ly_err = lyd_new_path(routes_node, ly_ctx, "routes/route", NULL, 0, &ly_node);
+				if (ly_err != LY_SUCCESS) {
+					SRP_LOG_ERR("unable to create new route node");
+					goto error_out;
+				}
 
 				// route-preference
 				snprintf(value_buffer, sizeof(value_buffer), "%u", ROUTE->preference);
 				SRP_LOG_DBG("route-preference = %s", value_buffer);
-				lyd_new_path(ly_node, ly_ctx, "route-preference", (void *) value_buffer, LYD_ANYDATA_STRING, 0);
+				ly_err = lyd_new_path(ly_node, ly_ctx, "route-preference", (void *) value_buffer, 0, NULL);
+				if (ly_err != LY_SUCCESS) {
+					SRP_LOG_ERR("unable to create new route-preference node");
+					goto error_out;
+				}
 
 				// next-hop container
 				const union route_next_hop_value *NEXTHOP = &ROUTE->next_hop.value;
-				nh_node = lyd_new_path(ly_node, ly_ctx, "next-hop", NULL, LYD_ANYDATA_STRING, 0);
+				ly_err = lyd_new_path(ly_node, ly_ctx, "next-hop", NULL, 0, &nh_node);
+				if (ly_err != LY_SUCCESS) {
+					SRP_LOG_ERR("unable to create new next-hop node");
+					goto error_out;
+				}
+
 				switch (ROUTE->next_hop.kind) {
 					case route_next_hop_kind_none:
 						break;
@@ -770,17 +784,29 @@ static int routing_oper_get_rib_routes_cb(sr_session_ctx_t *session, const char 
 
 						// outgoing-interface
 						SRP_LOG_DBG("outgoing-interface = %s", if_name);
-						lyd_new_path(nh_node, ly_ctx, "outgoing-interface", (void *) if_name, LYD_ANYDATA_CONSTSTRING, 0);
+						ly_err = lyd_new_path(nh_node, ly_ctx, "outgoing-interface", (void *) if_name, 0, NULL);
+						if (ly_err != LY_SUCCESS) {
+							SRP_LOG_ERR("unable to create new outgoing-interface node");
+							goto error_out;
+						}
 
 						// next-hop-address
 						if (NEXTHOP->simple.addr) {
 							nl_addr2str(NEXTHOP->simple.addr, ip_buffer, sizeof(ip_buffer));
 							if (ADDR_FAMILY == AF_INET && ly_uv4mod != NULL) {
 								SRP_LOG_DBG("next-hop-address = %s", ip_buffer);
-								lyd_new_leaf(nh_node, ly_uv4mod, "next-hop-address", ip_buffer);
+								ly_err = lyd_new_term(nh_node, ly_uv4mod, "next-hop-address", ip_buffer, false, NULL);
+								if (ly_err != LY_SUCCESS) {
+									SRP_LOG_ERR("unable to create new next-hop-address node");
+									goto error_out;
+								}
 							} else if (ADDR_FAMILY == AF_INET6 && ly_uv6mod != NULL) {
 								SRP_LOG_DBG("destination-prefix = %s", prefix_buffer);
-								lyd_new_leaf(nh_node, ly_uv6mod, "next-hop-address", prefix_buffer);
+								ly_err = lyd_new_term(nh_node, ly_uv6mod, "next-hop-address", prefix_buffer, false, NULL);
+								if (ly_err != LY_SUCCESS) {
+									SRP_LOG_ERR("unable to create new next-hop-address node");
+									goto error_out;
+								}
 							}
 						}
 						rtnl_link_put(iface);
@@ -790,24 +816,41 @@ static int routing_oper_get_rib_routes_cb(sr_session_ctx_t *session, const char 
 						break;
 					case route_next_hop_kind_list: {
 						const struct route_next_hop_list *NEXTHOP_LIST = &ROUTE->next_hop.value.list;
-						nh_list_node = lyd_new_path(nh_node, ly_ctx, "next-hop-list/next-hop", NULL, LYD_ANYDATA_CONSTSTRING, 0);
+						ly_err = lyd_new_path(nh_node, ly_ctx, "next-hop-list/next-hop", NULL, 0, &nh_list_node);
+						if (ly_err != LY_SUCCESS) {
+							SRP_LOG_ERR("unable to create new next-hop-list/next-hop node");
+							goto error_out;
+						}
+
 						for (int k = 0; k < NEXTHOP_LIST->size; k++) {
 							struct rtnl_link *iface = rtnl_link_get(link_cache, NEXTHOP_LIST->list[k].ifindex);
 							const char *if_name = rtnl_link_get_name(iface);
 
 							// outgoing-interface
 							SRP_LOG_DBG("outgoing-interface = %s", if_name);
-							lyd_new_path(nh_list_node, ly_ctx, "outgoing-interface", (void *) if_name, LYD_ANYDATA_CONSTSTRING, 0);
+							ly_err = lyd_new_path(nh_list_node, ly_ctx, "outgoing-interface", (void *) if_name, 0, NULL);
+							if (ly_err != LY_SUCCESS) {
+								SRP_LOG_ERR("unable to create new outgoing-interface node");
+								goto error_out;
+							}
 
 							// next-hop-address
 							if (NEXTHOP_LIST->list[k].addr) {
 								nl_addr2str(NEXTHOP_LIST->list[k].addr, ip_buffer, sizeof(ip_buffer));
 								if (ADDR_FAMILY == AF_INET && ly_uv4mod != NULL) {
 									SRP_LOG_DBG("next-hop/next-hop-list/next-hop/next-hop-address = %s", ip_buffer);
-									lyd_new_leaf(nh_list_node, ly_uv4mod, "next-hop-address", ip_buffer);
+									ly_err = lyd_new_term(nh_list_node, ly_uv4mod, "next-hop-address", ip_buffer, false, NULL);
+									if (ly_err != LY_SUCCESS) {
+										SRP_LOG_ERR("unable to create new next-hop-address node");
+										goto error_out;
+									}
 								} else if (ADDR_FAMILY == AF_INET6 && ly_uv6mod != NULL) {
 									SRP_LOG_DBG("destination-prefix = %s", prefix_buffer);
-									lyd_new_leaf(nh_list_node, ly_uv6mod, "next-hop-address", prefix_buffer);
+									ly_err = lyd_new_term(nh_list_node, ly_uv6mod, "next-hop-address", prefix_buffer, false, NULL);
+									if (ly_err != LY_SUCCESS) {
+										SRP_LOG_ERR("unable to create new destination-prefix node");
+										goto error_out;
+									}
 								}
 							}
 							rtnl_link_put(iface);
@@ -819,20 +862,36 @@ static int routing_oper_get_rib_routes_cb(sr_session_ctx_t *session, const char 
 				// destination-prefix
 				if (ADDR_FAMILY == AF_INET && ly_uv4mod != NULL) {
 					SRP_LOG_DBG("destination-prefix = %s", prefix_buffer);
-					lyd_new_leaf(ly_node, ly_uv4mod, "destination-prefix", prefix_buffer);
+					ly_err = lyd_new_term(ly_node, ly_uv4mod, "destination-prefix", prefix_buffer, false, NULL);
+					if (ly_err != LY_SUCCESS) {
+						SRP_LOG_ERR("unable to create new destination-prefix node");
+						goto error_out;
+					}
 				} else if (ADDR_FAMILY == AF_INET6 && ly_uv6mod != NULL) {
 					SRP_LOG_DBG("destination-prefix = %s", prefix_buffer);
-					lyd_new_leaf(ly_node, ly_uv6mod, "destination-prefix", prefix_buffer);
+					ly_err = lyd_new_term(ly_node, ly_uv6mod, "destination-prefix", prefix_buffer, false, NULL);
+					if (ly_err != LY_SUCCESS) {
+						SRP_LOG_ERR("unable to create new destination-prefix node");
+						goto error_out;
+					}
 				}
 
 				// route-metadata/source-protocol
 				SRP_LOG_DBG("source-protocol = %s", ROUTE->metadata.source_protocol);
-				lyd_new_path(ly_node, ly_ctx, "source-protocol", ROUTE->metadata.source_protocol, LYD_ANYDATA_CONSTSTRING, 0);
+				ly_err = lyd_new_path(ly_node, ly_ctx, "source-protocol", ROUTE->metadata.source_protocol, 0, NULL);
+				if (ly_err != LY_SUCCESS) {
+					SRP_LOG_ERR("unable to create new source-protocol node");
+					goto error_out;
+				}
 
 				// route-metadata/active
 				if (ROUTE->metadata.active == 1) {
 					SRP_LOG_DBG("active = %d", ROUTE->metadata.active);
-					lyd_new_path(ly_node, ly_ctx, "active", NULL, LYD_ANYDATA_CONSTSTRING, 0);
+					ly_err = lyd_new_path(ly_node, ly_ctx, "active", NULL, 0, NULL);
+					if (ly_err != LY_SUCCESS) {
+						SRP_LOG_ERR("unable to create new active node");
+						goto error_out;
+					}
 				}
 			}
 		}
@@ -856,7 +915,7 @@ out:
 	return error;
 }
 
-static int routing_rpc_active_route_cb(sr_session_ctx_t *session, const char *xpath, const sr_val_t *input, const size_t input_cnt, sr_event_t event, uint32_t request_id, sr_val_t **output, size_t *output_cnt, void *private_data)
+static int routing_rpc_active_route_cb(sr_session_ctx_t *session, uint32_t subscription_id, const char *xpath, const sr_val_t *input, const size_t input_cnt, sr_event_t event, uint32_t request_id, sr_val_t **output, size_t *output_cnt, void *private_data)
 {
 	int error = SR_ERR_OK;
 	SRP_LOG_DBG("xpath for RPC: %s", xpath);
@@ -866,19 +925,20 @@ static int routing_rpc_active_route_cb(sr_session_ctx_t *session, const char *xp
 static int routing_load_data(sr_session_ctx_t *session)
 {
 	int error = 0;
+	LY_ERR ly_err = LY_SUCCESS;
 	const struct ly_ctx *ly_ctx = NULL;
 	struct lyd_node *routing_container_node = NULL;
 
 	ly_ctx = sr_get_context(sr_session_get_connection(session));
 	if (ly_ctx == NULL) {
-		SRP_LOG_ERRMSG("unable to get ly_ctx variable... exiting immediately");
+		SRP_LOG_ERR("unable to get ly_ctx variable... exiting immediately");
 		goto error_out;
 	}
 
 	// create the routing container node and pass it to other functions which will add to the given node
-	routing_container_node = lyd_new_path(NULL, ly_ctx, ROUTING_CONTAINER_YANG_PATH, NULL, LYD_ANYDATA_CONSTSTRING, 0);
-	if (routing_container_node == NULL) {
-		SRP_LOG_ERRMSG("unable to create the routing container ly node");
+	ly_err = lyd_new_path(NULL, ly_ctx, ROUTING_CONTAINER_YANG_PATH, NULL, 0, &routing_container_node);
+	if (ly_err != LY_SUCCESS) {
+		SRP_LOG_ERR("unable to create the routing container ly node");
 		goto error_out;
 	}
 
@@ -900,7 +960,7 @@ static int routing_load_data(sr_session_ctx_t *session)
 		SRP_LOG_ERR("sr_edit_batch error (%d): %s", error, sr_strerror(error));
 		goto error_out;
 	}
-	error = sr_apply_changes(session, 0, 0);
+	error = sr_apply_changes(session, 0);
 	if (error != 0) {
 		SRP_LOG_ERR("sr_apply_changes error (%d): %s", error, sr_strerror(error));
 		goto error_out;
@@ -908,10 +968,10 @@ static int routing_load_data(sr_session_ctx_t *session)
 
 	goto out;
 error_out:
-	SRP_LOG_ERRMSG("unable to load initial data");
+	SRP_LOG_ERR("unable to load initial data");
 out:
 	if (routing_container_node) {
-		lyd_free(routing_container_node);
+		lyd_free_tree(routing_container_node);
 	}
 	return error;
 }
@@ -921,6 +981,7 @@ static int routing_load_ribs(sr_session_ctx_t *session, struct lyd_node *routing
 	// error handling
 	int error = 0;
 	int nl_err = 0;
+	LY_ERR ly_err = LY_SUCCESS;
 
 	// libyang
 	struct lyd_node *ribs_node = NULL, *rib_node = NULL, *added_node = NULL;
@@ -937,8 +998,8 @@ static int routing_load_ribs(sr_session_ctx_t *session, struct lyd_node *routing
 
 	ly_ctx = sr_get_context(sr_session_get_connection(session));
 	if (ly_ctx) {
-		ly_uv4mod = ly_ctx_get_module(ly_ctx, "ietf-ipv4-unicast-routing", "2018-03-13", 0);
-		ly_uv6mod = ly_ctx_get_module(ly_ctx, "ietf-ipv6-unicast-routing", "2018-03-13", 0);
+		ly_uv4mod = ly_ctx_get_module(ly_ctx, "ietf-ipv4-unicast-routing", "2018-03-13");
+		ly_uv6mod = ly_ctx_get_module(ly_ctx, "ietf-ipv6-unicast-routing", "2018-03-13");
 	} else {
 		SRP_LOG_ERR("unable to load external modules... exiting");
 		error = -1;
@@ -949,7 +1010,7 @@ static int routing_load_ribs(sr_session_ctx_t *session, struct lyd_node *routing
 
 	socket = nl_socket_alloc();
 	if (socket == NULL) {
-		SRP_LOG_ERRMSG("unable to init nl_sock struct...");
+		SRP_LOG_ERR("unable to init nl_sock struct...");
 		goto error_out;
 	}
 
@@ -982,8 +1043,8 @@ static int routing_load_ribs(sr_session_ctx_t *session, struct lyd_node *routing
 		goto error_out;
 	}
 
-	ribs_node = lyd_new_path(routing_container_node, ly_ctx, ROUTING_RIBS_CONTAINER_YANG_PATH, NULL, LYD_ANYDATA_CONSTSTRING, 0);
-	if (ribs_node == NULL) {
+	ly_err = lyd_new_path(routing_container_node, ly_ctx, ROUTING_RIBS_CONTAINER_YANG_PATH, NULL, 0, &ribs_node);
+	if (ly_err != LY_SUCCESS) {
 		SRP_LOG_ERR("unable to create rib list container...");
 		goto error_out;
 	}
@@ -996,23 +1057,23 @@ static int routing_load_ribs(sr_session_ctx_t *session, struct lyd_node *routing
 
 		// write the current adding table into the buffer
 		snprintf(list_buffer, sizeof(list_buffer), "%s[name='%s-%s']", ROUTING_RIB_LIST_YANG_PATH, iter->address_family == AF_INET ? "ipv4" : "ipv6", iter->name);
-		rib_node = lyd_new_path(ribs_node, ly_ctx, list_buffer, NULL, LYD_ANYDATA_CONSTSTRING, 0);
-		if (rib_node == NULL) {
+		ly_err = lyd_new_path(ribs_node, ly_ctx, list_buffer, NULL, 0, &rib_node);
+		if (ly_err != LY_SUCCESS) {
 			SRP_LOG_ERR("unable to add new list...");
 			goto error_out;
 		}
 
 		// address family
-		added_node = lyd_new_path(rib_node, ly_ctx, "address-family", iter->address_family == AF_INET ? "ipv4" : "ipv6", LYD_ANYDATA_CONSTSTRING, 0);
-		if (added_node == NULL) {
+		ly_err = lyd_new_path(rib_node, ly_ctx, "address-family", iter->address_family == AF_INET ? "ipv4" : "ipv6", 0, &added_node);
+		if (ly_err != LY_SUCCESS) {
 			SRP_LOG_ERR("unable to add 'address-family' node to the tree");
 			goto error_out;
 		}
 
 		// description
 		if (iter->description[0] != 0) {
-			added_node = lyd_new_path(rib_node, ly_ctx, "description", iter->description, LYD_ANYDATA_STRING, 0);
-			if (added_node == NULL) {
+			ly_err = lyd_new_path(rib_node, ly_ctx, "description", iter->description, 0, &added_node);
+			if (ly_err != LY_SUCCESS) {
 				SRP_LOG_ERR("unable to add 'description' node to the rib");
 				goto error_out;
 			}
@@ -1159,6 +1220,7 @@ static int routing_load_control_plane_protocols(sr_session_ctx_t *session, struc
 	// error handling
 	int error = 0;
 	int nl_err = 0;
+	LY_ERR ly_err = LY_SUCCESS;
 
 	// libyang
 	const struct lys_module *ly_uv4mod = NULL, *ly_uv6mod = NULL;
@@ -1192,8 +1254,8 @@ static int routing_load_control_plane_protocols(sr_session_ctx_t *session, struc
 
 	ly_ctx = sr_get_context(sr_session_get_connection(session));
 	if (ly_ctx) {
-		ly_uv4mod = ly_ctx_get_module(ly_ctx, "ietf-ipv4-unicast-routing", "2018-03-13", 0);
-		ly_uv6mod = ly_ctx_get_module(ly_ctx, "ietf-ipv6-unicast-routing", "2018-03-13", 0);
+		ly_uv4mod = ly_ctx_get_module(ly_ctx, "ietf-ipv4-unicast-routing", "2018-03-13");
+		ly_uv6mod = ly_ctx_get_module(ly_ctx, "ietf-ipv6-unicast-routing", "2018-03-13");
 	} else {
 		SRP_LOG_ERR("unable to load external modules... exiting");
 		error = -1;
@@ -1202,7 +1264,7 @@ static int routing_load_control_plane_protocols(sr_session_ctx_t *session, struc
 
 	socket = nl_socket_alloc();
 	if (socket == NULL) {
-		SRP_LOG_ERRMSG("unable to init nl_sock struct...");
+		SRP_LOG_ERR("unable to init nl_sock struct...");
 		goto error_out;
 	}
 
@@ -1283,8 +1345,8 @@ static int routing_load_control_plane_protocols(sr_session_ctx_t *session, struc
 		route = (struct rtnl_route *) nl_cache_get_next((struct nl_object *) route);
 	}
 
-	cpp_container_node = lyd_new_path(routing_container_node, ly_ctx, ROUTING_CONTROL_PLANE_PROTOCOLS_CONTAINER_YANG_PATH, NULL, LYD_ANYDATA_STRING, 0);
-	if (cpp_container_node == NULL) {
+	ly_err = lyd_new_path(routing_container_node, ly_ctx, ROUTING_CONTROL_PLANE_PROTOCOLS_CONTAINER_YANG_PATH, NULL, 0, &cpp_container_node);
+	if (ly_err != LY_SUCCESS) {
 		SRP_LOG_ERR("unable to create control plane protocols container...");
 		goto error_out;
 	}
@@ -1297,35 +1359,35 @@ static int routing_load_control_plane_protocols(sr_session_ctx_t *session, struc
 		if (proto->initialized) {
 			// write proto path - type + name are added automatically when creating the list node
 			snprintf(list_buffer, sizeof(list_buffer), "%s[type=\"%s\"][name=\"%s\"]", ROUTING_CONTROL_PLANE_PROTOCOL_LIST_YANG_PATH, proto->type, proto->name);
-			cpp_list_node = lyd_new_path(cpp_container_node, ly_ctx, list_buffer, NULL, LYD_ANYDATA_CONSTSTRING, 0);
-			if (cpp_list_node == NULL) {
+			ly_err = lyd_new_path(cpp_container_node, ly_ctx, list_buffer, NULL, 0, &cpp_list_node);
+			if (ly_err != LY_SUCCESS) {
 				SRP_LOG_ERR("unable to add new control plane protocol %s", proto->name);
 				goto error_out;
 			}
 
 			// description
-			tmp_node = lyd_new_path(cpp_list_node, ly_ctx, "description", proto->description, LYD_ANYDATA_CONSTSTRING, 0);
-			if (tmp_node == NULL) {
+			ly_err = lyd_new_path(cpp_list_node, ly_ctx, "description", proto->description, 0, &tmp_node);
+			if (ly_err != LY_SUCCESS) {
 				SRP_LOG_ERR("unable to add 'description' node for the control plane protocol %s...", proto->name);
 				goto error_out;
 			}
 
 			// static protocol -> static-routes
 			if (strncmp(proto->name, "static", sizeof("static") - 1) == 0) {
-				static_routes_container_node = lyd_new_path(cpp_list_node, ly_ctx, "static-routes", NULL, LYD_ANYDATA_STRING, 0);
-				if (static_routes_container_node == NULL) {
+				ly_err = lyd_new_path(cpp_list_node, ly_ctx, "static-routes", NULL, 0, &static_routes_container_node);
+				if (ly_err != LY_SUCCESS) {
 					SRP_LOG_ERR("unable to add static-routes container node... exiting");
 					goto error_out;
 				}
 
 				// for the static protocol add ipv4 and ipv6 static routes - each destination prefix => one route => one nexthop + description
-				ipv4_container_node = lyd_new(static_routes_container_node, ly_uv4mod, "ipv4");
-				if (ipv4_container_node == NULL) {
+				ly_err = lyd_new_inner(static_routes_container_node, ly_uv4mod, "ipv4", false, &ipv4_container_node);
+				if (ly_err != LY_SUCCESS) {
 					SRP_LOG_ERR("unable to add ipv4 container node... exiting");
 					goto error_out;
 				}
-				ipv6_container_node = lyd_new(static_routes_container_node, ly_uv6mod, "ipv6");
-				if (ipv6_container_node == NULL) {
+				ly_err = lyd_new_inner(static_routes_container_node, ly_uv6mod, "ipv6", false, &ipv6_container_node);
+				if (ly_err != LY_SUCCESS) {
 					SRP_LOG_ERR("unable to add ipv6 container node... exiting");
 					goto error_out;
 				}
@@ -1346,24 +1408,24 @@ static int routing_load_control_plane_protocols(sr_session_ctx_t *session, struc
 
 					// create new list node
 					snprintf(route_path_buffer, sizeof(route_path_buffer), "route[destination-prefix=\"%s\"]", prefix_buffer);
-					route_node = lyd_new_path(ipv4_container_node, ly_ctx, route_path_buffer, NULL, LYD_ANYDATA_STRING, 0);
-					if (route_node == NULL) {
+					ly_err = lyd_new_path(ipv4_container_node, ly_ctx, route_path_buffer, NULL, 0, &route_node);
+					if (ly_err != LY_SUCCESS) {
 						SRP_LOG_ERR("unable to create a new route node for the list %s", route_path_buffer);
 						goto error_out;
 					}
 
 					// description
 					if (ROUTE->metadata.description != NULL) {
-						tmp_node = lyd_new_leaf(route_node, ly_uv4mod, "description", ROUTE->metadata.description);
-						if (tmp_node == NULL) {
+						ly_err = lyd_new_term(route_node, ly_uv4mod, "description", ROUTE->metadata.description, false, &tmp_node);
+						if (ly_err != LY_SUCCESS) {
 							SRP_LOG_ERR("unable to add description leaf to the %s node", route_path_buffer);
 							goto error_out;
 						}
 					}
 
 					// next-hop container
-					nh_node = lyd_new(route_node, ly_uv4mod, "next-hop");
-					if (nh_node == NULL) {
+					ly_err = lyd_new_inner(route_node, ly_uv4mod, "next-hop", false, &nh_node);
+					if (ly_err != LY_SUCCESS) {
 						SRP_LOG_ERR("unable to create new next-hop container for the node %s", route_path_buffer);
 						goto error_out;
 					}
@@ -1374,8 +1436,8 @@ static int routing_load_control_plane_protocols(sr_session_ctx_t *session, struc
 							// next-hop-address
 							if (NEXTHOP->simple.addr) {
 								nl_addr2str(NEXTHOP->simple.addr, ip_buffer, sizeof(ip_buffer));
-								tmp_node = lyd_new_leaf(nh_node, ly_uv4mod, "next-hop-address", ip_buffer);
-								if (tmp_node == NULL) {
+								ly_err = lyd_new_term(nh_node, ly_uv4mod, "next-hop-address", ip_buffer, false, &tmp_node);
+								if (ly_err != LY_SUCCESS) {
 									SRP_LOG_ERR("unable to create next-hop-address leaf for the node %s", route_path_buffer);
 									goto error_out;
 								}
@@ -1386,8 +1448,8 @@ static int routing_load_control_plane_protocols(sr_session_ctx_t *session, struc
 							break;
 						case route_next_hop_kind_list: {
 							const struct route_next_hop_list *NEXTHOP_LIST = &ROUTE->next_hop.value.list;
-							nh_list_node = lyd_new_anydata(nh_node, ly_uv4mod, "next-hop-list/next-hop", NULL, LYD_ANYDATA_STRING);
-							if (nh_list_node == NULL) {
+							ly_err = lyd_new_any(nh_node, ly_uv4mod, "next-hop-list/next-hop", NULL, true, LYD_ANYDATA_STRING, false, &nh_list_node);
+							if (ly_err != LY_SUCCESS) {
 								SRP_LOG_ERR("unable to create new next-hop-list/next-hop list for the node %s", route_path_buffer);
 								goto error_out;
 							}
@@ -1395,8 +1457,8 @@ static int routing_load_control_plane_protocols(sr_session_ctx_t *session, struc
 								// next-hop-address
 								if (NEXTHOP_LIST->list[k].addr) {
 									nl_addr2str(NEXTHOP_LIST->list[k].addr, ip_buffer, sizeof(ip_buffer));
-									tmp_node = lyd_new_leaf(nh_list_node, ly_uv4mod, "next-hop-address", ip_buffer);
-									if (tmp_node == NULL) {
+									ly_err = lyd_new_term(nh_list_node, ly_uv4mod, "next-hop-address", ip_buffer, false, &tmp_node);
+									if (ly_err != LY_SUCCESS) {
 										SRP_LOG_ERR("unable to create next-hop-address leaf in the list for route %s", route_path_buffer);
 										goto error_out;
 									}
@@ -1423,24 +1485,24 @@ static int routing_load_control_plane_protocols(sr_session_ctx_t *session, struc
 
 					// create new list node
 					snprintf(route_path_buffer, sizeof(route_path_buffer), "route[destination-prefix=\"%s\"]", prefix_buffer);
-					route_node = lyd_new_path(ipv6_container_node, ly_ctx, route_path_buffer, NULL, LYD_ANYDATA_STRING, 0);
-					if (route_node == NULL) {
+					ly_err = lyd_new_path(ipv6_container_node, ly_ctx, route_path_buffer, NULL, 0, &route_node);
+					if (ly_err != LY_SUCCESS) {
 						SRP_LOG_ERR("unable to create a new route node for the list %s", route_path_buffer);
 						goto error_out;
 					}
 
 					// description
 					if (ROUTE->metadata.description != NULL) {
-						tmp_node = lyd_new_leaf(route_node, ly_uv6mod, "description", ROUTE->metadata.description);
-						if (tmp_node == NULL) {
+						ly_err = lyd_new_term(route_node, ly_uv6mod, "description", ROUTE->metadata.description, false, &tmp_node);
+						if (ly_err != LY_SUCCESS) {
 							SRP_LOG_ERR("unable to add description leaf to the %s node", route_path_buffer);
 							goto error_out;
 						}
 					}
 
 					// next-hop container
-					nh_node = lyd_new(route_node, ly_uv6mod, "next-hop");
-					if (nh_node == NULL) {
+					ly_err = lyd_new_inner(route_node, ly_uv6mod, "next-hop", false, &nh_node);
+					if (ly_err != LY_SUCCESS) {
 						SRP_LOG_ERR("unable to create new next-hop container for the node %s", route_path_buffer);
 						goto error_out;
 					}
@@ -1451,8 +1513,8 @@ static int routing_load_control_plane_protocols(sr_session_ctx_t *session, struc
 							// next-hop-address
 							if (NEXTHOP->simple.addr) {
 								nl_addr2str(NEXTHOP->simple.addr, ip_buffer, sizeof(ip_buffer));
-								tmp_node = lyd_new_leaf(nh_node, ly_uv6mod, "next-hop-address", ip_buffer);
-								if (tmp_node == NULL) {
+								ly_err = lyd_new_term(nh_node, ly_uv6mod, "next-hop-address", ip_buffer, false, &tmp_node);
+								if (ly_err != LY_SUCCESS) {
 									SRP_LOG_ERR("unable to create next-hop-address leaf for the node %s", route_path_buffer);
 									goto error_out;
 								}
@@ -1463,8 +1525,8 @@ static int routing_load_control_plane_protocols(sr_session_ctx_t *session, struc
 							break;
 						case route_next_hop_kind_list: {
 							const struct route_next_hop_list *NEXTHOP_LIST = &ROUTE->next_hop.value.list;
-							nh_list_node = lyd_new_anydata(nh_node, ly_uv6mod, "next-hop-list/next-hop", NULL, LYD_ANYDATA_STRING);
-							if (nh_list_node == NULL) {
+							ly_err = lyd_new_any(nh_node, ly_uv6mod, "next-hop-list/next-hop", NULL, true, LYD_ANYDATA_STRING, false, &nh_list_node);
+							if (ly_err != LY_SUCCESS) {
 								SRP_LOG_ERR("unable to create new next-hop-list/next-hop list for the node %s", route_path_buffer);
 								goto error_out;
 							}
@@ -1472,8 +1534,8 @@ static int routing_load_control_plane_protocols(sr_session_ctx_t *session, struc
 								// next-hop-address
 								if (NEXTHOP_LIST->list[k].addr) {
 									nl_addr2str(NEXTHOP_LIST->list[k].addr, ip_buffer, sizeof(ip_buffer));
-									tmp_node = lyd_new_leaf(nh_list_node, ly_uv6mod, "next-hop-address", ip_buffer);
-									if (tmp_node == NULL) {
+									ly_err = lyd_new_term(nh_list_node, ly_uv6mod, "next-hop-address", ip_buffer, false, &tmp_node);
+									if (ly_err != LY_SUCCESS) {
 										SRP_LOG_ERR("unable to create next-hop-address leaf in the list for route %s", route_path_buffer);
 										goto error_out;
 									}
