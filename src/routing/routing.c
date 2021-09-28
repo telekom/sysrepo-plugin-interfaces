@@ -794,17 +794,17 @@ static int routing_oper_get_rib_routes_cb(sr_session_ctx_t *session, uint32_t su
 						if (NEXTHOP->simple.addr) {
 							nl_addr2str(NEXTHOP->simple.addr, ip_buffer, sizeof(ip_buffer));
 							if (ADDR_FAMILY == AF_INET && ly_uv4mod != NULL) {
-								SRP_LOG_DBG("next-hop-address = %s", ip_buffer);
+								SRP_LOG_DBG("IPv4 next-hop-address = %s", ip_buffer);
 								ly_err = lyd_new_term(nh_node, ly_uv4mod, "next-hop-address", ip_buffer, false, NULL);
 								if (ly_err != LY_SUCCESS) {
-									SRP_LOG_ERR("unable to create new next-hop-address node");
+									SRP_LOG_ERR("unable to create new IPv4 next-hop-address node");
 									goto error_out;
 								}
 							} else if (ADDR_FAMILY == AF_INET6 && ly_uv6mod != NULL) {
-								SRP_LOG_DBG("destination-prefix = %s", prefix_buffer);
-								ly_err = lyd_new_term(nh_node, ly_uv6mod, "next-hop-address", prefix_buffer, false, NULL);
+								SRP_LOG_DBG("IPv6 next-hop-address = %s", ip_buffer);
+								ly_err = lyd_new_term(nh_node, ly_uv6mod, "next-hop-address", ip_buffer, false, NULL);
 								if (ly_err != LY_SUCCESS) {
-									SRP_LOG_ERR("unable to create new next-hop-address node");
+									SRP_LOG_ERR("unable to create new IPv6 next-hop-address node");
 									goto error_out;
 								}
 							}
@@ -838,17 +838,17 @@ static int routing_oper_get_rib_routes_cb(sr_session_ctx_t *session, uint32_t su
 							if (NEXTHOP_LIST->list[k].addr) {
 								nl_addr2str(NEXTHOP_LIST->list[k].addr, ip_buffer, sizeof(ip_buffer));
 								if (ADDR_FAMILY == AF_INET && ly_uv4mod != NULL) {
-									SRP_LOG_DBG("next-hop/next-hop-list/next-hop/next-hop-address = %s", ip_buffer);
+									SRP_LOG_DBG("IPv4 next-hop/next-hop-list/next-hop/next-hop-address = %s", ip_buffer);
 									ly_err = lyd_new_term(nh_list_node, ly_uv4mod, "next-hop-address", ip_buffer, false, NULL);
 									if (ly_err != LY_SUCCESS) {
-										SRP_LOG_ERR("unable to create new next-hop-address node");
+										SRP_LOG_ERR("unable to create new IPv4 next-hop-address node");
 										goto error_out;
 									}
 								} else if (ADDR_FAMILY == AF_INET6 && ly_uv6mod != NULL) {
-									SRP_LOG_DBG("destination-prefix = %s", prefix_buffer);
-									ly_err = lyd_new_term(nh_list_node, ly_uv6mod, "next-hop-address", prefix_buffer, false, NULL);
+									SRP_LOG_DBG("IPv6 next-hop/next-hop-list/next-hop/next-hop-address = %s", ip_buffer);
+									ly_err = lyd_new_term(nh_list_node, ly_uv6mod, "next-hop-address", ip_buffer, false, NULL);
 									if (ly_err != LY_SUCCESS) {
-										SRP_LOG_ERR("unable to create new destination-prefix node");
+										SRP_LOG_ERR("unable to create new IPv6 next-hop-address node");
 										goto error_out;
 									}
 								}
@@ -861,17 +861,25 @@ static int routing_oper_get_rib_routes_cb(sr_session_ctx_t *session, uint32_t su
 
 				// destination-prefix
 				if (ADDR_FAMILY == AF_INET && ly_uv4mod != NULL) {
+					if (strncmp("none/0", prefix_buffer, strnlen(prefix_buffer, sizeof(prefix_buffer))) == 0) {
+						strcpy(prefix_buffer, "0.0.0.0/0");
+					}
+
 					SRP_LOG_DBG("destination-prefix = %s", prefix_buffer);
 					ly_err = lyd_new_term(ly_node, ly_uv4mod, "destination-prefix", prefix_buffer, false, NULL);
 					if (ly_err != LY_SUCCESS) {
-						SRP_LOG_ERR("unable to create new destination-prefix node");
+						SRP_LOG_ERR("unable to create new IPv4 destination-prefix node");
 						goto error_out;
 					}
 				} else if (ADDR_FAMILY == AF_INET6 && ly_uv6mod != NULL) {
+					if (strncmp("none/0", prefix_buffer, strnlen(prefix_buffer, sizeof(prefix_buffer))) == 0) {
+						strcpy(prefix_buffer, "::/0");
+					}
+
 					SRP_LOG_DBG("destination-prefix = %s", prefix_buffer);
 					ly_err = lyd_new_term(ly_node, ly_uv6mod, "destination-prefix", prefix_buffer, false, NULL);
 					if (ly_err != LY_SUCCESS) {
-						SRP_LOG_ERR("unable to create new destination-prefix node");
+						SRP_LOG_ERR("unable to create new IPv6 destination-prefix node");
 						goto error_out;
 					}
 				}
