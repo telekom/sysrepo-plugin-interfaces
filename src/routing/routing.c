@@ -133,14 +133,14 @@ int sr_plugin_init_cb(sr_session_ctx_t *session, void **private_data)
 	SRP_LOG_INF("subscribing to module change");
 
 	// control-plane-protocol list module changes
-	error = sr_module_change_subscribe(session, BASE_YANG_MODEL, ROUTING_CONTROL_PLANE_PROTOCOL_LIST_YANG_PATH "//*", routing_module_change_control_plane_protocol_list_cb, *private_data, 0, SR_SUBSCR_DEFAULT, &subscription);
+	error = sr_module_change_subscribe(session, BASE_YANG_MODEL, ROUTING_CONTROL_PLANE_PROTOCOL_LIST_YANG_PATH, routing_module_change_control_plane_protocol_list_cb, *private_data, 0, SR_SUBSCR_DEFAULT, &subscription);
 	if (error) {
 		SRP_LOG_ERR("sr_module_change_subscribe error (%d): %s", error, sr_strerror(error));
 		goto error_out;
 	}
 
 	// rib list module changes
-	error = sr_module_change_subscribe(session, BASE_YANG_MODEL, ROUTING_RIB_LIST_YANG_PATH "//*", routing_module_change_rib_list_cb, *private_data, 0, SR_SUBSCR_DEFAULT, &subscription);
+	error = sr_module_change_subscribe(session, BASE_YANG_MODEL, ROUTING_RIB_LIST_YANG_PATH, routing_module_change_rib_list_cb, *private_data, 0, SR_SUBSCR_DEFAULT, &subscription);
 	if (error) {
 		SRP_LOG_ERR("sr_module_change_subscribe error (%d): %s", error, sr_strerror(error));
 		goto error_out;
