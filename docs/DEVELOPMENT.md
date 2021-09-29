@@ -804,8 +804,9 @@ Operational state data consists of:
 * `routing-state` is obsolete
 
 ## Testing
-The `tests/manual_tests.md` file contains a list of sysrepo commands that can be used to test
-the currently implemented features of the plugin.
+The `tests/interfaces/manual_tests.md` and `tests/routing/manual_tests.md` files
+contain a list of sysrepo commands that can be used to test
+the currently implemented features of the plugins.
 
 ## Nodes that are currently implemented
 
