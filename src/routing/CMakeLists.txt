@@ -44,7 +44,7 @@ else()
     install(TARGETS ${PROJECT_NAME} DESTINATION bin)
 endif()
 
-set_target_properties(${PROJECT_NAME} PROPERTIES OUTPUT_NAME ${CMAKE_PROJECT_NAME} PREFIX "")
+set_target_properties(${PROJECT_NAME} PROPERTIES OUTPUT_NAME ${PROJECT_NAME} PREFIX "")
 
 find_package(NL REQUIRED)
 
