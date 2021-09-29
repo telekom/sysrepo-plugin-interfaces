@@ -83,7 +83,7 @@ For the interfaces plugin this can be achieved by invoking the following command
 ```
 $ sysrepoctl -i ./yang/iana-if-type@2017-01-19.yang
 $ sysrepoctl -i ./yang/ietf-interfaces@2018-02-20.yang
-$ sysrepoctl -i ./yang/ietf-ip@2014-06-16.yang
+$ sysrepoctl -i ./yang/ietf-ip@2018-02-22.yang
 $ sysrepoctl -i ./yang/ietf-if-extensions@2020-07-29.yang
 $ sysrepoctl -i ./yang/ieee802-dot1q-types.yang
 $ sysrepoctl -i ./yang/ietf-if-vlan-encapsulation@2020-07-13.yang
