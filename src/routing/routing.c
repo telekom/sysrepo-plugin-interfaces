@@ -67,6 +67,7 @@ static int routing_module_change_control_plane_protocol_list_cb(sr_session_ctx_t
 static int routing_module_change_rib_list_cb(sr_session_ctx_t *session, uint32_t subscription_id, const char *module_name, const char *xpath, sr_event_t event, uint32_t request_id, void *private_data);
 
 // module changes helpers - changing/deleting values
+static int set_control_plane_protocol_value(const char *xpath, const char *value);
 
 // getting xpath from the node
 static char *routing_xpath_get(const struct lyd_node *node);
@@ -190,7 +191,6 @@ static int routing_module_change_control_plane_protocol_list_cb(sr_session_ctx_t
 	sr_session_ctx_t *startup_session = (sr_session_ctx_t *) private_data;
 	sr_change_iter_t *routing_change_iter = NULL;
 	sr_change_oper_t operation = SR_OP_CREATED;
-	sr_xpath_ctx_t xpath_ctx = {0};
 
 	// libyang
 	const struct lyd_node *node = NULL;
@@ -201,11 +201,6 @@ static int routing_module_change_control_plane_protocol_list_cb(sr_session_ctx_t
 	int prev_default = false;
 	char *node_xpath = NULL;
 	const char *node_value = NULL;
-
-	// keys
-	char *type_key = NULL;
-	char *name_key = NULL;
-	char *node_name = NULL;
 
 	SRP_LOG_INF("module_name: %s, xpath: %s, event: %d, request_id: %u", module_name, xpath, event, request_id);
 
@@ -236,16 +231,10 @@ static int routing_module_change_control_plane_protocol_list_cb(sr_session_ctx_t
 			SRP_LOG_DBG("node_xpath: %s; prev_val: %s; node_val: %s; operation: %d", node_xpath, prev_value, node_value, operation);
 
 			if (node->schema->nodetype == LYS_LEAF || node->schema->nodetype == LYS_LEAFLIST) {
-				node_name = sr_xpath_last_node(node_xpath, &xpath_ctx);
-				name_key = sr_xpath_key_value(node_xpath, "control-plane-protocol", "name", &xpath_ctx);
-				type_key = sr_xpath_key_value(node_xpath, "control-plane-protocol", "type", &xpath_ctx);
-
-				if (strncmp(node_name, "description", sizeof("description") - 1) == 0) {
-					error = routing_control_plane_protocol_set_description(type_key, name_key, node_value);
-					if (error != 0) {
-						SRP_LOG_ERR("routing_control_plane_protocol_set_description failed");
-						goto error_out;
-					}
+				error = set_control_plane_protocol_value(node_xpath, node_value);
+				if (error) {
+					SRP_LOG_ERR("set_control_plane_protocol_value error (%d)", error);
+					goto error_out;
 				}
 			}
 			FREE_SAFE(node_xpath);
@@ -263,6 +252,32 @@ out:
 	sr_free_change_iter(routing_change_iter);
 
 	return error != 0 ? SR_ERR_CALLBACK_FAILED : SR_ERR_OK;
+}
+
+static int set_control_plane_protocol_value(const char *node_xpath, const char *node_value)
+{
+	sr_xpath_ctx_t xpath_ctx = {0};
+
+	char *node_name = NULL;
+	char *name_key = NULL;
+	char *type_key = NULL;
+
+	int error = SR_ERR_OK;
+
+	node_name = sr_xpath_last_node(node_xpath, &xpath_ctx);
+	name_key = sr_xpath_key_value(node_xpath, "control-plane-protocol", "name", &xpath_ctx);
+	type_key = sr_xpath_key_value(node_xpath, "control-plane-protocol", "type", &xpath_ctx);
+
+	if (strncmp(node_name, "description", sizeof("description") - 1) == 0) {
+		error = routing_control_plane_protocol_set_description(type_key, name_key, node_value);
+		if (error != 0) {
+			SRP_LOG_ERR("routing_control_plane_protocol_set_description failed");
+			goto out;
+		}
+	}
+
+out:
+	return error ? SR_ERR_CALLBACK_FAILED : SR_ERR_OK;
 }
 
 static int routing_module_change_rib_list_cb(sr_session_ctx_t *session, uint32_t subscription_id, const char *module_name, const char *xpath, sr_event_t event, uint32_t request_id, void *private_data)
