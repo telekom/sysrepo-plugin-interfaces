@@ -3,11 +3,13 @@
   <client-if>
     <if-name>eth0</if-name>
     <enabled>true</enabled>
-    <duid>10a024abfb9c</duid>
+    <duid>000200090CC084D303000913</duid>
     <client-configured-options>
 
       <option-request-option>
        <!-- currently dhclient doesn't support sending oro options, just requesting them
+       error message when trying to send oro options:
+       "'send dhcp6.oro' syntax is deprecated, please use the 'request' syntax ("man dhclient.conf")."
         <oro-option>5</oro-option>
         <oro-option>6</oro-option>
        <oro-option>7</oro-option> -->
