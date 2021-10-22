@@ -236,7 +236,11 @@ void ip_neighbor_list_add(ip_neighbor_list_t *nbor_ls, char *ip, char *phys_addr
 
 	ip_neighbor_init(n);
 	ip_neighbor_set_ip(n, ip);
-	ip_neighbor_set_phys_addr(n, phys_addr);
+
+	// don't set if phys_addr is "none"
+	if (strcmp(phys_addr, "none") != 0) {
+		ip_neighbor_set_phys_addr(n, phys_addr);
+	}
 }
 
 void ip_neighbor_list_free(ip_neighbor_list_t *nbor_ls)
