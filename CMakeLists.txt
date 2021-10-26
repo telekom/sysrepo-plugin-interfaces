@@ -1,9 +1,5 @@
-if(DHCPv6_CLIENT)
-    include(${CMAKE_CURRENT_SOURCE_DIR}/src/utils/dhcpv6_client/CMakeLists.txt)
-endif()
-
-cmake_minimum_required(VERSION 3.0)
-project(sysrepo-plugin-interfaces C)
+cmake_minimum_required(VERSION 2.8)
+project(sysrepo-interfaces-plugins C)
 
 include(CompileOptions.cmake)
 
@@ -12,16 +8,6 @@ set(CMAKE_LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/lib")
 
 include_directories(
     ${CMAKE_SOURCE_DIR}/src/
-)
-
-set(SOURCES
-    src/interfaces.c
-    src/utils/memory.c
-    src/utils/if_state.c
-    src/utils/link_data.c
-    src/utils/ip_data.c
-    src/utils/ipv6_data.c
-    src/utils/if_nic_stats.c
 )
 
 # get sysrepo version
@@ -37,39 +23,30 @@ if (PKG_CONFIG_FOUND)
     endif()
 endif()
 
-if(PLUGIN)
-    add_library(${CMAKE_PROJECT_NAME} MODULE ${SOURCES})
-    install(TARGETS ${CMAKE_PROJECT_NAME} DESTINATION lib)
-else()
-    add_executable(${CMAKE_PROJECT_NAME} ${SOURCES})
-    install(TARGETS ${CMAKE_PROJECT_NAME} DESTINATION bin)
-endif()
-
-
-set_target_properties(${CMAKE_PROJECT_NAME} PROPERTIES OUTPUT_NAME ${CMAKE_PROJECT_NAME} PREFIX "")
-
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/cmake/Modules")
 find_package(SYSREPO REQUIRED)
 find_package(LIBYANG REQUIRED)
-find_package(NL REQUIRED)
-
-# pthread api
-set(THREADS_PREFER_PTHREAD_FLAG ON)
-find_package(Threads REQUIRED)
-
-target_link_libraries(
-    ${PROJECT_NAME}
-    ${SYSREPO_LIBRARIES}
-    ${LIBYANG_LIBRARIES}
-    ${NL_LIBRARIES}
-    Threads::Threads
-)
 
 include_directories(
     ${SYSREPO_INCLUDE_DIRS}
     ${LIBYANG_INCLUDE_DIRS}
-    ${NL_INCLUDE_DIRS}
 )
+
+option(INTERFACES_PLUGIN "Enable interfaces plugin" ON)
+option(ROUTING_PLUGIN "Enable interfaces plugin" ON)
+option(DHCPv6_CLIENT_PLUGIN "Enable DHCPv6 client plugin" ON)
+
+if(INTERFACES_PLUGIN)
+	add_subdirectory(src/interfaces)
+endif()
+
+if(ROUTING_PLUGIN)
+	add_subdirectory(src/routing)
+endif()
+
+if(DHCPv6_CLIENT_PLUGIN)
+	add_subdirectory(src/dhcpv6_client)
+endif()
 
 if(ENABLE_BUILD_TESTS)
 	find_package(CMOCKA REQUIRED)

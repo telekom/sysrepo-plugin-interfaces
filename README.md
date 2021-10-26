@@ -21,9 +21,19 @@ The goal of this project is to provide a method of configuring networking on gen
 
 ## About this component
 
-This Sysrepo plugin is based on the `ietf-interfaces` YANG module which contains "a collection of YANG definitions for managing network interfaces". More information about the specific YANG module can be found in [RFC 7223: A YANG Data Model for Interface Management](https://datatracker.ietf.org/doc/html/rfc7223).
+This repository contains several Sysrepo plugins related to newtork management.
 
-Additionally, the plugin also supports DHCPv6 client configuration which is based on the `ietf-dhcpv6-client` YANG module and uses [ISC dhclient](https://kb.isc.org/docs/isc-dhcp-44-manual-pages-dhclient). The dhcpv6-client plugin is built as a separate plugin.
+The first, sysrepo-plugin-interfaces is based on the `ietf-interfaces` YANG module which contains
+"a collection of YANG definitions for managing network interfaces".
+More information about the specific YANG module can be found in
+[RFC 7223: A YANG Data Model for Interface Management](https://datatracker.ietf.org/doc/html/rfc7223).
+
+The second, sysrepo-plugin-routing is based on the `ietf-routing` YANG module which contains
+"generic components of a routing data model" and `ietf-ipv4-unicast-routing` and `ietf-ipv6-unicast-routing`
+which augment `ietf-routing` with IPv4 and IPv6 specific data.
+More information about `ietf-routing` is available in [RFC 8022: A YANG Data Model for Routing Management](https://datatracker.ietf.org/doc/html/rfc8022)
+
+The third, sysrepo-plugin-dhcpv6-client is based on the `ietf-dhcpv6-client` YANG module and uses [ISC dhclient](https://kb.isc.org/docs/isc-dhcp-44-manual-pages-dhclient).
 
 ## Development
 
@@ -35,7 +45,7 @@ Besides the usual C development environment, the following additional dependenci
 * netlink
 * dhclient
 
-### Build
+#### Build
 
 First clone the repository:
 
@@ -51,16 +61,17 @@ $ cd build
 $ cmake ..
 ```
 
-The default configuration builds the plugin as a stand-alone foreground application. To build the plugin as a shared object file for use with `sysrepo-plugind`, run the following instead:
+By default all three plugins will be built, but any of them can be disabled by setting the appropriate CMake plugin option to `OFF`.
+For example, to build only the routing plugin the following command should be executed instead:
+```
+$ cmake -DINTERFACES_PLUGIN=OFF ..
+```
+
+The default configuration builds the plugins as stand-alone foreground applications.
+To build the plugins as shared object files for use with `sysrepo-plugind`, run the following instead:
 
 ```
 $ cmake -DPLUGIN=ON ..
-```
-
-For building both the dhcpv6-client and interfaces plugin add the `-DDHCPv6_CLIENT` flag to cmake:
-
-```
-$ cmake -DDHCPv6_CLIENT=ON ..
 ```
 
 Lastly, invoke the build and install using `make`:
@@ -69,23 +80,36 @@ Lastly, invoke the build and install using `make`:
 $ make -j$(nproc) install
 ```
 
-The plugin requires the several YANG modules to be loaded into the Sysrepo datastore. This can be achieved by invoking the following commands:
+The plugins require several YANG modules to be loaded into the Sysrepo datastore.
+For the interfaces plugin this can be achieved by invoking the following commands:
 
 ```
 $ sysrepoctl -i ./yang/iana-if-type@2017-01-19.yang
 $ sysrepoctl -i ./yang/ietf-interfaces@2018-02-20.yang
-$ sysrepoctl -i ./yang/ietf-ip@2014-06-16.yang
+$ sysrepoctl -i ./yang/ietf-ip@2018-02-22.yang
 $ sysrepoctl -i ./yang/ietf-if-extensions@2020-07-29.yang
 $ sysrepoctl -i ./yang/ieee802-dot1q-types.yang
 $ sysrepoctl -i ./yang/ietf-if-vlan-encapsulation@2020-07-13.yang
 ```
 
-If dhcpv6-client is to be used additional YANG modules have to be loaded into the Sysrepo datastore. This can be achieved by invoking the following commands:
+For the routing plugin, the following models have to be installed:
+```
+$ sysrepoctl -i ./yang/ietf-ip@2018-02-22.yang
+$ sysrepoctl -i ./yang/ietf-routing@2018-03-13.yang
+$ sysrepoctl -i ./yang/ietf-ipv4-unicast-routing@2018-03-13.yang
+$ sysrepoctl -i ./yang/ietf-ipv6-unicast-routing@2018-03-13.yang
+$ sysrepoctl -i ./yang/ietf-ipv4-router-advertisements@2018-03-13.yang
+```
 
+For the DHCPv6 client plugin, the following models have to be installed:
 ```
-$ sysrepoctl -i ./yang/dhcpv6-client/ietf-dhcpv6-common.yang
-$ sysrepoctl -i ./yang/dhcpv6-client/ietf-dhcpv6-client.yang
+$ sysrepoctl -i ./yang/ietf-dhcpv6-common.yang
+$ sysrepoctl -i ./yang/ietf-dhcpv6-client.yang
 ```
+
+### Routing plugin
+
+### DHCPv6 Client plugin
 
 ## Code of Conduct
 
@@ -99,7 +123,7 @@ Consequently, all content will be made available primarily in English. We also a
 
 ## Documentation
 
-The full documentation for the Sysrepo interfaces plugin can be found in the [documentation directory](../docs).
+The full documentation for the Sysrepo interfaces and routing plugins can be found in the [documentation directory](../docs).
 
 ## Support and Feedback
 
