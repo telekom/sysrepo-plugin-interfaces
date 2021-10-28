@@ -40,7 +40,7 @@ module ietf-dhcpv6-common {
     This version of this YANG module is part of RFC XXXX; see
     the RFC itself for full legal notices.";
 
-  revision 2021-07-02 {
+  revision 2021-10-25 {
     description 
       "Initial Revision.";
     reference 
@@ -184,9 +184,9 @@ module ietf-dhcpv6-common {
 
   typedef duid-unstructured {
     type duid-base {
-      pattern '[0-9a-fA-F]{3}'
-        + '[05-9a-fA-F]'
-        + '([0-9a-fA-F])*';
+      pattern '(000[1-4].*|.*[^0-9a-fA-F].*)' {
+        modifier invert-match;
+      }
     }
     description 
       "Used for DUIDs following any other formats than DUID 

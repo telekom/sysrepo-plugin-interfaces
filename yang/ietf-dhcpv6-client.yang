@@ -64,7 +64,7 @@ module ietf-dhcpv6-client {
     This version of this YANG module is part of RFC XXXX; see
     the RFC itself for full legal notices.";
 
-  revision 2021-07-02 {
+  revision 2021-10-25 {
     description 
       "Initial Revision.";
     reference 
@@ -75,7 +75,7 @@ module ietf-dhcpv6-client {
    * Features
    */
 
-  feature non-temporary-address {
+  feature non-temp-addr {
     description
       "Denotes that the client supports DHCPv6 non-temporary address
       allocations.";
@@ -83,7 +83,7 @@ module ietf-dhcpv6-client {
       IPv6 (DHCPv6), Section 6.2";
   }
 
-  feature prefix-delegation {
+  feature prefix-del {
     description
       "Denotes that the client implements DHCPv6 prefix
       delegation.";
@@ -91,12 +91,19 @@ module ietf-dhcpv6-client {
       IPv6 (DHCPv6), Section 6.3";
   }
 
-  feature temporary-address {
+  feature temp-addr {
     description
       "Denotes that the client supports DHCPv6 temporary address
       allocations.";
     reference "RFC 8415: Dynamic Host Configuration Protocol for
       IPv6 (DHCPv6), Section 6.5";
+  }
+
+  feature anon-profile {
+    description
+      "Denotes that the client supports DHCP anonymity
+      profiles.";
+    reference "RFC 7844: Anonymity Profiles for DHCP Clients";
   }
 
   /*
@@ -315,6 +322,16 @@ module ietf-dhcpv6-client {
       description 
         "Globally enables the DHCP client function.";
     }
+    leaf client-duid {
+      if-feature "non-temp-addr or prefix-del " +
+        "or temp-addr and not anon-profile";
+      type dhc6:duid;
+      description 
+        "A single Client DUID that will be used by all of the
+        client's DHCPv6 enabled interfaces.";
+      reference "RFC 8415: Dynamic Host Configuration Protocol for
+        IPv6 (DHCPv6), Section 11";
+    }
     list client-if {
       key if-name;
       description 
@@ -333,12 +350,15 @@ module ietf-dhcpv6-client {
         description 
           "Enables the DHCP client function for this interface.";
       }
-      leaf duid {
+      leaf interface-duid {
+        if-feature "non-temp-addr or prefix-del " +
+          "or temp-addr and anon-profile";
         type dhc6:duid;
         description 
-          "Client DUID.";
-        reference "RFC 8415: Dynamic Host Configuration Protocol for
-          IPv6 (DHCPv6), Section 11";
+          "Per-interface Client DUIDs for use with DHCP anonymity
+          profiles.";
+        reference "RFC 7844: Anonymity Profiles for DHCP Clients,
+          Section 3";
       }
       container client-configured-options {
         description 
@@ -354,7 +374,7 @@ module ietf-dhcpv6-client {
         uses dhc6:reconfigure-accept-option-group;
       }
       list ia-na {
-        if-feature non-temporary-address;
+        if-feature non-temp-addr;
         key ia-id;
         description 
           "Configuration relevant for an IA_NA (Identity Association
@@ -402,7 +422,7 @@ module ietf-dhcpv6-client {
         }
       }
       list ia-ta {  
-        if-feature temporary-address;
+        if-feature temp-addr;
         key ia-id;
         description 
           "Configuration relevant for an IA_TA (Identity Association
@@ -435,7 +455,7 @@ module ietf-dhcpv6-client {
         }
       }
       list ia-pd {
-        if-feature prefix-delegation;
+        if-feature prefix-del;
         key ia-id;
         description 
           "Configuration relevant for an IA_PD (Identity Association
@@ -448,6 +468,16 @@ module ietf-dhcpv6-client {
             "The unique identifier for this IA_PD.";
           reference "RFC 8415: Dynamic Host Configuration Protocol
             for IPv6 (DHCPv6), Section 12";
+        }
+        leaf prefix-length-hint {
+          type uint8 {
+            range "1..128";
+            }
+          description "Prefix-length hint value included 
+            in the messages sent to the server to indicate a 
+            preference for the size of the prefix to be delegated.";
+          reference "RFC 8415: Dynamic Host Configuration Protocol      
+            for IPv6 (DHCPv6), Section 18.2.1";  
         }
         container ia-pd-options {
           description 
@@ -491,7 +521,7 @@ module ietf-dhcpv6-client {
    */
 
   notification invalid-ia-address-detected {
-    if-feature "non-temporary-address or temporary-address";
+    if-feature "non-temp-addr or temp-addr";
     description 
       "Notification sent when an address received 
       in an identity association option is determined invalid. 
@@ -622,8 +652,8 @@ module ietf-dhcpv6-client {
   }
 
   notification server-duid-changed {
-    if-feature "non-temporary-address or prefix-delegation or " + 
-      "temporary-address";
+    if-feature "non-temp-addr or prefix-del or " + 
+      "temp-addr";
     description 
       "Notification sent when the client receives a lease
       from a server with different DUID to the one currently stored
@@ -643,7 +673,7 @@ module ietf-dhcpv6-client {
         "DUID of the previous server.";
     }
     leaf lease-ia-na {
-      if-feature non-temporary-address;
+      if-feature non-temp-addr;
       type leafref {
         path "../../dhcpv6-client/client-if/ia-na/ia-id";
       }
@@ -651,7 +681,7 @@ module ietf-dhcpv6-client {
         "Reference to the IA_NA lease.";
     }
     leaf lease-ia-ta {
-      if-feature temporary-address;
+      if-feature temp-addr;
       type leafref {
         path "../../dhcpv6-client/client-if/ia-ta/ia-id";
       }
@@ -659,7 +689,7 @@ module ietf-dhcpv6-client {
         "Reference to the IA_TA lease.";
     }
     leaf lease-ia-pd {
-      if-feature prefix-delegation;
+      if-feature prefix-del;
       type leafref {
         path "../../dhcpv6-client/client-if/ia-pd/ia-id";
       }
