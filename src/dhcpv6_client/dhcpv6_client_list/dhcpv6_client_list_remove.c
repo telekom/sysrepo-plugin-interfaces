@@ -73,6 +73,26 @@ error_out:
 	return -1;
 }
 
+int dhcpv6_client_list_remove_enabled(config_data_list_t *ccl, char *if_name)
+{
+	dhcpv6_client_config_t *client_config = NULL;
+
+	client_config = dhcpv6_client_list_get_client_config(ccl, if_name);
+
+	if (client_config == NULL) {
+		goto error_out;
+	}
+
+	if (client_config->enabled != NULL) {
+		FREE_SAFE(client_config->enabled);
+	}
+
+	return 0;
+error_out:
+	return -1;
+}
+
+
 int dhcpv6_client_list_remove_duid(config_data_list_t *ccl, char *if_name, char *duid)
 {
 	dhcpv6_client_config_t *client_config = NULL;

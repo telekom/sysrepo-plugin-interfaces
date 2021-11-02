@@ -18,10 +18,7 @@
 
 #define SYSREPOCFG_EMPTY_CHECK_COMMAND "sysrepocfg -X -d running -m " BASE_YANG_MODEL
 
-#define DHCLIENT_RELEASE "dhclient -r"
-#define RELEASE_CMD_LEN 12 + IFNAMSIZ // 11 is the length of "dhclient -r" string and +1 for the space
-
-#define DHCLIENT_ENABLE "dhclient -6 -nw"
+#define RELEASE_CMD_LEN 15 + IFNAMSIZ // 14 is the length of "dhclient -6 -r" string and +1 for the space
 #define ENABLE_CMD_LEN 16 + IFNAMSIZ // 15 is the length of "dhclient -6 -nw" string and +1 for the space
 
 static int dhcpv6_client_module_change_cb(sr_session_ctx_t *session, uint32_t subscription_id, const char *module_name, const char *xpath, sr_event_t event, uint32_t request_id, void *private_data);
@@ -29,7 +26,7 @@ int dhcpv6_client_state_data_cb(sr_session_ctx_t *session, uint32_t subscription
 
 // utils
 static bool is_running_datastore_empty(void);
-static int dhcpv6_client_restart(void);
+static int dhcpv6_client_restart(config_data_list_t ccl);
 
 int dhcpv6_client_init(sr_session_ctx_t *session, sr_session_ctx_t *startup_session)
 {
@@ -187,7 +184,7 @@ static int dhcpv6_client_module_change_cb(sr_session_ctx_t *session, uint32_t su
 		}
 
 		// restart the dhclient service in order to update the new options
-		error = dhcpv6_client_restart();
+		error = dhcpv6_client_restart(client_config_list);
 		if (error != 0) {
 			SRP_LOG_ERR("dhcpv6_client_restart error");
 			goto out;
@@ -210,20 +207,27 @@ out:
 	return error ? SR_ERR_CALLBACK_FAILED : SR_ERR_OK;
 }
 
-static int dhcpv6_client_restart(void)
+static int dhcpv6_client_restart(config_data_list_t ccl)
 {
 	int error = 0;
 
-	error = system(DHCLIENT_RELEASE);
-	if (error != 0) {
-		SRP_LOG_ERR("\"%s\" failed with return value: %d", DHCLIENT_RELEASE, error);
-		return -1;
-	}
+	// check if dhclient is enabled or disabled for every interface in the list
+	for (uint32_t i = 0; i < ccl.count; i++) {
+		if (strcmp(ccl.configs[i].enabled, "true") == 0) {
+			// if interface is enabled, disable it and enable it
+			error = dhcpv6_client_release(ccl.configs[i].if_name);
+			if (error != 0) {
+				SRP_LOG_ERR("dhcpv6_client_release error");
+				return -1;
+			}
 
-	error = system(DHCLIENT_ENABLE);
-	if (error != 0) {
-		SRP_LOG_ERR("\"%s\" failed with return value: %d", DHCLIENT_ENABLE, error);
-		return -1;
+			error = dhcpv6_client_enable(ccl.configs[i].if_name);
+			if (error != 0) {
+				SRP_LOG_ERR("dhcpv6_client_enable error");
+				return -1;
+			}
+		}
+		// if interface is disabled, don't do anything
 	}
 
 	return error;
@@ -232,12 +236,29 @@ static int dhcpv6_client_restart(void)
 int dhcpv6_client_enable(char *if_name)
 {
 	int error = 0;
+	bool is_running = false;
 	char cmd[ENABLE_CMD_LEN] = {0};
 
 	error = snprintf(cmd, ENABLE_CMD_LEN, "dhclient -6 -nw %s", if_name);
 	if (error < 0) {
 		SRP_LOG_ERR("snprintf error");
 		return -1;
+	}
+
+	// first check if the dhclient is already running for this interface
+	// if it is, release the leases (kill the old dhclient) and start it again
+	error = dhcpv6_client_check_running(&is_running, cmd);
+	if (error != 0) {
+		SRP_LOG_ERR("dhcpv6_client_check_running error");
+		return -1;
+	}
+
+	if (is_running == true) {
+		error = dhcpv6_client_release(if_name);
+		if (error != 0) {
+			SRP_LOG_ERR("dhcpv6_client_release error");
+			return -1;
+		}
 	}
 
 	error = system(cmd);
@@ -253,8 +274,9 @@ int dhcpv6_client_release(char *if_name)
 {
 	int error = 0;
 	char cmd[RELEASE_CMD_LEN] = {0};
+	bool is_running = false;
 
-	error = snprintf(cmd, RELEASE_CMD_LEN, "dhclient -r %s", if_name);
+	error = snprintf(cmd, RELEASE_CMD_LEN, "dhclient -6 -r %s", if_name);
 	if (error < 0) {
 		SRP_LOG_ERR("snprintf error");
 		return -1;
@@ -266,7 +288,47 @@ int dhcpv6_client_release(char *if_name)
 		return -1;
 	}
 
+	// check if the dhclient really did release
+	// it should terminate the current process
+	error = dhcpv6_client_check_running(&is_running, "dhclient -6 -r");
+	if (error != 0) {
+		SRP_LOG_ERR("dhcpv6_client_check_running error");
+		return -1;
+	}
+
+	if (is_running == true) {
+		SRP_LOG_ERR("\"%s\" failed", cmd);
+		return -1;
+	}
+
 	return error;
+}
+
+static int dhcpv6_client_check_running(bool *is_running, char *cmd_to_check)
+{
+	int error = 0;
+	char cmd[23] = "ps -ef | grep dhclient";
+	FILE *fp = NULL;
+	char line[PATH_MAX] = {0};
+
+	fp = popen(cmd, "r");
+	if (fp == NULL) {
+		SRP_LOG_ERR("\"%s\" failed with return value: %d", cmd, error);
+		return -1;
+	}
+
+	// read output line by line
+	while (fgets(line, sizeof(line), fp) != NULL) {
+		if (strstr(line, cmd_to_check) != NULL) {
+			// found process by name
+			*is_running = true;
+			break;
+		}
+	}
+
+	pclose(fp);
+
+	return 0;
 }
 
 int dhcpv6_client_state_data_cb(sr_session_ctx_t *session, uint32_t subscription_id, const char *module_name, const char *path, const char *request_xpath, uint32_t request_id, struct lyd_node **parent, void *private_data)

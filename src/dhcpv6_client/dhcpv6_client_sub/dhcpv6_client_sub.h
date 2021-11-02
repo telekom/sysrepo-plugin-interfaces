@@ -40,5 +40,6 @@ int dhcpv6_client_init(sr_session_ctx_t *session, sr_session_ctx_t *startup_sess
 
 int dhcpv6_client_enable(char *if_name);
 int dhcpv6_client_release(char *if_name);
+static int dhcpv6_client_check_running(bool *is_running, char *cmd_to_check);
 
 #endif /* DHCPV6_CLIENT_ONCE_H */

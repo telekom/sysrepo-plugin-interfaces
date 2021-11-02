@@ -138,6 +138,24 @@ void dhcpv6_client_list_set_if_name(dhcpv6_client_config_t *client_config, char 
 	client_config->if_name = xstrdup(if_name);
 }
 
+int dhcpv6_client_list_add_enabled(config_data_list_t *ccl, char *if_name, char *enabled)
+{
+	dhcpv6_client_config_t *client_config = NULL;
+
+	client_config = dhcpv6_client_list_get_client_config(ccl, if_name);
+
+	if (client_config == NULL) {
+		goto error_out;
+	}
+
+	client_config->enabled = xstrdup(enabled);
+
+	return 0;
+
+error_out:
+	return -1;
+}
+
 int dhcpv6_client_list_add_duid(config_data_list_t *ccl, char *if_name, char *duid)
 {
 	dhcpv6_client_config_t *client_config = NULL;
