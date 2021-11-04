@@ -164,6 +164,7 @@ int dhcpv6_client_list_add_entries(config_data_list_t *ccl, char *if_name, char 
 int dhcpv6_client_list_add_interface(config_data_list_t *ccl, char *if_name);
 void dhcpv6_client_list_set_if_name(dhcpv6_client_config_t *client_config, char *if_name);
 int dhcpv6_client_list_add_enabled(config_data_list_t *ccl, char *if_name, char *enabled);
+int dhcpv6_client_list_add_global_duid(config_data_list_t *ccl, char *duid);
 int dhcpv6_client_list_add_duid(config_data_list_t *ccl, char *if_name, char *duid);
 int dhcpv6_client_list_add_oro(config_data_list_t *ccl, char *if_name, char *oro_opt);
 int dhcpv6_client_list_add_rpd_cmt(config_data_list_t *ccl, char *if_name);
@@ -177,6 +178,7 @@ int dhcpv6_client_list_set_del_if(config_data_list_t *ccl, char *if_name);
 int dhcpv6_client_list_check_remove_interface(config_data_list_t *ccl);
 int dhcpv6_client_list_remove_interface(config_data_list_t *ccl, char *if_name);
 int dhcpv6_client_list_remove_enabled(config_data_list_t *ccl, char *if_name);
+int dhcpv6_client_list_remove_global_duid(config_data_list_t *ccl, const char *duid);
 int dhcpv6_client_list_remove_duid(config_data_list_t *ccl, char *if_name, char *duid);
 int dhcpv6_client_list_remove_oro(config_data_list_t *ccl, char *if_name, char *oro_opt);
 int dhcpv6_client_list_remove_rpd_cmt(config_data_list_t *ccl, char *if_name);

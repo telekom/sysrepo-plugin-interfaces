@@ -156,6 +156,36 @@ error_out:
 	return -1;
 }
 
+int dhcpv6_client_list_add_global_duid(config_data_list_t *ccl, char *duid)
+{
+	// convert duid to hex representation
+	// e.g.: 000200090CC084D303000913 -> 00:02:00:09:0C:C0:84:D3:03:00:09:13
+	int len = (int)strlen(duid);
+	char new_duid[128] = {0}; // 128 max duid len TODO: check this
+	int cnt = 0;
+
+	for (int i = 0; i < len; i++) {
+		if (i > 0 && i % 2 == 0) {
+			new_duid[cnt] = ':';
+			new_duid[++cnt] = duid[i];
+		} else {
+			new_duid[cnt] = duid[i];
+		}
+		cnt++;
+	}
+
+	// set same DUID to all interfaces
+	for (int i = 0; i < MAX_IF_NUM; i++) {
+		if (ccl->configs[i].duid != NULL) {
+			FREE_SAFE(ccl->configs[i].duid);
+		}
+
+		ccl->configs[i].duid = xstrdup(new_duid);
+	}
+
+	return 0;
+}
+
 int dhcpv6_client_list_add_duid(config_data_list_t *ccl, char *if_name, char *duid)
 {
 	dhcpv6_client_config_t *client_config = NULL;
@@ -473,6 +503,13 @@ void dhcpv6_client_list_free(config_data_list_t *ccl)
 {
 	for (uint32_t i = 0; i < ccl->count; i++) {
 		dhcpv6_client_list_free_config(&ccl->configs[i]);
+	}
+
+	// if global client-duid is used, all interfaces will have it set
+	for (uint32_t i = 0; i <  MAX_IF_NUM; i++) {
+		if (ccl->configs[i].duid != NULL) {
+			FREE_SAFE(ccl->configs[i].duid );
+		}
 	}
 }
 

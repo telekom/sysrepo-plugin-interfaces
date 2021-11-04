@@ -1,9 +1,10 @@
 <dhcpv6-client xmlns="urn:ietf:params:xml:ns:yang:ietf-dhcpv6-client">
   <enabled>true</enabled>
+  <client-duid>000200090CC084D303000913</client-duid>
   <client-if>
-    <if-name>eth0</if-name>
+    <if-name>enp0s3</if-name>
     <enabled>true</enabled>
-    <duid>000200090CC084D303000913</duid>
+    <!--<interface-duid>000200090CC0666603000913</interface-duid>-->
     <client-configured-options>
 
       <option-request-option>

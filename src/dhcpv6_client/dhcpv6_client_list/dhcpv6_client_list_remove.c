@@ -92,6 +92,21 @@ error_out:
 	return -1;
 }
 
+int dhcpv6_client_list_remove_global_duid(config_data_list_t *ccl, const char *duid)
+{
+	// set same DUID to all interfaces
+	for (int i = 0; i < MAX_IF_NUM; i++) {
+		if(ccl->configs[i].duid != NULL) {
+			if (strcmp(duid, ccl->configs[i].duid) == 0) {
+				FREE_SAFE(ccl->configs[i].duid);
+			}
+		}
+	}
+
+	return 0;
+error_out:
+	return -1;
+}
 
 int dhcpv6_client_list_remove_duid(config_data_list_t *ccl, char *if_name, char *duid)
 {

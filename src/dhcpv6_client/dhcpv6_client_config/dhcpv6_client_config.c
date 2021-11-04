@@ -54,6 +54,35 @@ int dhcpv6_client_config_set_value(sr_session_ctx_t *session, sr_change_oper_t o
 		goto error_out;
 	}
 
+	if (strcmp("client-duid", leaf_node) == 0) {
+		if (operation == SR_OP_CREATED) {
+			error = dhcpv6_client_list_add_global_duid(ccl, (char *)value);
+			if (error != 0) {
+				SRP_LOG_ERR("dhcpv6_client_list_add_global_duid error");
+				goto error_out;
+			}
+		} else if (operation == SR_OP_MODIFIED) {
+			// first remove the previous value from the list
+			error = dhcpv6_client_list_remove_global_duid(ccl, prev_value);
+			if (error != 0) {
+				SRP_LOG_ERR("dhcpv6_client_list_remove_global_duid error");
+				goto error_out;
+			}
+			// then add the new value to the list
+			error = dhcpv6_client_list_add_global_duid(ccl, (char *)value);
+			if (error != 0) {
+				SRP_LOG_ERR("dhcpv6_client_list_add_global_duid error");
+				goto error_out;
+			}
+		} else if (operation == SR_OP_DELETED) {
+			error = dhcpv6_client_list_remove_global_duid(ccl, value);
+			if (error != 0) {
+				SRP_LOG_ERR("dhcpv6_client_list_remove_global_duid error");
+				goto error_out;
+			}
+		}
+	}
+
 	interface_node_name = sr_xpath_key_value((char *) xpath, "client-if", "if-name", &state);
 	//vendor_class_opt_enterprise_num = sr_xpath_key_value(xpath_cpy_vendor_class, "vendor-class-option-instances", "enterprise-number", &state);
 	//vendor_specific_info_opts_enterprise_num = sr_xpath_key_value(xpath_cpy_vendor_specific, "vendor-specific-information-option", "enterprise-number", &state);
@@ -128,7 +157,7 @@ int dhcpv6_client_config_set_value(sr_session_ctx_t *session, sr_change_oper_t o
 					goto error_out;
 				}
 			}
-		} else if (strcmp("duid", leaf_node) == 0) {
+		} else if (strcmp("interface-duid", leaf_node) == 0) {
 			if (operation == SR_OP_CREATED) {
 				error = dhcpv6_client_list_add_duid(ccl, interface_node_name, (char *)value);
 				if (error != 0) {
@@ -137,7 +166,7 @@ int dhcpv6_client_config_set_value(sr_session_ctx_t *session, sr_change_oper_t o
 				}
 			} else if (operation == SR_OP_MODIFIED) {
 				// first remove the previous value from the list
-				error = dhcpv6_client_list_remove_duid(ccl, interface_node_name, (char *)prev_value);
+				error = dhcpv6_client_list_remove_duid(ccl, interface_node_name, (char *)value);
 				if (error != 0) {
 					SRP_LOG_ERR("dhcpv6_client_list_remove_duid error");
 					goto error_out;
