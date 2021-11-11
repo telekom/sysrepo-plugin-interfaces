@@ -3378,7 +3378,8 @@ static void *manager_thread_cb(void *data)
 {
 	do {
 		nl_cache_mngr_data_ready(link_manager);
-	} while (true && exit_application == 0);
+		sleep(1);
+	} while (exit_application == 0);
 
 	return NULL;
 }
