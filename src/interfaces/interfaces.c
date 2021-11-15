@@ -1072,7 +1072,7 @@ int update_link_info(link_data_list_t *ld, sr_change_oper_t operation)
 		uint16_t outer_vlan_id =  ld->links[i].extensions.encapsulation.dot1q_vlan.outer_vlan_id;
 		bool delete = ld->links[i].delete;
 
-		if (name == NULL || type == 0) {
+		if (name == NULL ){//|| type == 0) {
 			continue;
 		}
 
@@ -1352,6 +1352,7 @@ int add_interface_ipv4(link_data_t *ld, struct rtnl_link *old, struct rtnl_link 
 	struct rtnl_addr *r_addr = NULL;
 	struct rtnl_neigh *neigh = NULL;
 	struct nl_addr *ll_addr = NULL;
+	struct nl_cache *cache = NULL;
 
 	// add ipv4 options from given link data to the req link object
 	// also set forwarding options to the given files for a particular link
@@ -1399,7 +1400,7 @@ int add_interface_ipv4(link_data_t *ld, struct rtnl_link *old, struct rtnl_link 
 		if (error != 0) {
 			rtnl_addr_put(r_addr);
 			nl_addr_put(local_addr);
-			SRP_LOG_ERR("nl_addr_parse 1 error (%d): %s", error, nl_geterror(error));
+			SRP_LOG_ERR("nl_addr_parse error (%d): %s", error, nl_geterror(error));
 			goto out;
 		}
 		nl_addr_set_prefixlen(local_addr, addr_ls->addr[i].subnet);
@@ -1429,7 +1430,7 @@ int add_interface_ipv4(link_data_t *ld, struct rtnl_link *old, struct rtnl_link 
 			nl_addr_put(ll_addr);
 			nl_addr_put(local_addr);
 			rtnl_neigh_put(neigh);
-			SRP_LOG_ERR("nl_addr_parse  2 error (%d): %s", error, nl_geterror(error));
+			SRP_LOG_ERR("nl_addr_parse error (%d): %s", error, nl_geterror(error));
 			goto out;
 		}
 
@@ -1438,7 +1439,7 @@ int add_interface_ipv4(link_data_t *ld, struct rtnl_link *old, struct rtnl_link 
 			nl_addr_put(ll_addr);
 			nl_addr_put(local_addr);
 			rtnl_neigh_put(neigh);
-			SRP_LOG_ERR("nl_addr_parse  3 error (%d): %s", error, nl_geterror(error));
+			SRP_LOG_ERR("nl_addr_parse error (%d): %s", error, nl_geterror(error));
 			goto out;
 		}
 
@@ -1448,7 +1449,25 @@ int add_interface_ipv4(link_data_t *ld, struct rtnl_link *old, struct rtnl_link 
 		rtnl_neigh_set_lladdr(neigh, ll_addr);
 		rtnl_neigh_set_dst(neigh, local_addr);
 
-		error = rtnl_neigh_add(socket, neigh, NLM_F_CREATE);
+		error = rtnl_link_alloc_cache(socket, AF_UNSPEC, &cache);
+		if (error != 0) {
+			SRP_LOG_ERR("rtnl_link_alloc_cache error (%d): %s", error, nl_geterror(error));
+			nl_addr_put(ll_addr);
+			nl_addr_put(local_addr);
+			rtnl_neigh_put(neigh);
+			goto out;
+		}
+
+		struct rtnl_neigh *tmp_neigh = rtnl_neigh_get(cache, if_idx, local_addr);
+		int neigh_oper = NLM_F_CREATE;
+
+		if (tmp_neigh != NULL) {
+			// if the neighbor already exists, replace it
+			// otherwise create it (NLM_F_CREATE)
+			neigh_oper = NLM_F_REPLACE;
+		}
+
+		error = rtnl_neigh_add(socket, neigh, neigh_oper);
 		if (error != 0) {
 			SRP_LOG_ERR("rtnl_neigh_add error (%d): %s", error, nl_geterror(error));
 			nl_addr_put(ll_addr);
@@ -1527,6 +1546,7 @@ int add_interface_ipv6(link_data_t *ld, struct rtnl_link *old, struct rtnl_link 
 	struct rtnl_addr *r_addr = NULL;
 	struct rtnl_neigh *neigh = NULL;
 	struct nl_addr *ll_addr = NULL;
+	struct nl_cache *cache = NULL;
 
 	// enabled
 	error = write_to_proc_file(ipv6_base, if_name, "disable_ipv6", ipv6->ip_data.enabled == 0);
@@ -1623,7 +1643,25 @@ int add_interface_ipv6(link_data_t *ld, struct rtnl_link *old, struct rtnl_link 
 		rtnl_neigh_set_lladdr(neigh, ll_addr);
 		rtnl_neigh_set_dst(neigh, local_addr);
 
-		error = rtnl_neigh_add(socket, neigh, NLM_F_CREATE);
+		error = rtnl_link_alloc_cache(socket, AF_UNSPEC, &cache);
+		if (error != 0) {
+			SRP_LOG_ERR("rtnl_link_alloc_cache error (%d): %s", error, nl_geterror(error));
+			nl_addr_put(ll_addr);
+			nl_addr_put(local_addr);
+			rtnl_neigh_put(neigh);
+			goto out;
+		}
+
+		struct rtnl_neigh *tmp_neigh = rtnl_neigh_get(cache, if_idx, local_addr);
+		int neigh_oper = NLM_F_CREATE;
+
+		if (tmp_neigh != NULL) {
+			// if the neighbor already exists, replace it
+			// otherwise create it (NLM_F_CREATE)
+			neigh_oper = NLM_F_REPLACE;
+		}
+
+		error = rtnl_neigh_add(socket, neigh, neigh_oper);
 		if (error != 0) {
 			SRP_LOG_ERR("rtnl_neigh_add error (%d): %s", error, nl_geterror(error));
 			nl_addr_put(ll_addr);
@@ -1671,7 +1709,7 @@ static int remove_neighbors(ip_neighbor_list_t *nbor_list, struct nl_sock *socke
 			// block until the operation has been completed. Alternatively the required
 			// netlink message can be built using rtnl_neigh_build_delete_request()
 			// to be sent out using nl_send_auto_complete().
-			error = rtnl_neigh_delete(socket, neigh, 0);
+			error = rtnl_neigh_delete(socket, neigh, NLM_F_ACK);
 			if (error != 0) {
 				SRP_LOG_ERR("rtnl_neigh_delete error (%d): %s", error, nl_geterror(error));
 				nl_addr_put(dst_addr);
@@ -2002,6 +2040,15 @@ int add_existing_links(link_data_list_t *ld)
 			struct rtnl_neigh *neigh = rtnl_neigh_get(neigh_cache, if_index, nl_dst_addr);
 
 			if (neigh != NULL) {
+				// get neigh state
+				int neigh_state = rtnl_neigh_get_state(neigh);
+
+				// skip neighs with no arp state
+				if (NUD_NOARP == neigh_state) {
+					nl_neigh_object = nl_cache_get_next(nl_neigh_object);
+					continue;
+				}
+
 				int cur_neigh_index = rtnl_neigh_get_ifindex(neigh);
 
 				if (if_index != cur_neigh_index) {
