@@ -68,10 +68,6 @@
 #define MAC_ADDR_MAX_LENGTH 18
 #define MAX_DESCR_LEN 100
 #define DATETIME_BUF_SIZE 30
-#define PLUGIN_DIR_ENV_VAR "IF_PLUGIN_DATA_DIR"
-#define PLUGIN_DIR_DEFAULT "/usr/local/lib/sysrepo-interfaces-plugin"
-#define INTERFACE_DESCRIPTION_FILENAME "/interface_description"
-#define TMP_INTERFACE_DESCRIPTION_FILENAME "/tmp_interface_description"
 #define CLASS_NET_LINE_LEN 1024
 #define ADDR_STR_BUF_SIZE 45 // max ip string length (15 for ipv4 and 45 for ipv6)
 #define MAX_IF_NAME_LEN IFNAMSIZ // 16 bytes
@@ -95,10 +91,8 @@ static int read_from_proc_file(const char *dir_path, char *interface, const char
 int delete_config_value(const char *xpath, const char *value);
 int update_link_info(link_data_list_t *ld, sr_change_oper_t operation);
 static char *convert_ianaiftype(char *iana_if_type);
-int add_existing_links(link_data_list_t *ld);
-static int set_interface_description(char *name, char *description);
-static int get_interface_description(char *name, char **description);
-static char *get_plugin_file_path(const char *filename, bool create);
+int add_existing_links(sr_session_ctx_t *session, link_data_list_t *ld);
+static int get_interface_description(sr_session_ctx_t *session, char *name, char **description);
 static int get_system_boot_time(char boot_datetime[]);
 
 // function to start all threads for each interface
@@ -130,16 +124,15 @@ int sr_plugin_init_cb(sr_session_ctx_t *session, void **private_data)
 
 	*private_data = NULL;
 
-	desc_file_path = get_plugin_file_path(INTERFACE_DESCRIPTION_FILENAME, true);
-	if (desc_file_path == NULL) {
-		SRP_LOG_ERR("get_plugin_file_path error");
-		error = -1;
-		goto error_out;
-	}
-
 	error = link_data_list_init(&link_data_list);
 	if (error != 0) {
 		SRP_LOG_ERR("link_data_list_init error");
+		goto out;
+	}
+
+	error = add_existing_links(session, &link_data_list);
+	if (error != 0) {
+		SRP_LOG_ERR("add_existing_links error");
 		goto out;
 	}
 
@@ -1066,7 +1059,6 @@ int update_link_info(link_data_list_t *ld, sr_change_oper_t operation)
 	for (int i = 0; i < ld->count; i++) {
 		char *name = ld->links[i].name;
 		char *type = ld->links[i].type;
-		char *description = ld->links[i].description;
 		char *enabled = ld->links[i].enabled;
 		char *parent_interface = ld->links[i].extensions.parent_interface;
 		uint16_t outer_vlan_id =  ld->links[i].extensions.encapsulation.dot1q_vlan.outer_vlan_id;
@@ -1151,15 +1143,6 @@ int update_link_info(link_data_list_t *ld, sr_change_oper_t operation)
 					SRP_LOG_ERR("remove_neighbors error");
 					goto out;
 				}
-			}
-		}
-
-		// desc
-		if (description != NULL) {
-			error = set_interface_description(name, description);
-			if (error != 0) {
-				SRP_LOG_ERR("set_interface_description error: %s", strerror(errno));
-				goto out;
 			}
 		}
 
@@ -1890,7 +1873,7 @@ out:
 	return error;
 }
 
-int add_existing_links(link_data_list_t *ld)
+int add_existing_links(sr_session_ctx_t *session, link_data_list_t *ld)
 {
 	int error = 0;
 	struct nl_sock *socket = NULL;
@@ -1940,7 +1923,7 @@ int add_existing_links(link_data_list_t *ld)
 			goto error_out;
 		}
 
-		error = get_interface_description(name, &description);
+		error = get_interface_description(session, name, &description);
 		if (error != 0) {
 			SRP_LOG_ERR("get_interface_description error");
 			// don't return in case of error
@@ -2318,221 +2301,35 @@ error_out:
 	return -1;
 }
 
-static int set_interface_description(char *name, char *description)
+static int get_interface_description(sr_session_ctx_t *session, char *name, char **description)
 {
-	FILE *fp = NULL;
-	FILE *fp_tmp = NULL;
-	char entry[MAX_DESCR_LEN] = {0};
-	char *desc_file_path = NULL;
-	char *tmp_desc_file_path = NULL;
-	char *line = NULL;
-	size_t len = 0;
-	ssize_t read = 0;
-	bool entry_updated = false;
+	int error = SR_ERR_OK;
+	char path_buffer[PATH_MAX] = {0};
+	sr_val_t *val = {0};
 
-	desc_file_path = get_plugin_file_path(INTERFACE_DESCRIPTION_FILENAME, false);
-	if (desc_file_path == NULL) {
-		SRP_LOG_ERR("set_interface_description: couldn't get interface description file path\n");
+	// conjure description path for this interface
+	// /ietf-interfaces:interfaces/interface[name='test_interface']/description
+	error = snprintf(path_buffer, sizeof(path_buffer) / sizeof(char), "%s[name=\"%s\"]/description", INTERFACE_LIST_YANG_PATH, name);
+	if (error < 0) {
+		SRP_LOG_ERR("snprintf error");
 		goto error_out;
 	}
 
-	if (snprintf(entry, MAX_DESCR_LEN, "%s=%s\n", name, description) < 0) {
+	// get the interface description value 
+	error = sr_get_item(session, path_buffer, 0, &val);
+	if (error != SR_ERR_OK) {
+		SRP_LOG_ERR("sr_get_item error (%d): %s", error, sr_strerror(error));
 		goto error_out;
 	}
 
-	// if the file exists
-	if (access(desc_file_path, F_OK) == 0) {
-		tmp_desc_file_path = get_plugin_file_path(TMP_INTERFACE_DESCRIPTION_FILENAME, true);
-		if (desc_file_path == NULL) {
-			SRP_LOG_ERR("set_interface_description: couldn't get interface description file path\n");
-			goto error_out;
-		}
-
-		fp = fopen(desc_file_path, "r");
-		if (fp == NULL) {
-			goto error_out;
-		}
-
-		fp_tmp = fopen(tmp_desc_file_path, "a");
-		if (fp_tmp == NULL) {
-			goto error_out;
-		}
-
-		while ((read = getline(&line, &len, fp)) != -1) {
-			// check if interface with name already exists
-			if (strncmp(line, name, strlen(name)) == 0) {
-				// update it
-				fputs(entry, fp_tmp);
-				entry_updated = true;
-				break;
-			} else {
-				fputs(line, fp_tmp);
-			}
-		}
-
-		FREE_SAFE(line);
-		fclose(fp);
-		fp = NULL;
-		fclose(fp_tmp);
-		fp_tmp = NULL;
-
-		// rename the tmp file
-		if (rename(tmp_desc_file_path, desc_file_path) != 0) {
-			goto error_out;
-		}
-
-		FREE_SAFE(tmp_desc_file_path);
+	if (strlen(val->data.string_val) > 0) {
+		*description = val->data.string_val;
 	}
 
-	// if the current entry wasn't updated, append it
-	if (!entry_updated) {
-		fp = fopen(desc_file_path, "a");
-		if (fp == NULL) {
-			goto error_out;
-		}
-
-		fputs(entry, fp);
-
-		fclose(fp);
-		fp = NULL;
-	}
-
-	FREE_SAFE(desc_file_path);
 	return 0;
 
 error_out:
-	if (desc_file_path != NULL) {
-		FREE_SAFE(desc_file_path);
-	}
-
-	if (tmp_desc_file_path != NULL) {
-		FREE_SAFE(tmp_desc_file_path);
-	}
-
-	if (fp != NULL) {
-		fclose(fp);
-	}
-
-	if (fp_tmp != NULL) {
-		fclose(fp_tmp);
-	}
-
 	return -1;
-}
-
-static int get_interface_description(char *name, char **description)
-{
-	FILE *fp = NULL;
-	char *line = NULL;
-	size_t len = 0;
-	ssize_t read = 0;
-	char *desc_file_path = NULL;
-	bool entry_found = false;
-	char *token = NULL;
-	char *tmp_description = NULL;
-
-	desc_file_path = get_plugin_file_path(INTERFACE_DESCRIPTION_FILENAME, false);
-	if (desc_file_path == NULL) {
-		SRP_LOG_ERR("get_interface_description: couldn't get interface description file path\n");
-		return -1;
-	}
-
-	fp = fopen(desc_file_path, "r");
-	if (fp == NULL) {
-		FREE_SAFE(desc_file_path);
-		return -1;
-	}
-
-	while ((read = getline(&line, &len, fp)) != -1) {
-		// find description for given interface name
-		if (strncmp(line, name, strlen(name)) == 0) {
-			// remove the newline char from line
-			line[strlen(line) - 1] = '\0';
-
-			token = strtok(line, "=");
-			if (token == NULL) {
-				continue;
-			}
-
-			tmp_description = strtok(NULL, "=");
-			if (tmp_description == NULL) {
-				continue;
-			}
-
-			size_t desc_len = strlen(tmp_description);
-			*description = xcalloc(desc_len + 1, sizeof(char));
-			strncpy(*description, tmp_description, desc_len);
-			entry_found = true;
-			break;
-		}
-	}
-
-	FREE_SAFE(line);
-	fclose(fp);
-	FREE_SAFE(desc_file_path);
-
-	if (!entry_found) {
-		SRP_LOG_INF("No description for interface %s was found", name);
-	}
-
-	return 0;
-}
-
-static char *get_plugin_file_path(const char *filename, bool create)
-{
-	// TODO: update this appropriately
-	int error = 0;
-	char *plugin_dir = NULL;
-	char *file_path = NULL;
-	size_t filename_len = 0;
-	FILE *tmp = NULL;
-
-	plugin_dir = getenv(PLUGIN_DIR_ENV_VAR);
-	if (plugin_dir == NULL) {
-		//SRP_LOG_WRN("Unable to get env var %s", PLUGIN_DIR_ENV_VAR);
-		//SRP_LOG_INF("Setting the plugin data dir to: %s", PLUGIN_DIR_DEFAULT);
-		plugin_dir = PLUGIN_DIR_DEFAULT;
-	}
-
-	// check if plugin_dir exists
-	DIR* dir = opendir(plugin_dir);
-	if (dir) {
-		// dir exists
-		closedir(dir);
-	} else if (ENOENT == errno) {
-		error = mkdir(plugin_dir, 0777);
-		if (error == -1) {
-			SRP_LOG_ERR("Error creating dir: %s", plugin_dir);
-			return NULL;
-		}
-	} else {
-		SRP_LOG_ERR("opendir failed");
-		return NULL;
-	}
-
-	filename_len = strlen(plugin_dir) + strlen(filename) + 1;
-	file_path = xmalloc(filename_len);
-
-	if (snprintf(file_path, filename_len, "%s%s", plugin_dir, filename) < 0) {
-		return NULL;
-	}
-
-	// check if file exists
-	if (access(file_path, F_OK) != 0){
-		if (create) {
-			tmp = fopen(file_path, "w");
-			if (tmp == NULL) {
-				SRP_LOG_ERR("Error creating %s", file_path);
-				return NULL;
-			}
-			fclose(tmp);
-		} else {
-			SRP_LOG_ERR("Filename %s doesn't exist in dir %s", filename, plugin_dir);
-			return NULL;
-		}
-	}
-
-	return file_path;
 }
 
 static int interfaces_state_data_cb(sr_session_ctx_t *session, uint32_t subscription_id, const char *module_name, const char *path, const char *request_xpath, uint32_t request_id, struct lyd_node **parent, void *private_data)
@@ -2743,11 +2540,8 @@ static int interfaces_state_data_cb(sr_session_ctx_t *session, uint32_t subscrip
 
 		interface_data.name = rtnl_link_get_name(link);
 
-		error = get_interface_description(interface_data.name, &interface_data.description);
-		if (error != 0) {
-			SRP_LOG_ERR("get_interface_description error");
-			// don't exit, as some interfaces might not have a description
-		}
+		link_data_t *l = data_list_get_by_name(&link_data_list, interface_data.name);
+		interface_data.description = l->description;
 
 		interface_data.type = rtnl_link_get_type(link);
 		interface_data.enabled = rtnl_link_get_operstate(link) == IF_OPER_UP ? "enabled" : "disabled";
@@ -3220,9 +3014,6 @@ static int interfaces_state_data_cb(sr_session_ctx_t *session, uint32_t subscrip
 
 		// free all allocated data
 		FREE_SAFE(interface_data.phys_address);
-		if (interface_data.description != NULL) {
-			FREE_SAFE(interface_data.description);
-		}
 
 		// continue to next link node
 		link = (struct rtnl_link *) nl_cache_get_next((struct nl_object *) link);

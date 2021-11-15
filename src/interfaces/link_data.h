@@ -64,6 +64,7 @@ int link_data_list_init(link_data_list_t *ld);
 int link_data_list_add(link_data_list_t *ld, char *name);
 
 // basic options
+link_data_t *data_list_get_by_name(link_data_list_t *ld, char *name);
 int link_data_list_set_description(link_data_list_t *ld, char *name, char *description);
 int link_data_list_set_type(link_data_list_t *ld, char *name, char *type);
 int link_data_list_set_enabled(link_data_list_t *ld, char *name, char *enabled);

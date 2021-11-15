@@ -20,9 +20,6 @@
 #include <string.h>
 #include <errno.h>
 
-static link_data_t *data_list_get_by_name(link_data_list_t *ld, char *name);
-extern int add_existing_links(link_data_list_t *ld);
-
 void link_data_init(link_data_t *l)
 {
 	l->name = NULL;
@@ -41,17 +38,10 @@ void link_data_init(link_data_t *l)
 
 int link_data_list_init(link_data_list_t *ld)
 {
-	int error = 0;
-
 	for (int i = 0; i < LD_MAX_LINKS; i++) {
 		link_data_init(&ld->links[i]);
 	}
 	ld->count = 0;
-
-	error = add_existing_links(ld);
-	if (error != 0) {
-		return -1;
-	}
 
 	return 0;
 }
@@ -456,7 +446,7 @@ int link_data_list_set_delete(link_data_list_t *ld, char *name, bool delete)
 	return error;
 }
 
-static link_data_t *data_list_get_by_name(link_data_list_t *ld, char *name)
+link_data_t *data_list_get_by_name(link_data_list_t *ld, char *name)
 {
 	link_data_t *l = NULL;
 	for (int i = 0; i < ld->count; i++) {
