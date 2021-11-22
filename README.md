@@ -81,8 +81,8 @@ The plugins require several YANG modules to be loaded into the Sysrepo datastore
 For the interfaces plugin this can be achieved by invoking the following commands:
 
 ```
-$ sysrepoctl -i ./yang/iana-if-type@2017-01-19.yang
 $ sysrepoctl -i ./yang/ietf-interfaces@2018-02-20.yang
+$ sysrepoctl -i ./yang/iana-if-type@2017-01-19.yang
 $ sysrepoctl -i ./yang/ietf-ip@2018-02-22.yang
 $ sysrepoctl -i ./yang/ietf-if-extensions@2020-07-29.yang
 $ sysrepoctl -i ./yang/ieee802-dot1q-types.yang
@@ -91,6 +91,8 @@ $ sysrepoctl -i ./yang/ietf-if-vlan-encapsulation@2020-07-13.yang
 
 For the routing plugin, the following models have to be installed:
 ```
+$ sysrepoctl -i ./yang/ietf-interfaces@2018-02-20.yang
+$ sysrepoctl -i ./yang/iana-if-type@2017-01-19.yang
 $ sysrepoctl -i ./yang/ietf-ip@2018-02-22.yang
 $ sysrepoctl -i ./yang/ietf-routing@2018-03-13.yang
 $ sysrepoctl -i ./yang/ietf-ipv4-unicast-routing@2018-03-13.yang
