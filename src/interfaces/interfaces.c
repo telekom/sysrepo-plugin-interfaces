@@ -242,6 +242,7 @@ static int load_data(sr_session_ctx_t *session, link_data_list_t *ld)
 		char *type = ld->links[i].type;
 		char *description = ld->links[i].description;
 		char *enabled = ld->links[i].enabled;
+		char *parent_interface = ld->links[i].extensions.parent_interface;
 
 		snprintf(interface_path_buffer, sizeof(interface_path_buffer) / sizeof(char), "%s[name=\"%s\"]", INTERFACE_LIST_YANG_PATH, name);
 
@@ -308,6 +309,22 @@ static int load_data(sr_session_ctx_t *session, link_data_list_t *ld)
 			SRP_LOG_ERR("sr_set_item_str error (%d): %s", error, sr_strerror(error));
 			goto error_out;
 		}
+
+		if (parent_interface != 0) {
+			error = snprintf(xpath_buffer, sizeof(xpath_buffer), "%s/ietf-if-extensions:parent-interface", interface_path_buffer);
+			if (error < 0) {
+				goto error_out;
+			}
+
+			error = sr_set_item_str(session, xpath_buffer, parent_interface, NULL, SR_EDIT_DEFAULT);
+			if (error) {
+				SRP_LOG_ERR("sr_set_item_str error (%d): %s", error, sr_strerror(error));
+				goto error_out;
+			}
+		}
+
+		// handle vlan interfaces
+
 
 		// ietf-ip
 		// TODO: refactor this!
@@ -2037,12 +2054,6 @@ int add_existing_links(sr_session_ctx_t *session, link_data_list_t *ld)
 			int parent_index = rtnl_link_get_link(link);
 			parent_interface = rtnl_link_i2name(cache, parent_index, parent_buffer, MAX_IF_NAME_LEN);
 
-			// don't add the QinQ interface to the list
-			// check if name partially already in the list
-			// the QinQ interface will be in format vlan_name.vlan_second_id
-
-			// remove enp0s3.1.20
-
 			// outer vlan id
 			vlan_id = (uint16_t)rtnl_link_vlan_get_id(link);
 			if (vlan_id <= 0) {
@@ -2051,15 +2062,13 @@ int add_existing_links(sr_session_ctx_t *session, link_data_list_t *ld)
 			}
 
 			// check if vlan_id in name, if it is this is the QinQ interface, skip it
-			char str_id[2] = {0};
+			char *first = NULL;
+			char *second = NULL;
 
-			error = sprintf(str_id, "%d", vlan_id);
-			if (error < 0 ) {
-				SRP_LOG_ERR("sprintf error");
-				goto error_out;
-			}
+			first = strchr(name, '.');
+			second = strchr(first+1, '.');
 
-			if (strstr(name, str_id) != NULL) {
+			if (second != 0) {
 				link = (struct rtnl_link *) nl_cache_get_next((struct nl_object *) link);
 				continue;
 			}
