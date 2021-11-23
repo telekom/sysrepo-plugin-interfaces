@@ -71,6 +71,7 @@
 #define CLASS_NET_LINE_LEN 1024
 #define ADDR_STR_BUF_SIZE 45 // max ip string length (15 for ipv4 and 45 for ipv6)
 #define MAX_IF_NAME_LEN IFNAMSIZ // 16 bytes
+#define CMD_LEN 1024
 
 // callbacks
 static int interfaces_module_change_cb(sr_session_ctx_t *session, uint32_t subscription_id, const char *module_name, const char *xpath, sr_event_t event, uint32_t request_id, void *private_data);
@@ -93,6 +94,7 @@ int update_link_info(link_data_list_t *ld, sr_change_oper_t operation);
 static char *convert_ianaiftype(char *iana_if_type);
 int add_existing_links(sr_session_ctx_t *session, link_data_list_t *ld);
 static int get_interface_description(sr_session_ctx_t *session, char *name, char **description);
+static int create_vlan_qinq(char *name, char *parent_interface, uint16_t outer_vlan_id, uint16_t second_vlan_id);
 static int get_system_boot_time(char boot_datetime[]);
 
 // function to start all threads for each interface
@@ -1035,6 +1037,7 @@ int update_link_info(link_data_list_t *ld, sr_change_oper_t operation)
 	struct nl_sock *socket = NULL;
 	struct nl_cache *cache = NULL;
 	struct rtnl_link *old = NULL;
+	struct rtnl_link *old_vlan_qinq = NULL;
 	struct rtnl_link *request = NULL;
 
 	int error = SR_ERR_OK;
@@ -1062,13 +1065,26 @@ int update_link_info(link_data_list_t *ld, sr_change_oper_t operation)
 		char *enabled = ld->links[i].enabled;
 		char *parent_interface = ld->links[i].extensions.parent_interface;
 		uint16_t outer_vlan_id =  ld->links[i].extensions.encapsulation.dot1q_vlan.outer_vlan_id;
+		uint16_t second_vlan_id =  ld->links[i].extensions.encapsulation.dot1q_vlan.second_vlan_id;
+		char second_vlan_name[MAX_IF_NAME_LEN] = {0};
 		bool delete = ld->links[i].delete;
 
 		if (name == NULL ){//|| type == 0) {
 			continue;
 		}
 
+		// handle vlan QinQ interfaces
+		if (type != NULL && strcmp(type, "vlan") == 0 && second_vlan_id != 0) {
+			error = snprintf(second_vlan_name, sizeof(second_vlan_name), "%s.%d", name, second_vlan_id);
+			if (error < 0) {
+				SRP_LOG_ERR("snprintf error");
+				goto out;
+			}
+		}
+
 		old = rtnl_link_get_by_name(cache, name);
+		// check for second vlan (QinQ) as well
+		old_vlan_qinq = rtnl_link_get_by_name(cache, second_vlan_name);
 		request = rtnl_link_alloc();
 
 		// delete link (interface) if marked for deletion
@@ -1088,6 +1104,10 @@ int update_link_info(link_data_list_t *ld, sr_change_oper_t operation)
 			// cleanup
 			if (old != NULL) {
 				rtnl_link_put(old);
+			}
+
+			if (old_vlan_qinq != NULL) {
+				rtnl_link_put(old_vlan_qinq);
 			}
 
 			if (request != NULL) {
@@ -1148,20 +1168,38 @@ int update_link_info(link_data_list_t *ld, sr_change_oper_t operation)
 
 		// type
 		if (type != NULL) {
-			error = rtnl_link_set_type(request, type);
-			if (error < 0) {
-				SRP_LOG_ERR("rtnl_link_set_type error (%d): %s", error, nl_geterror(error));
-				goto out;
-			}
-
 			// handle vlan interfaces
 			if (strcmp(type, "vlan") == 0) {
-				// TODO: figure out how to add outer and second tags
-				// temporary solution could be using ip link command instead of libnl
-				int master_index = rtnl_link_name2i(cache, parent_interface);
-				rtnl_link_set_link(request, master_index);
+				// if second vlan id is present treat it as QinQ vlan
+				if (second_vlan_id != 0) {
+					// update the last-change state list
+					uint8_t state = rtnl_link_get_operstate(request);
 
-				error = rtnl_link_vlan_set_id(request, outer_vlan_id);
+					if_state_list_add(&if_state_changes, state, second_vlan_name);
+					if_state_list_add(&if_state_changes, state, name);
+
+					// then create the interface with new parameters
+					create_vlan_qinq(name, parent_interface, outer_vlan_id, second_vlan_id);
+
+				} else if (second_vlan_id == 0) {
+					// normal vlan interface
+					error = rtnl_link_set_type(request, type);
+					if (error < 0) {
+						SRP_LOG_ERR("rtnl_link_set_type error (%d): %s", error, nl_geterror(error));
+						goto out;
+					}
+					// if only the outer vlan is present, treat is an normal vlan
+					int master_index = rtnl_link_name2i(cache, parent_interface);
+					rtnl_link_set_link(request, master_index);
+
+					error = rtnl_link_vlan_set_id(request, outer_vlan_id);
+				}
+			} else {
+				error = rtnl_link_set_type(request, type);
+				if (error < 0) {
+					SRP_LOG_ERR("rtnl_link_set_type error (%d): %s", error, nl_geterror(error));
+					goto out;
+				}
 			}
 		}
 
@@ -1217,20 +1255,23 @@ int update_link_info(link_data_list_t *ld, sr_change_oper_t operation)
 				goto out;
 			}
 
-			// set the new name
-			rtnl_link_set_name(request, name);
+			// don't create if it's a QinQ vlan interface since it's already been created
+			if (second_vlan_id == 0) {
+				// update the last-change state list
+				uint8_t state = rtnl_link_get_operstate(request);
 
-			// update the last-change state list
-			uint8_t state = rtnl_link_get_operstate(request);
+				if_state_list_add(&if_state_changes, state, name);
 
-			if_state_list_add(&if_state_changes, state, name);
+				// set the new name
+				rtnl_link_set_name(request, name);
 
-			// add the interface
-			// note: if type is not set, you can't add the new link
-			error = rtnl_link_add(socket, request, NLM_F_CREATE);
-			if (error != 0) {
-				SRP_LOG_ERR("rtnl_link_add error (%d): %s", error, nl_geterror(error));
-				goto out;
+				// add the interface
+				// note: if type is not set, you can't add the new link
+				error = rtnl_link_add(socket, request, NLM_F_CREATE);
+				if (error != 0) {
+					SRP_LOG_ERR("rtnl_link_add error (%d): %s", error, nl_geterror(error));
+					goto out;
+				}
 			}
 
 			// in order to add ipv4/ipv6 options we first have to create the interface
@@ -1244,6 +1285,7 @@ int update_link_info(link_data_list_t *ld, sr_change_oper_t operation)
 			}
 
 			old = rtnl_link_get_by_name(cache, name);
+			old_vlan_qinq = rtnl_link_get_by_name(cache, second_vlan_name);
 
 			if (old != NULL) {
 				error = add_interface_ipv4(&ld->links[i], old, request, rtnl_link_get_ifindex(old));
@@ -1264,8 +1306,29 @@ int update_link_info(link_data_list_t *ld, sr_change_oper_t operation)
 					goto out;
 				}
 			}
+
+			if (old_vlan_qinq != NULL) {
+				error = add_interface_ipv4(&ld->links[i], old_vlan_qinq, request, rtnl_link_get_ifindex(old_vlan_qinq));
+				if (error != 0) {
+					SRP_LOG_ERR("add_interface_ipv4 error");
+					goto out;
+				}
+
+				error = add_interface_ipv6(&ld->links[i], old_vlan_qinq, request, rtnl_link_get_ifindex(old_vlan_qinq));
+				if (error != 0) {
+					SRP_LOG_ERR("add_interface_ipv6 error");
+					goto out;
+				}
+
+				error = rtnl_link_change(socket, old_vlan_qinq, request, 0);
+				if (error != 0) {
+					SRP_LOG_ERR("rtnl_link_change error (%d): %s", error, nl_geterror(error));
+					goto out;
+				}
+			}
 		}
 		rtnl_link_put(old);
+		rtnl_link_put(old_vlan_qinq);
 		rtnl_link_put(request);
 	}
 
@@ -1715,6 +1778,32 @@ static int remove_neighbors(ip_neighbor_list_t *nbor_list, struct nl_sock *socke
 	return 0;
 }
 
+static int create_vlan_qinq(char *name, char *parent_interface, uint16_t outer_vlan_id, uint16_t second_vlan_id)
+{
+	int error = 0;
+	char cmd[CMD_LEN] = {0};
+
+	// e.g.: # ip link add link eth0 name eth0.10 type vlan id 10 protocol 802.1ad
+	error = snprintf(cmd, sizeof(cmd), "ip link add link %s name %s type vlan id %d protocol 802.1ad", parent_interface, name, outer_vlan_id);
+	if (error < 0) {
+		SRP_LOG_ERR("snprintf error");
+		return -1;
+	}
+
+	error = system(cmd);
+
+	// e.g.: # ip link add link eth0.10 name eth0.10.20 type vlan id 20
+	error = snprintf(cmd, sizeof(cmd), "ip link add link %s name %s.%d type vlan id %d", name, name, second_vlan_id, second_vlan_id);
+	if (error < 0) {
+		SRP_LOG_ERR("snprintf error");
+		return -1;
+	}
+
+	error = system(cmd);
+
+	return 0;
+}
+
 static bool check_system_interface(const char *interface_name, bool *system_interface)
 {
 	int error = 0;
@@ -1948,11 +2037,31 @@ int add_existing_links(sr_session_ctx_t *session, link_data_list_t *ld)
 			int parent_index = rtnl_link_get_link(link);
 			parent_interface = rtnl_link_i2name(cache, parent_index, parent_buffer, MAX_IF_NAME_LEN);
 
+			// don't add the QinQ interface to the list
+			// check if name partially already in the list
+			// the QinQ interface will be in format vlan_name.vlan_second_id
+
+			// remove enp0s3.1.20
+
 			// outer vlan id
 			vlan_id = (uint16_t)rtnl_link_vlan_get_id(link);
 			if (vlan_id <= 0) {
 				SRP_LOG_ERR("couldn't get vlan ID");
 				goto error_out;
+			}
+
+			// check if vlan_id in name, if it is this is the QinQ interface, skip it
+			char str_id[2] = {0};
+
+			error = sprintf(str_id, "%d", vlan_id);
+			if (error < 0 ) {
+				SRP_LOG_ERR("sprintf error");
+				goto error_out;
+			}
+
+			if (strstr(name, str_id) != NULL) {
+				link = (struct rtnl_link *) nl_cache_get_next((struct nl_object *) link);
+				continue;
 			}
 		}
 
