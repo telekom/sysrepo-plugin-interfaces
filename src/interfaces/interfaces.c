@@ -580,7 +580,6 @@ void sr_plugin_cleanup_cb(sr_session_ctx_t *session, void *private_data)
 static int interfaces_module_change_cb(sr_session_ctx_t *session, uint32_t subscription_id, const char *module_name, const char *xpath, sr_event_t event, uint32_t request_id, void *private_data)
 {
 	int error = 0;
-	sr_session_ctx_t *startup_session = (sr_session_ctx_t *) private_data;
 	sr_change_iter_t *system_change_iter = NULL;
 	sr_change_oper_t operation = SR_OP_CREATED;
 	const struct lyd_node *node = NULL;
@@ -599,7 +598,7 @@ static int interfaces_module_change_cb(sr_session_ctx_t *session, uint32_t subsc
 	}
 
 	if (event == SR_EV_DONE) {
-		error = sr_copy_config(startup_session, BASE_YANG_MODEL, SR_DS_RUNNING, 0);
+		error = sr_copy_config(session, BASE_YANG_MODEL, SR_DS_RUNNING, 0);
 		if (error) {
 			SRP_LOG_ERR("sr_copy_config error (%d): %s", error, sr_strerror(error));
 			goto error_out;
