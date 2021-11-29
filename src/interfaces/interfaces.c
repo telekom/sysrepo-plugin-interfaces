@@ -89,6 +89,7 @@ static int remove_ipv6_address(ip_address_list_t *addr_list, struct nl_sock *soc
 static int remove_neighbors(ip_neighbor_list_t *nbor_list, struct nl_sock *socket, int addr_ver, int if_index);
 int write_to_proc_file(const char *dir_path, char *interface, const char *fn, int val);
 static int read_from_proc_file(const char *dir_path, char *interface, const char *fn, int *val);
+static int read_from_sys_file(const char *dir_path, char *interface, int *val);
 int delete_config_value(const char *xpath, const char *value);
 int update_link_info(link_data_list_t *ld, sr_change_oper_t operation);
 static char *convert_ianaiftype(char *iana_if_type);
@@ -246,16 +247,9 @@ static int load_data(sr_session_ctx_t *session, link_data_list_t *ld)
 
 		snprintf(interface_path_buffer, sizeof(interface_path_buffer) / sizeof(char), "%s[name=\"%s\"]", INTERFACE_LIST_YANG_PATH, name);
 
-		/* For existing interface the type will be null since it was not set by the plugin.
-		 * These interfaces may include: a loopback, a wlan, a eth device etc.
-		 * quickfix: If the type is NULL and name is 'lo' set it to "iana-if-type:softwareLoopback"
-		 * 			 If the type is NULL, set it to 'iana-if-type:ethernetCsmacd'
-		 *			 Otherwise sr_set_item_str will fail
-		 */
-
-		if (type == NULL && strcmp(name, "lo") == 0) {
+		if (strcmp(type, "lo") == 0) {
 			type = "iana-if-type:softwareLoopback";
-		} else if (type == NULL) {
+		} else if (strcmp(type, "eth") == 0) {
 			type = "iana-if-type:ethernetCsmacd";
 		} else if (strcmp(type, "vlan") == 0) {
 			type = "iana-if-type:l2vlan";
@@ -1981,6 +1975,42 @@ out:
 	return error;
 }
 
+static int read_from_sys_file(const char *dir_path, char *interface, int *val)
+{
+	int error = 0;
+	char tmp_buffer[PATH_MAX];
+	FILE *fptr = NULL;
+	char tmp_val[4] = {0};
+
+	error = snprintf(tmp_buffer, sizeof(tmp_buffer), "%s/%s/type", dir_path, interface);
+	if (error < 0) {
+		// snprintf error
+		SRP_LOG_ERR("snprintf failed");
+		goto out;
+	}
+
+	// snprintf returns return the number of bytes that are written
+	// reset error to 0
+	error = 0;
+
+	fptr = fopen((const char *) tmp_buffer, "r");
+
+	if (fptr != NULL) {
+		fgets(tmp_val, sizeof(tmp_val), fptr);
+
+		*val = atoi(tmp_val);
+
+		fclose(fptr);
+	} else {
+		SRP_LOG_ERR("failed to open %s: %s", tmp_buffer, strerror(errno));
+		error = -1;
+		goto out;
+	}
+
+out:
+	return error;
+}
+
 int add_existing_links(sr_session_ctx_t *session, link_data_list_t *ld)
 {
 	int error = 0;
@@ -2039,6 +2069,30 @@ int add_existing_links(sr_session_ctx_t *session, link_data_list_t *ld)
 		}
 
 		type = rtnl_link_get_type(link);
+		if (type == NULL) {
+			/* rtnl_link_get_type() will return NULL for interfaces that were not
+			 * set with rtnl_link_set_type()
+			 *
+			 * get the type from: /sys/class/net/<interface_name>/type
+			 */
+			const char *path_to_sys = "/sys/class/net/";
+			int type_id = 0;
+
+			error = read_from_sys_file(path_to_sys, name, &type_id);
+			if (error != 0) {
+				SRP_LOG_ERR("read_from_sys_file error");
+				goto error_out;
+			}
+
+			// values taken from: if_arp.h
+			if (type_id == 1) {
+				// eth interface
+				type = "eth";
+			} else if (type_id == 772) {
+				// loopback interface
+				type = "lo";
+			}
+		}
 
 		enabled = rtnl_link_get_operstate(link) == IF_OPER_UP ? "true" : "false";
 
