@@ -2094,7 +2094,15 @@ int add_existing_links(sr_session_ctx_t *session, link_data_list_t *ld)
 			}
 		}
 
-		enabled = rtnl_link_get_operstate(link) == IF_OPER_UP ? "true" : "false";
+		// enabled
+		uint8_t tmp_enabled = rtnl_link_get_operstate(link);
+		// lo interface has state unknown, treat it as enabled
+		// otherwise it will be set to down, and dns resolution won't work
+		if (IF_OPER_UP == tmp_enabled || IF_OPER_UNKNOWN == tmp_enabled) {
+			enabled = "true";
+		} else if (IF_OPER_DOWN == tmp_enabled ) {
+			enabled = "false";
+		}
 
 		// mtu
 		mtu = rtnl_link_get_mtu(link);
