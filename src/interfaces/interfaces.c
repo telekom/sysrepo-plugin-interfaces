@@ -80,6 +80,7 @@ static int interfaces_state_data_cb(sr_session_ctx_t *session, uint32_t subscrip
 // helper functions
 static bool system_running_datastore_is_empty_check(void);
 static int load_data(sr_session_ctx_t *session, link_data_list_t *ld);
+static int load_startup(sr_session_ctx_t *session, link_data_list_t *ld);
 static bool check_system_interface(const char *interface_name, bool *system_interface);
 int set_config_value(const char *xpath, const char *value);
 int add_interface_ipv4(link_data_t *ld, struct rtnl_link *old, struct rtnl_link *req, int if_idx);
@@ -172,6 +173,20 @@ int sr_plugin_init_cb(sr_session_ctx_t *session, void **private_data)
 			SRP_LOG_ERR("sr_copy_config error (%d): %s", error, sr_strerror(error));
 			goto error_out;
 		}
+	}
+
+	// load data from startup datastore to internal list
+	error = load_startup(startup_session, &link_data_list);
+	if (error != 0) {
+		SRP_LOG_ERR("load_startup error");
+		goto error_out;
+	}
+
+	// apply what is present in the startup datastore
+	error = update_link_info(&link_data_list, SR_OP_CREATED);
+	if (error != 0) {
+		SRP_LOG_ERR("update_link_info error");
+		goto error_out;
 	}
 
 	SRP_LOG_INF("subscribing to module change");
@@ -566,9 +581,75 @@ error_out:
 	return -1;
 }
 
+static int load_startup(sr_session_ctx_t *session, link_data_list_t *ld)
+{
+	int error = 0;
+	sr_val_t *vals = NULL;
+	char *val = NULL;
+	char val_buf[10] = {0};
+	char *xpath = NULL;
+	size_t i, val_count = 0;
+
+	error = sr_get_items(session, "/ietf-interfaces:interfaces//.", 0, 0, &vals, &val_count);
+	if (error != SR_ERR_OK) {
+		SRP_LOG_ERR("sr_get_items error (%d): %s", error, sr_strerror(error));
+		goto error_out;
+	}
+
+	for (i = 0; i < val_count; ++i) {
+		switch (vals[i].type) {
+			case SR_STRING_T:
+			case SR_IDENTITYREF_T:
+				val = xstrdup(vals[i].data.string_val);
+				break;
+			case SR_BOOL_T:
+				val = xstrdup(vals[i].data.bool_val ? "true" : "false");
+				break;
+			case SR_UINT8_T:
+			case SR_UINT16_T:
+			case SR_UINT32_T:
+				error = snprintf(val_buf, sizeof(val_buf), "%d", vals[i].data.uint16_val);
+				if (error < 0) {
+					SRP_LOG_ERR("snprintf error");
+					goto error_out;
+				}
+
+				val = xstrdup(val_buf);
+				break;
+			default:
+				continue;
+		}
+
+		xpath = xstrdup(vals[i].xpath);
+
+		error = set_config_value(xpath, val);
+		if (error != 0) {
+			SRP_LOG_ERR("set_config_value error (%d)", error);
+			goto error_out;
+		}
+
+		FREE_SAFE(xpath);
+		FREE_SAFE(val);
+	}
+
+	return 0;
+
+error_out:
+	if (xpath != NULL) {
+		FREE_SAFE(xpath);
+	}
+	if (val != NULL) {
+		FREE_SAFE(val);
+	}
+	return -1;
+}
+
 void sr_plugin_cleanup_cb(sr_session_ctx_t *session, void *private_data)
 {
 	sr_session_ctx_t *startup_session = (sr_session_ctx_t *) private_data;
+
+	// copy the running datastore to startup one, in case we reboot
+	sr_copy_config(startup_session, BASE_YANG_MODEL, SR_DS_RUNNING, 0);
 
 	exit_application = 1;
 
