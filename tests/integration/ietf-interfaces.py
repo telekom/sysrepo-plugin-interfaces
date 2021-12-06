@@ -35,7 +35,7 @@ class InterfacesTestCase(unittest.TestCase):
         self.session = self.conn.start_session("running")
         time.sleep(2)
 
-        self.initial_data = self.session.get_data_ly('/ietf-system:system')
+        self.initial_data = self.session.get_data_ly('/ietf-interfaces:interfaces')
 
     def tearDown(self):
         self.session.stop()
@@ -144,7 +144,7 @@ class InterfaceTestCase(InterfacesTestCase):
             self.assertEqual(state, 'up', 'system interface state unchanged')
 
         data.free()
-        self.session.replace_config_ly(self.initial_data, 'ietf-system')
+        self.session.replace_config_ly(self.initial_data, 'ietf-interfaces')
 
     def test_interface_lo_description(self):
         """ Attempt to change loopback description """
@@ -176,7 +176,7 @@ class InterfaceTestCase(InterfacesTestCase):
             pass
 
         data.free()
-        self.session.replace_config_ly(self.initial_data, 'ietf-system')
+        self.session.replace_config_ly(self.initial_data, 'ietf-interfaces')
 
 
 if __name__ == '__main__':
