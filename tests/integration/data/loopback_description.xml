@@ -1,0 +1,31 @@
+<interfaces xmlns="urn:ietf:params:xml:ns:yang:ietf-interfaces">
+  <interface>
+    <name>lo</name>
+    <description>test</description>
+    <type xmlns:ianaift="urn:ietf:params:xml:ns:yang:iana-if-type">ianaift:softwareLoopback</type>
+    <enabled>false</enabled>
+    <ipv4 xmlns="urn:ietf:params:xml:ns:yang:ietf-ip">
+      <forwarding>false</forwarding>
+      <address>
+        <ip>127.0.0.1</ip>
+        <prefix-length>8</prefix-length>
+      </address>
+      <neighbor>
+        <ip>0.0.0.0</ip>
+        <link-layer-address>00:00:00:00:00:00</link-layer-address>
+      </neighbor>
+    </ipv4>
+    <ipv6 xmlns="urn:ietf:params:xml:ns:yang:ietf-ip">
+      <enabled>false</enabled>
+      <forwarding>false</forwarding>
+      <neighbor>
+        <ip>ff02::16</ip>
+        <link-layer-address>00:00:00:00:00:00</link-layer-address>
+      </neighbor>
+      <neighbor>
+        <ip>::1</ip>
+        <link-layer-address>00:00:00:00:00:00</link-layer-address>
+      </neighbor>
+    </ipv6>
+  </interface>
+</interfaces>
