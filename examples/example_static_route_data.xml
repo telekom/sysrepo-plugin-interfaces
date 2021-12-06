@@ -1,0 +1,20 @@
+<routing xmlns="urn:ietf:params:xml:ns:yang:ietf-routing">
+  <control-plane-protocols>
+    <control-plane-protocol>
+      <type xmlns:rt="urn:ietf:params:xml:ns:yang:ietf-routing">rt:static</type>
+      <name>static</name>
+      <description>static protocol</description>
+      <static-routes>
+        <ipv4 xmlns="urn:ietf:params:xml:ns:yang:ietf-ipv4-unicast-routing">
+          <route>
+            <destination-prefix>192.168.25.0/24</destination-prefix>
+            <description>test description</description>
+            <next-hop>
+              <next-hop-address>192.168.25.1</next-hop-address>
+              <outgoing-interface>enp1s0</outgoing-interface>
+            </next-hop>
+          </route>
+        </ipv4>
+      </static-routes>
+    </control-plane-protocol>
+</routing>

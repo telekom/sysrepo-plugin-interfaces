@@ -5,7 +5,7 @@
 
 struct control_plane_protocol_list {
 	struct control_plane_protocol *list;
-	int size;
+	size_t size;
 };
 
 void control_plane_protocol_list_init(struct control_plane_protocol_list *ls);
