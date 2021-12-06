@@ -464,6 +464,7 @@ $ sysrepocfg -X -x '/ietf-interfaces:interfaces/interface[name="lo"]/ietf-ip:ipv
 ```
 
 The same can be done for IPv6, just replace ipv4 with ipv6 in the examples above.
+note: the IPv6 MTU is set in the following file /proc/sys/net/ipv6/conf/<name_of_interface>/mtu
 
 ### Interface IP address and subnet
 

@@ -11,7 +11,7 @@
  * SPDX-License-Identifier: BSD-3-Clause
  */
 
-#include "utils/ip_data.h"
+#include "ip_data.h"
 #include "utils/memory.h"
 #include <stdlib.h>
 #include <string.h>
@@ -132,6 +132,10 @@ void ip_address_list_add(ip_address_list_t *addr_ls, char *ip, char *subnet, ip_
 
 	if (addr_ls->count > 0) {
 		for (uint32_t i = 0; i < addr_ls->count; i++) {
+			// if the address is already in the list, don't add it
+			if (strcmp(addr_ls->addr[i].ip, ip) == 0) {
+				return;
+			}
 			// in case an address was deleted, we can reuse that portion of memory
 			// find it and set the new address at that location
 			if (addr_ls->addr[i].ip == NULL) {
@@ -236,7 +240,11 @@ void ip_neighbor_list_add(ip_neighbor_list_t *nbor_ls, char *ip, char *phys_addr
 
 	ip_neighbor_init(n);
 	ip_neighbor_set_ip(n, ip);
-	ip_neighbor_set_phys_addr(n, phys_addr);
+
+	// don't set if phys_addr is "none"
+	if (strcmp(phys_addr, "none") != 0) {
+		ip_neighbor_set_phys_addr(n, phys_addr);
+	}
 }
 
 void ip_neighbor_list_free(ip_neighbor_list_t *nbor_ls)
