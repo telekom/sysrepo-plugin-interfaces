@@ -1699,7 +1699,7 @@ int add_interface_ipv6(link_data_t *ld, struct rtnl_link *old, struct rtnl_link 
 
 	// set mtu
 	if (ipv6->ip_data.mtu != 0) {
-		error = write_to_proc_file(ipv6_base, if_name, "forwarding", ipv6->ip_data.mtu);
+		error = write_to_proc_file(ipv6_base, if_name, "mtu", ipv6->ip_data.mtu);
 		if (error != 0) {
 			goto out;
 		}
