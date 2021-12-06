@@ -2,23 +2,7 @@ image: "debian:sid"
 
 before_script:
   - apt-get update
-  - apt-get -y install clang cmake libcmocka0 libcmocka-dev valgrind libnl-3-200 libnl-3-dev libnl-genl-3-dev libnl-nf-3-dev
-
-  # prepare for building debian packages
-  - apt-get -y install git build-essential fakeroot devscripts
-
-  # TODO: when libyang2 is available in Debian unstable
-  - git clone --depth=1 https://github.com/jpetrina/libyang -b debian/v2.0.7 && cd libyang
-  - mk-build-deps --install --tool 'apt-get --yes --no-install-recommends' --remove
-  - dpkg-buildpackage -j$(nproc) --build=binary --root-command=fakeroot --unsigned-source --unsigned-changes
-  - (dpkg -i ../libyang2*.deb || apt-get -y install -f) && cd ..
-
-  # TODO: when libyang2 is available in Debian unstable
-  - git clone --depth=1 https://github.com/jpetrina/sysrepo -b debian/v2.0.1 && cd sysrepo
-  - mk-build-deps --install --tool 'apt-get --yes --no-install-recommends' --remove
-  - dpkg-buildpackage -j$(nproc) --build=binary --root-command=fakeroot --unsigned-source --unsigned-changes
-  - (dpkg -i ../sysrepo*.deb ../libsysrepo*.deb || apt-get -y install -f) && cd ..
-
+  - apt-get -y install clang cmake libcmocka0 libcmocka-dev valgrind libyang1 libyang-dev sysrepo libsysrepo-dev libnl-3-200 libnl-3-dev libnl-genl-3-dev libnl-nf-3-dev
   # resolve time issues
   - ln -snf /usr/share/zoneinfo/Europe/Zagreb /etc/localtime && echo 'Europe/Zagreb' > /etc/timezone
 

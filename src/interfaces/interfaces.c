@@ -74,13 +74,14 @@
 #define CMD_LEN 1024
 
 // callbacks
-static int interfaces_module_change_cb(sr_session_ctx_t *session, uint32_t subscription_id, const char *module_name, const char *xpath, sr_event_t event, uint32_t request_id, void *private_data);
-static int interfaces_state_data_cb(sr_session_ctx_t *session, uint32_t subscription_id, const char *module_name, const char *path, const char *request_xpath, uint32_t request_id, struct lyd_node **parent, void *private_data);
+static int interfaces_module_change_cb(sr_session_ctx_t *session, const char *module_name, const char *xpath, sr_event_t event, uint32_t request_id, void *private_data);
+static int interfaces_state_data_cb(sr_session_ctx_t *session, const char *module_name, const char *path, const char *request_xpath, uint32_t request_id, struct lyd_node **parent, void *private_data);
 
 // helper functions
 static bool system_running_datastore_is_empty_check(void);
 static int load_data(sr_session_ctx_t *session, link_data_list_t *ld);
 static int load_startup(sr_session_ctx_t *session, link_data_list_t *ld);
+static char *interfaces_xpath_get(const struct lyd_node *node);
 static bool check_system_interface(const char *interface_name, bool *system_interface);
 int set_config_value(const char *xpath, const char *value);
 int add_interface_ipv4(link_data_t *ld, struct rtnl_link *old, struct rtnl_link *req, int if_idx);
@@ -130,13 +131,13 @@ int sr_plugin_init_cb(sr_session_ctx_t *session, void **private_data)
 
 	error = link_data_list_init(&link_data_list);
 	if (error != 0) {
-		SRP_LOG_ERR("link_data_list_init error");
+		SRP_LOG_ERRMSG("link_data_list_init error");
 		goto out;
 	}
 
 	error = add_existing_links(session, &link_data_list);
 	if (error != 0) {
-		SRP_LOG_ERR("add_existing_links error");
+		SRP_LOG_ERRMSG("add_existing_links error");
 		goto out;
 	}
 
@@ -146,7 +147,7 @@ int sr_plugin_init_cb(sr_session_ctx_t *session, void **private_data)
 
 	error = init_state_changes();
 	if (error != 0) {
-		SRP_LOG_ERR("Error occurred while initializing threads to track interface changes... exiting");
+		SRP_LOG_ERRMSG("Error occurred while initializing threads to track interface changes... exiting");
 		goto out;
 	}
 
@@ -164,11 +165,11 @@ int sr_plugin_init_cb(sr_session_ctx_t *session, void **private_data)
 
 		error = load_data(session, &link_data_list);
 		if (error) {
-			SRP_LOG_ERR("load_data error");
+			SRP_LOG_ERRMSG("load_data error");
 			goto error_out;
 		}
 
-		error = sr_copy_config(startup_session, BASE_YANG_MODEL, SR_DS_RUNNING, 0);
+		error = sr_copy_config(startup_session, BASE_YANG_MODEL, SR_DS_RUNNING, 0, 0);
 		if (error) {
 			SRP_LOG_ERR("sr_copy_config error (%d): %s", error, sr_strerror(error));
 			goto error_out;
@@ -178,18 +179,18 @@ int sr_plugin_init_cb(sr_session_ctx_t *session, void **private_data)
 	// load data from startup datastore to internal list
 	error = load_startup(startup_session, &link_data_list);
 	if (error != 0) {
-		SRP_LOG_ERR("load_startup error");
+		SRP_LOG_ERRMSG("load_startup error");
 		goto error_out;
 	}
 
 	// apply what is present in the startup datastore
 	error = update_link_info(&link_data_list, SR_OP_CREATED);
 	if (error != 0) {
-		SRP_LOG_ERR("update_link_info error");
+		SRP_LOG_ERRMSG("update_link_info error");
 		goto error_out;
 	}
 
-	SRP_LOG_INF("subscribing to module change");
+	SRP_LOG_INFMSG("subscribing to module change");
 
 	// sub to any module change - for now
 	error = sr_module_change_subscribe(session, BASE_YANG_MODEL, "/" BASE_YANG_MODEL ":*//.", interfaces_module_change_cb, *private_data, 0, SR_SUBSCR_DEFAULT, &subscription);
@@ -204,7 +205,7 @@ int sr_plugin_init_cb(sr_session_ctx_t *session, void **private_data)
 		goto error_out;
 	}
 
-	SRP_LOG_INF("plugin init done");
+	SRP_LOG_INFMSG("plugin init done");
 
 	FREE_SAFE(desc_file_path);
 
@@ -570,7 +571,7 @@ static int load_data(sr_session_ctx_t *session, link_data_list_t *ld)
 		}
 	}
 
-	error = sr_apply_changes(session, 0);
+	error = sr_apply_changes(session, 0, 0);
 	if (error) {
 		SRP_LOG_ERR("sr_apply_changes error (%d): %s", error, sr_strerror(error));
 		goto error_out;
@@ -610,7 +611,7 @@ static int load_startup(sr_session_ctx_t *session, link_data_list_t *ld)
 			case SR_UINT32_T:
 				error = snprintf(val_buf, sizeof(val_buf), "%d", vals[i].data.uint16_val);
 				if (error < 0) {
-					SRP_LOG_ERR("snprintf error");
+					SRP_LOG_ERRMSG("snprintf error");
 					goto error_out;
 				}
 
@@ -649,7 +650,7 @@ void sr_plugin_cleanup_cb(sr_session_ctx_t *session, void *private_data)
 	sr_session_ctx_t *startup_session = (sr_session_ctx_t *) private_data;
 
 	// copy the running datastore to startup one, in case we reboot
-	sr_copy_config(startup_session, BASE_YANG_MODEL, SR_DS_RUNNING, 0);
+	sr_copy_config(startup_session, BASE_YANG_MODEL, SR_DS_RUNNING, 0, 0);
 
 	exit_application = 1;
 
@@ -664,7 +665,7 @@ void sr_plugin_cleanup_cb(sr_session_ctx_t *session, void *private_data)
 	SRP_LOG_INF("plugin cleanup finished");
 }
 
-static int interfaces_module_change_cb(sr_session_ctx_t *session, uint32_t subscription_id, const char *module_name, const char *xpath, sr_event_t event, uint32_t request_id, void *private_data)
+static int interfaces_module_change_cb(sr_session_ctx_t *session, const char *module_name, const char *xpath, sr_event_t event, uint32_t request_id, void *private_data)
 {
 	int error = 0;
 	sr_change_iter_t *system_change_iter = NULL;
@@ -672,9 +673,11 @@ static int interfaces_module_change_cb(sr_session_ctx_t *session, uint32_t subsc
 	const struct lyd_node *node = NULL;
 	const char *prev_value = NULL;
 	const char *prev_list = NULL;
-	int prev_default = false;
+	bool prev_default = false;
 	char *node_xpath = NULL;
-	char *node_value = NULL;
+	const char *node_value = NULL;
+	struct lyd_node_leaf_list *node_leaf_list;
+	struct lys_node_leaf *schema_node_leaf;
 
 	SRP_LOG_INF("module_name: %s, xpath: %s, event: %d, request_id: %u", module_name, xpath, event, request_id);
 
@@ -685,7 +688,7 @@ static int interfaces_module_change_cb(sr_session_ctx_t *session, uint32_t subsc
 	}
 
 	if (event == SR_EV_DONE) {
-		error = sr_copy_config(session, BASE_YANG_MODEL, SR_DS_RUNNING, 0);
+		error = sr_copy_config(session, BASE_YANG_MODEL, SR_DS_RUNNING, 0, 0);
 		if (error) {
 			SRP_LOG_ERR("sr_copy_config error (%d): %s", error, sr_strerror(error));
 			goto error_out;
@@ -699,10 +702,15 @@ static int interfaces_module_change_cb(sr_session_ctx_t *session, uint32_t subsc
 			goto error_out;
 		}
 		while (sr_get_change_tree_next(session, system_change_iter, &operation, &node, &prev_value, &prev_list, &prev_default) == SR_ERR_OK) {
-			node_xpath = lyd_path(node, LYD_PATH_STD, NULL, 0);
+			node_xpath = interfaces_xpath_get(node);
 
 			if (node->schema->nodetype == LYS_LEAF || node->schema->nodetype == LYS_LEAFLIST) {
-				node_value = xstrdup(lyd_get_value(node));
+				node_leaf_list = (struct lyd_node_leaf_list *) node;
+				node_value = node_leaf_list->value_str;
+				if (node_value == NULL) {
+						schema_node_leaf = (struct lys_node_leaf *) node_leaf_list->schema;
+						node_value = schema_node_leaf->dflt ? schema_node_leaf->dflt : "";
+				}
 			}
 
 			SRP_LOG_DBG("node_xpath: %s; prev_val: %s; node_val: %s; operation: %d", node_xpath, prev_value, node_value, operation);
@@ -719,14 +727,14 @@ static int interfaces_module_change_cb(sr_session_ctx_t *session, uint32_t subsc
 					bool system_interface = false;
 					error = check_system_interface(node_value, &system_interface);
 					if (error) {
-						SRP_LOG_ERR("check_system_interface error");
+						SRP_LOG_ERRMSG("check_system_interface error");
 						goto error_out;
 					}
 
 					// check if system interface but also
 					// check if parent-interface node (virtual interfaces can have a system interface as parent)
 					if (system_interface && !(strstr(node_xpath, "/ietf-if-extensions:parent-interface") != NULL)) {
-						SRP_LOG_ERR("Can't delete a system interface");
+						SRP_LOG_ERRMSG("Can't delete a system interface");
 						FREE_SAFE(node_xpath);
 						sr_free_change_iter(system_change_iter);
 						return SR_ERR_INVAL_ARG;
@@ -740,13 +748,13 @@ static int interfaces_module_change_cb(sr_session_ctx_t *session, uint32_t subsc
 				}
 			}
 			FREE_SAFE(node_xpath);
-			FREE_SAFE(node_value);
+			node_value = NULL;
 		}
 
 		error = update_link_info(&link_data_list, operation);
 		if (error) {
 			error = SR_ERR_CALLBACK_FAILED;
-			SRP_LOG_ERR("update_link_info error");
+			SRP_LOG_ERRMSG("update_link_info error");
 			goto error_out;
 		}
 	}
@@ -780,7 +788,7 @@ int set_config_value(const char *xpath, const char *value)
 
 	interface_node = sr_xpath_node_name((char *) xpath);
 	if (interface_node == NULL) {
-		SRP_LOG_ERR("sr_xpath_node_name error");
+		SRP_LOG_ERRMSG("sr_xpath_node_name error");
 		error = SR_ERR_CALLBACK_FAILED;
 		goto out;
 	}
@@ -788,14 +796,14 @@ int set_config_value(const char *xpath, const char *value)
 	interface_node_name = sr_xpath_key_value((char *) xpath, "interface", "name", &state);
 
 	if (interface_node_name == NULL) {
-		SRP_LOG_ERR("sr_xpath_key_value error");
+		SRP_LOG_ERRMSG("sr_xpath_key_value error");
 		error = SR_ERR_CALLBACK_FAILED;
 		goto out;
 	}
 
 	error = link_data_list_add(&link_data_list, interface_node_name);
 	if (error != 0) {
-		SRP_LOG_ERR("link_data_list_add error");
+		SRP_LOG_ERRMSG("link_data_list_add error");
 		error = SR_ERR_CALLBACK_FAILED;
 		goto out;
 	}
@@ -804,7 +812,7 @@ int set_config_value(const char *xpath, const char *value)
 		// change desc
 		error = link_data_list_set_description(&link_data_list, interface_node_name, (char *) value);
 		if (error != 0) {
-			SRP_LOG_ERR("link_data_list_set_description error");
+			SRP_LOG_ERRMSG("link_data_list_set_description error");
 			error = SR_ERR_CALLBACK_FAILED;
 			goto out;
 		}
@@ -814,14 +822,14 @@ int set_config_value(const char *xpath, const char *value)
 		// convert the iana-if-type to a "real" interface type which libnl understands
 		char *interface_type = convert_ianaiftype((char *) value);
 		if (interface_type == NULL) {
-			SRP_LOG_ERR("convert_ianaiftype error");
+			SRP_LOG_ERRMSG("convert_ianaiftype error");
 			error = SR_ERR_CALLBACK_FAILED;
 			goto out;
 		}
 
 		error = link_data_list_set_type(&link_data_list, interface_node_name, interface_type);
 		if (error != 0) {
-			SRP_LOG_ERR("link_data_list_set_type error");
+			SRP_LOG_ERRMSG("link_data_list_set_type error");
 			error = SR_ERR_CALLBACK_FAILED;
 			goto out;
 		}
@@ -829,7 +837,7 @@ int set_config_value(const char *xpath, const char *value)
 		// change enabled
 		error = link_data_list_set_enabled(&link_data_list, interface_node_name, (char *) value);
 		if (error != 0) {
-			SRP_LOG_ERR("link_data_list_set_enabled error");
+			SRP_LOG_ERRMSG("link_data_list_set_enabled error");
 			error = SR_ERR_CALLBACK_FAILED;
 			goto out;
 		}
@@ -950,35 +958,35 @@ int set_config_value(const char *xpath, const char *value)
 		// change parent-interface
 		error = link_data_list_set_parent(&link_data_list, interface_node_name, (char *) value);
 		if (error != 0) {
-			SRP_LOG_ERR("link_data_list_set_parent error");
+			SRP_LOG_ERRMSG("link_data_list_set_parent error");
 			error = SR_ERR_CALLBACK_FAILED;
 			goto out;
 		}
 	} else if (strstr(xpath_cpy, "ietf-if-extensions:encapsulation/ietf-if-vlan-encapsulation:dot1q-vlan/outer-tag/tag-type") != 0) {
 		error = link_data_list_set_outer_tag_type(&link_data_list, interface_node_name, (char *)value);
 		if (error != 0) {
-			SRP_LOG_ERR("link_data_list_set_parent error");
+			SRP_LOG_ERRMSG("link_data_list_set_parent error");
 			error = SR_ERR_CALLBACK_FAILED;
 			goto out;
 		}
 	} else if (strstr(xpath_cpy, "ietf-if-extensions:encapsulation/ietf-if-vlan-encapsulation:dot1q-vlan/outer-tag/vlan-id") != 0) {
 		error = link_data_list_set_outer_vlan_id(&link_data_list, interface_node_name, (uint16_t) atoi(value));
 		if (error != 0) {
-			SRP_LOG_ERR("link_data_list_set_parent error");
+			SRP_LOG_ERRMSG("link_data_list_set_parent error");
 			error = SR_ERR_CALLBACK_FAILED;
 			goto out;
 		}
 	} else if (strstr(xpath_cpy, "ietf-if-extensions:encapsulation/ietf-if-vlan-encapsulation:dot1q-vlan/second-tag/tag-type") != 0) {
 		error = link_data_list_set_second_tag_type(&link_data_list, interface_node_name, (char *)value);
 		if (error != 0) {
-			SRP_LOG_ERR("link_data_list_set_parent error");
+			SRP_LOG_ERRMSG("link_data_list_set_parent error");
 			error = SR_ERR_CALLBACK_FAILED;
 			goto out;
 		}
 	} else if (strstr(xpath_cpy, "ietf-if-extensions:encapsulation/ietf-if-vlan-encapsulation:dot1q-vlan/second-tag/vlan-id") != 0) {
 		error = link_data_list_set_second_vlan_id(&link_data_list, interface_node_name, (uint16_t) atoi(value));
 		if (error != 0) {
-			SRP_LOG_ERR("link_data_list_set_parent error");
+			SRP_LOG_ERRMSG("link_data_list_set_parent error");
 			error = SR_ERR_CALLBACK_FAILED;
 			goto out;
 		}
@@ -1024,14 +1032,14 @@ int delete_config_value(const char *xpath, const char *value)
 
 	interface_node = sr_xpath_node_name((char *) xpath);
 	if (interface_node == NULL) {
-		SRP_LOG_ERR("sr_xpath_node_name error");
+		SRP_LOG_ERRMSG("sr_xpath_node_name error");
 		error = SR_ERR_CALLBACK_FAILED;
 		goto out;
 	}
 
 	interface_node_name = sr_xpath_key_value((char *) xpath, "interface", "name", &state);
 	if (interface_node_name == NULL) {
-		SRP_LOG_ERR("sr_xpath_key_value error");
+		SRP_LOG_ERRMSG("sr_xpath_key_value error");
 		error = SR_ERR_CALLBACK_FAILED;
 		goto out;
 	}
@@ -1040,7 +1048,7 @@ int delete_config_value(const char *xpath, const char *value)
 		// mark for deletion
 		error = link_data_list_set_delete(&link_data_list, interface_node_name, true);
 		if (error != 0) {
-			SRP_LOG_ERR("link_data_list_set_delete error");
+			SRP_LOG_ERRMSG("link_data_list_set_delete error");
 			error = SR_ERR_CALLBACK_FAILED;
 			goto out;
 		}
@@ -1048,7 +1056,7 @@ int delete_config_value(const char *xpath, const char *value)
 		// set description to empty string
 		error = link_data_list_set_description(&link_data_list, interface_node_name, "");
 		if (error != 0) {
-			SRP_LOG_ERR("link_data_list_set_description error");
+			SRP_LOG_ERRMSG("link_data_list_set_description error");
 			error = SR_ERR_CALLBACK_FAILED;
 			goto out;
 		}
@@ -1056,7 +1064,7 @@ int delete_config_value(const char *xpath, const char *value)
 		// set enabled to false
 		error = link_data_list_set_enabled(&link_data_list, interface_node_name, "");
 		if (error != 0) {
-			SRP_LOG_ERR("link_data_list_set_enabled error");
+			SRP_LOG_ERRMSG("link_data_list_set_enabled error");
 			error = SR_ERR_CALLBACK_FAILED;
 			goto out;
 		}
@@ -1135,7 +1143,7 @@ int update_link_info(link_data_list_t *ld, sr_change_oper_t operation)
 
 	socket = nl_socket_alloc();
 	if (socket == NULL) {
-		SRP_LOG_ERR("nl_socket_alloc error: invalid socket");
+		SRP_LOG_ERRMSG("nl_socket_alloc error: invalid socket");
 		goto out;
 	}
 
@@ -1168,7 +1176,7 @@ int update_link_info(link_data_list_t *ld, sr_change_oper_t operation)
 		if (type != NULL && strcmp(type, "vlan") == 0 && second_vlan_id != 0) {
 			error = snprintf(second_vlan_name, sizeof(second_vlan_name), "%s.%d", name, second_vlan_id);
 			if (error < 0) {
-				SRP_LOG_ERR("snprintf error");
+				SRP_LOG_ERRMSG("snprintf error");
 				goto out;
 			}
 		}
@@ -1240,7 +1248,7 @@ int update_link_info(link_data_list_t *ld, sr_change_oper_t operation)
 			if (ipv4_neigh_count > 0) {
 				error = remove_neighbors(&ld->links[i].ipv4.nbor_list, socket, AF_INET, index);
 				if (error != 0) {
-					SRP_LOG_ERR("remove_neighbors error");
+					SRP_LOG_ERRMSG("remove_neighbors error");
 					goto out;
 				}
 			}
@@ -1251,7 +1259,7 @@ int update_link_info(link_data_list_t *ld, sr_change_oper_t operation)
 			if (ipv6_neigh_count > 0) {
 				error = remove_neighbors(&ld->links[i].ipv6.ip_data.nbor_list, socket, AF_INET6, index);
 				if (error != 0) {
-					SRP_LOG_ERR("remove_neighbors error");
+					SRP_LOG_ERRMSG("remove_neighbors error");
 					goto out;
 				}
 			}
@@ -1311,13 +1319,13 @@ int update_link_info(link_data_list_t *ld, sr_change_oper_t operation)
 			// add ipv4/ipv6 options
 			error = add_interface_ipv4(&ld->links[i], old, request, rtnl_link_get_ifindex(old));
 			if (error != 0) {
-				SRP_LOG_ERR("add_interface_ipv4 error");
+				SRP_LOG_ERRMSG("add_interface_ipv4 error");
 				goto out;
 			}
 
 			error = add_interface_ipv6(&ld->links[i], old, request, rtnl_link_get_ifindex(old));
 			if (error != 0) {
-				SRP_LOG_ERR("add_interface_ipv6 error");
+				SRP_LOG_ERRMSG("add_interface_ipv6 error");
 				goto out;
 			}
 
@@ -1335,7 +1343,7 @@ int update_link_info(link_data_list_t *ld, sr_change_oper_t operation)
 			bool system_interface = false;
 			error = check_system_interface(name, &system_interface);
 			if (error) {
-				SRP_LOG_ERR("check_system_interface error");
+				SRP_LOG_ERRMSG("check_system_interface error");
 				error = -1;
 				goto out;
 			}
@@ -1381,13 +1389,13 @@ int update_link_info(link_data_list_t *ld, sr_change_oper_t operation)
 			if (old != NULL) {
 				error = add_interface_ipv4(&ld->links[i], old, request, rtnl_link_get_ifindex(old));
 				if (error != 0) {
-					SRP_LOG_ERR("add_interface_ipv4 error");
+					SRP_LOG_ERRMSG("add_interface_ipv4 error");
 					goto out;
 				}
 
 				error = add_interface_ipv6(&ld->links[i], old, request, rtnl_link_get_ifindex(old));
 				if (error != 0) {
-					SRP_LOG_ERR("add_interface_ipv6 error");
+					SRP_LOG_ERRMSG("add_interface_ipv6 error");
 					goto out;
 				}
 
@@ -1401,13 +1409,13 @@ int update_link_info(link_data_list_t *ld, sr_change_oper_t operation)
 			if (old_vlan_qinq != NULL) {
 				error = add_interface_ipv4(&ld->links[i], old_vlan_qinq, request, rtnl_link_get_ifindex(old_vlan_qinq));
 				if (error != 0) {
-					SRP_LOG_ERR("add_interface_ipv4 error");
+					SRP_LOG_ERRMSG("add_interface_ipv4 error");
 					goto out;
 				}
 
 				error = add_interface_ipv6(&ld->links[i], old_vlan_qinq, request, rtnl_link_get_ifindex(old_vlan_qinq));
 				if (error != 0) {
-					SRP_LOG_ERR("add_interface_ipv6 error");
+					SRP_LOG_ERRMSG("add_interface_ipv6 error");
 					goto out;
 				}
 
@@ -1518,7 +1526,7 @@ int add_interface_ipv4(link_data_t *ld, struct rtnl_link *old, struct rtnl_link 
 	// address list
 	socket = nl_socket_alloc();
 	if (socket == NULL) {
-		SRP_LOG_ERR("nl_socket_alloc error: invalid socket");
+		SRP_LOG_ERRMSG("nl_socket_alloc error: invalid socket");
 		goto out;
 	}
 
@@ -1708,7 +1716,7 @@ int add_interface_ipv6(link_data_t *ld, struct rtnl_link *old, struct rtnl_link 
 	// address list
 	socket = nl_socket_alloc();
 	if (socket == NULL) {
-		SRP_LOG_ERR("nl_socket_alloc error: invalid socket");
+		SRP_LOG_ERRMSG("nl_socket_alloc error: invalid socket");
 		goto out;
 	}
 
@@ -1877,7 +1885,7 @@ static int create_vlan_qinq(char *name, char *parent_interface, uint16_t outer_v
 	// e.g.: # ip link add link eth0 name eth0.10 type vlan id 10 protocol 802.1ad
 	error = snprintf(cmd, sizeof(cmd), "ip link add link %s name %s type vlan id %d protocol 802.1ad", parent_interface, name, outer_vlan_id);
 	if (error < 0) {
-		SRP_LOG_ERR("snprintf error");
+		SRP_LOG_ERRMSG("snprintf error");
 		return -1;
 	}
 
@@ -1886,7 +1894,7 @@ static int create_vlan_qinq(char *name, char *parent_interface, uint16_t outer_v
 	// e.g.: # ip link add link eth0.10 name eth0.10.20 type vlan id 20
 	error = snprintf(cmd, sizeof(cmd), "ip link add link %s name %s.%d type vlan id %d", name, name, second_vlan_id, second_vlan_id);
 	if (error < 0) {
-		SRP_LOG_ERR("snprintf error");
+		SRP_LOG_ERRMSG("snprintf error");
 		return -1;
 	}
 
@@ -1996,7 +2004,7 @@ int write_to_proc_file(const char *dir_path, char *interface, const char *fn, in
 	error = snprintf(tmp_buffer, sizeof(tmp_buffer), "%s/%s/%s", dir_path, interface, fn);
 	if (error < 0) {
 		// snprintf error
-		SRP_LOG_ERR("snprintf failed");
+		SRP_LOG_ERRMSG("snprintf failed");
 		goto out;
 	}
 
@@ -2030,7 +2038,7 @@ static int read_from_proc_file(const char *dir_path, char *interface, const char
 	error = snprintf(tmp_buffer, sizeof(tmp_buffer), "%s/%s/%s", dir_path, interface, fn);
 	if (error < 0) {
 		// snprintf error
-		SRP_LOG_ERR("snprintf failed");
+		SRP_LOG_ERRMSG("snprintf failed");
 		goto out;
 	}
 
@@ -2066,7 +2074,7 @@ static int read_from_sys_file(const char *dir_path, char *interface, int *val)
 	error = snprintf(tmp_buffer, sizeof(tmp_buffer), "%s/%s/type", dir_path, interface);
 	if (error < 0) {
 		// snprintf error
-		SRP_LOG_ERR("snprintf failed");
+		SRP_LOG_ERRMSG("snprintf failed");
 		goto out;
 	}
 
@@ -2117,7 +2125,7 @@ int add_existing_links(sr_session_ctx_t *session, link_data_list_t *ld)
 
 	socket = nl_socket_alloc();
 	if (socket == NULL) {
-		SRP_LOG_ERR("nl_socket_alloc error: invalid socket");
+		SRP_LOG_ERRMSG("nl_socket_alloc error: invalid socket");
 		goto error_out;
 	}
 
@@ -2138,13 +2146,13 @@ int add_existing_links(sr_session_ctx_t *session, link_data_list_t *ld)
 	while (link != NULL) {
 		name = rtnl_link_get_name(link);
 		if (name == NULL) {
-			SRP_LOG_ERR("rtnl_link_get_name error");
+			SRP_LOG_ERRMSG("rtnl_link_get_name error");
 			goto error_out;
 		}
 
 		error = get_interface_description(session, name, &description);
 		if (error != 0) {
-			SRP_LOG_ERR("get_interface_description error");
+			SRP_LOG_ERRMSG("get_interface_description error");
 			// don't return in case of error
 			// some interfaces may not have a description already set (wlan0, etc.)
 		}
@@ -2161,7 +2169,7 @@ int add_existing_links(sr_session_ctx_t *session, link_data_list_t *ld)
 
 			error = read_from_sys_file(path_to_sys, name, &type_id);
 			if (error != 0) {
-				SRP_LOG_ERR("read_from_sys_file error");
+				SRP_LOG_ERRMSG("read_from_sys_file error");
 				goto error_out;
 			}
 
@@ -2199,7 +2207,7 @@ int add_existing_links(sr_session_ctx_t *session, link_data_list_t *ld)
 			// outer vlan id
 			vlan_id = (uint16_t)rtnl_link_vlan_get_id(link);
 			if (vlan_id <= 0) {
-				SRP_LOG_ERR("couldn't get vlan ID");
+				SRP_LOG_ERRMSG("couldn't get vlan ID");
 				goto error_out;
 			}
 
@@ -2218,14 +2226,14 @@ int add_existing_links(sr_session_ctx_t *session, link_data_list_t *ld)
 
 		error = link_data_list_add(ld, name);
 		if (error != 0) {
-			SRP_LOG_ERR("link_data_list_add error");
+			SRP_LOG_ERRMSG("link_data_list_add error");
 			goto error_out;
 		}
 
 		if (description != NULL) {
 			error = link_data_list_set_description(ld, name, description);
 			if (error != 0) {
-				SRP_LOG_ERR("link_data_list_set_description error");
+				SRP_LOG_ERRMSG("link_data_list_set_description error");
 				goto error_out;
 			}
 		}
@@ -2233,21 +2241,21 @@ int add_existing_links(sr_session_ctx_t *session, link_data_list_t *ld)
 		if (type != NULL) {
 			error = link_data_list_set_type(ld, name, type);
 			if (error != 0) {
-				SRP_LOG_ERR("link_data_list_set_type error");
+				SRP_LOG_ERRMSG("link_data_list_set_type error");
 				goto error_out;
 			}
 		}
 
 		error = link_data_list_set_enabled(ld, name, enabled);
 		if (error != 0) {
-			SRP_LOG_ERR("link_data_list_set_enabled error");
+			SRP_LOG_ERRMSG("link_data_list_set_enabled error");
 			goto error_out;
 		}
 
 		if (parent_interface != 0) {
 			error = link_data_list_set_parent(ld, name, parent_interface);
 			if (error != 0) {
-				SRP_LOG_ERR("link_data_list_set_parent error");
+				SRP_LOG_ERRMSG("link_data_list_set_parent error");
 				goto error_out;
 			}
 		}
@@ -2255,7 +2263,7 @@ int add_existing_links(sr_session_ctx_t *session, link_data_list_t *ld)
 		if (vlan_id != 0) {
 			error = link_data_list_set_outer_vlan_id(ld, name, vlan_id);
 			if (error != 0) {
-				SRP_LOG_ERR("link_data_list_set_outer_vlan_id error");
+				SRP_LOG_ERRMSG("link_data_list_set_outer_vlan_id error");
 				goto error_out;
 			}
 		}
@@ -2279,7 +2287,7 @@ int add_existing_links(sr_session_ctx_t *session, link_data_list_t *ld)
 
 			char *dst_addr = nl_addr2str(nl_dst_addr, dst_addr_str, sizeof(dst_addr_str));
 			if (dst_addr == NULL) {
-				SRP_LOG_ERR("nl_addr2str error");
+				SRP_LOG_ERRMSG("nl_addr2str error");
 				goto error_out;
 			}
 
@@ -2306,7 +2314,7 @@ int add_existing_links(sr_session_ctx_t *session, link_data_list_t *ld)
 
 				char *ll_addr_s = nl_addr2str(ll_addr, ll_addr_str, sizeof(ll_addr_str));
 				if (NULL == ll_addr_s) {
-					SRP_LOG_ERR("nl_addr2str error");
+					SRP_LOG_ERRMSG("nl_addr2str error");
 					goto error_out;
 				}
 
@@ -2351,7 +2359,7 @@ int add_existing_links(sr_session_ctx_t *session, link_data_list_t *ld)
 		for (int i=0; i < addr_count; i++) {
 			struct nl_addr *nl_addr_local = rtnl_addr_get_local(addr);
 			if (nl_addr_local == NULL) {
-				SRP_LOG_ERR("rtnl_addr_get_local error");
+				SRP_LOG_ERRMSG("rtnl_addr_get_local error");
 				goto error_out;
 			}
 
@@ -2365,7 +2373,7 @@ int add_existing_links(sr_session_ctx_t *session, link_data_list_t *ld)
 
 			const char*addr_s = nl_addr2str(nl_addr_local, addr_str, sizeof(addr_str));
 			if (NULL == addr_s) {
-				SRP_LOG_ERR("nl_addr2str error");
+				SRP_LOG_ERRMSG("nl_addr2str error");
 				goto error_out;
 			}
 
@@ -2374,7 +2382,7 @@ int add_existing_links(sr_session_ctx_t *session, link_data_list_t *ld)
 			// get address
 			char *token = strtok(str, "/");
 			if (token == NULL) {
-				SRP_LOG_ERR("couldn't parse ip address");
+				SRP_LOG_ERRMSG("couldn't parse ip address");
 
 				FREE_SAFE(str);
 				goto error_out;
@@ -2574,7 +2582,7 @@ static int get_interface_description(sr_session_ctx_t *session, char *name, char
 	// /ietf-interfaces:interfaces/interface[name='test_interface']/description
 	error = snprintf(path_buffer, sizeof(path_buffer) / sizeof(char), "%s[name=\"%s\"]/description", INTERFACE_LIST_YANG_PATH, name);
 	if (error < 0) {
-		SRP_LOG_ERR("snprintf error");
+		SRP_LOG_ERRMSG("snprintf error");
 		goto error_out;
 	}
 
@@ -2595,7 +2603,7 @@ error_out:
 	return -1;
 }
 
-static int interfaces_state_data_cb(sr_session_ctx_t *session, uint32_t subscription_id, const char *module_name, const char *path, const char *request_xpath, uint32_t request_id, struct lyd_node **parent, void *private_data)
+static int interfaces_state_data_cb(sr_session_ctx_t *session, const char *module_name, const char *path, const char *request_xpath, uint32_t request_id, struct lyd_node **parent, void *private_data)
 {
 	int error = SR_ERR_OK;
 	const struct ly_ctx *ly_ctx = NULL;
@@ -2694,12 +2702,12 @@ static int interfaces_state_data_cb(sr_session_ctx_t *session, uint32_t subscrip
 			error = SR_ERR_CALLBACK_FAILED;
 			goto error_out;
 		}
-		lyd_new_path(*parent, ly_ctx, request_xpath, NULL, 0, NULL);
+		*parent = lyd_new_path(NULL, ly_ctx, request_xpath, NULL, 0, 0);
 	}
 
 	socket = nl_socket_alloc();
 	if (socket == NULL) {
-		SRP_LOG_ERR("nl_socket_alloc error: invalid socket");
+		SRP_LOG_ERRMSG("nl_socket_alloc error: invalid socket");
 		goto error_out;
 	}
 
@@ -3311,6 +3319,33 @@ out:
 	return error ? SR_ERR_CALLBACK_FAILED : SR_ERR_OK;
 }
 
+static char *interfaces_xpath_get(const struct lyd_node *node)
+{
+	char *xpath_node = NULL;
+	char *xpath_leaflist_open_bracket = NULL;
+	size_t xpath_trimed_size = 0;
+	char *xpath_trimed = NULL;
+
+	if (node->schema->nodetype == LYS_LEAFLIST) {
+			xpath_node = lyd_path(node);
+			xpath_leaflist_open_bracket = strrchr(xpath_node, '[');
+			if (xpath_leaflist_open_bracket == NULL) {
+					return xpath_node;
+			}
+
+			xpath_trimed_size = (size_t) xpath_leaflist_open_bracket - (size_t) xpath_node + 1;
+			xpath_trimed = xcalloc(1, xpath_trimed_size);
+			strncpy(xpath_trimed, xpath_node, xpath_trimed_size - 1);
+			xpath_trimed[xpath_trimed_size - 1] = '\0';
+
+			FREE_SAFE(xpath_node);
+
+			return xpath_trimed;
+	} else {
+			return lyd_path(node);
+	}
+}
+
 static int get_system_boot_time(char boot_datetime[])
 {
 	time_t now = 0;
@@ -3371,7 +3406,7 @@ static int init_state_changes(void)
 
 	socket = nl_socket_alloc();
 	if (socket == NULL) {
-		SRP_LOG_ERR("nl_socket_alloc error: invalid socket");
+		SRP_LOG_ERRMSG("nl_socket_alloc error: invalid socket");
 		return -1;
 	}
 
@@ -3457,7 +3492,7 @@ static void cache_change_cb(struct nl_cache *cache, struct nl_object *obj, int v
 	if_state_t *tmp_st = NULL;
 	uint8_t tmp_state = 0;
 
-	SRP_LOG_DBG("entered cb function for a link manager");
+	SRP_LOG_DBGMSG("entered cb function for a link manager");
 
 	link = (struct rtnl_link *) nl_cache_get_first(cache);
 
@@ -3514,7 +3549,7 @@ int main(void)
 
 	error = sr_plugin_init_cb(session, &private_data);
 	if (error) {
-		SRP_LOG_ERR("sr_plugin_init_cb error");
+		SRP_LOG_ERRMSG("sr_plugin_init_cb error");
 		goto out;
 	}
 
