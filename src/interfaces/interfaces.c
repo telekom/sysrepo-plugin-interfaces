@@ -68,13 +68,10 @@
 #define MAC_ADDR_MAX_LENGTH 18
 #define MAX_DESCR_LEN 100
 #define DATETIME_BUF_SIZE 30
-#define PLUGIN_DIR_ENV_VAR "IF_PLUGIN_DATA_DIR"
-#define PLUGIN_DIR_DEFAULT "/usr/local/lib/sysrepo-interfaces-plugin"
-#define INTERFACE_DESCRIPTION_FILENAME "/interface_description"
-#define TMP_INTERFACE_DESCRIPTION_FILENAME "/tmp_interface_description"
 #define CLASS_NET_LINE_LEN 1024
 #define ADDR_STR_BUF_SIZE 45 // max ip string length (15 for ipv4 and 45 for ipv6)
 #define MAX_IF_NAME_LEN IFNAMSIZ // 16 bytes
+#define CMD_LEN 1024
 
 // callbacks
 static int interfaces_module_change_cb(sr_session_ctx_t *session, uint32_t subscription_id, const char *module_name, const char *xpath, sr_event_t event, uint32_t request_id, void *private_data);
@@ -83,6 +80,7 @@ static int interfaces_state_data_cb(sr_session_ctx_t *session, uint32_t subscrip
 // helper functions
 static bool system_running_datastore_is_empty_check(void);
 static int load_data(sr_session_ctx_t *session, link_data_list_t *ld);
+static int load_startup(sr_session_ctx_t *session, link_data_list_t *ld);
 static bool check_system_interface(const char *interface_name, bool *system_interface);
 int set_config_value(const char *xpath, const char *value);
 int add_interface_ipv4(link_data_t *ld, struct rtnl_link *old, struct rtnl_link *req, int if_idx);
@@ -92,13 +90,13 @@ static int remove_ipv6_address(ip_address_list_t *addr_list, struct nl_sock *soc
 static int remove_neighbors(ip_neighbor_list_t *nbor_list, struct nl_sock *socket, int addr_ver, int if_index);
 int write_to_proc_file(const char *dir_path, char *interface, const char *fn, int val);
 static int read_from_proc_file(const char *dir_path, char *interface, const char *fn, int *val);
+static int read_from_sys_file(const char *dir_path, char *interface, int *val);
 int delete_config_value(const char *xpath, const char *value);
 int update_link_info(link_data_list_t *ld, sr_change_oper_t operation);
 static char *convert_ianaiftype(char *iana_if_type);
-int add_existing_links(link_data_list_t *ld);
-static int set_interface_description(char *name, char *description);
-static int get_interface_description(char *name, char **description);
-static char *get_plugin_file_path(const char *filename, bool create);
+int add_existing_links(sr_session_ctx_t *session, link_data_list_t *ld);
+static int get_interface_description(sr_session_ctx_t *session, char *name, char **description);
+static int create_vlan_qinq(char *name, char *parent_interface, uint16_t outer_vlan_id, uint16_t second_vlan_id);
 static int get_system_boot_time(char boot_datetime[]);
 
 // function to start all threads for each interface
@@ -130,16 +128,15 @@ int sr_plugin_init_cb(sr_session_ctx_t *session, void **private_data)
 
 	*private_data = NULL;
 
-	desc_file_path = get_plugin_file_path(INTERFACE_DESCRIPTION_FILENAME, true);
-	if (desc_file_path == NULL) {
-		SRP_LOG_ERR("get_plugin_file_path error");
-		error = -1;
-		goto error_out;
-	}
-
 	error = link_data_list_init(&link_data_list);
 	if (error != 0) {
 		SRP_LOG_ERR("link_data_list_init error");
+		goto out;
+	}
+
+	error = add_existing_links(session, &link_data_list);
+	if (error != 0) {
+		SRP_LOG_ERR("add_existing_links error");
 		goto out;
 	}
 
@@ -176,6 +173,20 @@ int sr_plugin_init_cb(sr_session_ctx_t *session, void **private_data)
 			SRP_LOG_ERR("sr_copy_config error (%d): %s", error, sr_strerror(error));
 			goto error_out;
 		}
+	}
+
+	// load data from startup datastore to internal list
+	error = load_startup(startup_session, &link_data_list);
+	if (error != 0) {
+		SRP_LOG_ERR("load_startup error");
+		goto error_out;
+	}
+
+	// apply what is present in the startup datastore
+	error = update_link_info(&link_data_list, SR_OP_CREATED);
+	if (error != 0) {
+		SRP_LOG_ERR("update_link_info error");
+		goto error_out;
 	}
 
 	SRP_LOG_INF("subscribing to module change");
@@ -247,19 +258,13 @@ static int load_data(sr_session_ctx_t *session, link_data_list_t *ld)
 		char *type = ld->links[i].type;
 		char *description = ld->links[i].description;
 		char *enabled = ld->links[i].enabled;
+		char *parent_interface = ld->links[i].extensions.parent_interface;
 
 		snprintf(interface_path_buffer, sizeof(interface_path_buffer) / sizeof(char), "%s[name=\"%s\"]", INTERFACE_LIST_YANG_PATH, name);
 
-		/* For existing interface the type will be null since it was not set by the plugin.
-		 * These interfaces may include: a loopback, a wlan, a eth device etc.
-		 * quickfix: If the type is NULL and name is 'lo' set it to "iana-if-type:softwareLoopback"
-		 * 			 If the type is NULL, set it to 'iana-if-type:ethernetCsmacd'
-		 *			 Otherwise sr_set_item_str will fail
-		 */
-
-		if (type == NULL && strcmp(name, "lo") == 0) {
+		if (strcmp(type, "lo") == 0) {
 			type = "iana-if-type:softwareLoopback";
-		} else if (type == NULL) {
+		} else if (strcmp(type, "eth") == 0) {
 			type = "iana-if-type:ethernetCsmacd";
 		} else if (strcmp(type, "vlan") == 0) {
 			type = "iana-if-type:l2vlan";
@@ -313,6 +318,22 @@ static int load_data(sr_session_ctx_t *session, link_data_list_t *ld)
 			SRP_LOG_ERR("sr_set_item_str error (%d): %s", error, sr_strerror(error));
 			goto error_out;
 		}
+
+		if (parent_interface != 0) {
+			error = snprintf(xpath_buffer, sizeof(xpath_buffer), "%s/ietf-if-extensions:parent-interface", interface_path_buffer);
+			if (error < 0) {
+				goto error_out;
+			}
+
+			error = sr_set_item_str(session, xpath_buffer, parent_interface, NULL, SR_EDIT_DEFAULT);
+			if (error) {
+				SRP_LOG_ERR("sr_set_item_str error (%d): %s", error, sr_strerror(error));
+				goto error_out;
+			}
+		}
+
+		// handle vlan interfaces
+
 
 		// ietf-ip
 		// TODO: refactor this!
@@ -560,9 +581,75 @@ error_out:
 	return -1;
 }
 
+static int load_startup(sr_session_ctx_t *session, link_data_list_t *ld)
+{
+	int error = 0;
+	sr_val_t *vals = NULL;
+	char *val = NULL;
+	char val_buf[10] = {0};
+	char *xpath = NULL;
+	size_t i, val_count = 0;
+
+	error = sr_get_items(session, "/ietf-interfaces:interfaces//.", 0, 0, &vals, &val_count);
+	if (error != SR_ERR_OK) {
+		SRP_LOG_ERR("sr_get_items error (%d): %s", error, sr_strerror(error));
+		goto error_out;
+	}
+
+	for (i = 0; i < val_count; ++i) {
+		switch (vals[i].type) {
+			case SR_STRING_T:
+			case SR_IDENTITYREF_T:
+				val = xstrdup(vals[i].data.string_val);
+				break;
+			case SR_BOOL_T:
+				val = xstrdup(vals[i].data.bool_val ? "true" : "false");
+				break;
+			case SR_UINT8_T:
+			case SR_UINT16_T:
+			case SR_UINT32_T:
+				error = snprintf(val_buf, sizeof(val_buf), "%d", vals[i].data.uint16_val);
+				if (error < 0) {
+					SRP_LOG_ERR("snprintf error");
+					goto error_out;
+				}
+
+				val = xstrdup(val_buf);
+				break;
+			default:
+				continue;
+		}
+
+		xpath = xstrdup(vals[i].xpath);
+
+		error = set_config_value(xpath, val);
+		if (error != 0) {
+			SRP_LOG_ERR("set_config_value error (%d)", error);
+			goto error_out;
+		}
+
+		FREE_SAFE(xpath);
+		FREE_SAFE(val);
+	}
+
+	return 0;
+
+error_out:
+	if (xpath != NULL) {
+		FREE_SAFE(xpath);
+	}
+	if (val != NULL) {
+		FREE_SAFE(val);
+	}
+	return -1;
+}
+
 void sr_plugin_cleanup_cb(sr_session_ctx_t *session, void *private_data)
 {
 	sr_session_ctx_t *startup_session = (sr_session_ctx_t *) private_data;
+
+	// copy the running datastore to startup one, in case we reboot
+	sr_copy_config(startup_session, BASE_YANG_MODEL, SR_DS_RUNNING, 0);
 
 	exit_application = 1;
 
@@ -1041,6 +1128,7 @@ int update_link_info(link_data_list_t *ld, sr_change_oper_t operation)
 	struct nl_sock *socket = NULL;
 	struct nl_cache *cache = NULL;
 	struct rtnl_link *old = NULL;
+	struct rtnl_link *old_vlan_qinq = NULL;
 	struct rtnl_link *request = NULL;
 
 	int error = SR_ERR_OK;
@@ -1065,17 +1153,29 @@ int update_link_info(link_data_list_t *ld, sr_change_oper_t operation)
 	for (int i = 0; i < ld->count; i++) {
 		char *name = ld->links[i].name;
 		char *type = ld->links[i].type;
-		char *description = ld->links[i].description;
 		char *enabled = ld->links[i].enabled;
 		char *parent_interface = ld->links[i].extensions.parent_interface;
 		uint16_t outer_vlan_id =  ld->links[i].extensions.encapsulation.dot1q_vlan.outer_vlan_id;
+		uint16_t second_vlan_id =  ld->links[i].extensions.encapsulation.dot1q_vlan.second_vlan_id;
+		char second_vlan_name[MAX_IF_NAME_LEN] = {0};
 		bool delete = ld->links[i].delete;
 
-		if (name == NULL || type == 0) {
+		if (name == NULL ){//|| type == 0) {
 			continue;
 		}
 
+		// handle vlan QinQ interfaces
+		if (type != NULL && strcmp(type, "vlan") == 0 && second_vlan_id != 0) {
+			error = snprintf(second_vlan_name, sizeof(second_vlan_name), "%s.%d", name, second_vlan_id);
+			if (error < 0) {
+				SRP_LOG_ERR("snprintf error");
+				goto out;
+			}
+		}
+
 		old = rtnl_link_get_by_name(cache, name);
+		// check for second vlan (QinQ) as well
+		old_vlan_qinq = rtnl_link_get_by_name(cache, second_vlan_name);
 		request = rtnl_link_alloc();
 
 		// delete link (interface) if marked for deletion
@@ -1095,6 +1195,10 @@ int update_link_info(link_data_list_t *ld, sr_change_oper_t operation)
 			// cleanup
 			if (old != NULL) {
 				rtnl_link_put(old);
+			}
+
+			if (old_vlan_qinq != NULL) {
+				rtnl_link_put(old_vlan_qinq);
 			}
 
 			if (request != NULL) {
@@ -1153,31 +1257,40 @@ int update_link_info(link_data_list_t *ld, sr_change_oper_t operation)
 			}
 		}
 
-		// desc
-		if (description != NULL) {
-			error = set_interface_description(name, description);
-			if (error != 0) {
-				SRP_LOG_ERR("set_interface_description error: %s", strerror(errno));
-				goto out;
-			}
-		}
-
 		// type
 		if (type != NULL) {
-			error = rtnl_link_set_type(request, type);
-			if (error < 0) {
-				SRP_LOG_ERR("rtnl_link_set_type error (%d): %s", error, nl_geterror(error));
-				goto out;
-			}
-
 			// handle vlan interfaces
 			if (strcmp(type, "vlan") == 0) {
-				// TODO: figure out how to add outer and second tags
-				// temporary solution could be using ip link command instead of libnl
-				int master_index = rtnl_link_name2i(cache, parent_interface);
-				rtnl_link_set_link(request, master_index);
+				// if second vlan id is present treat it as QinQ vlan
+				if (second_vlan_id != 0) {
+					// update the last-change state list
+					uint8_t state = rtnl_link_get_operstate(request);
 
-				error = rtnl_link_vlan_set_id(request, outer_vlan_id);
+					if_state_list_add(&if_state_changes, state, second_vlan_name);
+					if_state_list_add(&if_state_changes, state, name);
+
+					// then create the interface with new parameters
+					create_vlan_qinq(name, parent_interface, outer_vlan_id, second_vlan_id);
+
+				} else if (second_vlan_id == 0) {
+					// normal vlan interface
+					error = rtnl_link_set_type(request, type);
+					if (error < 0) {
+						SRP_LOG_ERR("rtnl_link_set_type error (%d): %s", error, nl_geterror(error));
+						goto out;
+					}
+					// if only the outer vlan is present, treat is an normal vlan
+					int master_index = rtnl_link_name2i(cache, parent_interface);
+					rtnl_link_set_link(request, master_index);
+
+					error = rtnl_link_vlan_set_id(request, outer_vlan_id);
+				}
+			} else {
+				error = rtnl_link_set_type(request, type);
+				if (error < 0) {
+					SRP_LOG_ERR("rtnl_link_set_type error (%d): %s", error, nl_geterror(error));
+					goto out;
+				}
 			}
 		}
 
@@ -1233,20 +1346,23 @@ int update_link_info(link_data_list_t *ld, sr_change_oper_t operation)
 				goto out;
 			}
 
-			// set the new name
-			rtnl_link_set_name(request, name);
+			// don't create if it's a QinQ vlan interface since it's already been created
+			if (second_vlan_id == 0) {
+				// update the last-change state list
+				uint8_t state = rtnl_link_get_operstate(request);
 
-			// update the last-change state list
-			uint8_t state = rtnl_link_get_operstate(request);
+				if_state_list_add(&if_state_changes, state, name);
 
-			if_state_list_add(&if_state_changes, state, name);
+				// set the new name
+				rtnl_link_set_name(request, name);
 
-			// add the interface
-			// note: if type is not set, you can't add the new link
-			error = rtnl_link_add(socket, request, NLM_F_CREATE);
-			if (error != 0) {
-				SRP_LOG_ERR("rtnl_link_add error (%d): %s", error, nl_geterror(error));
-				goto out;
+				// add the interface
+				// note: if type is not set, you can't add the new link
+				error = rtnl_link_add(socket, request, NLM_F_CREATE);
+				if (error != 0) {
+					SRP_LOG_ERR("rtnl_link_add error (%d): %s", error, nl_geterror(error));
+					goto out;
+				}
 			}
 
 			// in order to add ipv4/ipv6 options we first have to create the interface
@@ -1260,6 +1376,7 @@ int update_link_info(link_data_list_t *ld, sr_change_oper_t operation)
 			}
 
 			old = rtnl_link_get_by_name(cache, name);
+			old_vlan_qinq = rtnl_link_get_by_name(cache, second_vlan_name);
 
 			if (old != NULL) {
 				error = add_interface_ipv4(&ld->links[i], old, request, rtnl_link_get_ifindex(old));
@@ -1280,8 +1397,29 @@ int update_link_info(link_data_list_t *ld, sr_change_oper_t operation)
 					goto out;
 				}
 			}
+
+			if (old_vlan_qinq != NULL) {
+				error = add_interface_ipv4(&ld->links[i], old_vlan_qinq, request, rtnl_link_get_ifindex(old_vlan_qinq));
+				if (error != 0) {
+					SRP_LOG_ERR("add_interface_ipv4 error");
+					goto out;
+				}
+
+				error = add_interface_ipv6(&ld->links[i], old_vlan_qinq, request, rtnl_link_get_ifindex(old_vlan_qinq));
+				if (error != 0) {
+					SRP_LOG_ERR("add_interface_ipv6 error");
+					goto out;
+				}
+
+				error = rtnl_link_change(socket, old_vlan_qinq, request, 0);
+				if (error != 0) {
+					SRP_LOG_ERR("rtnl_link_change error (%d): %s", error, nl_geterror(error));
+					goto out;
+				}
+			}
 		}
 		rtnl_link_put(old);
+		rtnl_link_put(old_vlan_qinq);
 		rtnl_link_put(request);
 	}
 
@@ -1351,6 +1489,7 @@ int add_interface_ipv4(link_data_t *ld, struct rtnl_link *old, struct rtnl_link 
 	struct rtnl_addr *r_addr = NULL;
 	struct rtnl_neigh *neigh = NULL;
 	struct nl_addr *ll_addr = NULL;
+	struct nl_cache *cache = NULL;
 
 	// add ipv4 options from given link data to the req link object
 	// also set forwarding options to the given files for a particular link
@@ -1398,7 +1537,7 @@ int add_interface_ipv4(link_data_t *ld, struct rtnl_link *old, struct rtnl_link 
 		if (error != 0) {
 			rtnl_addr_put(r_addr);
 			nl_addr_put(local_addr);
-			SRP_LOG_ERR("nl_addr_parse 1 error (%d): %s", error, nl_geterror(error));
+			SRP_LOG_ERR("nl_addr_parse error (%d): %s", error, nl_geterror(error));
 			goto out;
 		}
 		nl_addr_set_prefixlen(local_addr, addr_ls->addr[i].subnet);
@@ -1428,7 +1567,7 @@ int add_interface_ipv4(link_data_t *ld, struct rtnl_link *old, struct rtnl_link 
 			nl_addr_put(ll_addr);
 			nl_addr_put(local_addr);
 			rtnl_neigh_put(neigh);
-			SRP_LOG_ERR("nl_addr_parse  2 error (%d): %s", error, nl_geterror(error));
+			SRP_LOG_ERR("nl_addr_parse error (%d): %s", error, nl_geterror(error));
 			goto out;
 		}
 
@@ -1437,7 +1576,7 @@ int add_interface_ipv4(link_data_t *ld, struct rtnl_link *old, struct rtnl_link 
 			nl_addr_put(ll_addr);
 			nl_addr_put(local_addr);
 			rtnl_neigh_put(neigh);
-			SRP_LOG_ERR("nl_addr_parse  3 error (%d): %s", error, nl_geterror(error));
+			SRP_LOG_ERR("nl_addr_parse error (%d): %s", error, nl_geterror(error));
 			goto out;
 		}
 
@@ -1447,7 +1586,25 @@ int add_interface_ipv4(link_data_t *ld, struct rtnl_link *old, struct rtnl_link 
 		rtnl_neigh_set_lladdr(neigh, ll_addr);
 		rtnl_neigh_set_dst(neigh, local_addr);
 
-		error = rtnl_neigh_add(socket, neigh, NLM_F_CREATE);
+		error = rtnl_link_alloc_cache(socket, AF_UNSPEC, &cache);
+		if (error != 0) {
+			SRP_LOG_ERR("rtnl_link_alloc_cache error (%d): %s", error, nl_geterror(error));
+			nl_addr_put(ll_addr);
+			nl_addr_put(local_addr);
+			rtnl_neigh_put(neigh);
+			goto out;
+		}
+
+		struct rtnl_neigh *tmp_neigh = rtnl_neigh_get(cache, if_idx, local_addr);
+		int neigh_oper = NLM_F_CREATE;
+
+		if (tmp_neigh != NULL) {
+			// if the neighbor already exists, replace it
+			// otherwise create it (NLM_F_CREATE)
+			neigh_oper = NLM_F_REPLACE;
+		}
+
+		error = rtnl_neigh_add(socket, neigh, neigh_oper);
 		if (error != 0) {
 			SRP_LOG_ERR("rtnl_neigh_add error (%d): %s", error, nl_geterror(error));
 			nl_addr_put(ll_addr);
@@ -1526,6 +1683,7 @@ int add_interface_ipv6(link_data_t *ld, struct rtnl_link *old, struct rtnl_link 
 	struct rtnl_addr *r_addr = NULL;
 	struct rtnl_neigh *neigh = NULL;
 	struct nl_addr *ll_addr = NULL;
+	struct nl_cache *cache = NULL;
 
 	// enabled
 	error = write_to_proc_file(ipv6_base, if_name, "disable_ipv6", ipv6->ip_data.enabled == 0);
@@ -1541,7 +1699,10 @@ int add_interface_ipv6(link_data_t *ld, struct rtnl_link *old, struct rtnl_link 
 
 	// set mtu
 	if (ipv6->ip_data.mtu != 0) {
-		rtnl_link_set_mtu(req, ipv6->ip_data.mtu);
+		error = write_to_proc_file(ipv6_base, if_name, "mtu", ipv6->ip_data.mtu);
+		if (error != 0) {
+			goto out;
+		}
 	}
 
 	// address list
@@ -1622,7 +1783,25 @@ int add_interface_ipv6(link_data_t *ld, struct rtnl_link *old, struct rtnl_link 
 		rtnl_neigh_set_lladdr(neigh, ll_addr);
 		rtnl_neigh_set_dst(neigh, local_addr);
 
-		error = rtnl_neigh_add(socket, neigh, NLM_F_CREATE);
+		error = rtnl_link_alloc_cache(socket, AF_UNSPEC, &cache);
+		if (error != 0) {
+			SRP_LOG_ERR("rtnl_link_alloc_cache error (%d): %s", error, nl_geterror(error));
+			nl_addr_put(ll_addr);
+			nl_addr_put(local_addr);
+			rtnl_neigh_put(neigh);
+			goto out;
+		}
+
+		struct rtnl_neigh *tmp_neigh = rtnl_neigh_get(cache, if_idx, local_addr);
+		int neigh_oper = NLM_F_CREATE;
+
+		if (tmp_neigh != NULL) {
+			// if the neighbor already exists, replace it
+			// otherwise create it (NLM_F_CREATE)
+			neigh_oper = NLM_F_REPLACE;
+		}
+
+		error = rtnl_neigh_add(socket, neigh, neigh_oper);
 		if (error != 0) {
 			SRP_LOG_ERR("rtnl_neigh_add error (%d): %s", error, nl_geterror(error));
 			nl_addr_put(ll_addr);
@@ -1670,7 +1849,7 @@ static int remove_neighbors(ip_neighbor_list_t *nbor_list, struct nl_sock *socke
 			// block until the operation has been completed. Alternatively the required
 			// netlink message can be built using rtnl_neigh_build_delete_request()
 			// to be sent out using nl_send_auto_complete().
-			error = rtnl_neigh_delete(socket, neigh, 0);
+			error = rtnl_neigh_delete(socket, neigh, NLM_F_ACK);
 			if (error != 0) {
 				SRP_LOG_ERR("rtnl_neigh_delete error (%d): %s", error, nl_geterror(error));
 				nl_addr_put(dst_addr);
@@ -1686,6 +1865,32 @@ static int remove_neighbors(ip_neighbor_list_t *nbor_list, struct nl_sock *socke
 			ip_neighbor_free(&nbor_list->nbor[i]);
 		}
 	}
+
+	return 0;
+}
+
+static int create_vlan_qinq(char *name, char *parent_interface, uint16_t outer_vlan_id, uint16_t second_vlan_id)
+{
+	int error = 0;
+	char cmd[CMD_LEN] = {0};
+
+	// e.g.: # ip link add link eth0 name eth0.10 type vlan id 10 protocol 802.1ad
+	error = snprintf(cmd, sizeof(cmd), "ip link add link %s name %s type vlan id %d protocol 802.1ad", parent_interface, name, outer_vlan_id);
+	if (error < 0) {
+		SRP_LOG_ERR("snprintf error");
+		return -1;
+	}
+
+	error = system(cmd);
+
+	// e.g.: # ip link add link eth0.10 name eth0.10.20 type vlan id 20
+	error = snprintf(cmd, sizeof(cmd), "ip link add link %s name %s.%d type vlan id %d", name, name, second_vlan_id, second_vlan_id);
+	if (error < 0) {
+		SRP_LOG_ERR("snprintf error");
+		return -1;
+	}
+
+	error = system(cmd);
 
 	return 0;
 }
@@ -1851,7 +2056,43 @@ out:
 	return error;
 }
 
-int add_existing_links(link_data_list_t *ld)
+static int read_from_sys_file(const char *dir_path, char *interface, int *val)
+{
+	int error = 0;
+	char tmp_buffer[PATH_MAX];
+	FILE *fptr = NULL;
+	char tmp_val[4] = {0};
+
+	error = snprintf(tmp_buffer, sizeof(tmp_buffer), "%s/%s/type", dir_path, interface);
+	if (error < 0) {
+		// snprintf error
+		SRP_LOG_ERR("snprintf failed");
+		goto out;
+	}
+
+	// snprintf returns return the number of bytes that are written
+	// reset error to 0
+	error = 0;
+
+	fptr = fopen((const char *) tmp_buffer, "r");
+
+	if (fptr != NULL) {
+		fgets(tmp_val, sizeof(tmp_val), fptr);
+
+		*val = atoi(tmp_val);
+
+		fclose(fptr);
+	} else {
+		SRP_LOG_ERR("failed to open %s: %s", tmp_buffer, strerror(errno));
+		error = -1;
+		goto out;
+	}
+
+out:
+	return error;
+}
+
+int add_existing_links(sr_session_ctx_t *session, link_data_list_t *ld)
 {
 	int error = 0;
 	struct nl_sock *socket = NULL;
@@ -1901,7 +2142,7 @@ int add_existing_links(link_data_list_t *ld)
 			goto error_out;
 		}
 
-		error = get_interface_description(name, &description);
+		error = get_interface_description(session, name, &description);
 		if (error != 0) {
 			SRP_LOG_ERR("get_interface_description error");
 			// don't return in case of error
@@ -1909,8 +2150,40 @@ int add_existing_links(link_data_list_t *ld)
 		}
 
 		type = rtnl_link_get_type(link);
+		if (type == NULL) {
+			/* rtnl_link_get_type() will return NULL for interfaces that were not
+			 * set with rtnl_link_set_type()
+			 *
+			 * get the type from: /sys/class/net/<interface_name>/type
+			 */
+			const char *path_to_sys = "/sys/class/net/";
+			int type_id = 0;
 
-		enabled = rtnl_link_get_operstate(link) == IF_OPER_UP ? "true" : "false";
+			error = read_from_sys_file(path_to_sys, name, &type_id);
+			if (error != 0) {
+				SRP_LOG_ERR("read_from_sys_file error");
+				goto error_out;
+			}
+
+			// values taken from: if_arp.h
+			if (type_id == 1) {
+				// eth interface
+				type = "eth";
+			} else if (type_id == 772) {
+				// loopback interface
+				type = "lo";
+			}
+		}
+
+		// enabled
+		uint8_t tmp_enabled = rtnl_link_get_operstate(link);
+		// lo interface has state unknown, treat it as enabled
+		// otherwise it will be set to down, and dns resolution won't work
+		if (IF_OPER_UP == tmp_enabled || IF_OPER_UNKNOWN == tmp_enabled) {
+			enabled = "true";
+		} else if (IF_OPER_DOWN == tmp_enabled ) {
+			enabled = "false";
+		}
 
 		// mtu
 		mtu = rtnl_link_get_mtu(link);
@@ -1928,6 +2201,18 @@ int add_existing_links(link_data_list_t *ld)
 			if (vlan_id <= 0) {
 				SRP_LOG_ERR("couldn't get vlan ID");
 				goto error_out;
+			}
+
+			// check if vlan_id in name, if it is this is the QinQ interface, skip it
+			char *first = NULL;
+			char *second = NULL;
+
+			first = strchr(name, '.');
+			second = strchr(first+1, '.');
+
+			if (second != 0) {
+				link = (struct rtnl_link *) nl_cache_get_next((struct nl_object *) link);
+				continue;
 			}
 		}
 
@@ -2001,6 +2286,15 @@ int add_existing_links(link_data_list_t *ld)
 			struct rtnl_neigh *neigh = rtnl_neigh_get(neigh_cache, if_index, nl_dst_addr);
 
 			if (neigh != NULL) {
+				// get neigh state
+				int neigh_state = rtnl_neigh_get_state(neigh);
+
+				// skip neighs with no arp state
+				if (NUD_NOARP == neigh_state) {
+					nl_neigh_object = nl_cache_get_next(nl_neigh_object);
+					continue;
+				}
+
 				int cur_neigh_index = rtnl_neigh_get_ifindex(neigh);
 
 				if (if_index != cur_neigh_index) {
@@ -2270,221 +2564,35 @@ error_out:
 	return -1;
 }
 
-static int set_interface_description(char *name, char *description)
+static int get_interface_description(sr_session_ctx_t *session, char *name, char **description)
 {
-	FILE *fp = NULL;
-	FILE *fp_tmp = NULL;
-	char entry[MAX_DESCR_LEN] = {0};
-	char *desc_file_path = NULL;
-	char *tmp_desc_file_path = NULL;
-	char *line = NULL;
-	size_t len = 0;
-	ssize_t read = 0;
-	bool entry_updated = false;
+	int error = SR_ERR_OK;
+	char path_buffer[PATH_MAX] = {0};
+	sr_val_t *val = {0};
 
-	desc_file_path = get_plugin_file_path(INTERFACE_DESCRIPTION_FILENAME, false);
-	if (desc_file_path == NULL) {
-		SRP_LOG_ERR("set_interface_description: couldn't get interface description file path\n");
+	// conjure description path for this interface
+	// /ietf-interfaces:interfaces/interface[name='test_interface']/description
+	error = snprintf(path_buffer, sizeof(path_buffer) / sizeof(char), "%s[name=\"%s\"]/description", INTERFACE_LIST_YANG_PATH, name);
+	if (error < 0) {
+		SRP_LOG_ERR("snprintf error");
 		goto error_out;
 	}
 
-	if (snprintf(entry, MAX_DESCR_LEN, "%s=%s\n", name, description) < 0) {
+	// get the interface description value 
+	error = sr_get_item(session, path_buffer, 0, &val);
+	if (error != SR_ERR_OK) {
+		SRP_LOG_ERR("sr_get_item error (%d): %s", error, sr_strerror(error));
 		goto error_out;
 	}
 
-	// if the file exists
-	if (access(desc_file_path, F_OK) == 0) {
-		tmp_desc_file_path = get_plugin_file_path(TMP_INTERFACE_DESCRIPTION_FILENAME, true);
-		if (desc_file_path == NULL) {
-			SRP_LOG_ERR("set_interface_description: couldn't get interface description file path\n");
-			goto error_out;
-		}
-
-		fp = fopen(desc_file_path, "r");
-		if (fp == NULL) {
-			goto error_out;
-		}
-
-		fp_tmp = fopen(tmp_desc_file_path, "a");
-		if (fp_tmp == NULL) {
-			goto error_out;
-		}
-
-		while ((read = getline(&line, &len, fp)) != -1) {
-			// check if interface with name already exists
-			if (strncmp(line, name, strlen(name)) == 0) {
-				// update it
-				fputs(entry, fp_tmp);
-				entry_updated = true;
-				break;
-			} else {
-				fputs(line, fp_tmp);
-			}
-		}
-
-		FREE_SAFE(line);
-		fclose(fp);
-		fp = NULL;
-		fclose(fp_tmp);
-		fp_tmp = NULL;
-
-		// rename the tmp file
-		if (rename(tmp_desc_file_path, desc_file_path) != 0) {
-			goto error_out;
-		}
-
-		FREE_SAFE(tmp_desc_file_path);
+	if (strlen(val->data.string_val) > 0) {
+		*description = val->data.string_val;
 	}
 
-	// if the current entry wasn't updated, append it
-	if (!entry_updated) {
-		fp = fopen(desc_file_path, "a");
-		if (fp == NULL) {
-			goto error_out;
-		}
-
-		fputs(entry, fp);
-
-		fclose(fp);
-		fp = NULL;
-	}
-
-	FREE_SAFE(desc_file_path);
 	return 0;
 
 error_out:
-	if (desc_file_path != NULL) {
-		FREE_SAFE(desc_file_path);
-	}
-
-	if (tmp_desc_file_path != NULL) {
-		FREE_SAFE(tmp_desc_file_path);
-	}
-
-	if (fp != NULL) {
-		fclose(fp);
-	}
-
-	if (fp_tmp != NULL) {
-		fclose(fp_tmp);
-	}
-
 	return -1;
-}
-
-static int get_interface_description(char *name, char **description)
-{
-	FILE *fp = NULL;
-	char *line = NULL;
-	size_t len = 0;
-	ssize_t read = 0;
-	char *desc_file_path = NULL;
-	bool entry_found = false;
-	char *token = NULL;
-	char *tmp_description = NULL;
-
-	desc_file_path = get_plugin_file_path(INTERFACE_DESCRIPTION_FILENAME, false);
-	if (desc_file_path == NULL) {
-		SRP_LOG_ERR("get_interface_description: couldn't get interface description file path\n");
-		return -1;
-	}
-
-	fp = fopen(desc_file_path, "r");
-	if (fp == NULL) {
-		FREE_SAFE(desc_file_path);
-		return -1;
-	}
-
-	while ((read = getline(&line, &len, fp)) != -1) {
-		// find description for given interface name
-		if (strncmp(line, name, strlen(name)) == 0) {
-			// remove the newline char from line
-			line[strlen(line) - 1] = '\0';
-
-			token = strtok(line, "=");
-			if (token == NULL) {
-				continue;
-			}
-
-			tmp_description = strtok(NULL, "=");
-			if (tmp_description == NULL) {
-				continue;
-			}
-
-			size_t desc_len = strlen(tmp_description);
-			*description = xcalloc(desc_len + 1, sizeof(char));
-			strncpy(*description, tmp_description, desc_len);
-			entry_found = true;
-			break;
-		}
-	}
-
-	FREE_SAFE(line);
-	fclose(fp);
-	FREE_SAFE(desc_file_path);
-
-	if (!entry_found) {
-		SRP_LOG_INF("No description for interface %s was found", name);
-	}
-
-	return 0;
-}
-
-static char *get_plugin_file_path(const char *filename, bool create)
-{
-	// TODO: update this appropriately
-	int error = 0;
-	char *plugin_dir = NULL;
-	char *file_path = NULL;
-	size_t filename_len = 0;
-	FILE *tmp = NULL;
-
-	plugin_dir = getenv(PLUGIN_DIR_ENV_VAR);
-	if (plugin_dir == NULL) {
-		//SRP_LOG_WRN("Unable to get env var %s", PLUGIN_DIR_ENV_VAR);
-		//SRP_LOG_INF("Setting the plugin data dir to: %s", PLUGIN_DIR_DEFAULT);
-		plugin_dir = PLUGIN_DIR_DEFAULT;
-	}
-
-	// check if plugin_dir exists
-	DIR* dir = opendir(plugin_dir);
-	if (dir) {
-		// dir exists
-		closedir(dir);
-	} else if (ENOENT == errno) {
-		error = mkdir(plugin_dir, 0777);
-		if (error == -1) {
-			SRP_LOG_ERR("Error creating dir: %s", plugin_dir);
-			return NULL;
-		}
-	} else {
-		SRP_LOG_ERR("opendir failed");
-		return NULL;
-	}
-
-	filename_len = strlen(plugin_dir) + strlen(filename) + 1;
-	file_path = xmalloc(filename_len);
-
-	if (snprintf(file_path, filename_len, "%s%s", plugin_dir, filename) < 0) {
-		return NULL;
-	}
-
-	// check if file exists
-	if (access(file_path, F_OK) != 0){
-		if (create) {
-			tmp = fopen(file_path, "w");
-			if (tmp == NULL) {
-				SRP_LOG_ERR("Error creating %s", file_path);
-				return NULL;
-			}
-			fclose(tmp);
-		} else {
-			SRP_LOG_ERR("Filename %s doesn't exist in dir %s", filename, plugin_dir);
-			return NULL;
-		}
-	}
-
-	return file_path;
 }
 
 static int interfaces_state_data_cb(sr_session_ctx_t *session, uint32_t subscription_id, const char *module_name, const char *path, const char *request_xpath, uint32_t request_id, struct lyd_node **parent, void *private_data)
@@ -2695,11 +2803,8 @@ static int interfaces_state_data_cb(sr_session_ctx_t *session, uint32_t subscrip
 
 		interface_data.name = rtnl_link_get_name(link);
 
-		error = get_interface_description(interface_data.name, &interface_data.description);
-		if (error != 0) {
-			SRP_LOG_ERR("get_interface_description error");
-			// don't exit, as some interfaces might not have a description
-		}
+		link_data_t *l = data_list_get_by_name(&link_data_list, interface_data.name);
+		interface_data.description = l->description;
 
 		interface_data.type = rtnl_link_get_type(link);
 		interface_data.enabled = rtnl_link_get_operstate(link) == IF_OPER_UP ? "enabled" : "disabled";
@@ -3172,9 +3277,6 @@ static int interfaces_state_data_cb(sr_session_ctx_t *session, uint32_t subscrip
 
 		// free all allocated data
 		FREE_SAFE(interface_data.phys_address);
-		if (interface_data.description != NULL) {
-			FREE_SAFE(interface_data.description);
-		}
 
 		// continue to next link node
 		link = (struct rtnl_link *) nl_cache_get_next((struct nl_object *) link);
@@ -3377,7 +3479,8 @@ static void *manager_thread_cb(void *data)
 {
 	do {
 		nl_cache_mngr_data_ready(link_manager);
-	} while (true && exit_application == 0);
+		sleep(1);
+	} while (exit_application == 0);
 
 	return NULL;
 }

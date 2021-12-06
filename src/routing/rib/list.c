@@ -55,7 +55,7 @@ int rib_list_set_default(struct rib_list *ls, char *name, int af, int def)
 
 struct rib *rib_list_get(struct rib_list *ls, char *name, int af)
 {
-	for (int i = 0; i < ls->size; i++) {
+	for (size_t i = 0; i < ls->size; i++) {
 		struct rib *ptr = &ls->list[i];
 		if (strcmp(ptr->name, name) == 0 && ptr->address_family == af) {
 			return &ls->list[i];
@@ -67,7 +67,7 @@ struct rib *rib_list_get(struct rib_list *ls, char *name, int af)
 void rib_list_free(struct rib_list *ls)
 {
 	if (ls->list) {
-		for (int i = 0; i < ls->size; i++) {
+		for (size_t i = 0; i < ls->size; i++) {
 			rib_free(&ls->list[i]);
 		}
 		FREE_SAFE(ls->list);

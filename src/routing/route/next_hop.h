@@ -12,6 +12,7 @@ enum route_next_hop_kind {
 struct route_next_hop_simple {
 	struct nl_addr *addr;
 	int ifindex;
+	char *if_name;
 };
 
 // enum string value
@@ -22,7 +23,7 @@ struct route_next_hop_special {
 // list of interface indexes
 struct route_next_hop_list {
 	struct route_next_hop_simple *list;
-	int size;
+	size_t size;
 };
 
 union route_next_hop_value {
@@ -37,9 +38,9 @@ struct route_next_hop {
 };
 
 void route_next_hop_init(struct route_next_hop *nh);
-void route_next_hop_set_simple(struct route_next_hop *nh, int ifindex, struct nl_addr *gw);
+void route_next_hop_set_simple(struct route_next_hop *nh, int ifindex, const char *if_name, struct nl_addr *gw);
 void route_next_hop_set_special(struct route_next_hop *nh, char *value);
-void route_next_hop_add_list(struct route_next_hop *nh, int ifindex, struct nl_addr *gw);
+void route_next_hop_add_list(struct route_next_hop *nh, int ifindex, const char *if_name, struct nl_addr *gw);
 struct route_next_hop route_next_hop_clone(struct route_next_hop *nh);
 void route_next_hop_free(struct route_next_hop *nh);
 

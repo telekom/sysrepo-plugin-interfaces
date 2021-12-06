@@ -5,7 +5,7 @@
 
 struct rib_list {
 	struct rib *list;
-	int size;
+	size_t size;
 };
 
 void rib_list_init(struct rib_list *ls);

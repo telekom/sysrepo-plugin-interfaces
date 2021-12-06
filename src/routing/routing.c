@@ -62,11 +62,19 @@
 // sysrepocfg
 #define SYSREPOCFG_EMPTY_CHECK_COMMAND "sysrepocfg -X -d running -m " BASE_YANG_MODEL
 
-// module changes
-static int routing_module_change_control_plane_protocol_list_cb(sr_session_ctx_t *session, uint32_t subscription_id, const char *module_name, const char *xpath, sr_event_t event, uint32_t request_id, void *private_data);
-static int routing_module_change_rib_list_cb(sr_session_ctx_t *session, uint32_t subscription_id, const char *module_name, const char *xpath, sr_event_t event, uint32_t request_id, void *private_data);
+// module change
+static int routing_module_change_cb(sr_session_ctx_t *session, uint32_t subscription_id, const char *module_name, const char *xpath, sr_event_t event, uint32_t request_id, void *private_data);
 
-// module changes helpers - changing/deleting values
+// module change helpers - changing/deleting values
+static int set_control_plane_protocol_value(char *xpath, char *value);
+static int set_static_route_value(char *xpath, char *node_name, char *node_value, struct route_list_hash *route_hash, int family);
+static void set_static_route_description(struct route_list *route_list, char *node_value);
+static int set_static_route_simple_next_hop(struct route_list *route_list, char *node_value, int family);
+static int set_static_route_simple_outgoing_if(struct route_list *route_list, char *node_value);
+static int delete_control_plane_protocol_value(char *xpath);
+static int delete_static_route_value(char *xpath, char *node_name, int family);
+static int set_rib_value(char *node_xpath, char *node_value);
+static int delete_rib_value(char *node_xpath);
 
 // getting xpath from the node
 static char *routing_xpath_get(const struct lyd_node *node);
@@ -79,8 +87,8 @@ static int routing_rib_set_address_family(const char *name, const char *address_
 static int routing_rib_set_description(const char *name, const char *description);
 
 // operational callbacks
-static int routing_oper_get_interfaces_cb(sr_session_ctx_t *session, uint32_t subscription_id, const char *module_name, const char *path, const char *request_xpath, uint32_t request_id, struct lyd_node **parent, void *private_data);
 static int routing_oper_get_rib_routes_cb(sr_session_ctx_t *session, uint32_t subscription_id, const char *module_name, const char *path, const char *request_xpath, uint32_t request_id, struct lyd_node **parent, void *private_data);
+static int routing_oper_get_interfaces_cb(sr_session_ctx_t *session, uint32_t subscription_id, const char *module_name, const char *path, const char *request_xpath, uint32_t request_id, struct lyd_node **parent, void *private_data);
 
 // rpc callbacks
 static int routing_rpc_active_route_cb(sr_session_ctx_t *session, uint32_t subscription_id, const char *xpath, const sr_val_t *input, const size_t input_cnt, sr_event_t event, uint32_t request_id, sr_val_t **output, size_t *output_cnt, void *private_data);
@@ -89,13 +97,20 @@ static int routing_rpc_active_route_cb(sr_session_ctx_t *session, uint32_t subsc
 static int routing_load_data(sr_session_ctx_t *session);
 static int routing_load_ribs(sr_session_ctx_t *session, struct lyd_node *routing_container_node);
 static int routing_collect_ribs(struct nl_cache *routes_cache, struct rib_list *ribs);
-static int routing_collect_routes(struct nl_cache *routes_cache, struct rib_list *ribs);
+static int routing_collect_routes(struct nl_cache *routes_cache, struct nl_cache *link_cache, struct rib_list *ribs);
 static int routing_load_control_plane_protocols(sr_session_ctx_t *session, struct lyd_node *routing_container_node);
 static int routing_build_rib_descriptions(struct rib_list *ribs);
 static inline int routing_is_rib_known(int table);
 static int routing_build_protos_map(struct control_plane_protocol map[ROUTING_PROTOS_COUNT]);
 static inline int routing_is_proto_type_known(int type);
 static bool routing_running_datastore_is_empty(void);
+
+static struct route_list_hash *ipv4_static_routes = NULL;
+static struct route_list_hash *ipv6_static_routes = NULL;
+
+static int static_routes_init(struct route_list_hash **ipv4_routes, struct route_list_hash **ipv6_routes);
+static void foreach_nexthop(struct rtnl_nexthop *nh, void *arg);
+static int update_static_routes(struct route_list_hash *routes, uint8_t family);
 
 int sr_plugin_init_cb(sr_session_ctx_t *session, void **private_data)
 {
@@ -116,6 +131,12 @@ int sr_plugin_init_cb(sr_session_ctx_t *session, void **private_data)
 
 	*private_data = startup_session;
 
+	error = static_routes_init(&ipv4_static_routes, &ipv6_static_routes);
+	if (error) {
+		SRP_LOG_ERR("static_routes_init error");
+		goto error_out;
+	}
+
 	if (routing_running_datastore_is_empty()) {
 		SRP_LOG_INF("running datasore is empty -> loading data");
 		error = routing_load_data(session);
@@ -133,14 +154,7 @@ int sr_plugin_init_cb(sr_session_ctx_t *session, void **private_data)
 	SRP_LOG_INF("subscribing to module change");
 
 	// control-plane-protocol list module changes
-	error = sr_module_change_subscribe(session, BASE_YANG_MODEL, ROUTING_CONTROL_PLANE_PROTOCOL_LIST_YANG_PATH, routing_module_change_control_plane_protocol_list_cb, *private_data, 0, SR_SUBSCR_DEFAULT, &subscription);
-	if (error) {
-		SRP_LOG_ERR("sr_module_change_subscribe error (%d): %s", error, sr_strerror(error));
-		goto error_out;
-	}
-
-	// rib list module changes
-	error = sr_module_change_subscribe(session, BASE_YANG_MODEL, ROUTING_RIB_LIST_YANG_PATH, routing_module_change_rib_list_cb, *private_data, 0, SR_SUBSCR_DEFAULT, &subscription);
+	error = sr_module_change_subscribe(session, BASE_YANG_MODEL, "/" BASE_YANG_MODEL ":*//.", routing_module_change_cb, *private_data, 0, SR_SUBSCR_DEFAULT, &subscription);
 	if (error) {
 		SRP_LOG_ERR("sr_module_change_subscribe error (%d): %s", error, sr_strerror(error));
 		goto error_out;
@@ -149,14 +163,14 @@ int sr_plugin_init_cb(sr_session_ctx_t *session, void **private_data)
 	SRP_LOG_INF("subscribing to interfaces operational data");
 
 	// interface leaf-list oper data
-	error = sr_oper_get_items_subscribe(session, BASE_YANG_MODEL, ROUTING_INTERFACE_LEAF_LIST_YANG_PATH, routing_oper_get_interfaces_cb, NULL, SR_SUBSCR_CTX_REUSE, &subscription);
-	if (error) {
-		SRP_LOG_ERR("sr_oper_get_items_subscribe error (%d): %s", error, sr_strerror(error));
-		goto error_out;
-	}
+       error = sr_oper_get_items_subscribe(session, BASE_YANG_MODEL, ROUTING_INTERFACE_LEAF_LIST_YANG_PATH, routing_oper_get_interfaces_cb, NULL, SR_SUBSCR_CTX_REUSE, &subscription);
+       if (error) {
+               SRP_LOG_ERR("sr_oper_get_items_subscribe error (%d): %s", error, sr_strerror(error));
+               goto error_out;
+       }
 
-	// RIB oper data
-	error = sr_oper_get_items_subscribe(session, BASE_YANG_MODEL, ROUTING_RIB_LIST_YANG_PATH, routing_oper_get_rib_routes_cb, NULL, SR_SUBSCR_CTX_REUSE, &subscription);
+       // RIB oper data
+       error = sr_oper_get_items_subscribe(session, BASE_YANG_MODEL, ROUTING_RIB_LIST_YANG_PATH, routing_oper_get_rib_routes_cb, NULL, SR_SUBSCR_CTX_REUSE, &subscription);
 	if (error) {
 		SRP_LOG_ERR("sr_oper_get_items_subscribe error (%d): %s", error, sr_strerror(error));
 		goto error_out;
@@ -178,11 +192,114 @@ out:
 	return error;
 }
 
-void sr_plugin_cleanup_cb(sr_session_ctx_t *session, void *private_data)
+static int static_routes_init(struct route_list_hash **ipv4_routes, struct route_list_hash **ipv6_routes)
 {
+	int nl_err = 0;
+	int error = 0;
+
+	struct nl_sock *socket = NULL;
+	struct rtnl_route *route = NULL;
+	struct nl_cache *cache = NULL;
+	struct nl_cache *link_cache = NULL;
+	struct route tmp_route = {0};
+	struct rtnl_link *iface = NULL;
+	char *if_name = NULL;
+	int ifindex = 0;
+
+	*ipv4_routes = xmalloc(sizeof(struct route_list_hash));
+	*ipv6_routes = xmalloc(sizeof(struct route_list_hash));
+
+	route_list_hash_init(*ipv4_routes);
+	route_list_hash_init(*ipv6_routes);
+
+	socket = nl_socket_alloc();
+	if (socket == NULL) {
+		SRP_LOG_ERR("unable to init nl_sock struct...");
+		goto error_out;
+	}
+
+	nl_err = nl_connect(socket, NETLINK_ROUTE);
+	if (nl_err != 0) {
+		SRP_LOG_ERR("nl_connect failed (%d): %s", nl_err, nl_geterror(nl_err));
+		goto error_out;
+	}
+
+	nl_err = rtnl_route_alloc_cache(socket, AF_UNSPEC, 0, &cache);
+	if (nl_err != 0) {
+		SRP_LOG_ERR("rtnl_route_alloc_cache failed (%d): %s", nl_err, nl_geterror(nl_err));
+		goto error_out;
+	}
+
+	nl_err = rtnl_link_alloc_cache(socket, AF_UNSPEC, &link_cache);
+	if (nl_err != 0) {
+		SRP_LOG_ERR("rtnl_route_alloc_cache failed (%d): %s", nl_err, nl_geterror(nl_err));
+		goto error_out;
+	}
+
+
+	route = (struct rtnl_route *) nl_cache_get_first(cache);
+	while (route != NULL) {
+		const int PROTO = rtnl_route_get_protocol(route);
+
+		if (PROTO == RTPROT_STATIC) {
+			const int AF = rtnl_route_get_family(route);
+			// fill the route with info and add to the hash of the current RIB
+			route_init(&tmp_route);
+			route_set_preference(&tmp_route, rtnl_route_get_priority(route));
+
+			// next-hop container -> TODO: see what about special type
+			const int NEXTHOP_COUNT = rtnl_route_get_nnexthops(route);
+			if (NEXTHOP_COUNT == 1) {
+				struct rtnl_nexthop *nh = rtnl_route_nexthop_n(route, 0);
+				ifindex = rtnl_route_nh_get_ifindex(nh);
+				iface = rtnl_link_get(link_cache, ifindex);
+				if_name = xstrdup(rtnl_link_get_name(iface));
+				route_next_hop_set_simple(&tmp_route.next_hop, ifindex, if_name, rtnl_route_nh_get_gateway(nh));
+				rtnl_link_put(iface);
+			} else {
+				rtnl_route_foreach_nexthop(route, foreach_nexthop, &tmp_route.next_hop);
+			}
+
+			// route-metadata/source-protocol
+			route_set_source_protocol(&tmp_route, "ietf-routing:static");
+
+			// add the route to the protocol's container
+			if (AF == AF_INET) {
+				// v4
+				route_list_hash_add(*ipv4_routes, rtnl_route_get_dst(route), &tmp_route);
+			} else if (AF == AF_INET6) {
+				// v6
+				route_list_hash_add(*ipv6_routes, rtnl_route_get_dst(route), &tmp_route);
+			}
+
+			route_free(&tmp_route);
+		}
+		route = (struct rtnl_route *) nl_cache_get_next((struct nl_object *) route);
+	}
+
+	goto out;
+
+error_out:
+	SRP_LOG_ERR("error initializing static routes");
+	error = -1;
+out:
+	nl_cache_free(cache);
+	nl_cache_free(link_cache);
+	nl_socket_free(socket);
+	return error;
 }
 
-static int routing_module_change_control_plane_protocol_list_cb(sr_session_ctx_t *session, uint32_t subscription_id, const char *module_name, const char *xpath, sr_event_t event, uint32_t request_id, void *private_data)
+
+void sr_plugin_cleanup_cb(sr_session_ctx_t *session, void *private_data)
+{
+	route_list_hash_free(ipv4_static_routes);
+	route_list_hash_free(ipv6_static_routes);
+	FREE_SAFE(ipv4_static_routes);
+	FREE_SAFE(ipv6_static_routes);
+
+}
+
+static int routing_module_change_cb(sr_session_ctx_t *session, uint32_t subscription_id, const char *module_name, const char *xpath, sr_event_t event, uint32_t request_id, void *private_data)
 {
 	int error = 0;
 
@@ -190,7 +307,6 @@ static int routing_module_change_control_plane_protocol_list_cb(sr_session_ctx_t
 	sr_session_ctx_t *startup_session = (sr_session_ctx_t *) private_data;
 	sr_change_iter_t *routing_change_iter = NULL;
 	sr_change_oper_t operation = SR_OP_CREATED;
-	sr_xpath_ctx_t xpath_ctx = {0};
 
 	// libyang
 	const struct lyd_node *node = NULL;
@@ -200,12 +316,10 @@ static int routing_module_change_control_plane_protocol_list_cb(sr_session_ctx_t
 	const char *prev_list = NULL;
 	int prev_default = false;
 	char *node_xpath = NULL;
-	const char *node_value = NULL;
+	char *node_value = NULL;
 
-	// keys
-	char *type_key = NULL;
-	char *name_key = NULL;
-	char *node_name = NULL;
+	bool ipv4_update = false;
+	bool ipv6_update = false;
 
 	SRP_LOG_INF("module_name: %s, xpath: %s, event: %d, request_id: %u", module_name, xpath, event, request_id);
 
@@ -235,21 +349,64 @@ static int routing_module_change_control_plane_protocol_list_cb(sr_session_ctx_t
 
 			SRP_LOG_DBG("node_xpath: %s; prev_val: %s; node_val: %s; operation: %d", node_xpath, prev_value, node_value, operation);
 
-			if (node->schema->nodetype == LYS_LEAF || node->schema->nodetype == LYS_LEAFLIST) {
-				node_name = sr_xpath_last_node(node_xpath, &xpath_ctx);
-				name_key = sr_xpath_key_value(node_xpath, "control-plane-protocol", "name", &xpath_ctx);
-				type_key = sr_xpath_key_value(node_xpath, "control-plane-protocol", "type", &xpath_ctx);
 
-				if (strncmp(node_name, "description", sizeof("description") - 1) == 0) {
-					error = routing_control_plane_protocol_set_description(type_key, name_key, node_value);
-					if (error != 0) {
-						SRP_LOG_ERR("routing_control_plane_protocol_set_description failed");
-						goto error_out;
+			if (node->schema->nodetype == LYS_LEAF || node->schema->nodetype == LYS_LEAFLIST) {
+				if (strstr(node_xpath, "ietf-ipv4-unicast-routing:ipv4")) {
+					ipv4_update = true;
+				} else if (strstr(node_xpath, "ietf-ipv6-unicast-routing:ipv6")) {
+					ipv6_update = true;
+				}
+
+				if (operation == SR_OP_CREATED || operation == SR_OP_MODIFIED) {
+					if (strstr(node_xpath, "/ietf-routing:routing/ribs")) {
+						error = set_rib_value(node_xpath, node_value);
+						if (error) {
+							SRP_LOG_ERR("set_control_plane_protocol_value error (%d)", error);
+							goto error_out;
+						}
+					} else if (strstr(node_xpath, "ietf-routing:routing/control-plane-protocols")) {
+						error = set_control_plane_protocol_value(node_xpath, node_value);
+						if (error) {
+							SRP_LOG_ERR("set_control_plane_protocol_value error (%d)", error);
+							goto error_out;
+						}
+					}
+				} else if (operation == SR_OP_DELETED) {
+					if (strstr(node_xpath, "/ietf-routing:routing/ribs")) {
+						error = delete_rib_value(node_xpath);
+						if (error) {
+							SRP_LOG_ERR("set_control_plane_protocol_value error (%d)", error);
+							goto error_out;
+						}
+					} else if (strstr(node_xpath, "ietf-routing:routing/control-plane-protocols")) {
+						error = delete_control_plane_protocol_value(node_xpath);
+						if (error) {
+							SRP_LOG_ERR("set_control_plane_protocol_value error (%d)", error);
+							goto error_out;
+						}
 					}
 				}
 			}
 			FREE_SAFE(node_xpath);
-			node_value = NULL;
+			FREE_SAFE(node_value);
+		}
+
+		if (ipv4_update) {
+			error = update_static_routes(ipv4_static_routes, AF_INET);
+			if (error) {
+				SRP_LOG_ERR("failed to update IPv4 static routes on system");
+				goto error_out;
+			}
+			route_list_hash_prune(ipv4_static_routes);
+		}
+
+		if (ipv6_update) {
+			error = update_static_routes(ipv6_static_routes, AF_INET6);
+			if (error) {
+				SRP_LOG_ERR("failed to update IPv6 static routes on system");
+				goto error_out;
+			}
+			route_list_hash_prune(ipv6_static_routes);
 		}
 	}
 	goto out;
@@ -257,93 +414,446 @@ static int routing_module_change_control_plane_protocol_list_cb(sr_session_ctx_t
 error_out:
 	SRP_LOG_ERR("error applying control plane protocols module changes");
 	error = -1;
+	FREE_SAFE(node_xpath);
+	FREE_SAFE(node_value);
 
 out:
-	FREE_SAFE(node_xpath);
 	sr_free_change_iter(routing_change_iter);
 
 	return error != 0 ? SR_ERR_CALLBACK_FAILED : SR_ERR_OK;
 }
 
-static int routing_module_change_rib_list_cb(sr_session_ctx_t *session, uint32_t subscription_id, const char *module_name, const char *xpath, sr_event_t event, uint32_t request_id, void *private_data)
+static int update_static_routes(struct route_list_hash *routes, uint8_t family)
+{
+	struct nl_sock *socket = NULL;
+	struct rtnl_route *route = NULL;
+	struct rtnl_nexthop *next_hop = NULL;
+	struct nl_addr *dst_addr = NULL;
+	int error = 0;
+	int nl_err = 0;
+
+	socket = nl_socket_alloc();
+	if (socket == NULL) {
+		error = -1;
+		SRP_LOG_ERR("unable to init nl_sock struct...");
+		goto error_out;
+	}
+
+	nl_err = nl_connect(socket, NETLINK_ROUTE);
+	if (nl_err != 0) {
+		error = -1;
+		SRP_LOG_ERR("nl_connect failed (%d): %s", nl_err, nl_geterror(nl_err));
+		goto error_out;
+	}
+
+	for (size_t i = 0; i < routes->size; i++) {
+		if (route_list_is_empty(&routes->list_route[i])) {
+			continue;
+		}
+
+		route = rtnl_route_alloc();
+		if (route == NULL) {
+			error = -1;
+			SRP_LOG_ERR("unable to alloc rtnl_route struct");
+			goto error_out;
+		}
+
+		rtnl_route_set_table(route, RT_TABLE_MAIN);
+		rtnl_route_set_protocol(route, RTPROT_STATIC);
+		rtnl_route_set_family(route, family);
+		dst_addr = nl_addr_clone(routes->list_addr[i]);
+		rtnl_route_set_dst(route, dst_addr);
+		rtnl_route_set_priority(route, routes->list_route[i].list[0].preference);
+
+		if (routes->list_route[i].delete) {
+			rtnl_route_set_scope(route, RT_SCOPE_NOWHERE);
+			nl_err = rtnl_route_delete(socket, route, 0);
+			if (nl_err != 0) {
+				error = -1;
+				SRP_LOG_ERR("nl_connect failed (%d): %s", nl_err, nl_geterror(nl_err));
+				goto error_out;
+			}
+			rtnl_route_put(route);
+			route = NULL;
+			continue;
+		}
+
+		if (routes->list_route[i].list[0].next_hop.kind == route_next_hop_kind_simple) {
+			next_hop = rtnl_route_nh_alloc();
+			if (next_hop == NULL) {
+				error = -1;
+				SRP_LOG_ERR("unable to alloc rtnl_nexthop struct");
+				goto error_out;
+			}
+
+			if (routes->list_route[i].list[0].next_hop.value.simple.if_name == NULL
+					&& routes->list_route[i].list[0].next_hop.value.simple.addr == NULL) {
+				error = -1;
+				SRP_LOG_ERR("outgoing-interface and next-hop-address can't both be NULL");
+				goto error_out;
+			}
+
+			if (routes->list_route[i].list[0].next_hop.value.simple.if_name != NULL) {
+				rtnl_route_nh_set_ifindex(next_hop, routes->list_route[i].list[0].next_hop.value.simple.ifindex);
+			}
+
+			if (routes->list_route[i].list[0].next_hop.value.simple.addr != NULL) {
+				rtnl_route_nh_set_gateway(next_hop, routes->list_route[i].list[0].next_hop.value.simple.addr);
+			}
+			rtnl_route_add_nexthop(route, next_hop);
+		} else if (routes->list_route[i].list[0].next_hop.kind == route_next_hop_kind_list) {
+			for (size_t j = 0; j < routes->list_route[i].list[0].next_hop.value.list.size; j++) {
+				next_hop = rtnl_route_nh_alloc();
+				if (next_hop == NULL) {
+					error = -1;
+					SRP_LOG_ERR("unable to alloc rtnl_nexthop struct");
+					goto error_out;
+				}
+
+				rtnl_route_nh_set_ifindex(next_hop, routes->list_route[i].list[0].next_hop.value.list.list[j].ifindex);
+				rtnl_route_nh_set_gateway(next_hop, routes->list_route[i].list[0].next_hop.value.list.list[j].addr);
+				rtnl_route_add_nexthop(route, next_hop);
+
+			}
+		}
+
+		rtnl_route_set_scope(route, rtnl_route_guess_scope(route));
+
+		nl_err = rtnl_route_add(socket, route, NLM_F_REPLACE);
+		if (nl_err != 0) {
+			error = -1;
+			SRP_LOG_ERR("rtnl_route_add failed (%d): %s", nl_err, nl_geterror(nl_err));
+			goto error_out;
+		}
+
+		nl_addr_put(dst_addr);
+		dst_addr = NULL;
+		rtnl_route_put(route);
+		route = NULL;
+	}
+error_out:
+	if (dst_addr) {
+		nl_addr_put(dst_addr);
+	}
+
+	if (route) {
+		rtnl_route_put(route);
+	}
+
+	if (socket) {
+		nl_socket_free(socket);
+	}
+
+	return error;
+}
+
+static int set_control_plane_protocol_value(char *node_xpath, char *node_value)
+{
+	sr_xpath_ctx_t xpath_ctx = {0};
+
+	char *node_name = NULL;
+	char *name_key = NULL;
+	char *type_key = NULL;
+	char *orig_xpath = NULL;
+
+	int error = SR_ERR_OK;
+
+	orig_xpath = xstrdup(node_xpath);
+
+	node_name = sr_xpath_node_name(node_xpath);
+	name_key = sr_xpath_key_value(node_xpath, "control-plane-protocol", "name", &xpath_ctx);
+	type_key = sr_xpath_key_value(node_xpath, "control-plane-protocol", "type", &xpath_ctx);
+
+	if (!strcmp(node_name, "description") && !strstr(orig_xpath, "ietf-ipv4-unicast-routing:ipv4")
+			&& !strstr(orig_xpath, "ietf-ipv6-unicast-routing:ipv6")) {
+		error = routing_control_plane_protocol_set_description(type_key, name_key, node_value);
+		if (error != 0) {
+			SRP_LOG_ERR("routing_control_plane_protocol_set_description failed");
+			goto out;
+		}
+	} else if (strstr(orig_xpath, "ietf-ipv4-unicast-routing:ipv4")) {
+		error = set_static_route_value(orig_xpath, node_name, node_value, ipv4_static_routes, AF_INET);
+		if (error != 0) {
+			SRP_LOG_ERR("error setting IPv4 static route value");
+			goto out;
+		}
+	} else if (strstr(orig_xpath, "ietf-ipv6-unicast-routing:ipv6")) {
+		error = set_static_route_value(orig_xpath, node_name, node_value, ipv6_static_routes, AF_INET6);
+		if (error != 0) {
+			SRP_LOG_ERR("error setting IPv6 static route value");
+			goto out;
+		}
+	}
+
+out:
+	if (orig_xpath) {
+		FREE_SAFE(orig_xpath);
+	}
+
+	return error ? SR_ERR_CALLBACK_FAILED : SR_ERR_OK;
+}
+
+static int set_static_route_value(char *xpath, char *node_name, char *node_value, struct route_list_hash *routes_hash, int family)
+{
+	sr_xpath_ctx_t xpath_ctx = {0};
+
+	struct nl_addr *destination_prefix_addr = NULL;
+
+	struct route_list *route_list = NULL;
+	char *next_hop_list = NULL;
+	char *destination_prefix = NULL;
+	int error = 0;
+
+	next_hop_list = sr_xpath_key_value(xpath, "next-hop", "index", &xpath_ctx);
+	destination_prefix = sr_xpath_key_value(xpath, "route", "destination-prefix", &xpath_ctx);
+
+	if (destination_prefix == NULL) {
+		error = -1;
+		SRP_LOG_ERR("destination-prefix couldn't be retrieved");
+		goto out;
+	}
+
+	error = nl_addr_parse(destination_prefix, family, &destination_prefix_addr);
+	if (error != 0) {
+		error = -1;
+		SRP_LOG_ERR("failed to parse destination-prefix into nl_addr");
+		goto out;
+	}
+
+	if (strcmp(node_name, "destination-prefix")) {
+		route_list = route_list_hash_get_by_addr(routes_hash, destination_prefix_addr);
+		if (route_list == NULL) {
+			error = -1;
+			SRP_LOG_ERR("matching route_list destination-prefix %s not found", destination_prefix);
+			goto out;
+		}
+	}
+
+	if (next_hop_list != NULL) {
+		route_list->list[0].next_hop.kind = route_next_hop_kind_list;
+
+		if (!strcmp(node_name, "next-hop-address")) {
+		} else if (!strcmp(node_name, "outgoing-interface")) {
+		}
+	} else if (!strcmp(node_name, "destination-prefix")) {
+		route_list_hash_add(routes_hash, destination_prefix_addr, &(struct route){0});
+	} else if (!strcmp(node_name, "description")) {
+		set_static_route_description(route_list, node_value);
+	} else if (!strcmp(node_name, "next-hop-address")) {
+		error = set_static_route_simple_next_hop(route_list, node_value, family);
+		if (error) {
+			error = -1;
+			SRP_LOG_ERR("failed to set static route next-hop-address");
+			goto out;
+		}
+	} else if (!strcmp(node_name, "outgoing-interface")) {
+		error = set_static_route_simple_outgoing_if(route_list, node_value);
+		if (error) {
+			error = -1;
+			SRP_LOG_ERR("failed to set static route next-hop-address");
+			goto out;
+		}
+	}
+
+out:
+	if (destination_prefix_addr) {
+		nl_addr_put(destination_prefix_addr);
+	}
+
+	return error ? SR_ERR_CALLBACK_FAILED : SR_ERR_OK;
+}
+
+static void set_static_route_description(struct route_list *route_list, char *node_value)
+{
+	route_list->list[0].metadata.description = xstrdup(node_value);
+}
+
+static int set_static_route_simple_next_hop(struct route_list *route_list, char *node_value, int family)
 {
 	int error = 0;
 
-	// sysrepo
-	sr_session_ctx_t *startup_session = (sr_session_ctx_t *) private_data;
-	sr_change_iter_t *routing_change_iter = NULL;
-	sr_change_oper_t operation = SR_OP_CREATED;
+	route_list->list[0].next_hop.kind = route_next_hop_kind_simple;
+
+	error = nl_addr_parse(node_value, family, &route_list->list[0].next_hop.value.simple.addr);
+	if (error != 0) {
+		SRP_LOG_ERR("failed to parse next-hop-address into nl_addr");
+		return -1;
+	}
+
+	return 0;
+}
+
+static int set_static_route_simple_outgoing_if(struct route_list *route_list, char *node_value)
+{
+	int ifindex = 0;
+
+	route_list->list[0].next_hop.kind = route_next_hop_kind_simple;
+	route_list->list[0].next_hop.value.simple.if_name = xstrdup(node_value);
+	ifindex = if_nametoindex(node_value);
+	if (ifindex == 0) {
+		SRP_LOG_ERR("failed to get ifindex for %s", node_value);
+		return -1;
+	}
+
+	route_list->list[0].next_hop.value.simple.ifindex = ifindex;
+	return 0;
+}
+
+static int delete_control_plane_protocol_value(char *node_xpath)
+{
 	sr_xpath_ctx_t xpath_ctx = {0};
 
-	// libyang
-	const struct lyd_node *node = NULL;
+	char *node_name = NULL;
+	char *name_key = NULL;
+	char *type_key = NULL;
+	char *orig_xpath = NULL;
 
-	// temp helper vars
-	const char *prev_value = NULL;
-	const char *prev_list = NULL;
-	int prev_default = false;
-	char *node_xpath = NULL;
-	const char *node_value = NULL;
+	int error = SR_ERR_OK;
 
-	// node stuff
+	orig_xpath = xstrdup(node_xpath);
+
+	node_name = sr_xpath_node_name(node_xpath);
+	name_key = sr_xpath_key_value(node_xpath, "control-plane-protocol", "name", &xpath_ctx);
+	type_key = sr_xpath_key_value(node_xpath, "control-plane-protocol", "type", &xpath_ctx);
+
+	if (!strcmp(node_name, "description") && !strstr(orig_xpath, "ietf-ipv4-unicast-routing:ipv4")
+			&& !strstr(orig_xpath, "ietf-ipv6-unicast-routing:ipv6")) {
+		error = routing_control_plane_protocol_set_description(type_key, name_key, "");
+		if (error != 0) {
+			SRP_LOG_ERR("routing_control_plane_protocol_set_description failed");
+			goto out;
+		}
+	} else if (strstr(orig_xpath, "ietf-ipv4-unicast-routing:ipv4")) {
+		error = delete_static_route_value(orig_xpath, node_name, AF_INET);
+		if (error != 0) {
+			SRP_LOG_ERR("error setting IPv4 static route value");
+			goto out;
+		}
+	} else if (strstr(orig_xpath, "ietf-ipv6-unicast-routing:ipv6")) {
+		error = delete_static_route_value(orig_xpath, node_name, AF_INET6);
+		if (error != 0) {
+			SRP_LOG_ERR("error setting IPv6 static route value");
+			goto out;
+		}
+	}
+
+out:
+	if (orig_xpath) {
+		FREE_SAFE(orig_xpath);
+	}
+
+	return error ? SR_ERR_CALLBACK_FAILED : SR_ERR_OK;
+}
+
+static int delete_static_route_value(char *xpath, char *node_name, int family)
+{
+	sr_xpath_ctx_t xpath_ctx = {0};
+
+	struct nl_addr *destination_prefix_addr = NULL;
+
+	struct route_list *route_list = NULL;
+	char *next_hop_list = NULL;
+	char *destination_prefix = NULL;
+	int error = 0;
+
+	next_hop_list = sr_xpath_key_value(xpath, "next-hop", "index", &xpath_ctx);
+	destination_prefix = sr_xpath_key_value(xpath, "route", "destination-prefix", &xpath_ctx);
+
+	if (destination_prefix == NULL) {
+		error = -1;
+		SRP_LOG_ERR("destination-prefix couldn't be retrieved");
+		goto out;
+	}
+
+	error = nl_addr_parse(destination_prefix, family, &destination_prefix_addr);
+	if (error != 0) {
+		error = -1;
+		SRP_LOG_ERR("failed to parse destination-prefix into nl_addr");
+		goto out;
+	}
+
+	if (family == AF_INET) {
+		route_list = route_list_hash_get_by_addr(ipv4_static_routes, destination_prefix_addr);
+	} else if (family == AF_INET6) {
+		route_list = route_list_hash_get_by_addr(ipv6_static_routes, destination_prefix_addr);
+	}
+
+	if (route_list == NULL) {
+		error = -1;
+		SRP_LOG_ERR("matching route_list destination-prefix %s not found", destination_prefix);
+		goto out;
+	}
+
+	if (next_hop_list != NULL) {
+		route_list->list[0].next_hop.kind = route_next_hop_kind_list;
+
+		if (!strcmp(node_name, "next-hop-address")) {
+		} else if (!strcmp(node_name, "outgoing-interface")) {
+		}
+	} else if (!strcmp(node_name, "destination-prefix")) {
+		route_list->delete = true;
+	} else if (!strcmp(node_name, "description")) {
+		set_static_route_description(route_list, NULL);
+	} else if (!strcmp(node_name, "next-hop-address")) {
+		route_list->list[0].next_hop.value.simple.addr = NULL;
+	} else if (!strcmp(node_name, "outgoing-interface")) {
+		route_list->list[0].next_hop.value.simple.if_name = NULL;
+	}
+
+out:
+	if (destination_prefix_addr) {
+		nl_addr_put(destination_prefix_addr);
+	}
+
+	return error ? SR_ERR_CALLBACK_FAILED : SR_ERR_OK;
+}
+
+static int set_rib_value(char *node_xpath, char *node_value)
+{
+	sr_xpath_ctx_t xpath_ctx = {0};
+
 	char *name_key = NULL;
 	char *node_name = NULL;
 
-	SRP_LOG_INF("module_name: %s, xpath: %s, event: %d, request_id: %u", module_name, xpath, event, request_id);
+	int error = SR_ERR_OK;
 
-	if (event == SR_EV_ABORT) {
-		SRP_LOG_ERR("aborting changes for: %s", xpath);
-		error = -1;
-		goto error_out;
-	} else if (event == SR_EV_DONE) {
-		error = sr_copy_config(startup_session, BASE_YANG_MODEL, SR_DS_RUNNING, 0);
-		if (error) {
-			SRP_LOG_ERR("sr_copy_config error (%d): %s", error, sr_strerror(error));
-			goto error_out;
-		}
-	} else if (event == SR_EV_CHANGE) {
-		error = sr_get_changes_iter(session, xpath, &routing_change_iter);
-		if (error) {
-			SRP_LOG_ERR("sr_get_changes_iter error (%d): %s", error, sr_strerror(error));
-			goto error_out;
-		}
+	node_name = sr_xpath_node_name(node_xpath);
+	name_key = sr_xpath_key_value(node_xpath, "rib", "name", &xpath_ctx);
 
-		while (sr_get_change_tree_next(session, routing_change_iter, &operation, &node, &prev_value, &prev_list, &prev_default) == SR_ERR_OK) {
-			node_xpath = routing_xpath_get(node);
-
-			if (node->schema->nodetype == LYS_LEAF || node->schema->nodetype == LYS_LEAFLIST) {
-				node_value = xstrdup(lyd_get_value(node));
-			}
-
-			SRP_LOG_DBG("node_xpath: %s; prev_val: %s; node_val: %s; operation: %d", node_xpath, prev_value, node_value, operation);
-
-			if (node->schema->nodetype == LYS_LEAF || node->schema->nodetype == LYS_LEAFLIST) {
-				node_name = sr_xpath_last_node(node_xpath, &xpath_ctx);
-				name_key = sr_xpath_key_value(node_xpath, "rib", "name", &xpath_ctx);
-
-				if (strncmp(node_name, "description", sizeof("description") - 1) == 0) {
-					error = routing_rib_set_description(name_key, node_value);
-					if (error != 0) {
-						SRP_LOG_ERR("routing_rib_set_description failed");
-						goto error_out;
-					}
-				}
-			}
-			FREE_SAFE(node_xpath);
-			node_value = NULL;
+	if (!strcmp(node_name, "description")) {
+		error = routing_rib_set_description(name_key, node_value);
+		if (error != 0) {
+			SRP_LOG_ERR("routing_rib_set_description failed");
+			goto out;
 		}
 	}
-	goto out;
-
-error_out:
-	SRP_LOG_ERR("error applying ribs module changes");
-	error = -1;
 
 out:
-	FREE_SAFE(node_xpath);
-	sr_free_change_iter(routing_change_iter);
+	return error ? SR_ERR_CALLBACK_FAILED : SR_ERR_OK;
+}
 
-	return error != 0 ? SR_ERR_CALLBACK_FAILED : SR_ERR_OK;
+static int delete_rib_value(char *node_xpath)
+{
+	sr_xpath_ctx_t xpath_ctx = {0};
+
+	char *name_key = NULL;
+	char *node_name = NULL;
+
+	int error = SR_ERR_OK;
+
+	node_name = sr_xpath_node_name(node_xpath);
+	name_key = sr_xpath_key_value(node_xpath, "rib", "name", &xpath_ctx);
+
+	if (!strcmp(node_name, "description")) {
+		error = routing_rib_set_description(name_key, "");
+		if (error != 0) {
+			SRP_LOG_ERR("routing_rib_set_description failed");
+			goto out;
+		}
+	}
+
+out:
+	return error ? SR_ERR_CALLBACK_FAILED : SR_ERR_OK;
 }
 
 static int routing_control_plane_protocol_set_description(const char *type, const char *name, const char *description)
@@ -367,7 +877,7 @@ static int routing_control_plane_protocol_set_description(const char *type, cons
 		goto error_out;
 	}
 
-	for (int i = 0; i < ROUTING_PROTOS_COUNT; i++) {
+	for (size_t i = 0; i < ROUTING_PROTOS_COUNT; i++) {
 		control_plane_protocol_init(&protos[i]);
 	}
 
@@ -414,9 +924,9 @@ static int routing_control_plane_protocol_set_description(const char *type, cons
 		fclose(fptr);
 		fptr = fopen(path_buffer, "w");
 
-		for (int i = 0; i < ROUTING_PROTOS_COUNT; i++) {
+		for (size_t i = 0; i < ROUTING_PROTOS_COUNT; i++) {
 			if (protos[i].initialized == 1) {
-				fprintf(fptr, "%d\t%s\t\"%s\"\n", i, protos[i].type, protos[i].description);
+				fprintf(fptr, "%lu\t%s\t\"%s\"\n", i, protos[i].type, protos[i].description);
 			}
 		}
 	}
@@ -429,7 +939,7 @@ out:
 		fclose(fptr);
 	}
 
-	for (int i = 0; i < ROUTING_PROTOS_COUNT; i++) {
+	for (size_t i = 0; i < ROUTING_PROTOS_COUNT; i++) {
 		control_plane_protocol_free(&protos[i]);
 	}
 	return error;
@@ -461,7 +971,7 @@ static int routing_rib_set_description(const char *name, const char *description
 	// list of descriptions
 	struct {
 		struct rib_description_pair *list;
-		int size;
+		size_t size;
 	} rib_descriptions = {0};
 
 	// first read all descriptions from the map file and change the wanted description
@@ -508,7 +1018,7 @@ static int routing_rib_set_description(const char *name, const char *description
 
 	SRP_LOG_DBG("setting description of %s to \"%s\"", name, description);
 
-	for (int i = 0; i < rib_descriptions.size; i++) {
+	for (size_t i = 0; i < rib_descriptions.size; i++) {
 		struct rib_description_pair *PAIR = &rib_descriptions.list[i];
 		if (strncmp(PAIR->name, name, NAME_LEN) == 0) {
 			// found description -> change it
@@ -533,7 +1043,7 @@ static int routing_rib_set_description(const char *name, const char *description
 	fclose(fptr);
 	fptr = fopen(path_buffer, "w");
 
-	for (int i = 0; i < rib_descriptions.size; i++) {
+	for (size_t i = 0; i < rib_descriptions.size; i++) {
 		SRP_LOG_DBG("%s = %s", rib_descriptions.list[i].name, rib_descriptions.list[i].description);
 		fprintf(fptr, "%s\t\"%s\"\n", rib_descriptions.list[i].name, rib_descriptions.list[i].description);
 	}
@@ -653,7 +1163,40 @@ out:
 static void foreach_nexthop(struct rtnl_nexthop *nh, void *arg)
 {
 	struct route_next_hop *nexthop = arg;
-	route_next_hop_add_list(nexthop, rtnl_route_nh_get_ifindex(nh), rtnl_route_nh_get_gateway(nh));
+	struct nl_cache *link_cache = NULL;
+	struct nl_sock *socket = NULL;
+	struct rtnl_link *iface = NULL;
+	int ifindex = 0;
+	char *if_name = NULL;
+	int nl_err = 0;
+
+	socket = nl_socket_alloc();
+	if (socket == NULL) {
+		SRP_LOG_ERR("unable to init nl_sock struct...");
+		return;
+	}
+
+	nl_err = nl_connect(socket, NETLINK_ROUTE);
+	if (nl_err != 0) {
+		SRP_LOG_ERR("nl_connect failed (%d): %s", nl_err, nl_geterror(nl_err));
+		return;
+	}
+
+	nl_err = rtnl_link_alloc_cache(socket, AF_UNSPEC, &link_cache);
+	if (nl_err != 0) {
+		SRP_LOG_ERR("rtnl_route_alloc_cache failed (%d): %s", nl_err, nl_geterror(nl_err));
+		return;
+	}
+
+	ifindex = rtnl_route_nh_get_ifindex(nh);
+	iface = rtnl_link_get(link_cache, ifindex);
+	if_name = xstrdup(rtnl_link_get_name(iface));
+
+	route_next_hop_add_list(nexthop, ifindex, if_name, rtnl_route_nh_get_gateway(nh));
+
+	rtnl_link_put(iface);
+	nl_cache_free(link_cache);
+	nl_socket_free(socket);
 }
 
 static int routing_oper_get_rib_routes_cb(sr_session_ctx_t *session, uint32_t subscription_id, const char *module_name, const char *path, const char *request_xpath, uint32_t request_id, struct lyd_node **parent, void *private_data)
@@ -678,6 +1221,7 @@ static int routing_oper_get_rib_routes_cb(sr_session_ctx_t *session, uint32_t su
 	char value_buffer[PATH_MAX];
 	char ip_buffer[INET6_ADDRSTRLEN];
 	char prefix_buffer[INET6_ADDRSTRLEN + 1 + 3];
+	char xpath_buffer[256] = {0};
 
 	ly_ctx = sr_get_context(sr_session_get_connection(session));
 
@@ -720,12 +1264,12 @@ static int routing_oper_get_rib_routes_cb(sr_session_ctx_t *session, uint32_t su
 		goto error_out;
 	}
 
-	error = routing_collect_routes(cache, &ribs);
+	error = routing_collect_routes(cache, link_cache, &ribs);
 	if (error != 0) {
 		goto error_out;
 	}
 
-	for (int hash_iter = 0; hash_iter < ribs.size; hash_iter++) {
+	for (size_t hash_iter = 0; hash_iter < ribs.size; hash_iter++) {
 		// create new routes container for every table
 		const struct route_list_hash *ROUTES_HASH = &ribs.list[hash_iter].routes;
 		const int ADDR_FAMILY = ribs.list[hash_iter].address_family;
@@ -737,7 +1281,7 @@ static int routing_oper_get_rib_routes_cb(sr_session_ctx_t *session, uint32_t su
 			goto error_out;
 		}
 
-		for (int i = 0; i < ROUTES_HASH->size; i++) {
+		for (size_t i = 0; i < ROUTES_HASH->size; i++) {
 			struct route_list *list_ptr = &ROUTES_HASH->list_route[i];
 			struct nl_addr *dst_prefix = ROUTES_HASH->list_addr[i];
 			nl_addr2str(dst_prefix, ip_buffer, sizeof(ip_buffer));
@@ -749,7 +1293,7 @@ static int routing_oper_get_rib_routes_cb(sr_session_ctx_t *session, uint32_t su
 				snprintf(prefix_buffer, sizeof(prefix_buffer), "%s", ip_buffer);
 			}
 
-			for (int j = 0; j < list_ptr->size; j++) {
+			for (size_t j = 0; j < list_ptr->size; j++) {
 				const struct route *ROUTE = &list_ptr->list[j];
 				// create a new list and after that add properties to it
 				ly_err = lyd_new_path(routes_node, ly_ctx, "routes/route", NULL, 0, &ly_node);
@@ -816,15 +1360,21 @@ static int routing_oper_get_rib_routes_cb(sr_session_ctx_t *session, uint32_t su
 						break;
 					case route_next_hop_kind_list: {
 						const struct route_next_hop_list *NEXTHOP_LIST = &ROUTE->next_hop.value.list;
-						ly_err = lyd_new_path(nh_node, ly_ctx, "next-hop-list/next-hop", NULL, 0, &nh_list_node);
-						if (ly_err != LY_SUCCESS) {
-							SRP_LOG_ERR("unable to create new next-hop-list/next-hop node");
-							goto error_out;
-						}
 
-						for (int k = 0; k < NEXTHOP_LIST->size; k++) {
+						for (size_t k = 0; k < NEXTHOP_LIST->size; k++) {
 							struct rtnl_link *iface = rtnl_link_get(link_cache, NEXTHOP_LIST->list[k].ifindex);
 							const char *if_name = rtnl_link_get_name(iface);
+
+							error = snprintf(xpath_buffer, sizeof(xpath_buffer), "next-hop/next-hop-list/next-hop[index=%d]", NEXTHOP_LIST->list[k].ifindex);
+							if (error < 0) {
+								SRP_LOG_ERR("unable to create new next-hop-list/next-hop node, couldn't retrieve interface index");
+								goto error_out;
+							}
+							ly_err = lyd_new_path(nh_node, ly_ctx, xpath_buffer, NULL, 0, &nh_list_node);
+							if (ly_err != LY_SUCCESS) {
+								SRP_LOG_ERR("unable to create new next-hop-list/next-hop node");
+								goto error_out;
+							}
 
 							// outgoing-interface
 							SRP_LOG_DBG("outgoing-interface = %s", if_name);
@@ -994,7 +1544,6 @@ static int routing_load_ribs(sr_session_ctx_t *session, struct lyd_node *routing
 	// libyang
 	struct lyd_node *ribs_node = NULL, *rib_node = NULL, *added_node = NULL;
 	const struct ly_ctx *ly_ctx = NULL;
-	const struct lys_module *ly_uv4mod = NULL, *ly_uv6mod = NULL;
 
 	// libnl
 	struct nl_sock *socket = NULL;
@@ -1005,10 +1554,7 @@ static int routing_load_ribs(sr_session_ctx_t *session, struct lyd_node *routing
 	char list_buffer[PATH_MAX] = {0};
 
 	ly_ctx = sr_get_context(sr_session_get_connection(session));
-	if (ly_ctx) {
-		ly_uv4mod = ly_ctx_get_module(ly_ctx, "ietf-ipv4-unicast-routing", "2018-03-13");
-		ly_uv6mod = ly_ctx_get_module(ly_ctx, "ietf-ipv6-unicast-routing", "2018-03-13");
-	} else {
+	if (!ly_ctx) {
 		SRP_LOG_ERR("unable to load external modules... exiting");
 		error = -1;
 		goto error_out;
@@ -1059,7 +1605,7 @@ static int routing_load_ribs(sr_session_ctx_t *session, struct lyd_node *routing
 
 	// all RIBs loaded - add them to the initial config
 	struct rib *iter = NULL;
-	for (int i = 0; i < ribs.size; i++) {
+	for (size_t i = 0; i < ribs.size; i++) {
 		iter = &ribs.list[i];
 		SRP_LOG_DBG("adding table %s to the list", iter->name);
 
@@ -1143,13 +1689,16 @@ out:
 	return error;
 }
 
-static int routing_collect_routes(struct nl_cache *routes_cache, struct rib_list *ribs)
+static int routing_collect_routes(struct nl_cache *routes_cache, struct nl_cache *link_cache, struct rib_list *ribs)
 {
 	int error = 0;
 	struct rtnl_route *route = NULL;
 	struct route tmp_route = {0};
 	char table_buffer[32] = {0};
 	struct rib *tmp_rib = NULL;
+	struct rtnl_link *iface = NULL;
+	int ifindex = 0;
+	char *if_name = NULL;
 
 	error = routing_collect_ribs(routes_cache, ribs);
 	if (error != 0) {
@@ -1179,7 +1728,10 @@ static int routing_collect_routes(struct nl_cache *routes_cache, struct rib_list
 		const int NEXTHOP_COUNT = rtnl_route_get_nnexthops(route);
 		if (NEXTHOP_COUNT == 1) {
 			struct rtnl_nexthop *nh = rtnl_route_nexthop_n(route, 0);
-			route_next_hop_set_simple(&tmp_route.next_hop, rtnl_route_nh_get_ifindex(nh), rtnl_route_nh_get_gateway(nh));
+			ifindex = rtnl_route_nh_get_ifindex(nh);
+			iface = rtnl_link_get(link_cache, ifindex);
+			if_name = rtnl_link_get_name(iface);
+			route_next_hop_set_simple(&tmp_route.next_hop, ifindex, if_name, rtnl_route_nh_get_gateway(nh));
 		} else {
 			rtnl_route_foreach_nexthop(route, foreach_nexthop, &tmp_route.next_hop);
 		}
@@ -1199,15 +1751,15 @@ static int routing_collect_routes(struct nl_cache *routes_cache, struct rib_list
 		route = (struct rtnl_route *) nl_cache_get_next((struct nl_object *) route);
 	}
 
-	for (int i = 0; i < ribs->size; i++) {
+	for (size_t i = 0; i < ribs->size; i++) {
 		const struct route_list_hash *routes_hash = &ribs->list[i].routes;
 		if (routes_hash->size) {
 			// iterate every "hash" and set the active value for the preferred route
-			for (int j = 0; j < routes_hash->size; j++) {
+			for (size_t j = 0; j < routes_hash->size; j++) {
 				struct route_list *ls = &routes_hash->list_route[j];
 				if (ls->size > 0) {
 					struct route *pref = &ls->list[0];
-					for (int k = 1; k < ls->size; k++) {
+					for (size_t k = 1; k < ls->size; k++) {
 						struct route *ptr = &ls->list[k];
 						if (ptr->preference < pref->preference) {
 							pref = ptr;
@@ -1241,24 +1793,15 @@ static int routing_load_control_plane_protocols(sr_session_ctx_t *session, struc
 	struct lyd_node *route_node = NULL;
 	struct lyd_node *nh_node = NULL, *nh_list_node = NULL;
 
-	// libnl
-	struct nl_sock *socket = NULL;
-	struct nl_cache *cache = NULL;
-	struct nl_cache *link_cache = NULL;
-	struct rtnl_route *route = NULL;
-
 	// temp buffers
 	char list_buffer[PATH_MAX] = {0};
 	char ip_buffer[INET6_ADDRSTRLEN] = {0};
 	char prefix_buffer[INET6_ADDRSTRLEN + 1 + 3] = {0};
 	char route_path_buffer[PATH_MAX] = {0};
+	char xpath_buffer[256] = {0};
 
 	// control-plane-protocol structs
 	struct control_plane_protocol cpp_map[ROUTING_PROTOS_COUNT] = {0};
-	const struct control_plane_protocol *STATIC_PROTO = &cpp_map[RTPROT_STATIC];
-	const struct route_list_hash *ipv4_static_routes = &STATIC_PROTO->ipv4_static.routes;
-	const struct route_list_hash *ipv6_static_routes = &STATIC_PROTO->ipv6_static.routes;
-	struct route tmp_route = {0};
 
 	ly_ctx = sr_get_context(sr_session_get_connection(session));
 	if (ly_ctx) {
@@ -1267,30 +1810,6 @@ static int routing_load_control_plane_protocols(sr_session_ctx_t *session, struc
 	} else {
 		SRP_LOG_ERR("unable to load external modules... exiting");
 		error = -1;
-		goto error_out;
-	}
-
-	socket = nl_socket_alloc();
-	if (socket == NULL) {
-		SRP_LOG_ERR("unable to init nl_sock struct...");
-		goto error_out;
-	}
-
-	nl_err = nl_connect(socket, NETLINK_ROUTE);
-	if (nl_err != 0) {
-		SRP_LOG_ERR("nl_connect failed (%d): %s", nl_err, nl_geterror(nl_err));
-		goto error_out;
-	}
-
-	nl_err = rtnl_route_alloc_cache(socket, AF_UNSPEC, 0, &cache);
-	if (nl_err != 0) {
-		SRP_LOG_ERR("rtnl_route_alloc_cache failed (%d): %s", nl_err, nl_geterror(nl_err));
-		goto error_out;
-	}
-
-	nl_err = rtnl_link_alloc_cache(socket, AF_UNSPEC, &link_cache);
-	if (nl_err != 0) {
-		SRP_LOG_ERR("rtnl_link_alloc_cache failed (%d): %s", nl_err, nl_geterror(nl_err));
 		goto error_out;
 	}
 
@@ -1313,46 +1832,6 @@ static int routing_load_control_plane_protocols(sr_session_ctx_t *session, struc
 		goto error_out;
 	}
 
-	route_list_hash_init((struct route_list_hash *) ipv4_static_routes);
-	route_list_hash_init((struct route_list_hash *) ipv6_static_routes);
-
-	// find all routes added statically and add them to the CPPs static-routes container
-	route = (struct rtnl_route *) nl_cache_get_first(cache);
-	while (route != NULL) {
-		const int PROTO = rtnl_route_get_protocol(route);
-
-		if (PROTO == RTPROT_STATIC) {
-			const int AF = rtnl_route_get_family(route);
-			// fill the route with info and add to the hash of the current RIB
-			route_init(&tmp_route);
-			route_set_preference(&tmp_route, rtnl_route_get_priority(route));
-
-			// next-hop container -> TODO: see what about special type
-			const int NEXTHOP_COUNT = rtnl_route_get_nnexthops(route);
-			if (NEXTHOP_COUNT == 1) {
-				struct rtnl_nexthop *nh = rtnl_route_nexthop_n(route, 0);
-				route_next_hop_set_simple(&tmp_route.next_hop, rtnl_route_nh_get_ifindex(nh), rtnl_route_nh_get_gateway(nh));
-			} else {
-				rtnl_route_foreach_nexthop(route, foreach_nexthop, &tmp_route.next_hop);
-			}
-
-			// route-metadata/source-protocol
-			route_set_source_protocol(&tmp_route, "ietf-routing:static");
-
-			// add the route to the protocol's container
-			if (AF == AF_INET) {
-				// v4
-				route_list_hash_add((struct route_list_hash *) ipv4_static_routes, rtnl_route_get_dst(route), &tmp_route);
-			} else if (AF == AF_INET6) {
-				// v6
-				route_list_hash_add((struct route_list_hash *) ipv6_static_routes, rtnl_route_get_dst(route), &tmp_route);
-			}
-
-			route_free(&tmp_route);
-		}
-		route = (struct rtnl_route *) nl_cache_get_next((struct nl_object *) route);
-	}
-
 	ly_err = lyd_new_path(routing_container_node, ly_ctx, ROUTING_CONTROL_PLANE_PROTOCOLS_CONTAINER_YANG_PATH, NULL, 0, &cpp_container_node);
 	if (ly_err != LY_SUCCESS) {
 		SRP_LOG_ERR("unable to create control plane protocols container...");
@@ -1362,7 +1841,7 @@ static int routing_load_control_plane_protocols(sr_session_ctx_t *session, struc
 	// control plane protocols container created - add all protocols to the inner list
 
 	// add the data to the datastore
-	for (int i = 0; i < ROUTING_PROTOS_COUNT; i++) {
+	for (size_t i  = 0; i < ROUTING_PROTOS_COUNT; i++) {
 		const struct control_plane_protocol *proto = &cpp_map[i];
 		if (proto->initialized) {
 			// write proto path - type + name are added automatically when creating the list node
@@ -1401,7 +1880,7 @@ static int routing_load_control_plane_protocols(sr_session_ctx_t *session, struc
 				}
 
 				// ipv4
-				for (int j = 0; j < ipv4_static_routes->size; j++) {
+				for (size_t j = 0; j < ipv4_static_routes->size; j++) {
 					const struct nl_addr *DST_PREFIX = ipv4_static_routes->list_addr[j];
 					const struct route *ROUTE = &ipv4_static_routes->list_route[j].list[0];
 					const union route_next_hop_value *NEXTHOP = &ROUTE->next_hop.value;
@@ -1449,6 +1928,12 @@ static int routing_load_control_plane_protocols(sr_session_ctx_t *session, struc
 									SRP_LOG_ERR("unable to create next-hop-address leaf for the node %s", route_path_buffer);
 									goto error_out;
 								}
+
+								ly_err = lyd_new_term(nh_node, ly_uv4mod, "outgoing-interface", NEXTHOP->simple.if_name, false, &tmp_node);
+								if (ly_err != LY_SUCCESS) {
+									SRP_LOG_ERR("unable to create outgoing-interface leaf for the node %s", route_path_buffer);
+									goto error_out;
+								}
 							}
 							break;
 						}
@@ -1456,18 +1941,32 @@ static int routing_load_control_plane_protocols(sr_session_ctx_t *session, struc
 							break;
 						case route_next_hop_kind_list: {
 							const struct route_next_hop_list *NEXTHOP_LIST = &ROUTE->next_hop.value.list;
-							ly_err = lyd_new_any(nh_node, ly_uv4mod, "next-hop-list/next-hop", NULL, true, LYD_ANYDATA_STRING, false, &nh_list_node);
-							if (ly_err != LY_SUCCESS) {
-								SRP_LOG_ERR("unable to create new next-hop-list/next-hop list for the node %s", route_path_buffer);
-								goto error_out;
-							}
-							for (int k = 0; k < NEXTHOP_LIST->size; k++) {
+							for (size_t k = 0; k < NEXTHOP_LIST->size; k++) {
+
+								error = snprintf(xpath_buffer, sizeof(xpath_buffer), "next-hop/next-hop-list]/next-hop[index=%d]", NEXTHOP_LIST->list[k].ifindex);
+								if (error < 0) {
+									SRP_LOG_ERR("unable to create new next-hop-list/next-hop node, couldn't retrieve interface index");
+									goto error_out;
+								}
+
+								ly_err = lyd_new_any(nh_node, ly_uv4mod, xpath_buffer, NULL, true, LYD_ANYDATA_STRING, false, &nh_list_node);
+								if (ly_err != LY_SUCCESS) {
+									SRP_LOG_ERR("unable to create new next-hop-list/next-hop list for the node %s", route_path_buffer);
+									SRP_LOG_ERR("ly err = %d", ly_err);
+									goto error_out;
+								}
 								// next-hop-address
 								if (NEXTHOP_LIST->list[k].addr) {
 									nl_addr2str(NEXTHOP_LIST->list[k].addr, ip_buffer, sizeof(ip_buffer));
 									ly_err = lyd_new_term(nh_list_node, ly_uv4mod, "next-hop-address", ip_buffer, false, &tmp_node);
 									if (ly_err != LY_SUCCESS) {
 										SRP_LOG_ERR("unable to create next-hop-address leaf in the list for route %s", route_path_buffer);
+										goto error_out;
+									}
+
+									ly_err = lyd_new_term(nh_list_node, ly_uv4mod, "outgoing-interface", NEXTHOP_LIST->list[k].if_name, false, &tmp_node);
+									if (ly_err != LY_SUCCESS) {
+										SRP_LOG_ERR("unable to create outgoing-interface leaf in the list for route %s", route_path_buffer);
 										goto error_out;
 									}
 								}
@@ -1478,7 +1977,7 @@ static int routing_load_control_plane_protocols(sr_session_ctx_t *session, struc
 				}
 
 				// ipv6
-				for (int j = 0; j < ipv6_static_routes->size; j++) {
+				for (size_t j = 0; j < ipv6_static_routes->size; j++) {
 					const struct nl_addr *DST_PREFIX = ipv6_static_routes->list_addr[j];
 					const struct route *ROUTE = &ipv6_static_routes->list_route[j].list[0];
 					const union route_next_hop_value *NEXTHOP = &ROUTE->next_hop.value;
@@ -1526,6 +2025,12 @@ static int routing_load_control_plane_protocols(sr_session_ctx_t *session, struc
 									SRP_LOG_ERR("unable to create next-hop-address leaf for the node %s", route_path_buffer);
 									goto error_out;
 								}
+
+								ly_err = lyd_new_term(nh_node, ly_uv6mod, "outgoing-interface", NEXTHOP->simple.if_name, false, &tmp_node);
+								if (ly_err != LY_SUCCESS) {
+									SRP_LOG_ERR("unable to create outgoing-interface leaf for the node %s", route_path_buffer);
+									goto error_out;
+								}
 							}
 							break;
 						}
@@ -1533,18 +2038,30 @@ static int routing_load_control_plane_protocols(sr_session_ctx_t *session, struc
 							break;
 						case route_next_hop_kind_list: {
 							const struct route_next_hop_list *NEXTHOP_LIST = &ROUTE->next_hop.value.list;
-							ly_err = lyd_new_any(nh_node, ly_uv6mod, "next-hop-list/next-hop", NULL, true, LYD_ANYDATA_STRING, false, &nh_list_node);
-							if (ly_err != LY_SUCCESS) {
-								SRP_LOG_ERR("unable to create new next-hop-list/next-hop list for the node %s", route_path_buffer);
-								goto error_out;
-							}
-							for (int k = 0; k < NEXTHOP_LIST->size; k++) {
+							for (size_t k = 0; k < NEXTHOP_LIST->size; k++) {
+								error = snprintf(xpath_buffer, sizeof(xpath_buffer), "next-hop/next-hop-list/next-hop[index=%d]", NEXTHOP_LIST->list[k].ifindex);
+								if (error < 0) {
+									SRP_LOG_ERR("unable to create new next-hop-list/next-hop node, couldn't retrieve interface index");
+									goto error_out;
+								}
+
+								ly_err = lyd_new_any(nh_node, ly_uv6mod, xpath_buffer, NULL, true, LYD_ANYDATA_STRING, false, &nh_list_node);
+								if (ly_err != LY_SUCCESS) {
+									SRP_LOG_ERR("unable to create new next-hop-list/next-hop list for the node %s", route_path_buffer);
+									goto error_out;
+								}
 								// next-hop-address
 								if (NEXTHOP_LIST->list[k].addr) {
 									nl_addr2str(NEXTHOP_LIST->list[k].addr, ip_buffer, sizeof(ip_buffer));
 									ly_err = lyd_new_term(nh_list_node, ly_uv6mod, "next-hop-address", ip_buffer, false, &tmp_node);
 									if (ly_err != LY_SUCCESS) {
 										SRP_LOG_ERR("unable to create next-hop-address leaf in the list for route %s", route_path_buffer);
+										goto error_out;
+									}
+
+									ly_err = lyd_new_term(nh_list_node, ly_uv6mod, "outgoing-interface", NEXTHOP_LIST->list[k].if_name, false, &tmp_node);
+									if (ly_err != LY_SUCCESS) {
+										SRP_LOG_ERR("unable to create outgoing-interface leaf in the list for route %s", route_path_buffer);
 										goto error_out;
 									}
 								}
@@ -1564,12 +2081,10 @@ error_out:
 	error = 1;
 out:
 	// free all control plane protocol structs
-	for (int i = 0; i < ROUTING_PROTOS_COUNT; i++) {
+	for (size_t i = 0; i < ROUTING_PROTOS_COUNT; i++) {
 		control_plane_protocol_free(&cpp_map[i]);
 	}
-	nl_socket_free(socket);
-	nl_cache_free(cache);
-	nl_cache_free(link_cache);
+
 	return error;
 }
 
@@ -1588,7 +2103,7 @@ static int routing_build_rib_descriptions(struct rib_list *ribs)
 	};
 	struct {
 		struct rib_description_pair *list;
-		int size;
+		size_t size;
 	} rib_descriptions = {0};
 
 	// file stream
@@ -1649,7 +2164,7 @@ static int routing_build_rib_descriptions(struct rib_list *ribs)
 	}
 
 	// now iterate over each rib and set its description
-	for (int i = 0; i < ribs->size; i++) {
+	for (size_t i = 0; i < ribs->size; i++) {
 		const struct rib *RIB = &ribs->list[i];
 		const int TABLE_ID = rtnl_route_str2table(RIB->name);
 
@@ -1663,7 +2178,7 @@ static int routing_build_rib_descriptions(struct rib_list *ribs)
 		const size_t NAME_LEN = strlen(name_buffer);
 
 		// set the description for each AF
-		for (int j = 0; j < rib_descriptions.size; j++) {
+		for (size_t j = 0; j < rib_descriptions.size; j++) {
 			const struct rib_description_pair *PAIR = &rib_descriptions.list[j];
 			if (strncmp(name_buffer, PAIR->name, NAME_LEN) == 0) {
 				memcpy(((struct rib *) RIB)->description, PAIR->description, sizeof(PAIR->description));

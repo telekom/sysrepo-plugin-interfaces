@@ -132,6 +132,10 @@ void ip_address_list_add(ip_address_list_t *addr_ls, char *ip, char *subnet, ip_
 
 	if (addr_ls->count > 0) {
 		for (uint32_t i = 0; i < addr_ls->count; i++) {
+			// if the address is already in the list, don't add it
+			if (strcmp(addr_ls->addr[i].ip, ip) == 0) {
+				return;
+			}
 			// in case an address was deleted, we can reuse that portion of memory
 			// find it and set the new address at that location
 			if (addr_ls->addr[i].ip == NULL) {

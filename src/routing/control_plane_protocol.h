@@ -16,8 +16,6 @@ struct control_plane_protocol {
 	char *description;
 	char name[32];
 	int initialized;
-	struct static_routes_ipv4 ipv4_static;
-	struct static_routes_ipv6 ipv6_static;
 };
 
 void control_plane_protocol_init(struct control_plane_protocol *cpp);

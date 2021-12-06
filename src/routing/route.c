@@ -58,6 +58,11 @@ void route_free(struct route *route)
 	if (route->metadata.last_updated) {
 		FREE_SAFE(route->metadata.last_updated);
 	}
+
+	if (route->metadata.description) {
+		FREE_SAFE(route->metadata.description);
+	}
+
 	route_next_hop_free(&route->next_hop);
 	route_init(route);
 }
