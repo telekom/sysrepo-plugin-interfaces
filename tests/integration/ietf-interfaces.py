@@ -19,6 +19,7 @@ import signal
 import time
 import json
 import operator
+import re
 
 class InterfacesTestCase(unittest.TestCase):
     def setUp(self):
@@ -100,12 +101,12 @@ class InterfaceTestCase(InterfacesTestCase):
             'other',
         }
     
-        self.assertTrue(types.issubset(supported_types), 'one or more types not based on the supported iana-if-type model')
+        self.assertTrue(types.issubset(supported_types), 'type not based on the supported iana-if-type model')
 
         data.free()
 
     def test_interface_status(self):
-        """ Check interface status """
+        """ Check status of interfaces """
 
         data = self.session.get_data_ly('/ietf-interfaces:interfaces')
 
@@ -147,7 +148,7 @@ class InterfaceTestCase(InterfacesTestCase):
         self.session.replace_config_ly(self.initial_data, 'ietf-interfaces')
 
     def test_interface_lo_description(self):
-        """ Attempt to change loopback description """
+        """ Attempt to change loopback interface description """
 
         self.edit_config('data/loopback_description.xml')
 
@@ -178,6 +179,58 @@ class InterfaceTestCase(InterfacesTestCase):
         data.free()
         self.session.replace_config_ly(self.initial_data, 'ietf-interfaces')
 
+class IpTestCase(InterfacesTestCase):
+    def test_ip_addr_sub_ipv4(self):
+        """ Attempt to set loopback interface IPv4 address and subnet """
+
+        self.edit_config('data/loopback_addr_sub_ipv4.xml')
+
+        expected_ip_address = \
+        '<interfaces xmlns="urn:ietf:params:xml:ns:yang:ietf-interfaces"><interface>' \
+        '<name>lo</name><ipv4 xmlns="urn:ietf:params:xml:ns:yang:ietf-ip">' \
+        '<address><ip>127.0.0.0</ip><prefix-length>8</prefix-length></address></ipv4></interface></interfaces>'
+
+        data = self.session.get_data_ly('/ietf-interfaces:interfaces/interface[name="lo"]/ietf-ip:ipv4/address')
+
+        ip_address = data.print_mem('xml')
+
+        self.assertEqual(expected_ip_address, ip_address)
+
+        p = subprocess.run(['ip', 'addr', 'show', 'lo'],
+                           capture_output=True, encoding="ascii")
+
+        real_ips = re.findall('(?<=inet\s)[^\s]+', p.stdout)
+
+        self.assertIn('127.0.0.1/8', real_ips, 'ipv4 loopback address not found')
+
+        data.free()
+        self.session.replace_config_ly(self.initial_data, 'ietf-interfaces')
+
+    def test_ip_addr_sub_ipv6(self):
+        """ Attempt to set loopback interface IPv6 address and subnet """
+
+        self.edit_config('data/loopback_addr_sub_ipv6.xml')
+
+        data = self.session.get_data_ly('/ietf-interfaces:interfaces/interface[name="lo"]/ietf-ip:ipv6/address')
+
+        ip_address = data.print_mem('xml')
+
+        expected_ip_address = \
+        '<interfaces xmlns="urn:ietf:params:xml:ns:yang:ietf-interfaces"><interface>' \
+        '<name>lo</name><ipv6 xmlns="urn:ietf:params:xml:ns:yang:ietf-ip">' \
+        '<address><ip>::1</ip><prefix-length>128</prefix-length></address></ipv6></interface></interfaces>'
+
+        self.assertEqual(expected_ip_address, ip_address)
+
+        p = subprocess.run(['ip', 'addr', 'show', 'lo'],
+                           capture_output=True, encoding="ascii")
+
+        real_ips = re.findall('(?<=inet6\s)[^\s]+', p.stdout)
+
+        self.assertIn('::1/128', real_ips, 'ipv6 loopback address not found')
+
+        data.free()
+        self.session.replace_config_ly(self.initial_data, 'ietf-interfaces')
 
 if __name__ == '__main__':
     unittest.main()
