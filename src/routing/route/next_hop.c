@@ -13,7 +13,7 @@ void route_next_hop_set_simple(struct route_next_hop *nh, int ifindex, const cha
 {
 	nh->kind = route_next_hop_kind_simple;
 	nh->value.simple.ifindex = ifindex;
-	nh->value.simple.if_name = if_name;
+	nh->value.simple.if_name = (char *) if_name;
 	if (gw) {
 		nh->value.simple.addr = nl_addr_clone(gw);
 	} else {
@@ -43,7 +43,7 @@ void route_next_hop_add_list(struct route_next_hop *nh, int ifindex, const char 
 		idx = nh->value.list.size;
 	}
 	nh->value.list.list[idx].ifindex = ifindex;
-	nh->value.list.list[idx].if_name= if_name;
+	nh->value.list.list[idx].if_name = (char *) if_name;
 	if (gw) {
 		nh->value.list.list[idx].addr = nl_addr_clone(gw);
 	} else {

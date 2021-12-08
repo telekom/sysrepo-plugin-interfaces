@@ -2,4 +2,5 @@ build/
 .vscode/
 .clangd/
 .test/
+.cache/
 compile_commands.json
