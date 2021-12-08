@@ -766,9 +766,7 @@ out:
 	if (node_xpath != NULL) {
 		FREE_SAFE(node_xpath);
 	}
-	if (node_value != NULL) {
-		FREE_SAFE(node_value);
-	}
+
 	if (system_change_iter != NULL) {
 		sr_free_change_iter(system_change_iter);
 	}
