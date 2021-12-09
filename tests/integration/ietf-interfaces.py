@@ -168,19 +168,6 @@ class InterfaceTestCase(InterfacesTestCase):
 
         self.assertEqual(expected_lo_description, lo_description, 'loopback interface description unchanged')
 
-        # Check if description is saved
-        desc_fname = 'interface_description'
-
-        env_path =  os.environ.get('IF_PLUGIN_DATA_DIR')
-            
-        desc_path = os.path.join('/usr/local/lib/sysrepo-interfaces-plugin', desc_fname) \
-                    if env_path is None \
-                    else os.path.join(env_path, desc_fname)
-
-        # TODO: add check when interface_description starts working
-        with open(desc_path) as f:
-            pass
-
         data.free()
         self.session.replace_config_ly(self.initial_data, 'ietf-interfaces')
 
