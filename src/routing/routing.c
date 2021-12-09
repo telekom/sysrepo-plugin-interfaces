@@ -83,7 +83,6 @@ static char *routing_xpath_get(const struct lyd_node *node);
 static int routing_control_plane_protocol_set_description(const char *type, const char *name, const char *description);
 
 // rib list module changes
-static int routing_rib_set_address_family(const char *name, const char *address_family);
 static int routing_rib_set_description(const char *name, const char *description);
 
 // operational callbacks
@@ -163,14 +162,14 @@ int sr_plugin_init_cb(sr_session_ctx_t *session, void **private_data)
 	SRP_LOG_INF("subscribing to interfaces operational data");
 
 	// interface leaf-list oper data
-       error = sr_oper_get_items_subscribe(session, BASE_YANG_MODEL, ROUTING_INTERFACE_LEAF_LIST_YANG_PATH, routing_oper_get_interfaces_cb, NULL, SR_SUBSCR_CTX_REUSE, &subscription);
-       if (error) {
-               SRP_LOG_ERR("sr_oper_get_items_subscribe error (%d): %s", error, sr_strerror(error));
-               goto error_out;
-       }
+	error = sr_oper_get_items_subscribe(session, BASE_YANG_MODEL, ROUTING_INTERFACE_LEAF_LIST_YANG_PATH, routing_oper_get_interfaces_cb, NULL, SR_SUBSCR_CTX_REUSE, &subscription);
+	if (error) {
+		SRP_LOG_ERR("sr_oper_get_items_subscribe error (%d): %s", error, sr_strerror(error));
+		goto error_out;
+	}
 
-       // RIB oper data
-       error = sr_oper_get_items_subscribe(session, BASE_YANG_MODEL, ROUTING_RIB_LIST_YANG_PATH, routing_oper_get_rib_routes_cb, NULL, SR_SUBSCR_CTX_REUSE, &subscription);
+	// RIB oper data
+	error = sr_oper_get_items_subscribe(session, BASE_YANG_MODEL, ROUTING_RIB_LIST_YANG_PATH, routing_oper_get_rib_routes_cb, NULL, SR_SUBSCR_CTX_REUSE, &subscription);
 	if (error) {
 		SRP_LOG_ERR("sr_oper_get_items_subscribe error (%d): %s", error, sr_strerror(error));
 		goto error_out;
@@ -236,7 +235,6 @@ static int static_routes_init(struct route_list_hash **ipv4_routes, struct route
 		goto error_out;
 	}
 
-
 	route = (struct rtnl_route *) nl_cache_get_first(cache);
 	while (route != NULL) {
 		const int PROTO = rtnl_route_get_protocol(route);
@@ -289,14 +287,12 @@ out:
 	return error;
 }
 
-
 void sr_plugin_cleanup_cb(sr_session_ctx_t *session, void *private_data)
 {
 	route_list_hash_free(ipv4_static_routes);
 	route_list_hash_free(ipv6_static_routes);
 	FREE_SAFE(ipv4_static_routes);
 	FREE_SAFE(ipv6_static_routes);
-
 }
 
 static int routing_module_change_cb(sr_session_ctx_t *session, const char *module_name, const char *xpath, sr_event_t event, uint32_t request_id, void *private_data)
@@ -349,13 +345,12 @@ static int routing_module_change_cb(sr_session_ctx_t *session, const char *modul
 				node_leaf_list = (struct lyd_node_leaf_list *) node;
 				node_value = node_leaf_list->value_str;
 				if (node_value == NULL) {
-						schema_node_leaf = (struct lys_node_leaf *) node_leaf_list->schema;
-						node_value = schema_node_leaf->dflt ? schema_node_leaf->dflt : "";
+					schema_node_leaf = (struct lys_node_leaf *) node_leaf_list->schema;
+					node_value = schema_node_leaf->dflt ? schema_node_leaf->dflt : "";
 				}
 			}
 
 			SRP_LOG_DBG("node_xpath: %s; prev_val: %s; node_val: %s; operation: %d", node_xpath, prev_value, node_value, operation);
-
 
 			if (node->schema->nodetype == LYS_LEAF || node->schema->nodetype == LYS_LEAFLIST) {
 				if (strstr(node_xpath, "ietf-ipv4-unicast-routing:ipv4")) {
@@ -366,13 +361,13 @@ static int routing_module_change_cb(sr_session_ctx_t *session, const char *modul
 
 				if (operation == SR_OP_CREATED || operation == SR_OP_MODIFIED) {
 					if (strstr(node_xpath, "/ietf-routing:routing/ribs")) {
-						error = set_rib_value(node_xpath, (char *)node_value);
+						error = set_rib_value(node_xpath, (char *) node_value);
 						if (error) {
 							SRP_LOG_ERR("set_control_plane_protocol_value error (%d)", error);
 							goto error_out;
 						}
 					} else if (strstr(node_xpath, "ietf-routing:routing/control-plane-protocols")) {
-						error = set_control_plane_protocol_value(node_xpath, (char *)node_value);
+						error = set_control_plane_protocol_value(node_xpath, (char *) node_value);
 						if (error) {
 							SRP_LOG_ERR("set_control_plane_protocol_value error (%d)", error);
 							goto error_out;
@@ -493,8 +488,7 @@ static int update_static_routes(struct route_list_hash *routes, uint8_t family)
 				goto error_out;
 			}
 
-			if (routes->list_route[i].list[0].next_hop.value.simple.if_name == NULL
-					&& routes->list_route[i].list[0].next_hop.value.simple.addr == NULL) {
+			if (routes->list_route[i].list[0].next_hop.value.simple.if_name == NULL && routes->list_route[i].list[0].next_hop.value.simple.addr == NULL) {
 				error = -1;
 				SRP_LOG_ERR("outgoing-interface and next-hop-address can't both be NULL");
 				goto error_out;
@@ -520,11 +514,10 @@ static int update_static_routes(struct route_list_hash *routes, uint8_t family)
 				rtnl_route_nh_set_ifindex(next_hop, routes->list_route[i].list[0].next_hop.value.list.list[j].ifindex);
 				rtnl_route_nh_set_gateway(next_hop, routes->list_route[i].list[0].next_hop.value.list.list[j].addr);
 				rtnl_route_add_nexthop(route, next_hop);
-
 			}
 		}
 
-		rtnl_route_set_scope(route, rtnl_route_guess_scope(route));
+		rtnl_route_set_scope(route, (uint8_t) rtnl_route_guess_scope(route));
 
 		nl_err = rtnl_route_add(socket, route, NLM_F_REPLACE);
 		if (nl_err != 0) {
@@ -571,8 +564,7 @@ static int set_control_plane_protocol_value(char *node_xpath, char *node_value)
 	name_key = sr_xpath_key_value(node_xpath, "control-plane-protocol", "name", &xpath_ctx);
 	type_key = sr_xpath_key_value(node_xpath, "control-plane-protocol", "type", &xpath_ctx);
 
-	if (!strcmp(node_name, "description") && !strstr(orig_xpath, "ietf-ipv4-unicast-routing:ipv4")
-			&& !strstr(orig_xpath, "ietf-ipv6-unicast-routing:ipv6")) {
+	if (!strcmp(node_name, "description") && !strstr(orig_xpath, "ietf-ipv4-unicast-routing:ipv4") && !strstr(orig_xpath, "ietf-ipv6-unicast-routing:ipv6")) {
 		error = routing_control_plane_protocol_set_description(type_key, name_key, node_value);
 		if (error != 0) {
 			SRP_LOG_ERR("routing_control_plane_protocol_set_description failed");
@@ -696,7 +688,7 @@ static int set_static_route_simple_outgoing_if(struct route_list *route_list, ch
 
 	route_list->list[0].next_hop.kind = route_next_hop_kind_simple;
 	route_list->list[0].next_hop.value.simple.if_name = xstrdup(node_value);
-	ifindex = if_nametoindex(node_value);
+	ifindex = (int) if_nametoindex(node_value);
 	if (ifindex == 0) {
 		SRP_LOG_ERR("failed to get ifindex for %s", node_value);
 		return -1;
@@ -723,8 +715,7 @@ static int delete_control_plane_protocol_value(char *node_xpath)
 	name_key = sr_xpath_key_value(node_xpath, "control-plane-protocol", "name", &xpath_ctx);
 	type_key = sr_xpath_key_value(node_xpath, "control-plane-protocol", "type", &xpath_ctx);
 
-	if (!strcmp(node_name, "description") && !strstr(orig_xpath, "ietf-ipv4-unicast-routing:ipv4")
-			&& !strstr(orig_xpath, "ietf-ipv6-unicast-routing:ipv6")) {
+	if (!strcmp(node_name, "description") && !strstr(orig_xpath, "ietf-ipv4-unicast-routing:ipv4") && !strstr(orig_xpath, "ietf-ipv6-unicast-routing:ipv6")) {
 		error = routing_control_plane_protocol_set_description(type_key, name_key, "");
 		if (error != 0) {
 			SRP_LOG_ERR("routing_control_plane_protocol_set_description failed");
@@ -949,12 +940,6 @@ out:
 	for (size_t i = 0; i < ROUTING_PROTOS_COUNT; i++) {
 		control_plane_protocol_free(&protos[i]);
 	}
-	return error;
-}
-
-static int routing_rib_set_address_family(const char *name, const char *address_family)
-{
-	int error = 0;
 	return error;
 }
 
@@ -1670,6 +1655,9 @@ static int routing_collect_routes(struct nl_cache *routes_cache, struct nl_cache
 			iface = rtnl_link_get(link_cache, ifindex);
 			if_name = rtnl_link_get_name(iface);
 			route_next_hop_set_simple(&tmp_route.next_hop, ifindex, if_name, rtnl_route_nh_get_gateway(nh));
+
+			// free recieved link
+			rtnl_link_put(iface);
 		} else {
 			rtnl_route_foreach_nexthop(route, foreach_nexthop, &tmp_route.next_hop);
 		}
@@ -1778,7 +1766,7 @@ static int routing_load_control_plane_protocols(sr_session_ctx_t *session, struc
 	// control plane protocols container created - add all protocols to the inner list
 
 	// add the data to the datastore
-	for (size_t i  = 0; i < ROUTING_PROTOS_COUNT; i++) {
+	for (size_t i = 0; i < ROUTING_PROTOS_COUNT; i++) {
 		const struct control_plane_protocol *proto = &cpp_map[i];
 		if (proto->initialized) {
 			// write proto path - type + name are added automatically when creating the list node
