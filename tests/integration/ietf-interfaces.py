@@ -21,9 +21,10 @@ import json
 import operator
 import re
 
+
 class InterfacesTestCase(unittest.TestCase):
-    def setUp(self):
-        plugin_path = os.environ.get('SYSREPO_INTERFACES_PLUGIN_PATH')
+    def setUp(self): 
+        plugin_path = os.environ.get('SYSREPO_INTERFACES_PLUGIN_PATH') 
         if plugin_path is None:
             self.fail(
                 "SYSREPO_INTERFACES_PLUGIN_PATH has to point to interfaces plugin executable")
@@ -64,8 +65,10 @@ class InterfacesTestCase(unittest.TestCase):
 
         self.session.apply_changes()
 
+
 class InterfaceTestCase(InterfacesTestCase):
     def test_interface_name_get(self):
+        """ Check if datastore names match system network interface names """
         data = self.session.get_data_ly('/ietf-interfaces:interfaces')
         interfaces = set(map(operator.itemgetter('name'), json.loads(data.print_mem("json"))['ietf-interfaces:interfaces']['interface']))
 
@@ -76,6 +79,7 @@ class InterfaceTestCase(InterfacesTestCase):
         data.free()
 
     def test_interface_description(self):
+        """ Check if descriptions are empty """
         data = self.session.get_data_ly('/ietf-interfaces:interfaces')
         interfaces = list(map(operator.itemgetter('description'), json.loads(data.print_mem("json"))['ietf-interfaces:interfaces']['interface']))
 
@@ -113,6 +117,7 @@ class InterfaceTestCase(InterfacesTestCase):
         interface = json.loads(data.print_mem('json'))['ietf-interfaces:interfaces']['interface']
 
         names = map(operator.itemgetter('name'), interface)
+        names = tuple(names)
         enabled = map(operator.itemgetter('enabled'), interface)
 
         states = dict(zip(names, enabled))
@@ -179,11 +184,12 @@ class InterfaceTestCase(InterfacesTestCase):
         data.free()
         self.session.replace_config_ly(self.initial_data, 'ietf-interfaces')
 
-class IpTestCase(InterfacesTestCase):
-    def test_ip_addr_sub_ipv4(self):
-        """ Attempt to set loopback interface IPv4 address and subnet """
 
-        self.edit_config('data/loopback_addr_sub_ipv4.xml')
+class IpTestCase(InterfacesTestCase):
+    def test_ip_addr_prefix_ipv4(self):
+        """ Attempt to set loopback interface IPv4 address and subnet via prefix """
+
+        self.edit_config('data/loopback_addr_prefix_ipv4.xml')
 
         expected_ip_address = \
         '<interfaces xmlns="urn:ietf:params:xml:ns:yang:ietf-interfaces"><interface>' \
@@ -206,10 +212,36 @@ class IpTestCase(InterfacesTestCase):
         data.free()
         self.session.replace_config_ly(self.initial_data, 'ietf-interfaces')
 
-    def test_ip_addr_sub_ipv6(self):
-        """ Attempt to set loopback interface IPv6 address and subnet """
+    def test_ip_addr_netmask_ipv4(self):
+        """ Attempt to set loopback interface IPv4 address and subnet via netmask """
 
-        self.edit_config('data/loopback_addr_sub_ipv6.xml')
+        self.edit_config('data/loopback_addr_netmask_ipv4.xml')
+
+        expected_ip_address = \
+        '<interfaces xmlns="urn:ietf:params:xml:ns:yang:ietf-interfaces"><interface>' \
+        '<name>lo</name><ipv4 xmlns="urn:ietf:params:xml:ns:yang:ietf-ip">' \
+        '<address><ip>127.0.0.0</ip><netmask>255.0.0.0</netmask></address></ipv4></interface></interfaces>'
+
+        data = self.session.get_data_ly('/ietf-interfaces:interfaces/interface[name="lo"]/ietf-ip:ipv4/address')
+
+        ip_address = data.print_mem('xml')
+
+        self.assertEqual(expected_ip_address, ip_address)
+
+        p = subprocess.run(['ip', 'addr', 'show', 'lo'],
+                           capture_output=True, encoding="ascii")
+
+        real_ips = re.findall('(?<=inet\s)[^\s]+', p.stdout)
+
+        self.assertIn('127.0.0.1/8', real_ips, 'ipv4 loopback address not found')
+
+        data.free()
+        self.session.replace_config_ly(self.initial_data, 'ietf-interfaces')
+
+    def test_ip_addr_sub_ipv6(self):
+        """ Attempt to set loopback interface IPv6 address and subnet via prefix """
+
+        self.edit_config('data/loopback_addr_prefix_ipv6.xml')
 
         data = self.session.get_data_ly('/ietf-interfaces:interfaces/interface[name="lo"]/ietf-ip:ipv6/address')
 
@@ -231,6 +263,7 @@ class IpTestCase(InterfacesTestCase):
 
         data.free()
         self.session.replace_config_ly(self.initial_data, 'ietf-interfaces')
+
 
 if __name__ == '__main__':
     unittest.main()
