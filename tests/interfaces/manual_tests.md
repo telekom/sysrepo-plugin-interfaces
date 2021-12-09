@@ -510,7 +510,8 @@ $ sysrepocfg -X -x '/ietf-interfaces:interfaces/interface[name="lo"]/ietf-ip:ipv
 
 The same can be done for IPv6, just replace ipv4 with ipv6 in the examples above and for the ip node add an ipv6 address.
 
-We can also use a netmask instead of prefix length but the following feature has to be enabled first:
+We can also use a netmask instead of prefix length, although only for IPv4.
+The following feature has to be enabled first:
 ```
  sysrepoctl --change ietf-ip --enable-feature ipv4-non-contiguous-netmasks
 ```
