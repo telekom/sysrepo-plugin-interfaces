@@ -275,7 +275,7 @@ class IpTestCase(InterfacesTestCase):
     def test_ip_neighbor_ipv4(self):
         """ Attempt to add neighbor ipv4 address """
 
-        # take an interface other than lo
+        # choose an interface other than lo
         interfaces = list(os.listdir('/sys/class/net'))
         interfaces.remove('lo')
 
