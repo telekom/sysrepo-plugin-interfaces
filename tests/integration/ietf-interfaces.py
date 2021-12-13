@@ -76,6 +76,30 @@ class InterfacesTestCase(unittest.TestCase):
 
         self.session.apply_changes()
 
+    def assertEqual(self, first, second, msg=None):
+        try:
+            super().assertEqual(first, second, msg)
+        except AssertionError as e:
+            self.session.replace_config_ly(
+                self.initial_data, 'ietf-interfaces')
+            raise
+
+    def assertIn(self, member, container, msg=None):
+        try:
+            super().assertIn(member, container, msg)
+        except AssertionError as e:
+            self.session.replace_config_ly(
+                self.initial_data, 'ietf-interfaces')
+            raise
+
+    def assertTrue(self, expr, msg=None):
+        try:
+            super().assertTrue(expr, msg)
+        except AssertionError as e:
+            self.session.replace_config_ly(
+                self.initial_data, 'ietf-interfaces')
+            raise
+
 
 class InterfaceTestCase(InterfacesTestCase):
     def test_interface_name_get(self):
