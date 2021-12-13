@@ -96,12 +96,8 @@ $ sysrepoctl -i ./yang/iana-if-type@2017-01-19.yang
 $ sysrepoctl -i ./yang/ietf-ip@2018-02-22.yang
 $ sysrepoctl -i ./yang/ietf-routing@2018-03-13.yang
 $ sysrepoctl -i ./yang/ietf-ipv4-unicast-routing@2018-03-13.yang
-$ sysrepoctl -i ./yang/ietf-ipv6-unicast-routing@2018-03-13.yang
-$ sysrepoctl -i ./yang/ietf-ipv4-router-advertisements@2018-03-13.yang
+$ sysrepoctl -i ./yang/ietf-ipv6-unicast-routing@2018-03-13.yang -s ./yang
 ```
-
-
-### Routing plugin
 
 ## Code of Conduct
 
