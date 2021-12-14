@@ -664,7 +664,7 @@ out:
 
 static void set_static_route_description(struct route_list *route_list, char *node_value)
 {
-	route_list->list[0].metadata.description = xstrdup(node_value);
+	route_list->list[0].metadata.description = node_value ? xstrdup(node_value) : NULL;
 }
 
 static int set_static_route_simple_next_hop(struct route_list *route_list, char *node_value, int family)
