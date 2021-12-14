@@ -214,6 +214,33 @@ class InterfaceTestCase(InterfacesTestCase):
         data.free()
         self.session.replace_config_ly(self.initial_data, 'ietf-interfaces')
 
+    def test_interface_dummy(self):
+        """ Attempt to add a dummy interface """
+
+        self.edit_config('data/dummy.xml')
+
+        expected_dummy = \
+            '<interfaces xmlns="urn:ietf:params:xml:ns:yang:ietf-interfaces"><interface>' \
+            '<name>dummy</name><type xmlns:ianaift="urn:ietf:params:xml:ns:yang:iana-if-type">' \
+            'ianaift:other</type><enabled>true</enabled></interface></interfaces>'
+
+        data = self.session.get_data_ly(
+            '/ietf-interfaces:interfaces/interface[name="dummy"]')
+        dummy = data.print_mem('xml')
+
+        self.assertEqual(expected_dummy, dummy,
+                         'dummy interface not added')
+
+        real_interfaces = set(os.listdir('/sys/class/net'))
+        self.assertIn('dummy', real_interfaces)
+
+        with open('/sys/class/net/dummy/operstate') as f:
+            operstate = f.read().strip()
+            self.assertEqual(operstate, 'up')
+
+        data.free()
+        self.session.replace_config_ly(self.initial_data, 'ietf-interfaces')
+
 
 class IpTestCase(InterfacesTestCase):
     def test_ip_addr_prefix_ipv4(self):
