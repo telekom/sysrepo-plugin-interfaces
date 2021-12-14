@@ -1313,6 +1313,8 @@ static int routing_oper_get_rib_routes_cb(sr_session_ctx_t *session, const char 
 						break;
 					}
 					case route_next_hop_kind_special:
+						SRP_LOG_DBG("special-next-hop = %s", NEXTHOP->special.value);
+						lyd_new_path(nh_node, ly_ctx, "special-next-hop", (void *) NEXTHOP->special.value, LYD_ANYDATA_CONSTSTRING, 0);
 						break;
 					case route_next_hop_kind_list: {
 						const struct route_next_hop_list *NEXTHOP_LIST = &ROUTE->next_hop.value.list;
@@ -1633,6 +1635,7 @@ static int routing_collect_routes(struct nl_cache *routes_cache, struct nl_cache
 	while (route != NULL) {
 		// fetch table name
 		const int table_id = (int) rtnl_route_get_table(route);
+		const int route_type = (int) rtnl_route_get_type(route);
 		const uint8_t af = rtnl_route_get_family(route);
 		rtnl_route_table2str(table_id, table_buffer, sizeof(table_buffer));
 
@@ -1647,19 +1650,35 @@ static int routing_collect_routes(struct nl_cache *routes_cache, struct nl_cache
 		route_init(&tmp_route);
 		route_set_preference(&tmp_route, rtnl_route_get_priority(route));
 
-		// next-hop container -> TODO: see what about special type
-		const int NEXTHOP_COUNT = rtnl_route_get_nnexthops(route);
-		if (NEXTHOP_COUNT == 1) {
-			struct rtnl_nexthop *nh = rtnl_route_nexthop_n(route, 0);
-			ifindex = rtnl_route_nh_get_ifindex(nh);
-			iface = rtnl_link_get(link_cache, ifindex);
-			if_name = rtnl_link_get_name(iface);
-			route_next_hop_set_simple(&tmp_route.next_hop, ifindex, if_name, rtnl_route_nh_get_gateway(nh));
+		// next-hop container
+		switch (route_type) {
+			case RTN_BLACKHOLE:
+				route_next_hop_set_special(&tmp_route.next_hop, "blackhole");
+				break;
+			case RTN_UNREACHABLE:
+				route_next_hop_set_special(&tmp_route.next_hop, "unreachable");
+				break;
+			case RTN_PROHIBIT:
+				route_next_hop_set_special(&tmp_route.next_hop, "prohibit");
+				break;
+			case RTN_LOCAL:
+				route_next_hop_set_special(&tmp_route.next_hop, "local");
+				break;
+			default: {
+				const int NEXTHOP_COUNT = rtnl_route_get_nnexthops(route);
+				if (NEXTHOP_COUNT == 1) {
+					struct rtnl_nexthop *nh = rtnl_route_nexthop_n(route, 0);
+					ifindex = rtnl_route_nh_get_ifindex(nh);
+					iface = rtnl_link_get(link_cache, ifindex);
+					if_name = rtnl_link_get_name(iface);
+					route_next_hop_set_simple(&tmp_route.next_hop, ifindex, if_name, rtnl_route_nh_get_gateway(nh));
 
-			// free recieved link
-			rtnl_link_put(iface);
-		} else {
-			rtnl_route_foreach_nexthop(route, foreach_nexthop, &tmp_route.next_hop);
+					// free recieved link
+					rtnl_link_put(iface);
+				} else {
+					rtnl_route_foreach_nexthop(route, foreach_nexthop, &tmp_route.next_hop);
+				}
+			}
 		}
 
 		// route-metadata/source-protocol
