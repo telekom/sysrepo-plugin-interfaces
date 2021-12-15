@@ -1,6 +1,8 @@
 #ifndef ROUTING_ROUTE_NEXT_HOP_H
 #define ROUTING_ROUTE_NEXT_HOP_H
 
+#include <stddef.h>
+
 enum route_next_hop_kind {
 	route_next_hop_kind_none = 0,
 	route_next_hop_kind_simple,
