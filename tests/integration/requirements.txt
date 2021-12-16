@@ -2,3 +2,4 @@ cffi==1.14.5
 libyang==1.6.1
 pycparser==2.20
 sysrepo==0.4.2
+pyroute2==0.6.5
