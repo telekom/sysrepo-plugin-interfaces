@@ -19,7 +19,6 @@
 #include <sysrepo.h>
 #include <sysrepo/xpath.h>
 
-#include "route/next_hop.h"
 #include "routing.h"
 #include "rib.h"
 #include "rib/list.h"
@@ -30,6 +29,12 @@
 #include "control_plane_protocol/list.h"
 #include "utils/memory.h"
 
+// dir for storing data used by the plugin - usually build directory of the plugin
+#define ROUTING_PLUGIN_DATA_DIR "ROUTING_PLUGIN_DATA_DIR"
+
+// other #define's used in the plugin
+#define ROUTING_PROTOS_MAP_FNAME "protos_map"
+#define ROUTING_RIBS_DESCRIPTIONS_MAP_FNAME "ribs_map"
 #define ROUTING_RIBS_COUNT 256
 #define ROUTING_PROTOS_COUNT 256
 
@@ -68,9 +73,18 @@ static int set_static_route_simple_next_hop(struct route_list *route_list, char 
 static int set_static_route_simple_outgoing_if(struct route_list *route_list, char *node_value);
 static int delete_control_plane_protocol_value(char *xpath);
 static int delete_static_route_value(char *xpath, char *node_name, int family);
+static int set_rib_value(char *node_xpath, char *node_value);
+static int delete_rib_value(char *node_xpath);
 
 // getting xpath from the node
 static char *routing_xpath_get(const struct lyd_node *node);
+
+// control-plane-protocol list module changes
+static int routing_control_plane_protocol_set_description(const char *type, const char *name, const char *description);
+
+// rib list module changes
+static int routing_rib_set_address_family(const char *name, const char *address_family);
+static int routing_rib_set_description(const char *name, const char *description);
 
 // operational callbacks
 static int routing_oper_get_rib_routes_cb(sr_session_ctx_t *session, const char *module_name, const char *path, const char *request_xpath, uint32_t request_id, struct lyd_node **parent, void *private_data);
@@ -149,14 +163,14 @@ int sr_plugin_init_cb(sr_session_ctx_t *session, void **private_data)
 	SRP_LOG_INF("subscribing to interfaces operational data");
 
 	// interface leaf-list oper data
-	error = sr_oper_get_items_subscribe(session, BASE_YANG_MODEL, ROUTING_INTERFACE_LEAF_LIST_YANG_PATH, routing_oper_get_interfaces_cb, NULL, SR_SUBSCR_CTX_REUSE, &subscription);
-	if (error) {
-		SRP_LOG_ERR("sr_oper_get_items_subscribe error (%d): %s", error, sr_strerror(error));
-		goto error_out;
-	}
+       error = sr_oper_get_items_subscribe(session, BASE_YANG_MODEL, ROUTING_INTERFACE_LEAF_LIST_YANG_PATH, routing_oper_get_interfaces_cb, NULL, SR_SUBSCR_CTX_REUSE, &subscription);
+       if (error) {
+               SRP_LOG_ERR("sr_oper_get_items_subscribe error (%d): %s", error, sr_strerror(error));
+               goto error_out;
+       }
 
-	// RIB oper data
-	error = sr_oper_get_items_subscribe(session, BASE_YANG_MODEL, ROUTING_RIB_LIST_YANG_PATH, routing_oper_get_rib_routes_cb, NULL, SR_SUBSCR_CTX_REUSE, &subscription);
+       // RIB oper data
+       error = sr_oper_get_items_subscribe(session, BASE_YANG_MODEL, ROUTING_RIB_LIST_YANG_PATH, routing_oper_get_rib_routes_cb, NULL, SR_SUBSCR_CTX_REUSE, &subscription);
 	if (error) {
 		SRP_LOG_ERR("sr_oper_get_items_subscribe error (%d): %s", error, sr_strerror(error));
 		goto error_out;
@@ -222,6 +236,7 @@ static int static_routes_init(struct route_list_hash **ipv4_routes, struct route
 		goto error_out;
 	}
 
+
 	route = (struct rtnl_route *) nl_cache_get_first(cache);
 	while (route != NULL) {
 		const int PROTO = rtnl_route_get_protocol(route);
@@ -274,12 +289,14 @@ out:
 	return error;
 }
 
+
 void sr_plugin_cleanup_cb(sr_session_ctx_t *session, void *private_data)
 {
 	route_list_hash_free(ipv4_static_routes);
 	route_list_hash_free(ipv6_static_routes);
 	FREE_SAFE(ipv4_static_routes);
 	FREE_SAFE(ipv6_static_routes);
+
 }
 
 static int routing_module_change_cb(sr_session_ctx_t *session, const char *module_name, const char *xpath, sr_event_t event, uint32_t request_id, void *private_data)
@@ -332,12 +349,13 @@ static int routing_module_change_cb(sr_session_ctx_t *session, const char *modul
 				node_leaf_list = (struct lyd_node_leaf_list *) node;
 				node_value = node_leaf_list->value_str;
 				if (node_value == NULL) {
-					schema_node_leaf = (struct lys_node_leaf *) node_leaf_list->schema;
-					node_value = schema_node_leaf->dflt ? schema_node_leaf->dflt : "";
+						schema_node_leaf = (struct lys_node_leaf *) node_leaf_list->schema;
+						node_value = schema_node_leaf->dflt ? schema_node_leaf->dflt : "";
 				}
 			}
 
 			SRP_LOG_DBG("node_xpath: %s; prev_val: %s; node_val: %s; operation: %d", node_xpath, prev_value, node_value, operation);
+
 
 			if (node->schema->nodetype == LYS_LEAF || node->schema->nodetype == LYS_LEAFLIST) {
 				if (strstr(node_xpath, "ietf-ipv4-unicast-routing:ipv4")) {
@@ -347,15 +365,27 @@ static int routing_module_change_cb(sr_session_ctx_t *session, const char *modul
 				}
 
 				if (operation == SR_OP_CREATED || operation == SR_OP_MODIFIED) {
-					if (strstr(node_xpath, "ietf-routing:routing/control-plane-protocols")) {
-						error = set_control_plane_protocol_value(node_xpath, (char *) node_value);
+					if (strstr(node_xpath, "/ietf-routing:routing/ribs")) {
+						error = set_rib_value(node_xpath, (char *)node_value);
+						if (error) {
+							SRP_LOG_ERR("set_control_plane_protocol_value error (%d)", error);
+							goto error_out;
+						}
+					} else if (strstr(node_xpath, "ietf-routing:routing/control-plane-protocols")) {
+						error = set_control_plane_protocol_value(node_xpath, (char *)node_value);
 						if (error) {
 							SRP_LOG_ERR("set_control_plane_protocol_value error (%d)", error);
 							goto error_out;
 						}
 					}
 				} else if (operation == SR_OP_DELETED) {
-					if (strstr(node_xpath, "ietf-routing:routing/control-plane-protocols")) {
+					if (strstr(node_xpath, "/ietf-routing:routing/ribs")) {
+						error = delete_rib_value(node_xpath);
+						if (error) {
+							SRP_LOG_ERR("set_control_plane_protocol_value error (%d)", error);
+							goto error_out;
+						}
+					} else if (strstr(node_xpath, "ietf-routing:routing/control-plane-protocols")) {
 						error = delete_control_plane_protocol_value(node_xpath);
 						if (error) {
 							SRP_LOG_ERR("set_control_plane_protocol_value error (%d)", error);
@@ -463,7 +493,8 @@ static int update_static_routes(struct route_list_hash *routes, uint8_t family)
 				goto error_out;
 			}
 
-			if (routes->list_route[i].list[0].next_hop.value.simple.if_name == NULL && routes->list_route[i].list[0].next_hop.value.simple.addr == NULL) {
+			if (routes->list_route[i].list[0].next_hop.value.simple.if_name == NULL
+					&& routes->list_route[i].list[0].next_hop.value.simple.addr == NULL) {
 				error = -1;
 				SRP_LOG_ERR("outgoing-interface and next-hop-address can't both be NULL");
 				goto error_out;
@@ -489,10 +520,11 @@ static int update_static_routes(struct route_list_hash *routes, uint8_t family)
 				rtnl_route_nh_set_ifindex(next_hop, routes->list_route[i].list[0].next_hop.value.list.list[j].ifindex);
 				rtnl_route_nh_set_gateway(next_hop, routes->list_route[i].list[0].next_hop.value.list.list[j].addr);
 				rtnl_route_add_nexthop(route, next_hop);
+
 			}
 		}
 
-		rtnl_route_set_scope(route, (uint8_t) rtnl_route_guess_scope(route));
+		rtnl_route_set_scope(route, rtnl_route_guess_scope(route));
 
 		nl_err = rtnl_route_add(socket, route, NLM_F_REPLACE);
 		if (nl_err != 0) {
@@ -524,7 +556,11 @@ error_out:
 
 static int set_control_plane_protocol_value(char *node_xpath, char *node_value)
 {
+	sr_xpath_ctx_t xpath_ctx = {0};
+
 	char *node_name = NULL;
+	char *name_key = NULL;
+	char *type_key = NULL;
 	char *orig_xpath = NULL;
 
 	int error = SR_ERR_OK;
@@ -532,8 +568,17 @@ static int set_control_plane_protocol_value(char *node_xpath, char *node_value)
 	orig_xpath = xstrdup(node_xpath);
 
 	node_name = sr_xpath_node_name(node_xpath);
+	name_key = sr_xpath_key_value(node_xpath, "control-plane-protocol", "name", &xpath_ctx);
+	type_key = sr_xpath_key_value(node_xpath, "control-plane-protocol", "type", &xpath_ctx);
 
-	if (strstr(orig_xpath, "ietf-ipv4-unicast-routing:ipv4")) {
+	if (!strcmp(node_name, "description") && !strstr(orig_xpath, "ietf-ipv4-unicast-routing:ipv4")
+			&& !strstr(orig_xpath, "ietf-ipv6-unicast-routing:ipv6")) {
+		error = routing_control_plane_protocol_set_description(type_key, name_key, node_value);
+		if (error != 0) {
+			SRP_LOG_ERR("routing_control_plane_protocol_set_description failed");
+			goto out;
+		}
+	} else if (strstr(orig_xpath, "ietf-ipv4-unicast-routing:ipv4")) {
 		error = set_static_route_value(orig_xpath, node_name, node_value, ipv4_static_routes, AF_INET);
 		if (error != 0) {
 			SRP_LOG_ERR("error setting IPv4 static route value");
@@ -627,7 +672,7 @@ out:
 
 static void set_static_route_description(struct route_list *route_list, char *node_value)
 {
-	route_list->list[0].metadata.description = node_value ? xstrdup(node_value) : NULL;
+	route_list->list[0].metadata.description = xstrdup(node_value);
 }
 
 static int set_static_route_simple_next_hop(struct route_list *route_list, char *node_value, int family)
@@ -651,7 +696,7 @@ static int set_static_route_simple_outgoing_if(struct route_list *route_list, ch
 
 	route_list->list[0].next_hop.kind = route_next_hop_kind_simple;
 	route_list->list[0].next_hop.value.simple.if_name = xstrdup(node_value);
-	ifindex = (int) if_nametoindex(node_value);
+	ifindex = if_nametoindex(node_value);
 	if (ifindex == 0) {
 		SRP_LOG_ERR("failed to get ifindex for %s", node_value);
 		return -1;
@@ -663,7 +708,11 @@ static int set_static_route_simple_outgoing_if(struct route_list *route_list, ch
 
 static int delete_control_plane_protocol_value(char *node_xpath)
 {
+	sr_xpath_ctx_t xpath_ctx = {0};
+
 	char *node_name = NULL;
+	char *name_key = NULL;
+	char *type_key = NULL;
 	char *orig_xpath = NULL;
 
 	int error = SR_ERR_OK;
@@ -671,8 +720,17 @@ static int delete_control_plane_protocol_value(char *node_xpath)
 	orig_xpath = xstrdup(node_xpath);
 
 	node_name = sr_xpath_node_name(node_xpath);
+	name_key = sr_xpath_key_value(node_xpath, "control-plane-protocol", "name", &xpath_ctx);
+	type_key = sr_xpath_key_value(node_xpath, "control-plane-protocol", "type", &xpath_ctx);
 
-	if (strstr(orig_xpath, "ietf-ipv4-unicast-routing:ipv4")) {
+	if (!strcmp(node_name, "description") && !strstr(orig_xpath, "ietf-ipv4-unicast-routing:ipv4")
+			&& !strstr(orig_xpath, "ietf-ipv6-unicast-routing:ipv6")) {
+		error = routing_control_plane_protocol_set_description(type_key, name_key, "");
+		if (error != 0) {
+			SRP_LOG_ERR("routing_control_plane_protocol_set_description failed");
+			goto out;
+		}
+	} else if (strstr(orig_xpath, "ietf-ipv4-unicast-routing:ipv4")) {
 		error = delete_static_route_value(orig_xpath, node_name, AF_INET);
 		if (error != 0) {
 			SRP_LOG_ERR("error setting IPv4 static route value");
@@ -755,6 +813,260 @@ out:
 	}
 
 	return error ? SR_ERR_CALLBACK_FAILED : SR_ERR_OK;
+}
+
+static int set_rib_value(char *node_xpath, char *node_value)
+{
+	sr_xpath_ctx_t xpath_ctx = {0};
+
+	char *name_key = NULL;
+	char *node_name = NULL;
+
+	int error = SR_ERR_OK;
+
+	node_name = sr_xpath_node_name(node_xpath);
+	name_key = sr_xpath_key_value(node_xpath, "rib", "name", &xpath_ctx);
+
+	if (!strcmp(node_name, "description")) {
+		error = routing_rib_set_description(name_key, node_value);
+		if (error != 0) {
+			SRP_LOG_ERR("routing_rib_set_description failed");
+			goto out;
+		}
+	}
+
+out:
+	return error ? SR_ERR_CALLBACK_FAILED : SR_ERR_OK;
+}
+
+static int delete_rib_value(char *node_xpath)
+{
+	sr_xpath_ctx_t xpath_ctx = {0};
+
+	char *name_key = NULL;
+	char *node_name = NULL;
+
+	int error = SR_ERR_OK;
+
+	node_name = sr_xpath_node_name(node_xpath);
+	name_key = sr_xpath_key_value(node_xpath, "rib", "name", &xpath_ctx);
+
+	if (!strcmp(node_name, "description")) {
+		error = routing_rib_set_description(name_key, "");
+		if (error != 0) {
+			SRP_LOG_ERR("routing_rib_set_description failed");
+			goto out;
+		}
+	}
+
+out:
+	return error ? SR_ERR_CALLBACK_FAILED : SR_ERR_OK;
+}
+
+static int routing_control_plane_protocol_set_description(const char *type, const char *name, const char *description)
+{
+	int error = 0;
+
+	struct control_plane_protocol protos[ROUTING_PROTOS_COUNT] = {0};
+
+	// temp variables and buffers
+	char *data_dir = NULL;
+	char path_buffer[PATH_MAX] = {0};
+	char line_buffer[PATH_MAX] = {0};
+	int tmp_type = 0;
+	char type_buffer[100] = {0};
+	char desc_buffer[256] = {0};
+	FILE *fptr = NULL;
+
+	data_dir = getenv(ROUTING_PLUGIN_DATA_DIR);
+	if (data_dir == NULL) {
+		SRP_LOG_ERR("unable to use environment variable for the plugin data dir: %s", ROUTING_PLUGIN_DATA_DIR);
+		goto error_out;
+	}
+
+	for (size_t i = 0; i < ROUTING_PROTOS_COUNT; i++) {
+		control_plane_protocol_init(&protos[i]);
+	}
+
+	// check if file exists first
+	snprintf(path_buffer, sizeof(path_buffer), "%s%s%s", data_dir, (data_dir[strlen(data_dir) - 1] == '/' ? "" : "/"), ROUTING_PROTOS_MAP_FNAME);
+
+	if (access(path_buffer, F_OK) != 0) {
+		SRP_LOG_ERR("protocols map file doesnt exist - error");
+		goto error_out;
+	} else {
+		fptr = fopen(path_buffer, "r");
+		if (fptr == NULL) {
+			SRP_LOG_ERR("unable to open file %s", path_buffer);
+			goto error_out;
+		}
+
+		SRP_LOG_DBG("protocols map file exists - reading map values and changing description of '%s' to %s", name, description);
+
+		while (fgets(line_buffer, sizeof(line_buffer), fptr) != NULL) {
+			const int read_n = sscanf(line_buffer, "%d %s \"%256[^\"]\"", &tmp_type, type_buffer, desc_buffer);
+			if (read_n == 3) {
+				if (tmp_type >= 0 && tmp_type <= ROUTING_PROTOS_COUNT) {
+					rtnl_route_proto2str(tmp_type, protos[tmp_type].name, sizeof(protos[tmp_type].name));
+					protos[tmp_type].type = xstrdup(type_buffer);
+
+					if (strcmp(protos[tmp_type].name, name) == 0) {
+						// don't read this description - change it
+						protos[tmp_type].description = xstrdup(description);
+					} else {
+						protos[tmp_type].description = xstrdup(desc_buffer);
+					}
+					protos[tmp_type].initialized = 1;
+				} else {
+					SRP_LOG_ERR("invalid protocol type found in the protocol types map file: %d", tmp_type);
+					goto error_out;
+				}
+			} else {
+				SRP_LOG_ERR("unable to properly read the protocol types map file format; read %d values", read_n);
+				goto error_out;
+			}
+		}
+
+		// return to the beginning and write protocols again - reopen because clearing the content of a file is needed
+		fclose(fptr);
+		fptr = fopen(path_buffer, "w");
+
+		for (size_t i = 0; i < ROUTING_PROTOS_COUNT; i++) {
+			if (protos[i].initialized == 1) {
+				fprintf(fptr, "%lu\t%s\t\"%s\"\n", i, protos[i].type, protos[i].description);
+			}
+		}
+	}
+	goto out;
+
+error_out:
+	error = -1;
+out:
+	if (fptr) {
+		fclose(fptr);
+	}
+
+	for (size_t i = 0; i < ROUTING_PROTOS_COUNT; i++) {
+		control_plane_protocol_free(&protos[i]);
+	}
+	return error;
+}
+
+static int routing_rib_set_address_family(const char *name, const char *address_family)
+{
+	int error = 0;
+	return error;
+}
+
+static int routing_rib_set_description(const char *name, const char *description)
+{
+	int error = 0;
+
+	// calcualte sizes for faster string comparisons later
+	const size_t DESC_LEN = strlen(description);
+	const size_t NAME_LEN = strlen(name);
+
+	// file stream
+	FILE *fptr = NULL;
+
+	// buffers and temporary values
+	char path_buffer[PATH_MAX] = {0};
+	char line_buffer[PATH_MAX] = {0};
+	const char *data_dir = NULL;
+	struct rib_description_pair tmp_description = {0};
+
+	// list of descriptions
+	struct {
+		struct rib_description_pair *list;
+		size_t size;
+	} rib_descriptions = {0};
+
+	// first read all descriptions from the map file and change the wanted description
+	// after that -> write those descriptions back to the file
+
+	// get the data_dir variable using getenv
+	data_dir = getenv(ROUTING_PLUGIN_DATA_DIR);
+	if (data_dir == NULL) {
+		SRP_LOG_ERR("unable to use environment variable for the plugin data dir: %s", ROUTING_PLUGIN_DATA_DIR);
+		goto error_out;
+	}
+
+	// create file path and see if it exists
+	snprintf(path_buffer, sizeof(path_buffer), "%s%s%s", data_dir, (data_dir[strlen(data_dir) - 1] == '/') ? "" : "/", ROUTING_RIBS_DESCRIPTIONS_MAP_FNAME);
+	SRP_LOG_DBG("RIBs description map file path: %s", path_buffer);
+
+	if (access(path_buffer, F_OK) == 0) {
+		// file exists
+		fptr = fopen(path_buffer, "r");
+		if (fptr == NULL) {
+			SRP_LOG_ERR("unable to open file %s", path_buffer);
+			goto error_out;
+		}
+
+		while (fgets(line_buffer, sizeof(line_buffer), fptr) != NULL) {
+			const int read_n = sscanf(line_buffer, "%s \"%256[^\"]\"", tmp_description.name, tmp_description.description);
+			if (read_n == 2) {
+				// add the description to the list
+				rib_descriptions.list = xrealloc(rib_descriptions.list, sizeof(struct rib_description_pair) * (unsigned) (rib_descriptions.size + 1));
+				memcpy(&rib_descriptions.list[rib_descriptions.size], &tmp_description, sizeof(struct rib_description_pair));
+				rib_descriptions.size += 1;
+			} else {
+				SRP_LOG_ERR("unable to correctly read 2 values from the RIBs map file");
+				goto error_out;
+			}
+		}
+	} else {
+		// file doesn't exist -> error
+		SRP_LOG_ERR("%s file doesn't exist", path_buffer);
+		goto error_out;
+	}
+
+	bool description_changed = false;
+
+	SRP_LOG_DBG("setting description of %s to \"%s\"", name, description);
+
+	for (size_t i = 0; i < rib_descriptions.size; i++) {
+		struct rib_description_pair *PAIR = &rib_descriptions.list[i];
+		if (strncmp(PAIR->name, name, NAME_LEN) == 0) {
+			// found description -> change it
+			if (DESC_LEN <= ROUTING_RIB_DESCRIPTION_SIZE) {
+				memcpy(PAIR->description, description, DESC_LEN);
+				PAIR->description[DESC_LEN] = 0;
+				SRP_LOG_DBG("description = %s", PAIR->description);
+				description_changed = true;
+			} else {
+				SRP_LOG_ERR("unable to set description: %d characters max...", ROUTING_RIB_DESCRIPTION_SIZE);
+				goto error_out;
+			}
+			break;
+		}
+	}
+
+	if (description_changed == false) {
+		goto error_out;
+	}
+
+	// write changes back to the file
+	fclose(fptr);
+	fptr = fopen(path_buffer, "w");
+
+	for (size_t i = 0; i < rib_descriptions.size; i++) {
+		SRP_LOG_DBG("%s = %s", rib_descriptions.list[i].name, rib_descriptions.list[i].description);
+		fprintf(fptr, "%s\t\"%s\"\n", rib_descriptions.list[i].name, rib_descriptions.list[i].description);
+	}
+
+	goto out;
+
+error_out:
+	SRP_LOG_ERR("unable to set description for %s", name);
+	error = -1;
+
+out:
+	FREE_SAFE(rib_descriptions.list);
+	if (fptr != NULL) {
+		fclose(fptr);
+	}
+	return error;
 }
 
 static char *routing_xpath_get(const struct lyd_node *node)
@@ -1016,8 +1328,6 @@ static int routing_oper_get_rib_routes_cb(sr_session_ctx_t *session, const char 
 						break;
 					}
 					case route_next_hop_kind_special:
-						SRP_LOG_DBG("special-next-hop = %s", NEXTHOP->special.value);
-						lyd_new_path(nh_node, ly_ctx, "special-next-hop", (void *) NEXTHOP->special.value, LYD_ANYDATA_CONSTSTRING, 0);
 						break;
 					case route_next_hop_kind_list: {
 						const struct route_next_hop_list *NEXTHOP_LIST = &ROUTE->next_hop.value.list;
@@ -1338,7 +1648,6 @@ static int routing_collect_routes(struct nl_cache *routes_cache, struct nl_cache
 	while (route != NULL) {
 		// fetch table name
 		const int table_id = (int) rtnl_route_get_table(route);
-		const int route_type = (int) rtnl_route_get_type(route);
 		const uint8_t af = rtnl_route_get_family(route);
 		rtnl_route_table2str(table_id, table_buffer, sizeof(table_buffer));
 
@@ -1353,35 +1662,16 @@ static int routing_collect_routes(struct nl_cache *routes_cache, struct nl_cache
 		route_init(&tmp_route);
 		route_set_preference(&tmp_route, rtnl_route_get_priority(route));
 
-		// next-hop container
-		switch (route_type) {
-			case RTN_BLACKHOLE:
-				route_next_hop_set_special(&tmp_route.next_hop, "blackhole");
-				break;
-			case RTN_UNREACHABLE:
-				route_next_hop_set_special(&tmp_route.next_hop, "unreachable");
-				break;
-			case RTN_PROHIBIT:
-				route_next_hop_set_special(&tmp_route.next_hop, "prohibit");
-				break;
-			case RTN_LOCAL:
-				route_next_hop_set_special(&tmp_route.next_hop, "local");
-				break;
-			default: {
-				const int NEXTHOP_COUNT = rtnl_route_get_nnexthops(route);
-				if (NEXTHOP_COUNT == 1) {
-					struct rtnl_nexthop *nh = rtnl_route_nexthop_n(route, 0);
-					ifindex = rtnl_route_nh_get_ifindex(nh);
-					iface = rtnl_link_get(link_cache, ifindex);
-					if_name = rtnl_link_get_name(iface);
-					route_next_hop_set_simple(&tmp_route.next_hop, ifindex, if_name, rtnl_route_nh_get_gateway(nh));
-
-					// free recieved link
-					rtnl_link_put(iface);
-				} else {
-					rtnl_route_foreach_nexthop(route, foreach_nexthop, &tmp_route.next_hop);
-				}
-			}
+		// next-hop container -> TODO: see what about special type
+		const int NEXTHOP_COUNT = rtnl_route_get_nnexthops(route);
+		if (NEXTHOP_COUNT == 1) {
+			struct rtnl_nexthop *nh = rtnl_route_nexthop_n(route, 0);
+			ifindex = rtnl_route_nh_get_ifindex(nh);
+			iface = rtnl_link_get(link_cache, ifindex);
+			if_name = rtnl_link_get_name(iface);
+			route_next_hop_set_simple(&tmp_route.next_hop, ifindex, if_name, rtnl_route_nh_get_gateway(nh));
+		} else {
+			rtnl_route_foreach_nexthop(route, foreach_nexthop, &tmp_route.next_hop);
 		}
 
 		// route-metadata/source-protocol
@@ -1488,7 +1778,7 @@ static int routing_load_control_plane_protocols(sr_session_ctx_t *session, struc
 	// control plane protocols container created - add all protocols to the inner list
 
 	// add the data to the datastore
-	for (size_t i = 0; i < ROUTING_PROTOS_COUNT; i++) {
+	for (size_t i  = 0; i < ROUTING_PROTOS_COUNT; i++) {
 		const struct control_plane_protocol *proto = &cpp_map[i];
 		if (proto->initialized) {
 			// write proto path - type + name are added automatically when creating the list node
@@ -1734,8 +2024,7 @@ static int routing_build_rib_descriptions(struct rib_list *ribs)
 {
 	int error = 0;
 
-	char name_buffer[32 + 5] = {0};
-
+	const char *data_dir = NULL;
 	struct rib_description_pair default_descriptions[] = {
 		{"ipv4-main", "main routing table - normal routing table containing all non-policy routes (ipv4 only)"},
 		{"ipv6-main", "main routing table - normal routing table containing all non-policy routes (ipv6 only)"},
@@ -1744,6 +2033,67 @@ static int routing_build_rib_descriptions(struct rib_list *ribs)
 		{"ipv4-local", "local routing table - maintained by the kernel, containing high priority control routes for local and broadcast addresses (ipv4 only)"},
 		{"ipv6-local", "local routing table - maintained by the kernel, containing high priority control routes for local and broadcast addresses (ipv6 only)"},
 	};
+	struct {
+		struct rib_description_pair *list;
+		size_t size;
+	} rib_descriptions = {0};
+
+	// file stream
+	FILE *fptr = NULL;
+
+	// buffers and temporary values
+	char path_buffer[PATH_MAX] = {0};
+	char line_buffer[PATH_MAX] = {0};
+	char name_buffer[32 + 5] = {0};
+	struct rib_description_pair tmp_description = {0};
+
+	// get the data_dir variable using getenv
+	data_dir = getenv(ROUTING_PLUGIN_DATA_DIR);
+	if (data_dir == NULL) {
+		SRP_LOG_ERR("unable to use environment variable for the plugin data dir: %s", ROUTING_PLUGIN_DATA_DIR);
+		goto error_out;
+	}
+
+	// create file path and see if it exists
+	snprintf(path_buffer, sizeof(path_buffer), "%s%s%s", data_dir, (data_dir[strlen(data_dir) - 1] == '/') ? "" : "/", ROUTING_RIBS_DESCRIPTIONS_MAP_FNAME);
+	SRP_LOG_DBG("RIBs description map file path: %s", path_buffer);
+
+	if (access(path_buffer, F_OK) != 0) {
+		// file doesn't exist - use default values and create the file for future use
+		fptr = fopen(path_buffer, "w");
+		if (fptr == NULL) {
+			SRP_LOG_ERR("unable to open %s file for writing", path_buffer);
+			goto error_out;
+		}
+
+		for (unsigned i = 0; i < sizeof(default_descriptions) / sizeof(default_descriptions[0]); i++) {
+			rib_descriptions.list = xrealloc(rib_descriptions.list, sizeof(struct rib_description_pair) * (unsigned) (rib_descriptions.size + 1));
+			memcpy(&rib_descriptions.list[rib_descriptions.size], &default_descriptions[i], sizeof(struct rib_description_pair));
+			rib_descriptions.size += 1;
+
+			fprintf(fptr, "%s\t\"%s\"\n", default_descriptions[i].name, default_descriptions[i].description);
+		}
+	} else {
+		// file exists - use those values
+		fptr = fopen(path_buffer, "r");
+		if (fptr == NULL) {
+			SRP_LOG_ERR("unable to open file %s", path_buffer);
+			goto error_out;
+		}
+
+		while (fgets(line_buffer, sizeof(line_buffer), fptr) != NULL) {
+			const int read_n = sscanf(line_buffer, "%s \"%256[^\"]\"", tmp_description.name, tmp_description.description);
+			if (read_n == 2) {
+				// add the description to the list
+				rib_descriptions.list = xrealloc(rib_descriptions.list, sizeof(struct rib_description_pair) * (unsigned) (rib_descriptions.size + 1));
+				memcpy(&rib_descriptions.list[rib_descriptions.size], &tmp_description, sizeof(struct rib_description_pair));
+				rib_descriptions.size += 1;
+			} else {
+				SRP_LOG_ERR("unable to correctly read 2 values from the RIBs map file");
+				goto error_out;
+			}
+		}
+	}
 
 	// now iterate over each rib and set its description
 	for (size_t i = 0; i < ribs->size; i++) {
@@ -1760,14 +2110,26 @@ static int routing_build_rib_descriptions(struct rib_list *ribs)
 		const size_t NAME_LEN = strlen(name_buffer);
 
 		// set the description for each AF
-		for (size_t j = 0; j < sizeof(default_descriptions) / sizeof(struct rib_description_pair); j++) {
-			const struct rib_description_pair *PAIR = &default_descriptions[j];
+		for (size_t j = 0; j < rib_descriptions.size; j++) {
+			const struct rib_description_pair *PAIR = &rib_descriptions.list[j];
 			if (strncmp(name_buffer, PAIR->name, NAME_LEN) == 0) {
 				memcpy(((struct rib *) RIB)->description, PAIR->description, sizeof(PAIR->description));
 				break;
 			}
 		}
 	}
+
+	goto out;
+
+error_out:
+	SRP_LOG_ERR("unable to build RIB descriptions");
+	error = -1;
+
+out:
+	if (fptr != NULL) {
+		fclose(fptr);
+	}
+	FREE_SAFE(rib_descriptions.list);
 
 	return error;
 }
@@ -1781,63 +2143,118 @@ static int routing_build_protos_map(struct control_plane_protocol map[ROUTING_PR
 {
 	int error = 0;
 
-	const char *known_types_map[ROUTING_PROTOS_COUNT] = {
-		[RTPROT_UNSPEC] = "ietf-routing:direct",
-		[RTPROT_REDIRECT] = "ietf-routing:direct",
-		[RTPROT_KERNEL] = "ietf-routing:direct",
-		[RTPROT_BOOT] = "ietf-routing:direct",
-		[RTPROT_STATIC] = "ietf-routing:static",
-		[RTPROT_GATED] = "ietf-routing:direct",
-		[RTPROT_RA] = "ietf-routing:direct",
-		[RTPROT_MRT] = "ietf-routing:direct",
-		[RTPROT_ZEBRA] = "ietf-routing:direct",
-		[RTPROT_BIRD] = "ietf-routing:direct",
-		[RTPROT_DNROUTED] = "ietf-routing:direct",
-		[RTPROT_XORP] = "ietf-routing:direct",
-		[RTPROT_NTK] = "ietf-routing:direct",
-		[RTPROT_DHCP] = "ietf-routing:direct",
-		[RTPROT_MROUTED] = "ietf-routing:direct",
-		[RTPROT_BABEL] = "ietf-routing:direct",
-		[RTPROT_BGP] = "ietf-routing:direct",
-		[RTPROT_ISIS] = "ietf-routing:direct",
-		[RTPROT_OSPF] = "ietf-routing:direct",
-		[RTPROT_RIP] = "ietf-routing:direct",
-		[RTPROT_EIGRP] = "ietf-routing:direct",
-	};
+	// temp variables and buffers
+	char *data_dir = NULL;
+	char path_buffer[PATH_MAX] = {0};
+	char line_buffer[PATH_MAX] = {0};
+	int tmp_type = 0;
+	char type_buffer[100] = {0};
+	char desc_buffer[256] = {0};
+	FILE *fptr = NULL;
 
-	const char *known_descr_map[ROUTING_PROTOS_COUNT] = {
-		[RTPROT_UNSPEC] = "unspecified protocol",
-		[RTPROT_REDIRECT] = "redirect protocol",
-		[RTPROT_KERNEL] = "kernel protocol",
-		[RTPROT_BOOT] = "boot protocol",
-		[RTPROT_STATIC] = "static protocol",
-		[RTPROT_GATED] = "gated protocol",
-		[RTPROT_RA] = "ra protocol",
-		[RTPROT_MRT] = "mrt protocol",
-		[RTPROT_ZEBRA] = "zebra protocol",
-		[RTPROT_BIRD] = "bird protocol",
-		[RTPROT_DNROUTED] = "dnrouted protocol",
-		[RTPROT_XORP] = "xorp protocol",
-		[RTPROT_NTK] = "ntk protocol",
-		[RTPROT_DHCP] = "dhcp protocol",
-		[RTPROT_MROUTED] = "mrouted protocol",
-		[RTPROT_BABEL] = "babel protocol",
-		[RTPROT_BGP] = "bgp protocol",
-		[RTPROT_ISIS] = "isis protocol",
-		[RTPROT_OSPF] = "ospf protocol",
-		[RTPROT_RIP] = "rip protocol",
-		[RTPROT_EIGRP] = "eigrp protocol",
-	};
+	data_dir = getenv(ROUTING_PLUGIN_DATA_DIR);
+	if (data_dir == NULL) {
+		SRP_LOG_ERR("unable to use environment variable for the plugin data dir: %s", ROUTING_PLUGIN_DATA_DIR);
+		goto error_out;
+	}
+	snprintf(path_buffer, sizeof(path_buffer), "%s%s%s", data_dir, (data_dir[strlen(data_dir) - 1] == '/' ? "" : "/"), ROUTING_PROTOS_MAP_FNAME);
+	fptr = fopen(path_buffer, "r");
+	if (fptr == NULL) {
+		SRP_LOG_DBG("protocols map file doesnt exist - using only already known proto types and descriptions");
+		// file doesn't exist -> build the initial map and write it to the file
+		const char *known_types_map[ROUTING_PROTOS_COUNT] = {
+			[RTPROT_UNSPEC] = "ietf-routing:direct",
+			[RTPROT_REDIRECT] = "ietf-routing:direct",
+			[RTPROT_KERNEL] = "ietf-routing:direct",
+			[RTPROT_BOOT] = "ietf-routing:direct",
+			[RTPROT_STATIC] = "ietf-routing:static",
+			[RTPROT_GATED] = "ietf-routing:direct",
+			[RTPROT_RA] = "ietf-routing:direct",
+			[RTPROT_MRT] = "ietf-routing:direct",
+			[RTPROT_ZEBRA] = "ietf-routing:direct",
+			[RTPROT_BIRD] = "ietf-routing:direct",
+			[RTPROT_DNROUTED] = "ietf-routing:direct",
+			[RTPROT_XORP] = "ietf-routing:direct",
+			[RTPROT_NTK] = "ietf-routing:direct",
+			[RTPROT_DHCP] = "ietf-routing:direct",
+			[RTPROT_MROUTED] = "ietf-routing:direct",
+			[RTPROT_BABEL] = "ietf-routing:direct",
+			[RTPROT_BGP] = "ietf-routing:direct",
+			[RTPROT_ISIS] = "ietf-routing:direct",
+			[RTPROT_OSPF] = "ietf-routing:direct",
+			[RTPROT_RIP] = "ietf-routing:direct",
+			[RTPROT_EIGRP] = "ietf-routing:direct",
+		};
 
-	for (int i = 0; i < ROUTING_PROTOS_COUNT; i++) {
-		if (routing_is_proto_type_known(i)) {
-			rtnl_route_proto2str(i, map[i].name, sizeof(map[i].name));
-			map[i].type = xstrdup(known_types_map[i]);
-			map[i].description = xstrdup(known_descr_map[i]);
-			map[i].initialized = 1;
+		const char *known_descr_map[ROUTING_PROTOS_COUNT] = {
+			[RTPROT_UNSPEC] = "unspecified protocol",
+			[RTPROT_REDIRECT] = "redirect protocol",
+			[RTPROT_KERNEL] = "kernel protocol",
+			[RTPROT_BOOT] = "boot protocol",
+			[RTPROT_STATIC] = "static protocol",
+			[RTPROT_GATED] = "gated protocol",
+			[RTPROT_RA] = "ra protocol",
+			[RTPROT_MRT] = "mrt protocol",
+			[RTPROT_ZEBRA] = "zebra protocol",
+			[RTPROT_BIRD] = "bird protocol",
+			[RTPROT_DNROUTED] = "dnrouted protocol",
+			[RTPROT_XORP] = "xorp protocol",
+			[RTPROT_NTK] = "ntk protocol",
+			[RTPROT_DHCP] = "dhcp protocol",
+			[RTPROT_MROUTED] = "mrouted protocol",
+			[RTPROT_BABEL] = "babel protocol",
+			[RTPROT_BGP] = "bgp protocol",
+			[RTPROT_ISIS] = "isis protocol",
+			[RTPROT_OSPF] = "ospf protocol",
+			[RTPROT_RIP] = "rip protocol",
+			[RTPROT_EIGRP] = "eigrp protocol",
+		};
+
+		fptr = fopen(path_buffer, "w");
+		if (fptr == NULL) {
+			SRP_LOG_ERR("unable to open %s file for writing", ROUTING_PROTOS_MAP_FNAME);
+			goto error_out;
+		}
+
+		// file opened - write protocol types into the file
+		for (int i = 0; i < ROUTING_PROTOS_COUNT; i++) {
+			if (routing_is_proto_type_known(i)) {
+				rtnl_route_proto2str(i, map[i].name, sizeof(map[i].name));
+				map[i].type = xstrdup(known_types_map[i]);
+				map[i].description = xstrdup(known_descr_map[i]);
+				map[i].initialized = 1;
+				fprintf(fptr, "%d\t%s\t\"%s\"\n", i, map[i].type, map[i].description);
+			}
+		}
+	} else {
+		SRP_LOG_DBG("protocols map file exists - using map values");
+		// file exists -> use map file values
+		while (fgets(line_buffer, sizeof(line_buffer), fptr) != NULL) {
+			const int read_n = sscanf(line_buffer, "%d %s \"%256[^\"]\"", &tmp_type, type_buffer, desc_buffer);
+			if (read_n == 3) {
+				if (tmp_type >= 0 && tmp_type <= ROUTING_PROTOS_COUNT) {
+					rtnl_route_proto2str(tmp_type, map[tmp_type].name, sizeof(map[tmp_type].name));
+					map[tmp_type].type = xstrdup(type_buffer);
+					map[tmp_type].description = xstrdup(desc_buffer);
+					map[tmp_type].initialized = 1;
+				} else {
+					SRP_LOG_ERR("invalid protocol type found in the protocol types map file: %d", tmp_type);
+					goto error_out;
+				}
+			} else {
+				SRP_LOG_ERR("unable to properly read the protocol types map file format; read %d values", read_n);
+				goto error_out;
+			}
 		}
 	}
+	goto out;
 
+error_out:
+	error = -1;
+out:
+	if (fptr) {
+		fclose(fptr);
+	}
 	return error;
 }
 
