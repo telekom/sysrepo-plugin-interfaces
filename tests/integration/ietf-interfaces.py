@@ -458,9 +458,32 @@ class IpTestCase(InterfacesTestCase):
         data.free()
         self.session.replace_config_ly(self.initial_data, "ietf-interfaces")
 
+    def test_interface_ipv4_forwarding(self):
+        """Attempt to enable loopback ipv4 address forwarding."""
+        self.edit_config("data/loopback_ipv4_forwarding.xml")
+
+        expected_forwarding = \
+        '<interfaces xmlns="urn:ietf:params:xml:ns:yang:ietf-interfaces">' \
+        '<interface><name>lo</name><ipv4 xmlns="urn:ietf:params:xml:ns:yang:ietf-ip">' \
+        '<forwarding>true</forwarding></ipv4></interface></interfaces>'
+
+        data = self.session.get_data_ly('/ietf-interfaces:interfaces/interface[name="lo"]/ietf-ip:ipv4/forwarding')
+        forwarding = data.print_mem("xml")
+        self.assertEqual(forwarding, expected_forwarding, "loopback ipv4 forwarding data is wrong")
+
+        with open('/proc/sys/net/ipv4/conf/lo/forwarding') as f:
+            forwarding_configuration = f.read().strip()
+            self.assertEqual(
+                forwarding_configuration, '1',
+                'plugin and system interface state differ, forwarding is not enabled for loopback'
+            )
+
+        data.free()
+        self.session.replace_config_ly(self.initial_data, "ietf-interfaces")
+
     def test_interface_ipv6_forwarding(self):
         """Attempt to enable loopback ipv6 address forwarding."""
-        self.edit_config("data/loopback_forwarding.xml")
+        self.edit_config("data/loopback_ipv6_forwarding.xml")
 
         expected_forwarding = \
         '<interfaces xmlns="urn:ietf:params:xml:ns:yang:ietf-interfaces">' \
@@ -469,7 +492,7 @@ class IpTestCase(InterfacesTestCase):
 
         data = self.session.get_data_ly('/ietf-interfaces:interfaces/interface[name="lo"]/ietf-ip:ipv6/forwarding')
         forwarding = data.print_mem("xml")
-        self.assertEqual(forwarding, expected_forwarding, "loopback forwarding data is wrong")
+        self.assertEqual(forwarding, expected_forwarding, "loopback ipv6 forwarding data is wrong")
 
         with open('/proc/sys/net/ipv6/conf/lo/forwarding') as f:
             forwarding_configuration = f.read().strip()
