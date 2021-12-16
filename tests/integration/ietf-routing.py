@@ -5,7 +5,6 @@ import subprocess
 import signal
 import time
 import json
-import operator
 
 
 class RoutingTestCase(unittest.TestCase):
@@ -66,6 +65,63 @@ class InterfacesTestCase(RoutingTestCase):
 
         self.assertEqual(interfaces, real_interfaces,
                          "interfaces are different")
+
+
+class StaticRoutesTestCase(RoutingTestCase):
+    def test_static_routes(self):
+        self.edit_config('data/routing/static-route.xml')
+
+        data = self.session.get_data_ly(
+            '/ietf-routing:routing/control-plane-protocols/control-plane-protocol[type="static"][name="static"]/static-routes')
+
+        jobj = json.loads(data.print_mem('json'))
+
+        routes = jobj['ietf-routing:routing']['control-plane-protocols']['control-plane-protocol'][0]['static-routes']['ietf-ipv4-unicast-routing:ipv4']['route']
+        new_route = routes[0]
+
+        # assert static-routes container
+        self.assertEqual(new_route['description'], 'Test Route')
+        self.assertEqual(new_route['destination-prefix'], '192.168.100.0/24')
+        self.assertEqual(new_route['next-hop']['next-hop-address'], '10.0.2.1')
+
+        # assert operational data working
+        op_data = self.operational_session.get_data_ly(
+            '/ietf-routing:routing/ribs/rib[name="ipv4-main"]')
+        op_jobj = json.loads(op_data.print_mem('json'))
+        op_routes = op_jobj['ietf-routing:routing']['ribs']['rib'][0]['routes']['route']
+
+        in_operational = False
+
+        for route in op_routes:
+            if 'ietf-ipv4-unicast-routing:destination-prefix' in route and 'ietf-ipv4-unicast-routing:next-hop-address' in route['next-hop']:
+                prefix = route['ietf-ipv4-unicast-routing:destination-prefix']
+                nexthop = route['next-hop']['ietf-ipv4-unicast-routing:next-hop-address']
+
+                if prefix != None and nexthop != None:
+                    if prefix == '192.168.100.0/24':
+                        self.assertEqual(nexthop, '10.0.2.1')
+                        in_operational = True
+
+        self.assertEqual(in_operational, True)
+
+        op_data.free()
+        data.free()
+
+        pass
+
+
+class RoutesTestCase(RoutingTestCase):
+    def test_routes(self):
+        data = self.operational_session.get_data_ly(
+            '/ietf-routing:routing/ribs/rib[name="ipv4-main"]')
+
+        obj = json.loads(data.print_mem('json'))
+
+        routes_list = obj['ietf-routing:routing']['ribs']['rib'][0]['routes']['route']
+
+        self.assertGreater(len(routes_list), 0)
+
+        data.free()
 
 
 if __name__ == '__main__':
