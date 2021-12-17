@@ -4,9 +4,9 @@
   xmlns:dot1q-types="urn:ieee:std:802.1Q:yang:ieee802-dot1q-types"
   xmlns:if-ext="urn:ietf:params:xml:ns:yang:ietf-if-extensions">
   <interface>
-    <name>${SYSREPO_PLUGIN_INTERFACES_PARENT_INTERFACE}.sub1</name>
+    <name>{PARENT_INTERFACE}.sub1</name>
     <type>ianaift:l2vlan</type>
-    <if-ext:parent-interface>${SYSREPO_PLUGIN_INTERFACES_PARENT_INTERFACE}</if-ext:parent-interface>
+    <if-ext:parent-interface>{PARENT_INTERFACE}</if-ext:parent-interface>
     <if-ext:encapsulation>
       <dot1q-vlan
         xmlns="urn:ietf:params:xml:ns:yang:ietf-if-vlan-encapsulation">
