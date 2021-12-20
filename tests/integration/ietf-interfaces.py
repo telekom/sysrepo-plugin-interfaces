@@ -254,7 +254,7 @@ class IpTestCase(InterfacesTestCase):
             '<address><ip>127.0.0.0</ip><prefix-length>8</prefix-length></address></ipv4></interface></interfaces>'
 
         data = self.session.get_data_ly(
-            '/ietf-interfaces:interfaces/interface[name="lo"]/ietf-ip:ipv4/address')
+            '/ietf-interfaces:interfaces/interface[name="lo"]/ietf-ip:ipv4/address[ip="127.0.0.0"]')
         ip_address = data.print_mem('xml')
 
         self.assertEqual(expected_ip_address, ip_address)
@@ -281,7 +281,7 @@ class IpTestCase(InterfacesTestCase):
             '<address><ip>127.0.0.0</ip><netmask>255.0.0.0</netmask></address></ipv4></interface></interfaces>'
 
         data = self.session.get_data_ly(
-            '/ietf-interfaces:interfaces/interface[name="lo"]/ietf-ip:ipv4/address')
+            '/ietf-interfaces:interfaces/interface[name="lo"]/ietf-ip:ipv4/address[ip="127.0.0.0"]')
         ip_address = data.print_mem('xml')
 
         self.assertEqual(expected_ip_address, ip_address)
