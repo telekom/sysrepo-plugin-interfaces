@@ -1499,21 +1499,19 @@ int add_interface_ipv4(link_data_t *ld, struct rtnl_link *old, struct rtnl_link 
 
 	// add ipv4 options from given link data to the req link object
 	// also set forwarding options to the given files for a particular link
-	if (strcmp(if_name, "lo") != 0) {
-		// enabled
-		// TODO: fix this
-		// note: commented out because there is no disable_ipv4 file on arch (need to find workaround)
-		/*
-		error = write_to_proc_file(ipv4_base, if_name, "disable_ipv4", ipv4->enabled == 0);
-		if (error != 0) {
-			goto out;
-		}*/
+	// enabled
+	// TODO: fix this
+	// note: commented out because there is no disable_ipv4 file on arch (need to find workaround)
+	/*
+	error = write_to_proc_file(ipv4_base, if_name, "disable_ipv4", ipv4->enabled == 0);
+	if (error != 0) {
+		goto out;
+	}*/
 
-		// forwarding
-		error = write_to_proc_file(ipv4_base, if_name, "forwarding", ipv4->forwarding);
-		if (error != 0) {
-			goto out;
-		}
+	// forwarding
+	error = write_to_proc_file(ipv4_base, if_name, "forwarding", ipv4->forwarding);
+	if (error != 0) {
+		goto out;
 	}
 
 	// set mtu
