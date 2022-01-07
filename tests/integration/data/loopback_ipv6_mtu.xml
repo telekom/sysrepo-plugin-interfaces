@@ -3,7 +3,7 @@
     <name>lo</name>
     <type xmlns:ianaift="urn:ietf:params:xml:ns:yang:iana-if-type">ianaift:softwareLoopback</type>
     <ipv6 xmlns="urn:ietf:params:xml:ns:yang:ietf-ip">
-      <mtu>54321</mtu>
+      <mtu>1300</mtu>
     </ipv6>
   </interface>
 </interfaces>

@@ -446,7 +446,7 @@ class IpTestCase(InterfacesTestCase):
         expected_mtu = \
         '<interfaces xmlns="urn:ietf:params:xml:ns:yang:ietf-interfaces">' \
         '<interface><name>lo</name><ipv6 xmlns="urn:ietf:params:xml:ns:yang:ietf-ip">' \
-        '<mtu>54321</mtu></ipv6></interface></interfaces>'
+        '<mtu>1300</mtu></ipv6></interface></interfaces>'
 
         data = self.session.get_data_ly('/ietf-interfaces:interfaces/interface[name="lo"]/ietf-ip:ipv6/mtu')
         mtu = data.print_mem("xml")
@@ -454,7 +454,7 @@ class IpTestCase(InterfacesTestCase):
 
         with open('/proc/sys/net/ipv6/conf/lo/mtu') as f:
             mtu_value = f.read().strip()
-            self.assertEqual(mtu_value, '54321', 'plugin and system ipv6 MTU values differ.')
+            self.assertEqual(mtu_value, '1300', 'plugin and system ipv6 MTU values differ.')
 
         data.free()
         self.session.replace_config_ly(self.initial_data, "ietf-interfaces")
