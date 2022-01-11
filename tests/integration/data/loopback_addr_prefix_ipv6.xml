@@ -1,0 +1,12 @@
+<interfaces xmlns="urn:ietf:params:xml:ns:yang:ietf-interfaces">
+  <interface>
+    <name>lo</name>
+    <type xmlns:ianaift="urn:ietf:params:xml:ns:yang:iana-if-type">ianaift:softwareLoopback</type>
+    <ipv6 xmlns="urn:ietf:params:xml:ns:yang:ietf-ip">
+      <address>
+        <ip>::1</ip>
+        <prefix-length>128</prefix-length>
+      </address>
+    </ipv6>
+  </interface>
+</interfaces>
