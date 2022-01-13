@@ -101,21 +101,23 @@ uint8_t netmask_to_prefix_len(char *nm)
 
         // IPv6 if a ':' is found
         if (strchr(nm, ':')) {
-                // s6_addr is a uint8_t array of length 16, all the byte popcounts need to be summarized
                 ret = inet_pton(AF_INET6, nm, &(sa6.sin6_addr));
+		// invalid network address mask
                 if (!ret) {
                         // TODO: error handling on refactor
                 }
 
+                // s6_addr is a uint8_t array of length 16, all the byte popcounts need to be summarized
                 // avoid branching, use popcountll's 64 bits minimum
                 uint64_t *s6_addr64 = (uint64_t *) sa6.sin6_addr.s6_addr;
 
-                return __builtin_popcountll(s6_addr64[0]) +__builtin_popcountll(s6_addr64[1]);
+                return __builtin_popcountll(s6_addr64[0]) + __builtin_popcountll(s6_addr64[1]);
 
         }
 
         // IPv4 otherwise
         ret = inet_pton(AF_INET, nm, &(sa.sin_addr));
+	// invalid network address mask
         if (!ret) {
                 // TODO: error handling on refactor
         }
