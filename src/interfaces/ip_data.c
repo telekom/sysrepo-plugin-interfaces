@@ -17,8 +17,6 @@
 #include <string.h>
 #include <arpa/inet.h>
 
-uint8_t netmask_to_prefix_len(char *nm);
-
 void ip_data_init(ip_data_t *ip)
 {
 	ip->enabled = 0;
@@ -85,21 +83,46 @@ void ip_address_set_delete(ip_address_list_t *addr_ls, char *ip)
 	}
 }
 
+/*
+ * Function:  netmask_to_prefix_len
+ * --------------------------------
+ * calculates the prefix length (32 or 128 bit Hamming weight) of a network mask
+ *
+ *  nm: network mask
+ *
+ *  returns:
+ *      prefix length
+ */
 uint8_t netmask_to_prefix_len(char *nm)
 {
-	uint8_t n;
-	inet_pton(AF_INET, nm, &n);
-	int i = 0;
+        int ret;
+        struct sockaddr_in sa;
+        struct sockaddr_in6 sa6;
 
-	while (n > 0) {
-		if (n & 0x1) {
-			i++;
-		}
-		n = n >> 1;
-		i++;
-	}
+        // IPv6 if a ':' is found
+        if (strchr(nm, ':')) {
+                ret = inet_pton(AF_INET6, nm, &(sa6.sin6_addr));
+		// invalid network address mask
+                if (!ret) {
+                        // TODO: error handling on refactor
+                }
 
-	return n;
+                // s6_addr is a uint8_t array of length 16, all the byte popcounts need to be summarized
+                // avoid branching, use popcountll's 64 bits minimum
+                uint64_t *s6_addr64 = (uint64_t *) sa6.sin6_addr.s6_addr;
+
+                return __builtin_popcountll(s6_addr64[0]) + __builtin_popcountll(s6_addr64[1]);
+
+        }
+
+        // IPv4 otherwise
+        ret = inet_pton(AF_INET, nm, &(sa.sin_addr));
+	// invalid network address mask
+        if (!ret) {
+                // TODO: error handling on refactor
+        }
+
+        return __builtin_popcountl(sa.sin_addr.s_addr);
 }
 
 void ip_address_set_subnet(ip_address_t *addr, char *subnet, ip_subnet_type_t st)
