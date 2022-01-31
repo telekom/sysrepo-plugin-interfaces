@@ -244,18 +244,20 @@ class InterfaceTestCase(InterfacesTestCase):
     def test_interface_lo_rename(self):
         """Make sure that attempts to rename the loopback interface fail."""
 
-        with self.assertRaises(sysrepo.errors.SysrepoCallbackFailedError, msg="loopback renaming did not fail"):
-            self.edit_config("data/loopback_rename.xml")
-
-        self.session.replace_config_ly(self.initial_data, "ietf-interfaces")
+        try:
+            with self.assertRaises(sysrepo.errors.SysrepoCallbackFailedError, msg="loopback renaming did not fail"):
+                self.edit_config("data/loopback_rename.xml")
+        finally:
+            self.session.replace_config_ly(self.initial_data, "ietf-interfaces")
 
     def test_interface_lo_change_type(self):
         """Make sure that attempts to change the loopback interface type fail."""
 
-        with self.assertRaises(sysrepo.errors.SysrepoCallbackFailedError, msg="loopback type change did not fail"):
-            self.edit_config("data/loopback_change_type.xml")
-
-        self.session.replace_config_ly(self.initial_data, "ietf-interfaces")
+        try:
+            with self.assertRaises(sysrepo.errors.SysrepoCallbackFailedError, msg="loopback type change did not fail"):
+                self.edit_config("data/loopback_change_type.xml")
+        finally:
+            self.session.replace_config_ly(self.initial_data, "ietf-interfaces")
 
 
 class IpTestCase(InterfacesTestCase):
