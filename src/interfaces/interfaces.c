@@ -58,8 +58,6 @@
 #define BASE_YANG_MODEL "ietf-interfaces"
 #define BASE_IP_YANG_MODEL "ietf-ip"
 
-#define SYSREPOCFG_EMPTY_CHECK_COMMAND "sysrepocfg -X -d running -m " BASE_YANG_MODEL
-
 // config data
 #define INTERFACES_YANG_MODEL "/" BASE_YANG_MODEL ":interfaces"
 #define INTERFACE_LIST_YANG_PATH INTERFACES_YANG_MODEL "/interface"
@@ -78,7 +76,7 @@ static int interfaces_module_change_cb(sr_session_ctx_t *session, const char *mo
 static int interfaces_state_data_cb(sr_session_ctx_t *session, const char *module_name, const char *path, const char *request_xpath, uint32_t request_id, struct lyd_node **parent, void *private_data);
 
 // helper functions
-static bool system_running_datastore_is_empty_check(void);
+static bool system_running_datastore_is_empty_check(sr_session_ctx_t *session);
 static int load_data(sr_session_ctx_t *session, link_data_list_t *ld);
 static int load_startup(sr_session_ctx_t *session, link_data_list_t *ld);
 static char *interfaces_xpath_get(const struct lyd_node *node);
@@ -160,7 +158,7 @@ int sr_plugin_init_cb(sr_session_ctx_t *session, void **private_data)
 
 	*private_data = startup_session;
 
-	if (system_running_datastore_is_empty_check() == true) {
+	if (system_running_datastore_is_empty_check(session) == true) {
 		SRP_LOG_INF("running DS is empty, loading data");
 
 		error = load_data(session, &link_data_list);
@@ -223,27 +221,25 @@ out:
 	return error ? SR_ERR_CALLBACK_FAILED : SR_ERR_OK;
 }
 
-static bool system_running_datastore_is_empty_check(void)
+static bool system_running_datastore_is_empty_check(sr_session_ctx_t *session)
 {
-	FILE *sysrepocfg_DS_empty_check = NULL;
-	bool is_empty = false;
+	int error = SR_ERR_OK;
+	bool is_empty = true;
+	sr_val_t *values = NULL;
+	size_t value_cnt = 0;
 
-	sysrepocfg_DS_empty_check = popen(SYSREPOCFG_EMPTY_CHECK_COMMAND, "r");
-	if (sysrepocfg_DS_empty_check == NULL) {
-		SRP_LOG_WRN("could not execute %s", SYSREPOCFG_EMPTY_CHECK_COMMAND);
-		is_empty = true;
+	error = sr_get_items(session, INTERFACE_LIST_YANG_PATH, 0, SR_OPER_DEFAULT, &values, &value_cnt);
+	if (error) {
+		SRP_LOG_ERR("sr_get_items error (%d): %s", error, sr_strerror(error));
 		goto out;
 	}
 
-	if (fgetc(sysrepocfg_DS_empty_check) == EOF) {
-		is_empty = true;
+	// check if interface list is empty
+	if (value_cnt > 0) {
+		sr_free_values(values, value_cnt);
+		is_empty = false;
 	}
-
 out:
-	if (sysrepocfg_DS_empty_check) {
-		pclose(sysrepocfg_DS_empty_check);
-	}
-
 	return is_empty;
 }
 
