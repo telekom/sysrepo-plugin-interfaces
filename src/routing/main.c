@@ -19,19 +19,19 @@ int main(void)
 	/* connect to sysrepo */
 	error = sr_connect(SR_CONN_DEFAULT, &connection);
 	if (error) {
-		SRP_LOG_ERR("sr_connect error (%d): %s", error, sr_strerror(error));
+		SRPLG_LOG_ERR(PLUGIN_NAME, "sr_connect error (%d): %s", error, sr_strerror(error));
 		goto out;
 	}
 
 	error = sr_session_start(connection, SR_DS_RUNNING, &session);
 	if (error) {
-		SRP_LOG_ERR("sr_session_start error (%d): %s", error, sr_strerror(error));
+		SRPLG_LOG_ERR(PLUGIN_NAME, "sr_session_start error (%d): %s", error, sr_strerror(error));
 		goto out;
 	}
 
 	error = sr_plugin_init_cb(session, &private_data);
 	if (error) {
-		SRP_LOG_ERR("sr_plugin_init_cb error");
+		SRPLG_LOG_ERR(PLUGIN_NAME, "sr_plugin_init_cb error");
 		goto out;
 	}
 
@@ -51,6 +51,6 @@ out:
 
 static void sigint_handler(__attribute__((unused)) int signum)
 {
-	SRP_LOG_INF("Sigint called, exiting...");
+	SRPLG_LOG_INF(PLUGIN_NAME, "Sigint called, exiting...");
 	exit_application = 1;
 }

@@ -62,6 +62,8 @@
 #define INTERFACES_YANG_MODEL "/" BASE_YANG_MODEL ":interfaces"
 #define INTERFACE_LIST_YANG_PATH INTERFACES_YANG_MODEL "/interface"
 
+#define PLUGIN_NAME "interfaces-plugin"
+
 // other #defines
 #define MAC_ADDR_MAX_LENGTH 18
 #define MAX_DESCR_LEN 100
@@ -128,47 +130,47 @@ int sr_plugin_init_cb(sr_session_ctx_t *session, void **private_data)
 
 	error = link_data_list_init(&link_data_list);
 	if (error != 0) {
-		SRP_LOG_ERR("link_data_list_init error");
+		SRPLG_LOG_ERR(PLUGIN_NAME, "link_data_list_init error");
 		goto out;
 	}
 
 	error = add_existing_links(session, &link_data_list);
 	if (error != 0) {
-		SRP_LOG_ERR("add_existing_links error");
+		SRPLG_LOG_ERR(PLUGIN_NAME, "add_existing_links error");
 		goto out;
 	}
 
-	SRP_LOG_INF("start session to startup datastore");
+	SRPLG_LOG_INF(PLUGIN_NAME, "start session to startup datastore");
 
 	if_state_list_init(&if_state_changes);
 
 	error = init_state_changes();
 	if (error != 0) {
-		SRP_LOG_ERR("Error occurred while initializing threads to track interface changes... exiting");
+		SRPLG_LOG_ERR(PLUGIN_NAME, "Error occurred while initializing threads to track interface changes... exiting");
 		goto out;
 	}
 
 	connection = sr_session_get_connection(session);
 	error = sr_session_start(connection, SR_DS_STARTUP, &startup_session);
 	if (error) {
-		SRP_LOG_ERR("sr_session_start error (%d): %s", error, sr_strerror(error));
+		SRPLG_LOG_ERR(PLUGIN_NAME, "sr_session_start error (%d): %s", error, sr_strerror(error));
 		goto error_out;
 	}
 
 	*private_data = startup_session;
 
 	if (system_running_datastore_is_empty_check(session) == true) {
-		SRP_LOG_INF("running DS is empty, loading data");
+		SRPLG_LOG_INF(PLUGIN_NAME, "running DS is empty, loading data");
 
 		error = load_data(session, &link_data_list);
 		if (error) {
-			SRP_LOG_ERR("load_data error");
+			SRPLG_LOG_ERR(PLUGIN_NAME, "load_data error");
 			goto error_out;
 		}
 
 		error = sr_copy_config(startup_session, BASE_YANG_MODEL, SR_DS_RUNNING, 0);
 		if (error) {
-			SRP_LOG_ERR("sr_copy_config error (%d): %s", error, sr_strerror(error));
+			SRPLG_LOG_ERR(PLUGIN_NAME, "sr_copy_config error (%d): %s", error, sr_strerror(error));
 			goto error_out;
 		}
 	}
@@ -176,33 +178,33 @@ int sr_plugin_init_cb(sr_session_ctx_t *session, void **private_data)
 	// load data from startup datastore to internal list
 	error = load_startup(startup_session, &link_data_list);
 	if (error != 0) {
-		SRP_LOG_ERR("load_startup error");
+		SRPLG_LOG_ERR(PLUGIN_NAME, "load_startup error");
 		goto error_out;
 	}
 
 	// apply what is present in the startup datastore
 	error = update_link_info(&link_data_list, SR_OP_CREATED);
 	if (error != 0) {
-		SRP_LOG_ERR("update_link_info error");
+		SRPLG_LOG_ERR(PLUGIN_NAME, "update_link_info error");
 		goto error_out;
 	}
 
-	SRP_LOG_INF("subscribing to module change");
+	SRPLG_LOG_INF(PLUGIN_NAME, "subscribing to module change");
 
 	// sub to any module change - for now
-	error = sr_module_change_subscribe(session, BASE_YANG_MODEL, "/" BASE_YANG_MODEL ":*//.", interfaces_module_change_cb, *private_data, 0, SR_SUBSCR_DEFAULT, &subscription);
+	error = sr_module_change_subscribe(session, BASE_YANG_MODEL, "/" BASE_YANG_MODEL ":*", interfaces_module_change_cb, *private_data, 0, 0, &subscription);
 	if (error) {
-		SRP_LOG_ERR("sr_module_change_subscribe error (%d): %s", error, sr_strerror(error));
+		SRPLG_LOG_ERR(PLUGIN_NAME, "sr_module_change_subscribe error (%d): %s", error, sr_strerror(error));
 		goto error_out;
 	}
 
-	error = sr_oper_get_items_subscribe(session, BASE_YANG_MODEL, INTERFACES_YANG_MODEL "/*", interfaces_state_data_cb, NULL, SR_SUBSCR_CTX_REUSE, &subscription);
+	error = sr_oper_get_subscribe(session, BASE_YANG_MODEL, INTERFACES_YANG_MODEL "/*", interfaces_state_data_cb, NULL, 1, &subscription);
 	if (error) {
-		SRP_LOG_ERR("sr_oper_get_items_subscribe error (%d): %s", error, sr_strerror(error));
+		SRPLG_LOG_ERR(PLUGIN_NAME, "sr_oper_get_subscribe error (%d): %s", error, sr_strerror(error));
 		goto error_out;
 	}
 
-	SRP_LOG_INF("plugin init done");
+	SRPLG_LOG_INF(PLUGIN_NAME, "plugin init done");
 
 	FREE_SAFE(desc_file_path);
 
@@ -229,7 +231,7 @@ static bool system_running_datastore_is_empty_check(sr_session_ctx_t *session)
 
 	error = sr_get_items(session, INTERFACE_LIST_YANG_PATH, 0, SR_OPER_DEFAULT, &values, &value_cnt);
 	if (error) {
-		SRP_LOG_ERR("sr_get_items error (%d): %s", error, sr_strerror(error));
+		SRPLG_LOG_ERR(PLUGIN_NAME, "sr_get_items error (%d): %s", error, sr_strerror(error));
 		goto out;
 	}
 
@@ -267,18 +269,13 @@ static int load_data(sr_session_ctx_t *session, link_data_list_t *ld)
 		} else if (strcmp(type, "dummy") == 0) {
 			type = "iana-if-type:other"; // since dummy is not a real type
 		} else {
-			SRP_LOG_INF("load_data unsupported interface type %s", type);
+			SRPLG_LOG_INF(PLUGIN_NAME, "load_data unsupported interface type %s", type);
 			continue;
 		}
 
-		error = snprintf(xpath_buffer, sizeof(xpath_buffer), "%s/name", interface_path_buffer);
-		if (error < 0) {
-			goto error_out;
-		}
-
-		error = sr_set_item_str(session, xpath_buffer, name, NULL, SR_EDIT_DEFAULT);
+		error = sr_set_item_str(session, interface_path_buffer, name, NULL, SR_EDIT_DEFAULT);
 		if (error) {
-			SRP_LOG_ERR("sr_set_item_str error (%d): %s", error, sr_strerror(error));
+			SRPLG_LOG_ERR(PLUGIN_NAME, "sr_set_item_str error (%d): %s", error, sr_strerror(error));
 			goto error_out;
 		}
 
@@ -289,7 +286,7 @@ static int load_data(sr_session_ctx_t *session, link_data_list_t *ld)
 
 		error = sr_set_item_str(session, xpath_buffer, description, NULL, SR_EDIT_DEFAULT);
 		if (error) {
-			SRP_LOG_ERR("sr_set_item_str error (%d): %s", error, sr_strerror(error));
+			SRPLG_LOG_ERR(PLUGIN_NAME, "sr_set_item_str error (%d): %s", error, sr_strerror(error));
 			goto error_out;
 		}
 
@@ -300,7 +297,7 @@ static int load_data(sr_session_ctx_t *session, link_data_list_t *ld)
 
 		error = sr_set_item_str(session, xpath_buffer, type, NULL, SR_EDIT_DEFAULT);
 		if (error) {
-			SRP_LOG_ERR("sr_set_item_str error (%d): %s", error, sr_strerror(error));
+			SRPLG_LOG_ERR(PLUGIN_NAME, "sr_set_item_str error (%d): %s", error, sr_strerror(error));
 			goto error_out;
 		}
 
@@ -311,7 +308,7 @@ static int load_data(sr_session_ctx_t *session, link_data_list_t *ld)
 
 		error = sr_set_item_str(session, xpath_buffer, enabled, NULL, SR_EDIT_DEFAULT);
 		if (error) {
-			SRP_LOG_ERR("sr_set_item_str error (%d): %s", error, sr_strerror(error));
+			SRPLG_LOG_ERR(PLUGIN_NAME, "sr_set_item_str error (%d): %s", error, sr_strerror(error));
 			goto error_out;
 		}
 
@@ -323,7 +320,7 @@ static int load_data(sr_session_ctx_t *session, link_data_list_t *ld)
 
 			error = sr_set_item_str(session, xpath_buffer, parent_interface, NULL, SR_EDIT_DEFAULT);
 			if (error) {
-				SRP_LOG_ERR("sr_set_item_str error (%d): %s", error, sr_strerror(error));
+				SRPLG_LOG_ERR(PLUGIN_NAME, "sr_set_item_str error (%d): %s", error, sr_strerror(error));
 				goto error_out;
 			}
 		}
@@ -346,11 +343,11 @@ static int load_data(sr_session_ctx_t *session, link_data_list_t *ld)
 				goto error_out;
 			}
 
-			SRP_LOG_DBG("xpath_buffer: %s = %s", xpath_buffer, ipv4_forwarding == 0 ? "false" : "true");
+			SRPLG_LOG_DBG(PLUGIN_NAME, "xpath_buffer: %s = %s", xpath_buffer, ipv4_forwarding == 0 ? "false" : "true");
 
 			error = sr_set_item_str(session, xpath_buffer, ipv4_forwarding == 0 ? "false" : "true", NULL, SR_EDIT_DEFAULT);
 			if (error) {
-				SRP_LOG_ERR("sr_set_item_str error (%d): %s", error, sr_strerror(error));
+				SRPLG_LOG_ERR(PLUGIN_NAME, "sr_set_item_str error (%d): %s", error, sr_strerror(error));
 				goto error_out;
 			}
 
@@ -369,25 +366,25 @@ static int load_data(sr_session_ctx_t *session, link_data_list_t *ld)
 
 						snprintf(tmp_buffer, sizeof(tmp_buffer), "%u", ipv4_mtu);
 
-						SRP_LOG_DBG("xpath_buffer: %s = %s", xpath_buffer, tmp_buffer);
+						SRPLG_LOG_DBG(PLUGIN_NAME, "xpath_buffer: %s = %s", xpath_buffer, tmp_buffer);
 
 						error = sr_set_item_str(session, xpath_buffer, tmp_buffer, NULL, SR_EDIT_DEFAULT);
 						if (error) {
-							SRP_LOG_ERR("sr_set_item_str error (%d): %s", error, sr_strerror(error));
+							SRPLG_LOG_ERR(PLUGIN_NAME, "sr_set_item_str error (%d): %s", error, sr_strerror(error));
 							goto error_out;
 						}
 					}
 
-					error = snprintf(xpath_buffer, sizeof(xpath_buffer), "%s/ietf-ip:ipv4/address[ip='%s']/ip", interface_path_buffer, ip_addr);
+					error = snprintf(xpath_buffer, sizeof(xpath_buffer), "%s/ietf-ip:ipv4/address[ip='%s']", interface_path_buffer, ip_addr);
 					if (error < 0) {
 						goto error_out;
 					}
 
 					// ip
-					SRP_LOG_DBG("xpath_buffer: %s = %s", xpath_buffer, ld->links[i].ipv4.addr_list.addr[j].ip);
+					SRPLG_LOG_DBG(PLUGIN_NAME, "xpath_buffer: %s = %s", xpath_buffer, ld->links[i].ipv4.addr_list.addr[j].ip);
 					error = sr_set_item_str(session, xpath_buffer, ld->links[i].ipv4.addr_list.addr[j].ip, NULL, SR_EDIT_DEFAULT);
 					if (error) {
-						SRP_LOG_ERR("sr_set_item_str error (%d): %s", error, sr_strerror(error));
+						SRPLG_LOG_ERR(PLUGIN_NAME, "sr_set_item_str error (%d): %s", error, sr_strerror(error));
 						goto error_out;
 					}
 
@@ -399,11 +396,11 @@ static int load_data(sr_session_ctx_t *session, link_data_list_t *ld)
 						goto error_out;
 					}
 
-					SRP_LOG_DBG("xpath_buffer: %s = %s", xpath_buffer, tmp_buffer);
+					SRPLG_LOG_DBG(PLUGIN_NAME, "xpath_buffer: %s = %s", xpath_buffer, tmp_buffer);
 
 					error = sr_set_item_str(session, xpath_buffer, tmp_buffer, NULL, SR_EDIT_DEFAULT);
 					if (error) {
-						SRP_LOG_ERR("sr_set_item_str error (%d): %s", error, sr_strerror(error));
+						SRPLG_LOG_ERR(PLUGIN_NAME, "sr_set_item_str error (%d): %s", error, sr_strerror(error));
 						goto error_out;
 					}
 				}
@@ -414,16 +411,16 @@ static int load_data(sr_session_ctx_t *session, link_data_list_t *ld)
 			for (uint32_t j = 0; j < ipv4_neigh_count; j++) {
 				char *ip_addr = ld->links[i].ipv4.nbor_list.nbor[j].ip;
 
-				error = snprintf(xpath_buffer, sizeof(xpath_buffer), "%s/ietf-ip:ipv4/neighbor[ip='%s']/ip", interface_path_buffer, ip_addr);
+				error = snprintf(xpath_buffer, sizeof(xpath_buffer), "%s/ietf-ip:ipv4/neighbor[ip='%s']", interface_path_buffer, ip_addr);
 				if (error < 0) {
 					goto error_out;
 				}
 
 				// ip
-				SRP_LOG_DBG("xpath_buffer: %s = %s", xpath_buffer, ld->links[i].ipv4.nbor_list.nbor[j].ip);
+				SRPLG_LOG_DBG(PLUGIN_NAME, "xpath_buffer: %s = %s", xpath_buffer, ld->links[i].ipv4.nbor_list.nbor[j].ip);
 				error = sr_set_item_str(session, xpath_buffer, ld->links[i].ipv4.nbor_list.nbor[j].ip, NULL, SR_EDIT_DEFAULT);
 				if (error) {
-					SRP_LOG_ERR("sr_set_item_str error (%d): %s", error, sr_strerror(error));
+					SRPLG_LOG_ERR(PLUGIN_NAME, "sr_set_item_str error (%d): %s", error, sr_strerror(error));
 					goto error_out;
 				}
 
@@ -433,11 +430,11 @@ static int load_data(sr_session_ctx_t *session, link_data_list_t *ld)
 					goto error_out;
 				}
 
-				SRP_LOG_DBG("xpath_buffer: %s = %s", xpath_buffer, ld->links[i].ipv4.nbor_list.nbor[j].phys_addr);
+				SRPLG_LOG_DBG(PLUGIN_NAME, "xpath_buffer: %s = %s", xpath_buffer, ld->links[i].ipv4.nbor_list.nbor[j].phys_addr);
 
 				error = sr_set_item_str(session, xpath_buffer, ld->links[i].ipv4.nbor_list.nbor[j].phys_addr, NULL, SR_EDIT_DEFAULT);
 				if (error) {
-					SRP_LOG_ERR("sr_set_item_str error (%d): %s", error, sr_strerror(error));
+					SRPLG_LOG_ERR(PLUGIN_NAME, "sr_set_item_str error (%d): %s", error, sr_strerror(error));
 					goto error_out;
 				}
 			}
@@ -451,11 +448,11 @@ static int load_data(sr_session_ctx_t *session, link_data_list_t *ld)
 				goto error_out;
 			}
 
-			SRP_LOG_DBG("xpath_buffer: %s = %s", xpath_buffer, ipv6_enabled == 0 ? "false" : "true");
+			SRPLG_LOG_DBG(PLUGIN_NAME, "xpath_buffer: %s = %s", xpath_buffer, ipv6_enabled == 0 ? "false" : "true");
 
 			error = sr_set_item_str(session, xpath_buffer, ipv6_enabled == 0 ? "false" : "true", NULL, SR_EDIT_DEFAULT);
 			if (error) {
-				SRP_LOG_ERR("sr_set_item_str error (%d): %s", error, sr_strerror(error));
+				SRPLG_LOG_ERR(PLUGIN_NAME, "sr_set_item_str error (%d): %s", error, sr_strerror(error));
 				goto error_out;
 			}
 
@@ -467,11 +464,11 @@ static int load_data(sr_session_ctx_t *session, link_data_list_t *ld)
 				goto error_out;
 			}
 
-			SRP_LOG_DBG("xpath_buffer: %s = %s", xpath_buffer, ipv6_forwarding == 0 ? "false" : "true");
+			SRPLG_LOG_DBG(PLUGIN_NAME, "xpath_buffer: %s = %s", xpath_buffer, ipv6_forwarding == 0 ? "false" : "true");
 
 			error = sr_set_item_str(session, xpath_buffer, ipv6_forwarding == 0 ? "false" : "true", NULL, SR_EDIT_DEFAULT);
 			if (error) {
-				SRP_LOG_ERR("sr_set_item_str error (%d): %s", error, sr_strerror(error));
+				SRPLG_LOG_ERR(PLUGIN_NAME, "sr_set_item_str error (%d): %s", error, sr_strerror(error));
 				goto error_out;
 			}
 
@@ -490,26 +487,26 @@ static int load_data(sr_session_ctx_t *session, link_data_list_t *ld)
 						}
 						snprintf(tmp_buffer, sizeof(tmp_buffer), "%u", ipv6_mtu);
 
-						SRP_LOG_DBG("xpath_buffer: %s = %s", xpath_buffer, tmp_buffer);
+						SRPLG_LOG_DBG(PLUGIN_NAME, "xpath_buffer: %s = %s", xpath_buffer, tmp_buffer);
 
 						error = sr_set_item_str(session, xpath_buffer, tmp_buffer, NULL, SR_EDIT_DEFAULT);
 						if (error) {
-							SRP_LOG_ERR("sr_set_item_str error (%d): %s", error, sr_strerror(error));
+							SRPLG_LOG_ERR(PLUGIN_NAME, "sr_set_item_str error (%d): %s", error, sr_strerror(error));
 							goto error_out;
 						}
 					}
 
-					error = snprintf(xpath_buffer, sizeof(xpath_buffer), "%s/ietf-ip:ipv6/address[ip='%s']/ip", interface_path_buffer, ip_addr);
+					error = snprintf(xpath_buffer, sizeof(xpath_buffer), "%s/ietf-ip:ipv6/address[ip='%s']", interface_path_buffer, ip_addr);
 					if (error < 0) {
 						goto error_out;
 					}
 
 					// ip
-					SRP_LOG_DBG("xpath_buffer: %s = %s", xpath_buffer, ld->links[i].ipv6.ip_data.addr_list.addr[j].ip);
+					SRPLG_LOG_DBG(PLUGIN_NAME, "xpath_buffer: %s = %s", xpath_buffer, ld->links[i].ipv6.ip_data.addr_list.addr[j].ip);
 
 					error = sr_set_item_str(session, xpath_buffer, ld->links[i].ipv6.ip_data.addr_list.addr[j].ip, NULL, SR_EDIT_DEFAULT);
 					if (error) {
-						SRP_LOG_ERR("sr_set_item_str error (%d): %s", error, sr_strerror(error));
+						SRPLG_LOG_ERR(PLUGIN_NAME, "sr_set_item_str error (%d): %s", error, sr_strerror(error));
 						goto error_out;
 					}
 
@@ -521,11 +518,11 @@ static int load_data(sr_session_ctx_t *session, link_data_list_t *ld)
 						goto error_out;
 					}
 
-					SRP_LOG_DBG("xpath_buffer: %s = %s", xpath_buffer, tmp_buffer);
+					SRPLG_LOG_DBG(PLUGIN_NAME, "xpath_buffer: %s = %s", xpath_buffer, tmp_buffer);
 
 					error = sr_set_item_str(session, xpath_buffer, tmp_buffer, NULL, SR_EDIT_DEFAULT);
 					if (error) {
-						SRP_LOG_ERR("sr_set_item_str error (%d): %s", error, sr_strerror(error));
+						SRPLG_LOG_ERR(PLUGIN_NAME, "sr_set_item_str error (%d): %s", error, sr_strerror(error));
 						goto error_out;
 					}
 				}
@@ -536,16 +533,16 @@ static int load_data(sr_session_ctx_t *session, link_data_list_t *ld)
 			for (uint32_t j = 0; j < ipv6_neigh_count; j++) {
 				char *ip_addr = ld->links[i].ipv6.ip_data.nbor_list.nbor[j].ip;
 
-				error = snprintf(xpath_buffer, sizeof(xpath_buffer), "%s/ietf-ip:ipv6/neighbor[ip='%s']/ip", interface_path_buffer, ip_addr);
+				error = snprintf(xpath_buffer, sizeof(xpath_buffer), "%s/ietf-ip:ipv6/neighbor[ip='%s']", interface_path_buffer, ip_addr);
 				if (error < 0) {
 					goto error_out;
 				}
 
 				// ip
-				SRP_LOG_DBG("xpath_buffer: %s = %s", xpath_buffer, ld->links[i].ipv6.ip_data.nbor_list.nbor[j].ip);
+				SRPLG_LOG_DBG(PLUGIN_NAME, "xpath_buffer: %s = %s", xpath_buffer, ld->links[i].ipv6.ip_data.nbor_list.nbor[j].ip);
 				error = sr_set_item_str(session, xpath_buffer, ld->links[i].ipv6.ip_data.nbor_list.nbor[j].ip, NULL, SR_EDIT_DEFAULT);
 				if (error) {
-					SRP_LOG_ERR("sr_set_item_str error (%d): %s", error, sr_strerror(error));
+					SRPLG_LOG_ERR(PLUGIN_NAME, "sr_set_item_str error (%d): %s", error, sr_strerror(error));
 					goto error_out;
 				}
 
@@ -555,11 +552,11 @@ static int load_data(sr_session_ctx_t *session, link_data_list_t *ld)
 					goto error_out;
 				}
 
-				SRP_LOG_DBG("xpath_buffer: %s = %s", xpath_buffer, ld->links[i].ipv6.ip_data.nbor_list.nbor[j].phys_addr);
+				SRPLG_LOG_DBG(PLUGIN_NAME, "xpath_buffer: %s = %s", xpath_buffer, ld->links[i].ipv6.ip_data.nbor_list.nbor[j].phys_addr);
 
 				error = sr_set_item_str(session, xpath_buffer, ld->links[i].ipv6.ip_data.nbor_list.nbor[j].phys_addr, NULL, SR_EDIT_DEFAULT);
 				if (error) {
-					SRP_LOG_ERR("sr_set_item_str error (%d): %s", error, sr_strerror(error));
+					SRPLG_LOG_ERR(PLUGIN_NAME, "sr_set_item_str error (%d): %s", error, sr_strerror(error));
 					goto error_out;
 				}
 			}
@@ -568,7 +565,7 @@ static int load_data(sr_session_ctx_t *session, link_data_list_t *ld)
 
 	error = sr_apply_changes(session, 0);
 	if (error) {
-		SRP_LOG_ERR("sr_apply_changes error (%d): %s", error, sr_strerror(error));
+		SRPLG_LOG_ERR(PLUGIN_NAME, "sr_apply_changes error (%d): %s", error, sr_strerror(error));
 		goto error_out;
 	}
 
@@ -588,7 +585,7 @@ static int load_startup(sr_session_ctx_t *session, link_data_list_t *ld)
 
 	error = sr_get_items(session, "/ietf-interfaces:interfaces//.", 0, 0, &vals, &val_count);
 	if (error != SR_ERR_OK) {
-		SRP_LOG_ERR("sr_get_items error (%d): %s", error, sr_strerror(error));
+		SRPLG_LOG_ERR(PLUGIN_NAME, "sr_get_items error (%d): %s", error, sr_strerror(error));
 		goto error_out;
 	}
 
@@ -606,7 +603,7 @@ static int load_startup(sr_session_ctx_t *session, link_data_list_t *ld)
 			case SR_UINT32_T:
 				error = snprintf(val_buf, sizeof(val_buf), "%d", vals[i].data.uint16_val);
 				if (error < 0) {
-					SRP_LOG_ERR("snprintf error");
+					SRPLG_LOG_ERR(PLUGIN_NAME, "snprintf error");
 					goto error_out;
 				}
 
@@ -620,7 +617,7 @@ static int load_startup(sr_session_ctx_t *session, link_data_list_t *ld)
 
 		error = set_config_value(xpath, val);
 		if (error != 0) {
-			SRP_LOG_ERR("set_config_value error (%d)", error);
+			SRPLG_LOG_ERR(PLUGIN_NAME, "set_config_value error (%d)", error);
 			goto error_out;
 		}
 
@@ -657,7 +654,7 @@ void sr_plugin_cleanup_cb(sr_session_ctx_t *session, void *private_data)
 	if_state_list_free(&if_state_changes);
 	nl_cache_mngr_free(link_manager);
 
-	SRP_LOG_INF("plugin cleanup finished");
+	SRPLG_LOG_INF(PLUGIN_NAME, "plugin cleanup finished");
 }
 
 static int interfaces_module_change_cb(sr_session_ctx_t *session, uint32_t subscription_id, const char *module_name, const char *xpath, sr_event_t event, uint32_t request_id, void *private_data)
@@ -666,16 +663,17 @@ static int interfaces_module_change_cb(sr_session_ctx_t *session, uint32_t subsc
 	sr_change_iter_t *system_change_iter = NULL;
 	sr_change_oper_t operation = SR_OP_CREATED;
 	const struct lyd_node *node = NULL;
+	char path[512] = {0};
 	const char *prev_value = NULL;
 	const char *prev_list = NULL;
 	int prev_default = false;
 	char *node_xpath = NULL;
 	char *node_value = NULL;
 
-	SRP_LOG_INF("module_name: %s, xpath: %s, event: %d, request_id: %u", module_name, xpath, event, request_id);
+	SRPLG_LOG_INF(PLUGIN_NAME, "module_name: %s, xpath: %s, event: %d, request_id: %u", module_name, xpath, event, request_id);
 
 	if (event == SR_EV_ABORT) {
-		SRP_LOG_ERR("aborting changes for: %s", xpath);
+		SRPLG_LOG_ERR(PLUGIN_NAME, "aborting changes for: %s", xpath);
 		error = -1;
 		goto error_out;
 	}
@@ -683,15 +681,17 @@ static int interfaces_module_change_cb(sr_session_ctx_t *session, uint32_t subsc
 	if (event == SR_EV_DONE) {
 		error = sr_copy_config(session, BASE_YANG_MODEL, SR_DS_RUNNING, 0);
 		if (error) {
-			SRP_LOG_ERR("sr_copy_config error (%d): %s", error, sr_strerror(error));
+			SRPLG_LOG_ERR(PLUGIN_NAME, "sr_copy_config error (%d): %s", error, sr_strerror(error));
 			goto error_out;
 		}
 	}
 
 	if (event == SR_EV_CHANGE) {
-		error = sr_get_changes_iter(session, xpath, &system_change_iter);
+		sprintf(path, "%s//.", xpath);
+
+		error = sr_get_changes_iter(session, path, &system_change_iter);
 		if (error) {
-			SRP_LOG_ERR("sr_get_changes_iter error (%d): %s", error, sr_strerror(error));
+			SRPLG_LOG_ERR(PLUGIN_NAME, "sr_get_changes_iter error (%d): %s", error, sr_strerror(error));
 			goto error_out;
 		}
 		while (sr_get_change_tree_next(session, system_change_iter, &operation, &node, &prev_value, &prev_list, &prev_default) == SR_ERR_OK) {
@@ -701,13 +701,13 @@ static int interfaces_module_change_cb(sr_session_ctx_t *session, uint32_t subsc
 				node_value = xstrdup(lyd_get_value(node));
 			}
 
-			SRP_LOG_DBG("node_xpath: %s; prev_val: %s; node_val: %s; operation: %d", node_xpath, prev_value, node_value, operation);
+			SRPLG_LOG_DBG(PLUGIN_NAME, "node_xpath: %s; prev_val: %s; node_val: %s; operation: %d", node_xpath, prev_value, node_value, operation);
 
 			if (node->schema->nodetype == LYS_LEAF || node->schema->nodetype == LYS_LEAFLIST) {
 				if (operation == SR_OP_CREATED || operation == SR_OP_MODIFIED) {
 					error = set_config_value(node_xpath, node_value);
 					if (error) {
-						SRP_LOG_ERR("set_config_value error (%d)", error);
+						SRPLG_LOG_ERR(PLUGIN_NAME, "set_config_value error (%d)", error);
 						goto error_out;
 					}
 				} else if (operation == SR_OP_DELETED) {
@@ -715,14 +715,14 @@ static int interfaces_module_change_cb(sr_session_ctx_t *session, uint32_t subsc
 					bool system_interface = false;
 					error = check_system_interface(node_value, &system_interface);
 					if (error) {
-						SRP_LOG_ERR("check_system_interface error");
+						SRPLG_LOG_ERR(PLUGIN_NAME, "check_system_interface error");
 						goto error_out;
 					}
 
 					// check if system interface but also
 					// check if parent-interface node (virtual interfaces can have a system interface as parent)
 					if (system_interface && !(strstr(node_xpath, "/ietf-if-extensions:parent-interface") != NULL)) {
-						SRP_LOG_ERR("Can't delete a system interface");
+						SRPLG_LOG_ERR(PLUGIN_NAME, "Can't delete a system interface");
 						FREE_SAFE(node_xpath);
 						sr_free_change_iter(system_change_iter);
 						return SR_ERR_INVAL_ARG;
@@ -730,7 +730,7 @@ static int interfaces_module_change_cb(sr_session_ctx_t *session, uint32_t subsc
 
 					error = delete_config_value(node_xpath, node_value);
 					if (error) {
-						SRP_LOG_ERR("delete_config_value error (%d)", error);
+						SRPLG_LOG_ERR(PLUGIN_NAME, "delete_config_value error (%d)", error);
 						goto error_out;
 					}
 				}
@@ -742,7 +742,7 @@ static int interfaces_module_change_cb(sr_session_ctx_t *session, uint32_t subsc
 		error = update_link_info(&link_data_list, operation);
 		if (error) {
 			error = SR_ERR_CALLBACK_FAILED;
-			SRP_LOG_ERR("update_link_info error");
+			SRPLG_LOG_ERR(PLUGIN_NAME, "update_link_info error");
 			goto error_out;
 		}
 	}
@@ -776,7 +776,7 @@ int set_config_value(const char *xpath, const char *value)
 
 	interface_node = sr_xpath_node_name((char *) xpath);
 	if (interface_node == NULL) {
-		SRP_LOG_ERR("sr_xpath_node_name error");
+		SRPLG_LOG_ERR(PLUGIN_NAME, "sr_xpath_node_name error");
 		error = SR_ERR_CALLBACK_FAILED;
 		goto out;
 	}
@@ -784,14 +784,14 @@ int set_config_value(const char *xpath, const char *value)
 	interface_node_name = sr_xpath_key_value((char *) xpath, "interface", "name", &state);
 
 	if (interface_node_name == NULL) {
-		SRP_LOG_ERR("sr_xpath_key_value error");
+		SRPLG_LOG_ERR(PLUGIN_NAME, "sr_xpath_key_value error");
 		error = SR_ERR_CALLBACK_FAILED;
 		goto out;
 	}
 
 	error = link_data_list_add(&link_data_list, interface_node_name);
 	if (error != 0) {
-		SRP_LOG_ERR("link_data_list_add error");
+		SRPLG_LOG_ERR(PLUGIN_NAME, "link_data_list_add error");
 		error = SR_ERR_CALLBACK_FAILED;
 		goto out;
 	}
@@ -800,7 +800,7 @@ int set_config_value(const char *xpath, const char *value)
 		// change desc
 		error = link_data_list_set_description(&link_data_list, interface_node_name, (char *) value);
 		if (error != 0) {
-			SRP_LOG_ERR("link_data_list_set_description error");
+			SRPLG_LOG_ERR(PLUGIN_NAME, "link_data_list_set_description error");
 			error = SR_ERR_CALLBACK_FAILED;
 			goto out;
 		}
@@ -810,14 +810,14 @@ int set_config_value(const char *xpath, const char *value)
 		// convert the iana-if-type to a "real" interface type which libnl understands
 		char *interface_type = convert_ianaiftype((char *) value);
 		if (interface_type == NULL) {
-			SRP_LOG_ERR("convert_ianaiftype error");
+			SRPLG_LOG_ERR(PLUGIN_NAME, "convert_ianaiftype error");
 			error = SR_ERR_CALLBACK_FAILED;
 			goto out;
 		}
 
 		error = link_data_list_set_type(&link_data_list, interface_node_name, interface_type);
 		if (error != 0) {
-			SRP_LOG_ERR("link_data_list_set_type error");
+			SRPLG_LOG_ERR(PLUGIN_NAME, "link_data_list_set_type error");
 			error = SR_ERR_CALLBACK_FAILED;
 			goto out;
 		}
@@ -825,13 +825,13 @@ int set_config_value(const char *xpath, const char *value)
 		// change enabled
 		error = link_data_list_set_enabled(&link_data_list, interface_node_name, (char *) value);
 		if (error != 0) {
-			SRP_LOG_ERR("link_data_list_set_enabled error");
+			SRPLG_LOG_ERR(PLUGIN_NAME, "link_data_list_set_enabled error");
 			error = SR_ERR_CALLBACK_FAILED;
 			goto out;
 		}
 	}
 	else if (strstr(xpath_cpy, "ietf-ip:ipv4") != 0) {
-		SRP_LOG_DBG("ietf-ip:ipv4 change: '%s' on interface '%s'", interface_node, interface_node_name);
+		SRPLG_LOG_DBG(PLUGIN_NAME, "ietf-ip:ipv4 change: '%s' on interface '%s'", interface_node, interface_node_name);
 		memset(&state, 0, sizeof(sr_xpath_ctx_t));
 		// check if an ip address has been added
 		address_node_ip = sr_xpath_key_value((char *) xpath_cpy, "address", "ip", &state);
@@ -844,14 +844,14 @@ int set_config_value(const char *xpath, const char *value)
 			if (strcmp(interface_node, "prefix-length") == 0) {
 				error = link_data_list_add_ipv4_address(&link_data_list, interface_node_name, address_node_ip, (char *) value, ip_subnet_type_prefix_length);
 				if (error != 0) {
-					SRP_LOG_ERR("link_data_list_add_ipv4_address error (%d) : %s", error, strerror(error));
+					SRPLG_LOG_ERR(PLUGIN_NAME, "link_data_list_add_ipv4_address error (%d) : %s", error, strerror(error));
 					error = SR_ERR_CALLBACK_FAILED;
 					goto out;
 				}
 			} else if (strcmp(interface_node, "netmask") == 0) {
 				error = link_data_list_add_ipv4_address(&link_data_list, interface_node_name, address_node_ip, (char *) value, ip_subnet_type_netmask);
 				if (error != 0) {
-					SRP_LOG_ERR("link_data_list_add_ipv4_address error (%d) : %s", error, strerror(error));
+					SRPLG_LOG_ERR(PLUGIN_NAME, "link_data_list_add_ipv4_address error (%d) : %s", error, strerror(error));
 					error = SR_ERR_CALLBACK_FAILED;
 					goto out;
 				}
@@ -860,7 +860,7 @@ int set_config_value(const char *xpath, const char *value)
 			if (strcmp(interface_node, "link-layer-address") == 0) {
 				error = link_data_list_add_ipv4_neighbor(&link_data_list, interface_node_name, neighbor_node_ip, (char *) value);
 				if (error != 0) {
-					SRP_LOG_ERR("link_data_list_add_ipv4_neighbor error (%d) : %s", error, strerror(error));
+					SRPLG_LOG_ERR(PLUGIN_NAME, "link_data_list_add_ipv4_neighbor error (%d) : %s", error, strerror(error));
 					error = SR_ERR_CALLBACK_FAILED;
 					goto out;
 				}
@@ -868,27 +868,27 @@ int set_config_value(const char *xpath, const char *value)
 		} else if (strcmp(interface_node, "enabled") == 0) {
 			error = link_data_list_set_ipv4_enabled(&link_data_list, interface_node_name, (char *) value);
 			if (error != 0) {
-				SRP_LOG_ERR("link_data_list_set_ipv4_enabled error (%d) : %s", error, strerror(error));
+				SRPLG_LOG_ERR(PLUGIN_NAME, "link_data_list_set_ipv4_enabled error (%d) : %s", error, strerror(error));
 				error = SR_ERR_CALLBACK_FAILED;
 				goto out;
 			}
 		} else if (strcmp(interface_node, "forwarding") == 0) {
 			error = link_data_list_set_ipv4_forwarding(&link_data_list, interface_node_name, (char *) value);
 			if (error != 0) {
-				SRP_LOG_ERR("link_data_list_set_ipv4_forwarding error (%d) : %s", error, strerror(error));
+				SRPLG_LOG_ERR(PLUGIN_NAME, "link_data_list_set_ipv4_forwarding error (%d) : %s", error, strerror(error));
 				error = SR_ERR_CALLBACK_FAILED;
 				goto out;
 			}
 		} else if (strcmp(interface_node, "mtu") == 0) {
 			error = link_data_list_set_ipv4_mtu(&link_data_list, interface_node_name, (char *) value);
 			if (error != 0) {
-				SRP_LOG_ERR("link_data_list_set_ipv4_mtu error (%d) : %s", error, strerror(error));
+				SRPLG_LOG_ERR(PLUGIN_NAME, "link_data_list_set_ipv4_mtu error (%d) : %s", error, strerror(error));
 				error = SR_ERR_CALLBACK_FAILED;
 				goto out;
 			}
 		}
 	} else if (strstr(xpath_cpy, "ietf-ip:ipv6") != 0) {
-		SRP_LOG_DBG("ietf-ip:ipv6 change: '%s' on interface '%s'", interface_node, interface_node_name);
+		SRPLG_LOG_DBG(PLUGIN_NAME, "ietf-ip:ipv6 change: '%s' on interface '%s'", interface_node, interface_node_name);
 		// check if an ip address has been added
 		address_node_ip = sr_xpath_key_value((char *) xpath_cpy, "address", "ip", &state);
 		// check if a neighbor has been added
@@ -899,14 +899,14 @@ int set_config_value(const char *xpath, const char *value)
 			if (strcmp(interface_node, "prefix-length") == 0) {
 				error = link_data_list_add_ipv6_address(&link_data_list, interface_node_name, address_node_ip, (char *) value);
 				if (error != 0) {
-					SRP_LOG_ERR("link_data_list_add_ipv4_address error (%d) : %s", error, strerror(error));
+					SRPLG_LOG_ERR(PLUGIN_NAME, "link_data_list_add_ipv4_address error (%d) : %s", error, strerror(error));
 					error = SR_ERR_CALLBACK_FAILED;
 					goto out;
 				}
 			} else if (strcmp(interface_node, "netmask") == 0) {
 				error = link_data_list_add_ipv6_address(&link_data_list, interface_node_name, address_node_ip, (char *) value);
 				if (error != 0) {
-					SRP_LOG_ERR("link_data_list_add_ipv4_address error (%d) : %s", error, strerror(error));
+					SRPLG_LOG_ERR(PLUGIN_NAME, "link_data_list_add_ipv4_address error (%d) : %s", error, strerror(error));
 					error = SR_ERR_CALLBACK_FAILED;
 					goto out;
 				}
@@ -915,7 +915,7 @@ int set_config_value(const char *xpath, const char *value)
 			if (strcmp(interface_node, "link-layer-address") == 0) {
 				error = link_data_list_add_ipv6_neighbor(&link_data_list, interface_node_name, neighbor_node_ip, (char *) value);
 				if (error != 0) {
-					SRP_LOG_ERR("link_data_list_add_ipv4_neighbor error (%d) : %s", error, strerror(error));
+					SRPLG_LOG_ERR(PLUGIN_NAME, "link_data_list_add_ipv4_neighbor error (%d) : %s", error, strerror(error));
 					error = SR_ERR_CALLBACK_FAILED;
 					goto out;
 				}
@@ -923,21 +923,21 @@ int set_config_value(const char *xpath, const char *value)
 		} else if (strcmp(interface_node, "enabled") == 0) {
 			error = link_data_list_set_ipv6_enabled(&link_data_list, interface_node_name, (char *) value);
 			if (error != 0) {
-				SRP_LOG_ERR("link_data_list_set_ipv4_enabled error (%d) : %s", error, strerror(error));
+				SRPLG_LOG_ERR(PLUGIN_NAME, "link_data_list_set_ipv4_enabled error (%d) : %s", error, strerror(error));
 				error = SR_ERR_CALLBACK_FAILED;
 				goto out;
 			}
 		} else if (strcmp(interface_node, "forwarding") == 0) {
 			error = link_data_list_set_ipv6_forwarding(&link_data_list, interface_node_name, (char *) value);
 			if (error != 0) {
-				SRP_LOG_ERR("link_data_list_set_ipv4_forwarding error (%d) : %s", error, strerror(error));
+				SRPLG_LOG_ERR(PLUGIN_NAME, "link_data_list_set_ipv4_forwarding error (%d) : %s", error, strerror(error));
 				error = SR_ERR_CALLBACK_FAILED;
 				goto out;
 			}
 		} else if (strcmp(interface_node, "mtu") == 0) {
 			error = link_data_list_set_ipv6_mtu(&link_data_list, interface_node_name, (char *) value);
 			if (error != 0) {
-				SRP_LOG_ERR("link_data_list_set_ipv4_mtu error (%d) : %s", error, strerror(error));
+				SRPLG_LOG_ERR(PLUGIN_NAME, "link_data_list_set_ipv4_mtu error (%d) : %s", error, strerror(error));
 				error = SR_ERR_CALLBACK_FAILED;
 				goto out;
 			}
@@ -946,35 +946,35 @@ int set_config_value(const char *xpath, const char *value)
 		// change parent-interface
 		error = link_data_list_set_parent(&link_data_list, interface_node_name, (char *) value);
 		if (error != 0) {
-			SRP_LOG_ERR("link_data_list_set_parent error");
+			SRPLG_LOG_ERR(PLUGIN_NAME, "link_data_list_set_parent error");
 			error = SR_ERR_CALLBACK_FAILED;
 			goto out;
 		}
 	} else if (strstr(xpath_cpy, "ietf-if-extensions:encapsulation/ietf-if-vlan-encapsulation:dot1q-vlan/outer-tag/tag-type") != 0) {
 		error = link_data_list_set_outer_tag_type(&link_data_list, interface_node_name, (char *)value);
 		if (error != 0) {
-			SRP_LOG_ERR("link_data_list_set_parent error");
+			SRPLG_LOG_ERR(PLUGIN_NAME, "link_data_list_set_parent error");
 			error = SR_ERR_CALLBACK_FAILED;
 			goto out;
 		}
 	} else if (strstr(xpath_cpy, "ietf-if-extensions:encapsulation/ietf-if-vlan-encapsulation:dot1q-vlan/outer-tag/vlan-id") != 0) {
 		error = link_data_list_set_outer_vlan_id(&link_data_list, interface_node_name, (uint16_t) atoi(value));
 		if (error != 0) {
-			SRP_LOG_ERR("link_data_list_set_parent error");
+			SRPLG_LOG_ERR(PLUGIN_NAME, "link_data_list_set_parent error");
 			error = SR_ERR_CALLBACK_FAILED;
 			goto out;
 		}
 	} else if (strstr(xpath_cpy, "ietf-if-extensions:encapsulation/ietf-if-vlan-encapsulation:dot1q-vlan/second-tag/tag-type") != 0) {
 		error = link_data_list_set_second_tag_type(&link_data_list, interface_node_name, (char *)value);
 		if (error != 0) {
-			SRP_LOG_ERR("link_data_list_set_parent error");
+			SRPLG_LOG_ERR(PLUGIN_NAME, "link_data_list_set_parent error");
 			error = SR_ERR_CALLBACK_FAILED;
 			goto out;
 		}
 	} else if (strstr(xpath_cpy, "ietf-if-extensions:encapsulation/ietf-if-vlan-encapsulation:dot1q-vlan/second-tag/vlan-id") != 0) {
 		error = link_data_list_set_second_vlan_id(&link_data_list, interface_node_name, (uint16_t) atoi(value));
 		if (error != 0) {
-			SRP_LOG_ERR("link_data_list_set_parent error");
+			SRPLG_LOG_ERR(PLUGIN_NAME, "link_data_list_set_parent error");
 			error = SR_ERR_CALLBACK_FAILED;
 			goto out;
 		}
@@ -1020,14 +1020,14 @@ int delete_config_value(const char *xpath, const char *value)
 
 	interface_node = sr_xpath_node_name((char *) xpath);
 	if (interface_node == NULL) {
-		SRP_LOG_ERR("sr_xpath_node_name error");
+		SRPLG_LOG_ERR(PLUGIN_NAME, "sr_xpath_node_name error");
 		error = SR_ERR_CALLBACK_FAILED;
 		goto out;
 	}
 
 	interface_node_name = sr_xpath_key_value((char *) xpath, "interface", "name", &state);
 	if (interface_node_name == NULL) {
-		SRP_LOG_ERR("sr_xpath_key_value error");
+		SRPLG_LOG_ERR(PLUGIN_NAME, "sr_xpath_key_value error");
 		error = SR_ERR_CALLBACK_FAILED;
 		goto out;
 	}
@@ -1036,7 +1036,7 @@ int delete_config_value(const char *xpath, const char *value)
 		// mark for deletion
 		error = link_data_list_set_delete(&link_data_list, interface_node_name, true);
 		if (error != 0) {
-			SRP_LOG_ERR("link_data_list_set_delete error");
+			SRPLG_LOG_ERR(PLUGIN_NAME, "link_data_list_set_delete error");
 			error = SR_ERR_CALLBACK_FAILED;
 			goto out;
 		}
@@ -1044,7 +1044,7 @@ int delete_config_value(const char *xpath, const char *value)
 		// set description to empty string
 		error = link_data_list_set_description(&link_data_list, interface_node_name, "");
 		if (error != 0) {
-			SRP_LOG_ERR("link_data_list_set_description error");
+			SRPLG_LOG_ERR(PLUGIN_NAME, "link_data_list_set_description error");
 			error = SR_ERR_CALLBACK_FAILED;
 			goto out;
 		}
@@ -1052,7 +1052,7 @@ int delete_config_value(const char *xpath, const char *value)
 		// set enabled to false
 		error = link_data_list_set_enabled(&link_data_list, interface_node_name, "");
 		if (error != 0) {
-			SRP_LOG_ERR("link_data_list_set_enabled error");
+			SRPLG_LOG_ERR(PLUGIN_NAME, "link_data_list_set_enabled error");
 			error = SR_ERR_CALLBACK_FAILED;
 			goto out;
 		}
@@ -1069,7 +1069,7 @@ int delete_config_value(const char *xpath, const char *value)
 			if (strcmp(interface_node, "ip") == 0) {
 				error = link_data_list_set_delete_ipv4_address(&link_data_list, interface_node_name, address_node_ip);
 				if (error != 0) {
-					SRP_LOG_ERR("link_data_list_set_delete_ipv4_address error (%d) : %s", error, strerror(error));
+					SRPLG_LOG_ERR(PLUGIN_NAME, "link_data_list_set_delete_ipv4_address error (%d) : %s", error, strerror(error));
 					error = SR_ERR_CALLBACK_FAILED;
 					goto out;
 				}
@@ -1078,7 +1078,7 @@ int delete_config_value(const char *xpath, const char *value)
 			if (strcmp(interface_node, "ip") == 0) {
 				error = link_data_list_set_delete_ipv4_neighbor(&link_data_list, interface_node_name, (char *) value);
 				if (error != 0) {
-					SRP_LOG_ERR("link_data_list_set_delete_ipv4_neighbor error (%d) : %s", error, strerror(error));
+					SRPLG_LOG_ERR(PLUGIN_NAME, "link_data_list_set_delete_ipv4_neighbor error (%d) : %s", error, strerror(error));
 					error = SR_ERR_CALLBACK_FAILED;
 					goto out;
 				}
@@ -1097,7 +1097,7 @@ int delete_config_value(const char *xpath, const char *value)
 			if (strcmp(interface_node, "ip") == 0) {
 				error = link_data_list_set_delete_ipv6_address(&link_data_list, interface_node_name, address_node_ip);
 				if (error != 0) {
-					SRP_LOG_ERR("link_data_list_set_delete_ipv6_address error (%d) : %s", error, strerror(error));
+					SRPLG_LOG_ERR(PLUGIN_NAME, "link_data_list_set_delete_ipv6_address error (%d) : %s", error, strerror(error));
 					error = SR_ERR_CALLBACK_FAILED;
 					goto out;
 				}
@@ -1106,7 +1106,7 @@ int delete_config_value(const char *xpath, const char *value)
 			if (strcmp(interface_node, "ip") == 0) {
 				error = link_data_list_set_delete_ipv6_neighbor(&link_data_list, interface_node_name, (char *) value);
 				if (error != 0) {
-					SRP_LOG_ERR("link_data_list_set_delete_ipv6_neighbor error (%d) : %s", error, strerror(error));
+					SRPLG_LOG_ERR(PLUGIN_NAME, "link_data_list_set_delete_ipv6_neighbor error (%d) : %s", error, strerror(error));
 					error = SR_ERR_CALLBACK_FAILED;
 					goto out;
 				}
@@ -1131,18 +1131,18 @@ int update_link_info(link_data_list_t *ld, sr_change_oper_t operation)
 
 	socket = nl_socket_alloc();
 	if (socket == NULL) {
-		SRP_LOG_ERR("nl_socket_alloc error: invalid socket");
+		SRPLG_LOG_ERR(PLUGIN_NAME, "nl_socket_alloc error: invalid socket");
 		goto out;
 	}
 
 	if ((error = nl_connect(socket, NETLINK_ROUTE)) != 0) {
-		SRP_LOG_ERR("nl_connect error (%d): %s", error, nl_geterror(error));
+		SRPLG_LOG_ERR(PLUGIN_NAME, "nl_connect error (%d): %s", error, nl_geterror(error));
 		goto out;
 	}
 
 	error = rtnl_link_alloc_cache(socket, AF_UNSPEC, &cache);
 	if (error != 0) {
-		SRP_LOG_ERR("rtnl_link_alloc_cache error (%d): %s", error, nl_geterror(error));
+		SRPLG_LOG_ERR(PLUGIN_NAME, "rtnl_link_alloc_cache error (%d): %s", error, nl_geterror(error));
 		goto out;
 	}
 
@@ -1164,7 +1164,7 @@ int update_link_info(link_data_list_t *ld, sr_change_oper_t operation)
 		if (type != NULL && strcmp(type, "vlan") == 0 && second_vlan_id != 0) {
 			error = snprintf(second_vlan_name, sizeof(second_vlan_name), "%s.%d", name, second_vlan_id);
 			if (error < 0) {
-				SRP_LOG_ERR("snprintf error");
+				SRPLG_LOG_ERR(PLUGIN_NAME, "snprintf error");
 				goto out;
 			}
 		}
@@ -1179,7 +1179,7 @@ int update_link_info(link_data_list_t *ld, sr_change_oper_t operation)
 			// delete the link
 			error = rtnl_link_delete(socket, old);
 			if (error < 0) {
-				SRP_LOG_ERR("rtnl_link_delete error (%d): %s", error, nl_geterror(error));
+				SRPLG_LOG_ERR(PLUGIN_NAME, "rtnl_link_delete error (%d): %s", error, nl_geterror(error));
 				goto out;
 			}
 
@@ -1211,7 +1211,7 @@ int update_link_info(link_data_list_t *ld, sr_change_oper_t operation)
 		if (ipv4_addr_count > 0) {
 			error = remove_ipv4_address(&ld->links[i].ipv4.addr_list, socket, old);
 			if (error != 0) {
-				SRP_LOG_ERR("remove_ipv4_address error (%d): %s", error, nl_geterror(error));
+				SRPLG_LOG_ERR(PLUGIN_NAME, "remove_ipv4_address error (%d): %s", error, nl_geterror(error));
 				goto out;
 			}
 		}
@@ -1222,7 +1222,7 @@ int update_link_info(link_data_list_t *ld, sr_change_oper_t operation)
 		if (ipv6_addr_count > 0) {
 			error = remove_ipv6_address(&ld->links[i].ipv6.ip_data.addr_list, socket, old);
 			if (error != 0) {
-				SRP_LOG_ERR("remove_ipv6_address error (%d): %s", error, nl_geterror(error));
+				SRPLG_LOG_ERR(PLUGIN_NAME, "remove_ipv6_address error (%d): %s", error, nl_geterror(error));
 				goto out;
 			}
 		}
@@ -1236,7 +1236,7 @@ int update_link_info(link_data_list_t *ld, sr_change_oper_t operation)
 			if (ipv4_neigh_count > 0) {
 				error = remove_neighbors(&ld->links[i].ipv4.nbor_list, socket, AF_INET, index);
 				if (error != 0) {
-					SRP_LOG_ERR("remove_neighbors error");
+					SRPLG_LOG_ERR(PLUGIN_NAME, "remove_neighbors error");
 					goto out;
 				}
 			}
@@ -1247,7 +1247,7 @@ int update_link_info(link_data_list_t *ld, sr_change_oper_t operation)
 			if (ipv6_neigh_count > 0) {
 				error = remove_neighbors(&ld->links[i].ipv6.ip_data.nbor_list, socket, AF_INET6, index);
 				if (error != 0) {
-					SRP_LOG_ERR("remove_neighbors error");
+					SRPLG_LOG_ERR(PLUGIN_NAME, "remove_neighbors error");
 					goto out;
 				}
 			}
@@ -1272,7 +1272,7 @@ int update_link_info(link_data_list_t *ld, sr_change_oper_t operation)
 					// normal vlan interface
 					error = rtnl_link_set_type(request, type);
 					if (error < 0) {
-						SRP_LOG_ERR("rtnl_link_set_type error (%d): %s", error, nl_geterror(error));
+						SRPLG_LOG_ERR(PLUGIN_NAME, "rtnl_link_set_type error (%d): %s", error, nl_geterror(error));
 						goto out;
 					}
 					// if only the outer vlan is present, treat is an normal vlan
@@ -1284,7 +1284,7 @@ int update_link_info(link_data_list_t *ld, sr_change_oper_t operation)
 			} else {
 				error = rtnl_link_set_type(request, type);
 				if (error < 0) {
-					SRP_LOG_ERR("rtnl_link_set_type error (%d): %s", error, nl_geterror(error));
+					SRPLG_LOG_ERR(PLUGIN_NAME, "rtnl_link_set_type error (%d): %s", error, nl_geterror(error));
 					goto out;
 				}
 			}
@@ -1307,20 +1307,20 @@ int update_link_info(link_data_list_t *ld, sr_change_oper_t operation)
 			// add ipv4/ipv6 options
 			error = add_interface_ipv4(&ld->links[i], old, request, rtnl_link_get_ifindex(old));
 			if (error != 0) {
-				SRP_LOG_ERR("add_interface_ipv4 error");
+				SRPLG_LOG_ERR(PLUGIN_NAME, "add_interface_ipv4 error");
 				goto out;
 			}
 
 			error = add_interface_ipv6(&ld->links[i], old, request, rtnl_link_get_ifindex(old));
 			if (error != 0) {
-				SRP_LOG_ERR("add_interface_ipv6 error");
+				SRPLG_LOG_ERR(PLUGIN_NAME, "add_interface_ipv6 error");
 				goto out;
 			}
 
 			// the interface with name already exists, change it
 			error = rtnl_link_change(socket, old, request, 0);
 			if (error != 0) {
-				SRP_LOG_ERR("rtnl_link_change error (%d): %s", error, nl_geterror(error));
+				SRPLG_LOG_ERR(PLUGIN_NAME, "rtnl_link_change error (%d): %s", error, nl_geterror(error));
 				goto out;
 			}
 		} else if (operation != SR_OP_DELETED) {
@@ -1331,13 +1331,13 @@ int update_link_info(link_data_list_t *ld, sr_change_oper_t operation)
 			bool system_interface = false;
 			error = check_system_interface(name, &system_interface);
 			if (error) {
-				SRP_LOG_ERR("check_system_interface error");
+				SRPLG_LOG_ERR(PLUGIN_NAME, "check_system_interface error");
 				error = -1;
 				goto out;
 			}
 
 			if (system_interface || strcmp(type, "eth") == 0 || strcmp(type, "lo") == 0) {
-				SRP_LOG_ERR("Can't create non-virtual interface %s of type: %s", name, type);
+				SRPLG_LOG_ERR(PLUGIN_NAME, "Can't create non-virtual interface %s of type: %s", name, type);
 				error = -1;
 				goto out;
 			}
@@ -1356,7 +1356,7 @@ int update_link_info(link_data_list_t *ld, sr_change_oper_t operation)
 				// note: if type is not set, you can't add the new link
 				error = rtnl_link_add(socket, request, NLM_F_CREATE);
 				if (error != 0) {
-					SRP_LOG_ERR("rtnl_link_add error (%d): %s", error, nl_geterror(error));
+					SRPLG_LOG_ERR(PLUGIN_NAME, "rtnl_link_add error (%d): %s", error, nl_geterror(error));
 					goto out;
 				}
 			}
@@ -1367,7 +1367,7 @@ int update_link_info(link_data_list_t *ld, sr_change_oper_t operation)
 			nl_cache_free(cache);
 			error = rtnl_link_alloc_cache(socket, AF_UNSPEC, &cache);
 			if (error != 0) {
-				SRP_LOG_ERR("rtnl_link_alloc_cache error (%d): %s", error, nl_geterror(error));
+				SRPLG_LOG_ERR(PLUGIN_NAME, "rtnl_link_alloc_cache error (%d): %s", error, nl_geterror(error));
 				goto out;
 			}
 
@@ -1377,19 +1377,19 @@ int update_link_info(link_data_list_t *ld, sr_change_oper_t operation)
 			if (old != NULL) {
 				error = add_interface_ipv4(&ld->links[i], old, request, rtnl_link_get_ifindex(old));
 				if (error != 0) {
-					SRP_LOG_ERR("add_interface_ipv4 error");
+					SRPLG_LOG_ERR(PLUGIN_NAME, "add_interface_ipv4 error");
 					goto out;
 				}
 
 				error = add_interface_ipv6(&ld->links[i], old, request, rtnl_link_get_ifindex(old));
 				if (error != 0) {
-					SRP_LOG_ERR("add_interface_ipv6 error");
+					SRPLG_LOG_ERR(PLUGIN_NAME, "add_interface_ipv6 error");
 					goto out;
 				}
 
 				error = rtnl_link_change(socket, old, request, 0);
 				if (error != 0) {
-					SRP_LOG_ERR("rtnl_link_change error (%d): %s", error, nl_geterror(error));
+					SRPLG_LOG_ERR(PLUGIN_NAME, "rtnl_link_change error (%d): %s", error, nl_geterror(error));
 					goto out;
 				}
 			}
@@ -1397,19 +1397,19 @@ int update_link_info(link_data_list_t *ld, sr_change_oper_t operation)
 			if (old_vlan_qinq != NULL) {
 				error = add_interface_ipv4(&ld->links[i], old_vlan_qinq, request, rtnl_link_get_ifindex(old_vlan_qinq));
 				if (error != 0) {
-					SRP_LOG_ERR("add_interface_ipv4 error");
+					SRPLG_LOG_ERR(PLUGIN_NAME, "add_interface_ipv4 error");
 					goto out;
 				}
 
 				error = add_interface_ipv6(&ld->links[i], old_vlan_qinq, request, rtnl_link_get_ifindex(old_vlan_qinq));
 				if (error != 0) {
-					SRP_LOG_ERR("add_interface_ipv6 error");
+					SRPLG_LOG_ERR(PLUGIN_NAME, "add_interface_ipv6 error");
 					goto out;
 				}
 
 				error = rtnl_link_change(socket, old_vlan_qinq, request, 0);
 				if (error != 0) {
-					SRP_LOG_ERR("rtnl_link_change error (%d): %s", error, nl_geterror(error));
+					SRPLG_LOG_ERR(PLUGIN_NAME, "rtnl_link_change error (%d): %s", error, nl_geterror(error));
 					goto out;
 				}
 			}
@@ -1440,7 +1440,7 @@ static int remove_ipv4_address(ip_address_list_t *addr_list, struct nl_sock *soc
 
 			error = nl_addr_parse(addr_list->addr[j].ip, AF_INET, &local_addr);
 			if (error != 0) {
-				SRP_LOG_ERR("nl_addr_parse error (%d): %s", error, nl_geterror(error));
+				SRPLG_LOG_ERR(PLUGIN_NAME, "nl_addr_parse error (%d): %s", error, nl_geterror(error));
 				rtnl_addr_put(addr);
 				nl_addr_put(local_addr);
 				return -1;
@@ -1455,7 +1455,7 @@ static int remove_ipv4_address(ip_address_list_t *addr_list, struct nl_sock *soc
 
 			error = rtnl_addr_delete(socket, addr, 0);
 			if (error < 0) {
-				SRP_LOG_ERR("rtnl_addr_delete error (%d): %s", error, nl_geterror(error));
+				SRPLG_LOG_ERR(PLUGIN_NAME, "rtnl_addr_delete error (%d): %s", error, nl_geterror(error));
 				rtnl_addr_put(addr);
 				nl_addr_put(local_addr);
 				return -1;
@@ -1512,12 +1512,12 @@ int add_interface_ipv4(link_data_t *ld, struct rtnl_link *old, struct rtnl_link 
 	// address list
 	socket = nl_socket_alloc();
 	if (socket == NULL) {
-		SRP_LOG_ERR("nl_socket_alloc error: invalid socket");
+		SRPLG_LOG_ERR(PLUGIN_NAME, "nl_socket_alloc error: invalid socket");
 		goto out;
 	}
 
 	if ((error = nl_connect(socket, NETLINK_ROUTE)) != 0) {
-		SRP_LOG_ERR("nl_connect error (%d): %s", error, nl_geterror(error));
+		SRPLG_LOG_ERR(PLUGIN_NAME, "nl_connect error (%d): %s", error, nl_geterror(error));
 		goto out;
 	}
 
@@ -1531,7 +1531,7 @@ int add_interface_ipv4(link_data_t *ld, struct rtnl_link *old, struct rtnl_link 
 		if (error != 0) {
 			rtnl_addr_put(r_addr);
 			nl_addr_put(local_addr);
-			SRP_LOG_ERR("nl_addr_parse error (%d): %s", error, nl_geterror(error));
+			SRPLG_LOG_ERR(PLUGIN_NAME, "nl_addr_parse error (%d): %s", error, nl_geterror(error));
 			goto out;
 		}
 		nl_addr_set_prefixlen(local_addr, addr_ls->addr[i].subnet);
@@ -1561,7 +1561,7 @@ int add_interface_ipv4(link_data_t *ld, struct rtnl_link *old, struct rtnl_link 
 			nl_addr_put(ll_addr);
 			nl_addr_put(local_addr);
 			rtnl_neigh_put(neigh);
-			SRP_LOG_ERR("nl_addr_parse error (%d): %s", error, nl_geterror(error));
+			SRPLG_LOG_ERR(PLUGIN_NAME, "nl_addr_parse error (%d): %s", error, nl_geterror(error));
 			goto out;
 		}
 
@@ -1570,7 +1570,7 @@ int add_interface_ipv4(link_data_t *ld, struct rtnl_link *old, struct rtnl_link 
 			nl_addr_put(ll_addr);
 			nl_addr_put(local_addr);
 			rtnl_neigh_put(neigh);
-			SRP_LOG_ERR("nl_addr_parse error (%d): %s", error, nl_geterror(error));
+			SRPLG_LOG_ERR(PLUGIN_NAME, "nl_addr_parse error (%d): %s", error, nl_geterror(error));
 			goto out;
 		}
 
@@ -1582,7 +1582,7 @@ int add_interface_ipv4(link_data_t *ld, struct rtnl_link *old, struct rtnl_link 
 
 		error = rtnl_link_alloc_cache(socket, AF_UNSPEC, &cache);
 		if (error != 0) {
-			SRP_LOG_ERR("rtnl_link_alloc_cache error (%d): %s", error, nl_geterror(error));
+			SRPLG_LOG_ERR(PLUGIN_NAME, "rtnl_link_alloc_cache error (%d): %s", error, nl_geterror(error));
 			nl_addr_put(ll_addr);
 			nl_addr_put(local_addr);
 			rtnl_neigh_put(neigh);
@@ -1600,7 +1600,7 @@ int add_interface_ipv4(link_data_t *ld, struct rtnl_link *old, struct rtnl_link 
 
 		error = rtnl_neigh_add(socket, neigh, neigh_oper);
 		if (error != 0) {
-			SRP_LOG_ERR("rtnl_neigh_add error (%d): %s", error, nl_geterror(error));
+			SRPLG_LOG_ERR(PLUGIN_NAME, "rtnl_neigh_add error (%d): %s", error, nl_geterror(error));
 			nl_addr_put(ll_addr);
 			nl_addr_put(local_addr);
 			rtnl_neigh_put(neigh);
@@ -1632,7 +1632,7 @@ static int remove_ipv6_address(ip_address_list_t *addr_list, struct nl_sock *soc
 
 				error = nl_addr_parse(addr_list->addr[j].ip, AF_INET6, &local_addr);
 				if (error != 0) {
-					SRP_LOG_ERR("nl_addr_parse error (%d): %s", error, nl_geterror(error));
+					SRPLG_LOG_ERR(PLUGIN_NAME, "nl_addr_parse error (%d): %s", error, nl_geterror(error));
 					rtnl_addr_put(addr);
 					nl_addr_put(local_addr);
 					return -1;
@@ -1647,7 +1647,7 @@ static int remove_ipv6_address(ip_address_list_t *addr_list, struct nl_sock *soc
 
 				error = rtnl_addr_delete(socket, addr, 0);
 				if (error < 0) {
-					SRP_LOG_ERR("rtnl_addr_delete error (%d): %s", error, nl_geterror(error));
+					SRPLG_LOG_ERR(PLUGIN_NAME, "rtnl_addr_delete error (%d): %s", error, nl_geterror(error));
 					rtnl_addr_put(addr);
 					nl_addr_put(local_addr);
 					return -1;
@@ -1702,12 +1702,12 @@ int add_interface_ipv6(link_data_t *ld, struct rtnl_link *old, struct rtnl_link 
 	// address list
 	socket = nl_socket_alloc();
 	if (socket == NULL) {
-		SRP_LOG_ERR("nl_socket_alloc error: invalid socket");
+		SRPLG_LOG_ERR(PLUGIN_NAME, "nl_socket_alloc error: invalid socket");
 		goto out;
 	}
 
 	if ((error = nl_connect(socket, NETLINK_ROUTE)) != 0) {
-		SRP_LOG_ERR("nl_connect error (%d): %s", error, nl_geterror(error));
+		SRPLG_LOG_ERR(PLUGIN_NAME, "nl_connect error (%d): %s", error, nl_geterror(error));
 		goto out;
 	}
 
@@ -1779,7 +1779,7 @@ int add_interface_ipv6(link_data_t *ld, struct rtnl_link *old, struct rtnl_link 
 
 		error = rtnl_link_alloc_cache(socket, AF_UNSPEC, &cache);
 		if (error != 0) {
-			SRP_LOG_ERR("rtnl_link_alloc_cache error (%d): %s", error, nl_geterror(error));
+			SRPLG_LOG_ERR(PLUGIN_NAME, "rtnl_link_alloc_cache error (%d): %s", error, nl_geterror(error));
 			nl_addr_put(ll_addr);
 			nl_addr_put(local_addr);
 			rtnl_neigh_put(neigh);
@@ -1797,7 +1797,7 @@ int add_interface_ipv6(link_data_t *ld, struct rtnl_link *old, struct rtnl_link 
 
 		error = rtnl_neigh_add(socket, neigh, neigh_oper);
 		if (error != 0) {
-			SRP_LOG_ERR("rtnl_neigh_add error (%d): %s", error, nl_geterror(error));
+			SRPLG_LOG_ERR(PLUGIN_NAME, "rtnl_neigh_add error (%d): %s", error, nl_geterror(error));
 			nl_addr_put(ll_addr);
 			nl_addr_put(local_addr);
 			rtnl_neigh_put(neigh);
@@ -1828,7 +1828,7 @@ static int remove_neighbors(ip_neighbor_list_t *nbor_list, struct nl_sock *socke
 
 			error = nl_addr_parse(nbor_list->nbor[i].ip, addr_ver, &dst_addr);
 			if (error != 0) {
-				SRP_LOG_ERR("nl_addr_parse error (%d): %s", error, nl_geterror(error));
+				SRPLG_LOG_ERR(PLUGIN_NAME, "nl_addr_parse error (%d): %s", error, nl_geterror(error));
 				nl_addr_put(dst_addr);
 				rtnl_neigh_put(neigh);
 				return -1;
@@ -1845,7 +1845,7 @@ static int remove_neighbors(ip_neighbor_list_t *nbor_list, struct nl_sock *socke
 			// to be sent out using nl_send_auto_complete().
 			error = rtnl_neigh_delete(socket, neigh, NLM_F_ACK);
 			if (error != 0) {
-				SRP_LOG_ERR("rtnl_neigh_delete error (%d): %s", error, nl_geterror(error));
+				SRPLG_LOG_ERR(PLUGIN_NAME, "rtnl_neigh_delete error (%d): %s", error, nl_geterror(error));
 				nl_addr_put(dst_addr);
 				rtnl_neigh_put(neigh);
 				return -1;
@@ -1871,7 +1871,7 @@ static int create_vlan_qinq(char *name, char *parent_interface, uint16_t outer_v
 	// e.g.: # ip link add link eth0 name eth0.10 type vlan id 10 protocol 802.1ad
 	error = snprintf(cmd, sizeof(cmd), "ip link add link %s name %s type vlan id %d protocol 802.1ad", parent_interface, name, outer_vlan_id);
 	if (error < 0) {
-		SRP_LOG_ERR("snprintf error");
+		SRPLG_LOG_ERR(PLUGIN_NAME, "snprintf error");
 		return -1;
 	}
 
@@ -1880,7 +1880,7 @@ static int create_vlan_qinq(char *name, char *parent_interface, uint16_t outer_v
 	// e.g.: # ip link add link eth0.10 name eth0.10.20 type vlan id 20
 	error = snprintf(cmd, sizeof(cmd), "ip link add link %s name %s.%d type vlan id %d", name, name, second_vlan_id, second_vlan_id);
 	if (error < 0) {
-		SRP_LOG_ERR("snprintf error");
+		SRPLG_LOG_ERR(PLUGIN_NAME, "snprintf error");
 		return -1;
 	}
 
@@ -1903,7 +1903,7 @@ static bool check_system_interface(const char *interface_name, bool *system_inte
 
 	system_interface_check = popen(all_devices_cmd, "r");
 	if (system_interface_check == NULL) {
-		SRP_LOG_WRN("could not execute %s", all_devices_cmd);
+		SRPLG_LOG_WRN(PLUGIN_NAME, "could not execute %s", all_devices_cmd);
 		*system_interface = false;
 		error = -1;
 		goto out;
@@ -1924,7 +1924,7 @@ static bool check_system_interface(const char *interface_name, bool *system_inte
 
 	system_interface_check = popen(check_system_devices_cmd, "r");
 	if (system_interface_check == NULL) {
-		SRP_LOG_WRN("could not execute %s", check_system_devices_cmd);
+		SRPLG_LOG_WRN(PLUGIN_NAME, "could not execute %s", check_system_devices_cmd);
 		*system_interface = false;
 		error = -1;
 		goto out;
@@ -1990,7 +1990,7 @@ int write_to_proc_file(const char *dir_path, char *interface, const char *fn, in
 	error = snprintf(tmp_buffer, sizeof(tmp_buffer), "%s/%s/%s", dir_path, interface, fn);
 	if (error < 0) {
 		// snprintf error
-		SRP_LOG_ERR("snprintf failed");
+		SRPLG_LOG_ERR(PLUGIN_NAME, "snprintf failed");
 		goto out;
 	}
 
@@ -2004,7 +2004,7 @@ int write_to_proc_file(const char *dir_path, char *interface, const char *fn, in
 		fprintf(fptr, "%d", val);
 		fclose(fptr);
 	} else {
-		SRP_LOG_ERR("failed to open %s: %s", tmp_buffer, strerror(errno));
+		SRPLG_LOG_ERR(PLUGIN_NAME, "failed to open %s: %s", tmp_buffer, strerror(errno));
 		error = -1;
 		goto out;
 	}
@@ -2024,7 +2024,7 @@ static int read_from_proc_file(const char *dir_path, char *interface, const char
 	error = snprintf(tmp_buffer, sizeof(tmp_buffer), "%s/%s/%s", dir_path, interface, fn);
 	if (error < 0) {
 		// snprintf error
-		SRP_LOG_ERR("snprintf failed");
+		SRPLG_LOG_ERR(PLUGIN_NAME, "snprintf failed");
 		goto out;
 	}
 
@@ -2041,7 +2041,7 @@ static int read_from_proc_file(const char *dir_path, char *interface, const char
 
 		fclose(fptr);
 	} else {
-		SRP_LOG_ERR("failed to open %s: %s", tmp_buffer, strerror(errno));
+		SRPLG_LOG_ERR(PLUGIN_NAME, "failed to open %s: %s", tmp_buffer, strerror(errno));
 		error = -1;
 		goto out;
 	}
@@ -2060,7 +2060,7 @@ static int read_from_sys_file(const char *dir_path, char *interface, int *val)
 	error = snprintf(tmp_buffer, sizeof(tmp_buffer), "%s/%s/type", dir_path, interface);
 	if (error < 0) {
 		// snprintf error
-		SRP_LOG_ERR("snprintf failed");
+		SRPLG_LOG_ERR(PLUGIN_NAME, "snprintf failed");
 		goto out;
 	}
 
@@ -2077,7 +2077,7 @@ static int read_from_sys_file(const char *dir_path, char *interface, int *val)
 
 		fclose(fptr);
 	} else {
-		SRP_LOG_ERR("failed to open %s: %s", tmp_buffer, strerror(errno));
+		SRPLG_LOG_ERR(PLUGIN_NAME, "failed to open %s: %s", tmp_buffer, strerror(errno));
 		error = -1;
 		goto out;
 	}
@@ -2111,19 +2111,19 @@ int add_existing_links(sr_session_ctx_t *session, link_data_list_t *ld)
 
 	socket = nl_socket_alloc();
 	if (socket == NULL) {
-		SRP_LOG_ERR("nl_socket_alloc error: invalid socket");
+		SRPLG_LOG_ERR(PLUGIN_NAME, "nl_socket_alloc error: invalid socket");
 		goto error_out;
 	}
 
 	error = nl_connect(socket, NETLINK_ROUTE);
 	if (error != 0) {
-		SRP_LOG_ERR("nl_connect error (%d): %s", error, nl_geterror(error));
+		SRPLG_LOG_ERR(PLUGIN_NAME, "nl_connect error (%d): %s", error, nl_geterror(error));
 		goto error_out;
 	}
 
 	error = rtnl_link_alloc_cache(socket, AF_UNSPEC, &cache);
 	if (error != 0) {
-		SRP_LOG_ERR("rtnl_link_alloc_cache error (%d): %s", error, nl_geterror(error));
+		SRPLG_LOG_ERR(PLUGIN_NAME, "rtnl_link_alloc_cache error (%d): %s", error, nl_geterror(error));
 		goto error_out;
 	}
 
@@ -2132,13 +2132,13 @@ int add_existing_links(sr_session_ctx_t *session, link_data_list_t *ld)
 	while (link != NULL) {
 		name = rtnl_link_get_name(link);
 		if (name == NULL) {
-			SRP_LOG_ERR("rtnl_link_get_name error");
+			SRPLG_LOG_ERR(PLUGIN_NAME, "rtnl_link_get_name error");
 			goto error_out;
 		}
 
 		error = get_interface_description(session, name, &description);
 		if (error != 0) {
-			SRP_LOG_ERR("get_interface_description error");
+			SRPLG_LOG_ERR(PLUGIN_NAME, "get_interface_description error");
 			// don't return in case of error
 			// some interfaces may not have a description already set (wlan0, etc.)
 		}
@@ -2155,7 +2155,7 @@ int add_existing_links(sr_session_ctx_t *session, link_data_list_t *ld)
 
 			error = read_from_sys_file(path_to_sys, name, &type_id);
 			if (error != 0) {
-				SRP_LOG_ERR("read_from_sys_file error");
+				SRPLG_LOG_ERR(PLUGIN_NAME, "read_from_sys_file error");
 				goto error_out;
 			}
 
@@ -2193,7 +2193,7 @@ int add_existing_links(sr_session_ctx_t *session, link_data_list_t *ld)
 			// outer vlan id
 			vlan_id = (uint16_t)rtnl_link_vlan_get_id(link);
 			if (vlan_id <= 0) {
-				SRP_LOG_ERR("couldn't get vlan ID");
+				SRPLG_LOG_ERR(PLUGIN_NAME, "couldn't get vlan ID");
 				goto error_out;
 			}
 
@@ -2212,14 +2212,14 @@ int add_existing_links(sr_session_ctx_t *session, link_data_list_t *ld)
 
 		error = link_data_list_add(ld, name);
 		if (error != 0) {
-			SRP_LOG_ERR("link_data_list_add error");
+			SRPLG_LOG_ERR(PLUGIN_NAME, "link_data_list_add error");
 			goto error_out;
 		}
 
 		if (description != NULL) {
 			error = link_data_list_set_description(ld, name, description);
 			if (error != 0) {
-				SRP_LOG_ERR("link_data_list_set_description error");
+				SRPLG_LOG_ERR(PLUGIN_NAME, "link_data_list_set_description error");
 				goto error_out;
 			}
 		}
@@ -2227,21 +2227,21 @@ int add_existing_links(sr_session_ctx_t *session, link_data_list_t *ld)
 		if (type != NULL) {
 			error = link_data_list_set_type(ld, name, type);
 			if (error != 0) {
-				SRP_LOG_ERR("link_data_list_set_type error");
+				SRPLG_LOG_ERR(PLUGIN_NAME, "link_data_list_set_type error");
 				goto error_out;
 			}
 		}
 
 		error = link_data_list_set_enabled(ld, name, enabled);
 		if (error != 0) {
-			SRP_LOG_ERR("link_data_list_set_enabled error");
+			SRPLG_LOG_ERR(PLUGIN_NAME, "link_data_list_set_enabled error");
 			goto error_out;
 		}
 
 		if (parent_interface != 0) {
 			error = link_data_list_set_parent(ld, name, parent_interface);
 			if (error != 0) {
-				SRP_LOG_ERR("link_data_list_set_parent error");
+				SRPLG_LOG_ERR(PLUGIN_NAME, "link_data_list_set_parent error");
 				goto error_out;
 			}
 		}
@@ -2249,7 +2249,7 @@ int add_existing_links(sr_session_ctx_t *session, link_data_list_t *ld)
 		if (vlan_id != 0) {
 			error = link_data_list_set_outer_vlan_id(ld, name, vlan_id);
 			if (error != 0) {
-				SRP_LOG_ERR("link_data_list_set_outer_vlan_id error");
+				SRPLG_LOG_ERR(PLUGIN_NAME, "link_data_list_set_outer_vlan_id error");
 				goto error_out;
 			}
 		}
@@ -2259,7 +2259,7 @@ int add_existing_links(sr_session_ctx_t *session, link_data_list_t *ld)
 		// neighbors
 		error = rtnl_neigh_alloc_cache(socket, &neigh_cache);
 		if (error != 0) {
-			SRP_LOG_ERR("rtnl_neigh_alloc_cache error (%d): %s", error, nl_geterror(error));
+			SRPLG_LOG_ERR(PLUGIN_NAME, "rtnl_neigh_alloc_cache error (%d): %s", error, nl_geterror(error));
 			goto error_out;
 		}
 
@@ -2273,7 +2273,7 @@ int add_existing_links(sr_session_ctx_t *session, link_data_list_t *ld)
 
 			char *dst_addr = nl_addr2str(nl_dst_addr, dst_addr_str, sizeof(dst_addr_str));
 			if (dst_addr == NULL) {
-				SRP_LOG_ERR("nl_addr2str error");
+				SRPLG_LOG_ERR(PLUGIN_NAME, "nl_addr2str error");
 				goto error_out;
 			}
 
@@ -2300,7 +2300,7 @@ int add_existing_links(sr_session_ctx_t *session, link_data_list_t *ld)
 
 				char *ll_addr_s = nl_addr2str(ll_addr, ll_addr_str, sizeof(ll_addr_str));
 				if (NULL == ll_addr_s) {
-					SRP_LOG_ERR("nl_addr2str error");
+					SRPLG_LOG_ERR(PLUGIN_NAME, "nl_addr2str error");
 					goto error_out;
 				}
 
@@ -2310,13 +2310,13 @@ int add_existing_links(sr_session_ctx_t *session, link_data_list_t *ld)
 				if (addr_family == AF_INET) {
 					error = link_data_list_add_ipv4_neighbor(&link_data_list, name, dst_addr, ll_addr_s);
 					if (error != 0) {
-						SRP_LOG_ERR("link_data_list_add_ipv4_neighbor error (%d) : %s", error, strerror(error));
+						SRPLG_LOG_ERR(PLUGIN_NAME, "link_data_list_add_ipv4_neighbor error (%d) : %s", error, strerror(error));
 						goto error_out;
 					}
 				} else if (addr_family == AF_INET6) {
 					error = link_data_list_add_ipv6_neighbor(&link_data_list, name, dst_addr, ll_addr_s);
 					if (error != 0) {
-						SRP_LOG_ERR("link_data_list_add_ipv6_neighbor error (%d) : %s", error, strerror(error));
+						SRPLG_LOG_ERR(PLUGIN_NAME, "link_data_list_add_ipv6_neighbor error (%d) : %s", error, strerror(error));
 						goto error_out;
 					}
 				}
@@ -2330,7 +2330,7 @@ int add_existing_links(sr_session_ctx_t *session, link_data_list_t *ld)
 
 		error = rtnl_addr_alloc_cache(socket, &addr_cache);
 		if (error != 0) {
-			SRP_LOG_ERR("rtnl_addr_alloc_cache error (%d): %s", error, nl_geterror(error));
+			SRPLG_LOG_ERR(PLUGIN_NAME, "rtnl_addr_alloc_cache error (%d): %s", error, nl_geterror(error));
 			goto error_out;
 		}
 
@@ -2345,7 +2345,7 @@ int add_existing_links(sr_session_ctx_t *session, link_data_list_t *ld)
 		for (int i=0; i < addr_count; i++) {
 			struct nl_addr *nl_addr_local = rtnl_addr_get_local(addr);
 			if (nl_addr_local == NULL) {
-				SRP_LOG_ERR("rtnl_addr_get_local error");
+				SRPLG_LOG_ERR(PLUGIN_NAME, "rtnl_addr_get_local error");
 				goto error_out;
 			}
 
@@ -2359,7 +2359,7 @@ int add_existing_links(sr_session_ctx_t *session, link_data_list_t *ld)
 
 			const char*addr_s = nl_addr2str(nl_addr_local, addr_str, sizeof(addr_str));
 			if (NULL == addr_s) {
-				SRP_LOG_ERR("nl_addr2str error");
+				SRPLG_LOG_ERR(PLUGIN_NAME, "nl_addr2str error");
 				goto error_out;
 			}
 
@@ -2368,7 +2368,7 @@ int add_existing_links(sr_session_ctx_t *session, link_data_list_t *ld)
 			// get address
 			char *token = strtok(str, "/");
 			if (token == NULL) {
-				SRP_LOG_ERR("couldn't parse ip address");
+				SRPLG_LOG_ERR(PLUGIN_NAME, "couldn't parse ip address");
 
 				FREE_SAFE(str);
 				goto error_out;
@@ -2397,7 +2397,7 @@ int add_existing_links(sr_session_ctx_t *session, link_data_list_t *ld)
 				// ipv4
 				error = link_data_list_add_ipv4_address(&link_data_list, name, address, subnet, ip_subnet_type_prefix_length);
 				if (error != 0) {
-					SRP_LOG_ERR("link_data_list_add_ipv4_address error (%d) : %s", error, strerror(error));
+					SRPLG_LOG_ERR(PLUGIN_NAME, "link_data_list_add_ipv4_address error (%d) : %s", error, strerror(error));
 
 					FREE_SAFE(str);
 					FREE_SAFE(address);
@@ -2408,7 +2408,7 @@ int add_existing_links(sr_session_ctx_t *session, link_data_list_t *ld)
 				if (mtu > 0) {
 					error = link_data_list_set_ipv4_mtu(&link_data_list, name, tmp_buffer);
 					if (error != 0) {
-						SRP_LOG_ERR("link_data_list_set_ipv4_mtu error (%d) : %s", error, strerror(error));
+						SRPLG_LOG_ERR(PLUGIN_NAME, "link_data_list_set_ipv4_mtu error (%d) : %s", error, strerror(error));
 
 						FREE_SAFE(str);
 						FREE_SAFE(address);
@@ -2435,7 +2435,7 @@ int add_existing_links(sr_session_ctx_t *session, link_data_list_t *ld)
 
 				error = link_data_list_set_ipv4_forwarding(&link_data_list, name, ipv4_forwarding == 0 ? "false" : "true");
 				if (error != 0) {
-					SRP_LOG_ERR("link_data_list_set_ipv4_forwarding error (%d) : %s", error, strerror(error));
+					SRPLG_LOG_ERR(PLUGIN_NAME, "link_data_list_set_ipv4_forwarding error (%d) : %s", error, strerror(error));
 
 					FREE_SAFE(str);
 					FREE_SAFE(address);
@@ -2447,7 +2447,7 @@ int add_existing_links(sr_session_ctx_t *session, link_data_list_t *ld)
 				// ipv6
 				error = link_data_list_add_ipv6_address(&link_data_list, name, address, subnet);
 				if (error != 0) {
-					SRP_LOG_ERR("link_data_list_add_ipv6_address error (%d) : %s", error, strerror(error));
+					SRPLG_LOG_ERR(PLUGIN_NAME, "link_data_list_add_ipv6_address error (%d) : %s", error, strerror(error));
 
 					FREE_SAFE(str);
 					FREE_SAFE(address);
@@ -2458,7 +2458,7 @@ int add_existing_links(sr_session_ctx_t *session, link_data_list_t *ld)
 				if (mtu > 0) {
 					error = link_data_list_set_ipv6_mtu(&link_data_list, name, tmp_buffer);
 					if (error != 0) {
-						SRP_LOG_ERR("link_data_list_set_ipv6_mtu error (%d) : %s", error, strerror(error));
+						SRPLG_LOG_ERR(PLUGIN_NAME, "link_data_list_set_ipv6_mtu error (%d) : %s", error, strerror(error));
 
 						FREE_SAFE(str);
 						FREE_SAFE(address);
@@ -2482,7 +2482,7 @@ int add_existing_links(sr_session_ctx_t *session, link_data_list_t *ld)
 				// since we check the value of 'disable_ipv6' file, the ipv6_enabled should be reversed
 				error = link_data_list_set_ipv6_enabled(&link_data_list, name, ipv6_enabled == 0 ? "true" : "false");
 				if (error != 0) {
-					SRP_LOG_ERR("link_data_list_set_ipv6_enabled error (%d) : %s", error, strerror(error));
+					SRPLG_LOG_ERR(PLUGIN_NAME, "link_data_list_set_ipv6_enabled error (%d) : %s", error, strerror(error));
 
 					FREE_SAFE(str);
 					FREE_SAFE(address);
@@ -2503,7 +2503,7 @@ int add_existing_links(sr_session_ctx_t *session, link_data_list_t *ld)
 
 				error = link_data_list_set_ipv6_forwarding(&link_data_list, name, ipv6_forwarding == 0 ? "false" : "true");
 				if (error != 0) {
-					SRP_LOG_ERR("link_data_list_set_ipv6_forwarding error (%d) : %s", error, strerror(error));
+					SRPLG_LOG_ERR(PLUGIN_NAME, "link_data_list_set_ipv6_forwarding error (%d) : %s", error, strerror(error));
 
 					FREE_SAFE(str);
 					FREE_SAFE(address);
@@ -2568,14 +2568,14 @@ static int get_interface_description(sr_session_ctx_t *session, char *name, char
 	// /ietf-interfaces:interfaces/interface[name='test_interface']/description
 	error = snprintf(path_buffer, sizeof(path_buffer) / sizeof(char), "%s[name=\"%s\"]/description", INTERFACE_LIST_YANG_PATH, name);
 	if (error < 0) {
-		SRP_LOG_ERR("snprintf error");
+		SRPLG_LOG_ERR(PLUGIN_NAME, "snprintf error");
 		goto error_out;
 	}
 
 	// get the interface description value 
 	error = sr_get_item(session, path_buffer, 0, &val);
 	if (error != SR_ERR_OK) {
-		SRP_LOG_ERR("sr_get_item error (%d): %s", error, sr_strerror(error));
+		SRPLG_LOG_ERR(PLUGIN_NAME, "sr_get_item error (%d): %s", error, sr_strerror(error));
 		goto error_out;
 	}
 
@@ -2683,7 +2683,7 @@ static int interfaces_state_data_cb(sr_session_ctx_t *session, uint32_t subscrip
 	};
 
 	if (*parent == NULL) {
-		ly_ctx = sr_get_context(sr_session_get_connection(session));
+		ly_ctx = sr_acquire_context(sr_session_get_connection(session));
 		if (ly_ctx == NULL) {
 			error = SR_ERR_CALLBACK_FAILED;
 			goto error_out;
@@ -2693,18 +2693,18 @@ static int interfaces_state_data_cb(sr_session_ctx_t *session, uint32_t subscrip
 
 	socket = nl_socket_alloc();
 	if (socket == NULL) {
-		SRP_LOG_ERR("nl_socket_alloc error: invalid socket");
+		SRPLG_LOG_ERR(PLUGIN_NAME, "nl_socket_alloc error: invalid socket");
 		goto error_out;
 	}
 
 	if ((error = nl_connect(socket, NETLINK_ROUTE)) != 0) {
-		SRP_LOG_ERR("nl_connect error (%d): %s", error, nl_geterror(error));
+		SRPLG_LOG_ERR(PLUGIN_NAME, "nl_connect error (%d): %s", error, nl_geterror(error));
 		goto error_out;
 	}
 
 	error = rtnl_link_alloc_cache(socket, AF_UNSPEC, &cache);
 	if (error != 0) {
-		SRP_LOG_ERR("rtnl_link_alloc_cache error (%d): %s", error, nl_geterror(error));
+		SRPLG_LOG_ERR(PLUGIN_NAME, "rtnl_link_alloc_cache error (%d): %s", error, nl_geterror(error));
 		goto error_out;
 	}
 
@@ -2764,7 +2764,7 @@ static int interfaces_state_data_cb(sr_session_ctx_t *session, uint32_t subscrip
 				}
 
 				if (strcmp(master_list.masters[i].master_names[j], if_name) == 0) {
-					SRP_LOG_DBG("Slave of interface %s: %s", if_name, master_list.masters[i].slave_name);
+					SRPLG_LOG_DBG(PLUGIN_NAME, "Slave of interface %s: %s", if_name, master_list.masters[i].slave_name);
 
 					tmp_len = strlen(if_name);
 					slave_list.slaves[slave_list.count].master_name = xstrndup(if_name, tmp_len);
@@ -2830,7 +2830,7 @@ static int interfaces_state_data_cb(sr_session_ctx_t *session, uint32_t subscrip
 		char system_boot_time[DATETIME_BUF_SIZE] = {0};
 		error = get_system_boot_time(system_boot_time);
 		if (error != 0) {
-			SRP_LOG_ERR("get_system_boot_time error: %s", strerror(errno));
+			SRPLG_LOG_ERR(PLUGIN_NAME, "get_system_boot_time error: %s", strerror(errno));
 			goto error_out;
 		}
 		interface_data.statistics.discontinuity_time = system_boot_time;
@@ -2839,7 +2839,7 @@ static int interfaces_state_data_cb(sr_session_ctx_t *session, uint32_t subscrip
 		nic_stats_t nic_stats = {0};
 		error = get_nic_stats(interface_data.name, &nic_stats);
 		if (error != 0) {
-			SRP_LOG_ERR("get_nic_stats error: %s", strerror(errno));
+			SRPLG_LOG_ERR(PLUGIN_NAME, "get_nic_stats error: %s", strerror(errno));
 		}
 
 		// Rx
@@ -2868,7 +2868,7 @@ static int interfaces_state_data_cb(sr_session_ctx_t *session, uint32_t subscrip
 		if (error < 0) {
 			goto error_out;
 		}
-		SRP_LOG_DBG("%s = %s", xpath_buffer, interface_data.name);
+		SRPLG_LOG_DBG(PLUGIN_NAME, "%s = %s", xpath_buffer, interface_data.name);
 		lyd_new_path(*parent, ly_ctx, xpath_buffer, interface_data.name, LYD_ANYDATA_STRING, 0);
 
 		// description
@@ -2876,7 +2876,7 @@ static int interfaces_state_data_cb(sr_session_ctx_t *session, uint32_t subscrip
 		if (error < 0) {
 			goto error_out;
 		}
-		SRP_LOG_DBG("%s = %s", xpath_buffer, interface_data.description);
+		SRPLG_LOG_DBG(PLUGIN_NAME, "%s = %s", xpath_buffer, interface_data.description);
 		lyd_new_path(*parent, ly_ctx, xpath_buffer, interface_data.description, LYD_ANYDATA_STRING, 0);
 
 		// type
@@ -2884,7 +2884,7 @@ static int interfaces_state_data_cb(sr_session_ctx_t *session, uint32_t subscrip
 		if (error < 0) {
 			goto error_out;
 		}
-		SRP_LOG_DBG("%s = %s", xpath_buffer, interface_data.type);
+		SRPLG_LOG_DBG(PLUGIN_NAME, "%s = %s", xpath_buffer, interface_data.type);
 		lyd_new_path(*parent, ly_ctx, xpath_buffer, interface_data.type, LYD_ANYDATA_STRING, 0);
 
 		// oper-status
@@ -2892,7 +2892,7 @@ static int interfaces_state_data_cb(sr_session_ctx_t *session, uint32_t subscrip
 		if (error < 0) {
 			goto error_out;
 		}
-		SRP_LOG_DBG("%s = %s", xpath_buffer, interface_data.oper_status);
+		SRPLG_LOG_DBG(PLUGIN_NAME, "%s = %s", xpath_buffer, interface_data.oper_status);
 		lyd_new_path(*parent, ly_ctx, xpath_buffer, (char *) interface_data.oper_status, LYD_ANYDATA_STRING, 0);
 
 		// last-change -> only if changed at one point
@@ -2901,7 +2901,7 @@ static int interfaces_state_data_cb(sr_session_ctx_t *session, uint32_t subscrip
 			if (error < 0) {
 				goto error_out;
 			}
-			SRP_LOG_DBG("%s = %s", xpath_buffer, interface_data.type);
+			SRPLG_LOG_DBG(PLUGIN_NAME, "%s = %s", xpath_buffer, interface_data.type);
 			lyd_new_path(*parent, ly_ctx, xpath_buffer, system_time, LYD_ANYDATA_STRING, 0);
 		} else {
 			// default value of last-change should be system boot time
@@ -2909,7 +2909,7 @@ static int interfaces_state_data_cb(sr_session_ctx_t *session, uint32_t subscrip
 			if (error < 0) {
 				goto error_out;
 			}
-			SRP_LOG_DBG("%s = %s", xpath_buffer, interface_data.type);
+			SRPLG_LOG_DBG(PLUGIN_NAME, "%s = %s", xpath_buffer, interface_data.type);
 			lyd_new_path(*parent, ly_ctx, xpath_buffer, system_boot_time, LYD_ANYDATA_STRING, 0);
 		}
 
@@ -2918,7 +2918,7 @@ static int interfaces_state_data_cb(sr_session_ctx_t *session, uint32_t subscrip
 		if (error < 0) {
 			goto error_out;
 		}
-		SRP_LOG_DBG("%s = %d", xpath_buffer, interface_data.if_index);
+		SRPLG_LOG_DBG(PLUGIN_NAME, "%s = %d", xpath_buffer, interface_data.if_index);
 		snprintf(tmp_buffer, sizeof(tmp_buffer), "%u", interface_data.if_index);
 		lyd_new_path(*parent, ly_ctx, xpath_buffer, tmp_buffer, LYD_ANYDATA_STRING, 0);
 
@@ -2927,7 +2927,7 @@ static int interfaces_state_data_cb(sr_session_ctx_t *session, uint32_t subscrip
 		if (error < 0) {
 			goto error_out;
 		}
-		SRP_LOG_DBG("%s = %s", xpath_buffer, interface_data.phys_address);
+		SRPLG_LOG_DBG(PLUGIN_NAME, "%s = %s", xpath_buffer, interface_data.phys_address);
 		lyd_new_path(*parent, ly_ctx, xpath_buffer, interface_data.phys_address, LYD_ANYDATA_STRING, 0);
 
 		// speed
@@ -2935,7 +2935,7 @@ static int interfaces_state_data_cb(sr_session_ctx_t *session, uint32_t subscrip
 		if (error < 0) {
 			goto error_out;
 		}
-		SRP_LOG_DBG("%s = %s", xpath_buffer, interface_data.speed);
+		SRPLG_LOG_DBG(PLUGIN_NAME, "%s = %s", xpath_buffer, interface_data.speed);
 		snprintf(tmp_buffer, sizeof(tmp_buffer), "%lu", interface_data.speed);
 		lyd_new_path(*parent, ly_ctx, xpath_buffer, tmp_buffer, LYD_ANYDATA_STRING, 0);
 
@@ -2949,7 +2949,7 @@ static int interfaces_state_data_cb(sr_session_ctx_t *session, uint32_t subscrip
 						goto error_out;
 					}
 
-					SRP_LOG_DBG("%s += %s", xpath_buffer, master_list.masters[i].master_names[j]);
+					SRPLG_LOG_DBG(PLUGIN_NAME, "%s += %s", xpath_buffer, master_list.masters[i].master_names[j]);
 					lyd_new_path(*parent, ly_ctx, xpath_buffer, master_list.masters[i].master_names[j], LYD_ANYDATA_STRING, 0);
 
 					FREE_SAFE(interface_data.higher_layer_if.masters[i]);
@@ -2967,7 +2967,7 @@ static int interfaces_state_data_cb(sr_session_ctx_t *session, uint32_t subscrip
 						goto error_out;
 					}
 
-					SRP_LOG_DBG("%s += %s", xpath_buffer, slave_list.slaves[i].slave_names[j]);
+					SRPLG_LOG_DBG(PLUGIN_NAME, "%s += %s", xpath_buffer, slave_list.slaves[i].slave_names[j]);
 					lyd_new_path(*parent, ly_ctx, xpath_buffer, slave_list.slaves[i].slave_names[j], LYD_ANYDATA_STRING, 0);
 				}
 			}
@@ -2993,7 +2993,7 @@ static int interfaces_state_data_cb(sr_session_ctx_t *session, uint32_t subscrip
 						goto error_out;
 					}
 
-					SRP_LOG_DBG("%s = %d", xpath_buffer, ipv4_forwarding);
+					SRPLG_LOG_DBG(PLUGIN_NAME, "%s = %d", xpath_buffer, ipv4_forwarding);
 					lyd_new_path(*parent, ly_ctx, xpath_buffer, ipv4_forwarding == 0 ? "false" : "true", LYD_ANYDATA_STRING, 0);
 
 					uint32_t ipv4_addr_count = link_data_list.links[i].ipv4.addr_list.count;
@@ -3008,7 +3008,7 @@ static int interfaces_state_data_cb(sr_session_ctx_t *session, uint32_t subscrip
 									goto error_out;
 								}
 								snprintf(tmp_buffer, sizeof(tmp_buffer), "%u", mtu);
-								SRP_LOG_DBG("%s = %s", xpath_buffer, tmp_buffer);
+								SRPLG_LOG_DBG(PLUGIN_NAME, "%s = %s", xpath_buffer, tmp_buffer);
 								lyd_new_path(*parent, ly_ctx, xpath_buffer, tmp_buffer, LYD_ANYDATA_STRING, 0);
 							}
 
@@ -3017,7 +3017,7 @@ static int interfaces_state_data_cb(sr_session_ctx_t *session, uint32_t subscrip
 								goto error_out;
 							}
 							// ip
-							SRP_LOG_DBG("%s = %s", xpath_buffer, link_data_list.links[i].ipv4.addr_list.addr[j].ip);
+							SRPLG_LOG_DBG(PLUGIN_NAME, "%s = %s", xpath_buffer, link_data_list.links[i].ipv4.addr_list.addr[j].ip);
 							lyd_new_path(*parent, ly_ctx, xpath_buffer, link_data_list.links[i].ipv4.addr_list.addr[j].ip, LYD_ANYDATA_STRING, 0);
 
 							// subnet
@@ -3028,7 +3028,7 @@ static int interfaces_state_data_cb(sr_session_ctx_t *session, uint32_t subscrip
 								goto error_out;
 							}
 
-							SRP_LOG_DBG("%s = %s", xpath_buffer, tmp_buffer);
+							SRPLG_LOG_DBG(PLUGIN_NAME, "%s = %s", xpath_buffer, tmp_buffer);
 							lyd_new_path(*parent, ly_ctx, xpath_buffer, tmp_buffer, LYD_ANYDATA_STRING, 0);
 						}
 					}
@@ -3045,7 +3045,7 @@ static int interfaces_state_data_cb(sr_session_ctx_t *session, uint32_t subscrip
 								goto error_out;
 							}
 							// ip
-							SRP_LOG_DBG("%s = %s", xpath_buffer, link_data_list.links[i].ipv4.nbor_list.nbor[j].ip);
+							SRPLG_LOG_DBG(PLUGIN_NAME, "%s = %s", xpath_buffer, link_data_list.links[i].ipv4.nbor_list.nbor[j].ip);
 							lyd_new_path(*parent, ly_ctx, xpath_buffer, link_data_list.links[i].ipv4.nbor_list.nbor[j].ip, LYD_ANYDATA_STRING, 0);
 
 							// link-layer-address
@@ -3054,7 +3054,7 @@ static int interfaces_state_data_cb(sr_session_ctx_t *session, uint32_t subscrip
 								goto error_out;
 							}
 
-							SRP_LOG_DBG("%s = %s", xpath_buffer, link_data_list.links[i].ipv4.nbor_list.nbor[j].phys_addr);
+							SRPLG_LOG_DBG(PLUGIN_NAME, "%s = %s", xpath_buffer, link_data_list.links[i].ipv4.nbor_list.nbor[j].phys_addr);
 							lyd_new_path(*parent, ly_ctx, xpath_buffer, link_data_list.links[i].ipv4.nbor_list.nbor[j].phys_addr, LYD_ANYDATA_STRING, 0);
 						}
 					}
@@ -3075,7 +3075,7 @@ static int interfaces_state_data_cb(sr_session_ctx_t *session, uint32_t subscrip
 						goto error_out;
 					}
 
-					SRP_LOG_DBG("%s = %d", xpath_buffer, ipv6_enabled);
+					SRPLG_LOG_DBG(PLUGIN_NAME, "%s = %d", xpath_buffer, ipv6_enabled);
 					lyd_new_path(*parent, ly_ctx, xpath_buffer, ipv6_enabled == 0 ? "false" : "true", LYD_ANYDATA_STRING, 0);
 
 					// forwarding
@@ -3086,7 +3086,7 @@ static int interfaces_state_data_cb(sr_session_ctx_t *session, uint32_t subscrip
 						goto error_out;
 					}
 
-					SRP_LOG_DBG("%s = %d", xpath_buffer, ipv6_forwarding);
+					SRPLG_LOG_DBG(PLUGIN_NAME, "%s = %d", xpath_buffer, ipv6_forwarding);
 					lyd_new_path(*parent, ly_ctx, xpath_buffer, ipv6_forwarding == 0 ? "false" : "true", LYD_ANYDATA_STRING, 0);
 
 					uint32_t ipv6_addr_count = link_data_list.links[i].ipv6.ip_data.addr_list.count;
@@ -3102,7 +3102,7 @@ static int interfaces_state_data_cb(sr_session_ctx_t *session, uint32_t subscrip
 									goto error_out;
 								}
 								snprintf(tmp_buffer, sizeof(tmp_buffer), "%u", mtu);
-								SRP_LOG_DBG("%s = %s", xpath_buffer, tmp_buffer);
+								SRPLG_LOG_DBG(PLUGIN_NAME, "%s = %s", xpath_buffer, tmp_buffer);
 								lyd_new_path(*parent, ly_ctx, xpath_buffer, tmp_buffer, LYD_ANYDATA_STRING, 0);
 							}
 
@@ -3111,7 +3111,7 @@ static int interfaces_state_data_cb(sr_session_ctx_t *session, uint32_t subscrip
 								goto error_out;
 							}
 							// ip
-							SRP_LOG_DBG("%s = %s", xpath_buffer, link_data_list.links[i].ipv6.ip_data.addr_list.addr[j].ip);
+							SRPLG_LOG_DBG(PLUGIN_NAME, "%s = %s", xpath_buffer, link_data_list.links[i].ipv6.ip_data.addr_list.addr[j].ip);
 							lyd_new_path(*parent, ly_ctx, xpath_buffer, link_data_list.links[i].ipv6.ip_data.addr_list.addr[j].ip, LYD_ANYDATA_STRING, 0);
 
 							// subnet
@@ -3122,7 +3122,7 @@ static int interfaces_state_data_cb(sr_session_ctx_t *session, uint32_t subscrip
 								goto error_out;
 							}
 
-							SRP_LOG_DBG("%s = %s", xpath_buffer, tmp_buffer);
+							SRPLG_LOG_DBG(PLUGIN_NAME, "%s = %s", xpath_buffer, tmp_buffer);
 							lyd_new_path(*parent, ly_ctx, xpath_buffer, tmp_buffer, LYD_ANYDATA_STRING, 0);
 						}
 					}
@@ -3139,7 +3139,7 @@ static int interfaces_state_data_cb(sr_session_ctx_t *session, uint32_t subscrip
 								goto error_out;
 							}
 							// ip
-							SRP_LOG_DBG("%s = %s", xpath_buffer, link_data_list.links[i].ipv6.ip_data.nbor_list.nbor[j].ip);
+							SRPLG_LOG_DBG(PLUGIN_NAME, "%s = %s", xpath_buffer, link_data_list.links[i].ipv6.ip_data.nbor_list.nbor[j].ip);
 							lyd_new_path(*parent, ly_ctx, xpath_buffer, link_data_list.links[i].ipv6.ip_data.nbor_list.nbor[j].ip, LYD_ANYDATA_STRING, 0);
 
 							// link-layer-address
@@ -3148,7 +3148,7 @@ static int interfaces_state_data_cb(sr_session_ctx_t *session, uint32_t subscrip
 								goto error_out;
 							}
 
-							SRP_LOG_DBG("%s = %s", xpath_buffer, link_data_list.links[i].ipv6.ip_data.nbor_list.nbor[j].phys_addr);
+							SRPLG_LOG_DBG(PLUGIN_NAME, "%s = %s", xpath_buffer, link_data_list.links[i].ipv6.ip_data.nbor_list.nbor[j].phys_addr);
 							lyd_new_path(*parent, ly_ctx, xpath_buffer, link_data_list.links[i].ipv6.ip_data.nbor_list.nbor[j].phys_addr, LYD_ANYDATA_STRING, 0);
 						}
 					}
@@ -3162,7 +3162,7 @@ static int interfaces_state_data_cb(sr_session_ctx_t *session, uint32_t subscrip
 		if (error < 0) {
 			goto error_out;
 		}
-		SRP_LOG_DBG("%s = %s", xpath_buffer, interface_data.statistics.discontinuity_time);
+		SRPLG_LOG_DBG(PLUGIN_NAME, "%s = %s", xpath_buffer, interface_data.statistics.discontinuity_time);
 		lyd_new_path(*parent, ly_ctx, xpath_buffer, interface_data.statistics.discontinuity_time, LYD_ANYDATA_STRING, 0);
 
 		// in-octets
@@ -3365,18 +3365,18 @@ static int init_state_changes(void)
 
 	socket = nl_socket_alloc();
 	if (socket == NULL) {
-		SRP_LOG_ERR("nl_socket_alloc error: invalid socket");
+		SRPLG_LOG_ERR(PLUGIN_NAME, "nl_socket_alloc error: invalid socket");
 		return -1;
 	}
 
 	if ((error = nl_connect(socket, NETLINK_ROUTE)) != 0) {
-		SRP_LOG_ERR("nl_connect error (%d): %s", error, nl_geterror(error));
+		SRPLG_LOG_ERR(PLUGIN_NAME, "nl_connect error (%d): %s", error, nl_geterror(error));
 		goto error_out;
 	}
 
 	error = rtnl_link_alloc_cache(socket, AF_UNSPEC, &cache);
 	if (error != 0) {
-		SRP_LOG_ERR("rtnl_link_alloc_cache error (%d): %s", error, nl_geterror(error));
+		SRPLG_LOG_ERR(PLUGIN_NAME, "rtnl_link_alloc_cache error (%d): %s", error, nl_geterror(error));
 		goto error_out;
 	}
 
@@ -3417,13 +3417,13 @@ static int init_state_changes(void)
 
 	error = nl_cache_mngr_alloc(NULL, NETLINK_ROUTE, 0, &link_manager);
 	if (error != 0) {
-		SRP_LOG_ERR("nl_cache_mngr_alloc failed (%d): %s", error, nl_geterror(error));
+		SRPLG_LOG_ERR(PLUGIN_NAME, "nl_cache_mngr_alloc failed (%d): %s", error, nl_geterror(error));
 		goto error_out;
 	}
 
 	error = nl_cache_mngr_add(link_manager, "route/link", cache_change_cb, NULL, &link_cache);
 	if (error != 0) {
-		SRP_LOG_ERR("nl_cache_mngr_add failed (%d): %s", error, nl_geterror(error));
+		SRPLG_LOG_ERR(PLUGIN_NAME, "nl_cache_mngr_add failed (%d): %s", error, nl_geterror(error));
 		goto error_out;
 	}
 
@@ -3451,7 +3451,7 @@ static void cache_change_cb(struct nl_cache *cache, struct nl_object *obj, int v
 	if_state_t *tmp_st = NULL;
 	uint8_t tmp_state = 0;
 
-	SRP_LOG_DBG("entered cb function for a link manager");
+	SRPLG_LOG_DBG(PLUGIN_NAME, "entered cb function for a link manager");
 
 	link = (struct rtnl_link *) nl_cache_get_first(cache);
 
@@ -3461,7 +3461,7 @@ static void cache_change_cb(struct nl_cache *cache, struct nl_object *obj, int v
 		tmp_state = rtnl_link_get_operstate(link);
 
 		if (tmp_state != tmp_st->state) {
-			SRP_LOG_DBG("Interface %s changed operstate from %d to %d", name, tmp_st->state, tmp_state);
+			SRPLG_LOG_DBG(PLUGIN_NAME, "Interface %s changed operstate from %d to %d", name, tmp_st->state, tmp_state);
 			tmp_st->state = tmp_state;
 			tmp_st->last_change = time(NULL);
 		}
@@ -3496,19 +3496,19 @@ int main(void)
 
 	error = sr_connect(SR_CONN_DEFAULT, &connection);
 	if (error) {
-		SRP_LOG_ERR("sr_connect error (%d): %s", error, sr_strerror(error));
+		SRPLG_LOG_ERR(PLUGIN_NAME, "sr_connect error (%d): %s", error, sr_strerror(error));
 		goto out;
 	}
 
 	error = sr_session_start(connection, SR_DS_RUNNING, &session);
 	if (error) {
-		SRP_LOG_ERR("sr_session_start error (%d): %s", error, sr_strerror(error));
+		SRPLG_LOG_ERR(PLUGIN_NAME, "sr_session_start error (%d): %s", error, sr_strerror(error));
 		goto out;
 	}
 
 	error = sr_plugin_init_cb(session, &private_data);
 	if (error) {
-		SRP_LOG_ERR("sr_plugin_init_cb error");
+		SRPLG_LOG_ERR(PLUGIN_NAME, "sr_plugin_init_cb error");
 		goto out;
 	}
 
@@ -3529,7 +3529,7 @@ out:
 
 static void sigint_handler(__attribute__((unused)) int signum)
 {
-	SRP_LOG_INF("Sigint called, exiting...");
+	SRPLG_LOG_INF(PLUGIN_NAME, "Sigint called, exiting...");
 	exit_application = 1;
 }
 
