@@ -31,7 +31,7 @@ void route_next_hop_set_special(struct route_next_hop *nh, char *value)
 
 void route_next_hop_add_list(struct route_next_hop *nh, int ifindex, const char *if_name, struct nl_addr *gw)
 {
-	int idx = 0;
+	size_t idx = 0;
 
 	if (nh->kind == route_next_hop_kind_none) {
 		// initialize the list
@@ -66,7 +66,7 @@ struct route_next_hop route_next_hop_clone(struct route_next_hop *nh)
 			route_next_hop_set_special(&out, nh->value.special.value);
 			break;
 		case route_next_hop_kind_list:
-			for (int i = 0; i < nh->value.list.size; i++) {
+			for (size_t i = 0; i < nh->value.list.size; i++) {
 				route_next_hop_add_list(&out, nh->value.list.list[i].ifindex, nh->value.list.list[i].if_name, nh->value.list.list[i].addr);
 			}
 			break;
@@ -97,7 +97,7 @@ void route_next_hop_free(struct route_next_hop *nh)
 			break;
 		case route_next_hop_kind_list:
 			if (nh->value.list.size > 0) {
-				for (int i = 0; i < nh->value.list.size; i++) {
+				for (size_t i = 0; i < nh->value.list.size; i++) {
 					if (nh->value.list.list[i].addr) {
 						nl_addr_put(nh->value.list.list[i].addr);
 					}
