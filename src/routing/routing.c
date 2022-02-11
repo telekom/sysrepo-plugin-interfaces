@@ -146,14 +146,14 @@ int sr_plugin_init_cb(sr_session_ctx_t *session, void **private_data)
 	SRPLG_LOG_INF(PLUGIN_NAME, "subscribing to interfaces operational data");
 
 	// interface leaf-list oper data
-	error = sr_oper_get_subscribe(session, BASE_YANG_MODEL, ROUTING_INTERFACES_CONTAINER_YANG_PATH "/*", routing_oper_get_interfaces_cb, NULL, 0, &subscription);
+	error = sr_oper_get_subscribe(session, BASE_YANG_MODEL, ROUTING_INTERFACES_CONTAINER_YANG_PATH, routing_oper_get_interfaces_cb, NULL, 0, &subscription);
 	if (error) {
 		SRPLG_LOG_ERR(PLUGIN_NAME, "sr_oper_get_items_subscribe error (%d): %s", error, sr_strerror(error));
 		goto error_out;
 	}
 
 	// RIB oper data
-	error = sr_oper_get_subscribe(session, BASE_YANG_MODEL, ROUTING_RIB_LIST_YANG_PATH "/*", routing_oper_get_rib_routes_cb, NULL, 1, &subscription);
+	error = sr_oper_get_subscribe(session, BASE_YANG_MODEL, ROUTING_RIB_LIST_YANG_PATH, routing_oper_get_rib_routes_cb, NULL, 1, &subscription);
 	if (error) {
 		SRPLG_LOG_ERR(PLUGIN_NAME, "sr_oper_get_items_subscribe error (%d): %s", error, sr_strerror(error));
 		goto error_out;
@@ -1020,12 +1020,12 @@ static int routing_oper_get_rib_routes_cb(sr_session_ctx_t *session, uint32_t su
 						break;
 					}
 					case route_next_hop_kind_special:
-						SRPLG_LOG_DBG(PLUGIN_NAME, "special-next-hop = %s", NEXTHOP->special.value);
-						ly_err = lyd_new_path(nh_node, ly_ctx, "special-next-hop", (void *) NEXTHOP->special.value, false, NULL);
-						if (ly_err != LY_SUCCESS) {
-							SRPLG_LOG_ERR(PLUGIN_NAME, "unable to create new special-next-hop node");
-							goto error_out;
-						}
+						// SRPLG_LOG_DBG(PLUGIN_NAME, "special-next-hop = %s", NEXTHOP->special.value);
+						// ly_err = lyd_new_path(nh_node, ly_ctx, "special-next-hop", NEXTHOP->special.value, false, NULL);
+						// if (ly_err != LY_SUCCESS) {
+						// 	SRPLG_LOG_ERR(PLUGIN_NAME, "unable to create new special-next-hop node");
+						// 	goto error_out;
+						// }
 						break;
 					case route_next_hop_kind_list: {
 						const struct route_next_hop_list *NEXTHOP_LIST = &ROUTE->next_hop.value.list;
