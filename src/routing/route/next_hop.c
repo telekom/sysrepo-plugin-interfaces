@@ -1,5 +1,6 @@
 #include <netlink/addr.h>
 #include <netlink/route/nexthop.h>
+#include <sysrepo.h>
 
 #include "route/next_hop.h"
 #include "utils/memory.h"
