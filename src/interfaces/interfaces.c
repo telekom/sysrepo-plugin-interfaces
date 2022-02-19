@@ -90,7 +90,7 @@ static int remove_ipv6_address(ip_address_list_t *addr_list, struct nl_sock *soc
 static int remove_neighbors(ip_neighbor_list_t *nbor_list, struct nl_sock *socket, int addr_ver, int if_index);
 int write_to_proc_file(const char *dir_path, char *interface, const char *fn, int val);
 static int read_from_proc_file(const char *dir_path, char *interface, const char *fn, int *val);
-static int read_from_sys_file(const char *dir_path, char *interface, int *val);
+static int read_interface_type_from_sys_file(const char *dir_path, char *interface, int *val);
 int delete_config_value(const char *xpath, const char *value);
 int update_link_info(link_data_list_t *ld, sr_change_oper_t operation);
 static char *convert_ianaiftype(char *iana_if_type);
@@ -1999,16 +1999,26 @@ int write_to_proc_file(const char *dir_path, char *interface, const char *fn, in
 	error = 0;
 
 	fptr = fopen((const char *) tmp_buffer, "w");
-
-	if (fptr != NULL) {
-		fprintf(fptr, "%d", val);
-		fclose(fptr);
-	} else {
+	if (fptr == NULL) {
 		SRPLG_LOG_ERR(PLUGIN_NAME, "failed to open %s: %s", tmp_buffer, strerror(errno));
 		error = -1;
 		goto out;
 	}
 
+	error = fprintf(fptr, "%d", val);
+	if (error < 0) {
+		SRPLG_LOG_ERR(PLUGIN_NAME, "fprintf error: %s", strerror(errno));
+		error = -1;
+		goto out;
+	}
+
+	error = 0;
+	error = fclose(fptr);
+	if (error != 0) {
+		SRPLG_LOG_ERR(PLUGIN_NAME, "fclose error: %s", strerror(errno));
+		error = -1;
+		goto out;
+	}
 out:
 	return error;
 }
@@ -2019,7 +2029,7 @@ static int read_from_proc_file(const char *dir_path, char *interface, const char
 	int error = 0;
 	char tmp_buffer[PATH_MAX];
 	FILE *fptr = NULL;
-	char tmp_val[2] = {0};
+	char val_str[20] = {0};
 
 	error = snprintf(tmp_buffer, sizeof(tmp_buffer), "%s/%s/%s", dir_path, interface, fn);
 	if (error < 0) {
@@ -2031,17 +2041,31 @@ static int read_from_proc_file(const char *dir_path, char *interface, const char
 	// snprintf returns return the number of bytes that are written
 	// reset error to 0
 	error = 0;
-
 	fptr = fopen((const char *) tmp_buffer, "r");
-
-	if (fptr != NULL) {
-		fgets(tmp_val, sizeof(tmp_val), fptr);
-
-		*val = atoi(tmp_val);
-
-		fclose(fptr);
-	} else {
+	if (fptr == NULL) {
 		SRPLG_LOG_ERR(PLUGIN_NAME, "failed to open %s: %s", tmp_buffer, strerror(errno));
+		error = -1;
+		goto out;
+	}
+
+	char *s = fgets(val_str, sizeof(val_str), fptr);
+	if (s == NULL) {
+		SRPLG_LOG_ERR(PLUGIN_NAME, "fgets error: %s", strerror(errno));
+		error = -1;
+		goto out;
+	}
+
+	errno = 0;
+	*val = (int) strtol(val_str, NULL, 10);
+	if (errno != 0) {
+		SRPLG_LOG_ERR(PLUGIN_NAME, "strtol error: %s", strerror(errno));
+		error = -1;
+		goto out;
+	}
+
+	error = fclose(fptr);
+	if (error != 0) {
+		SRPLG_LOG_ERR(PLUGIN_NAME, "fclose error: %s", strerror(errno));
 		error = -1;
 		goto out;
 	}
@@ -2050,12 +2074,12 @@ out:
 	return error;
 }
 
-static int read_from_sys_file(const char *dir_path, char *interface, int *val)
+static int read_interface_type_from_sys_file(const char *dir_path, char *interface, int *val)
 {
 	int error = 0;
 	char tmp_buffer[PATH_MAX];
 	FILE *fptr = NULL;
-	char tmp_val[4] = {0};
+	char val_str[20] = {0};
 
 	error = snprintf(tmp_buffer, sizeof(tmp_buffer), "%s/%s/type", dir_path, interface);
 	if (error < 0) {
@@ -2067,17 +2091,31 @@ static int read_from_sys_file(const char *dir_path, char *interface, int *val)
 	// snprintf returns return the number of bytes that are written
 	// reset error to 0
 	error = 0;
-
 	fptr = fopen((const char *) tmp_buffer, "r");
-
-	if (fptr != NULL) {
-		fgets(tmp_val, sizeof(tmp_val), fptr);
-
-		*val = atoi(tmp_val);
-
-		fclose(fptr);
-	} else {
+	if (fptr == NULL) {
 		SRPLG_LOG_ERR(PLUGIN_NAME, "failed to open %s: %s", tmp_buffer, strerror(errno));
+		error = -1;
+		goto out;
+	}
+
+	char *s = fgets(val_str, sizeof(val_str), fptr);
+	if (s == NULL) {
+		SRPLG_LOG_ERR(PLUGIN_NAME, "fgets error: %s", strerror(errno));
+		error = -1;
+		goto out;
+	}
+
+	errno = 0;
+	*val = (int) strtol(val_str, NULL, 10);
+	if (errno != 0) {
+		SRPLG_LOG_ERR(PLUGIN_NAME, "strtol error: %s", strerror(errno));
+		error = -1;
+		goto out;
+	}
+
+	error = fclose(fptr);
+	if (error != 0) {
+		SRPLG_LOG_ERR(PLUGIN_NAME, "fclose error: %s", strerror(errno));
 		error = -1;
 		goto out;
 	}
@@ -2153,9 +2191,9 @@ int add_existing_links(sr_session_ctx_t *session, link_data_list_t *ld)
 			const char *path_to_sys = "/sys/class/net/";
 			int type_id = 0;
 
-			error = read_from_sys_file(path_to_sys, name, &type_id);
+			error = read_interface_type_from_sys_file(path_to_sys, name, &type_id);
 			if (error != 0) {
-				SRPLG_LOG_ERR(PLUGIN_NAME, "read_from_sys_file error");
+				SRPLG_LOG_ERR(PLUGIN_NAME, "read_interface_type_from_sys_file error");
 				goto error_out;
 			}
 
