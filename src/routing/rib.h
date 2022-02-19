@@ -9,7 +9,7 @@ struct rib {
 	char description[ROUTING_RIB_DESCRIPTION_SIZE];
 	int address_family;
 	int default_rib;
-	struct route_list_hash routes;
+	struct route_list_hash_element *routes_head;
 };
 
 void rib_init(struct rib *rib);

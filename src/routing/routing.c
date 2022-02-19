@@ -64,10 +64,10 @@ static int routing_module_change_cb(sr_session_ctx_t *session, uint32_t subscrip
 
 // module change helpers - changing/deleting values
 static int set_control_plane_protocol_value(char *xpath, char *value);
-static int set_static_route_value(char *xpath, char *node_name, char *node_value, struct route_list_hash *route_hash, int family);
-static void set_static_route_description(struct route_list *route_list, char *node_value);
-static int set_static_route_simple_next_hop(struct route_list *route_list, char *node_value, int family);
-static int set_static_route_simple_outgoing_if(struct route_list *route_list, char *node_value);
+static int set_static_route_value(char *xpath, char *node_name, char *node_value, struct route_list_hash_element **routes_hash_head, int family);
+static void set_static_route_description(struct route_list_element **routes_head, char *node_value);
+static int set_static_route_simple_next_hop(struct route_list_element **routes_head, char *node_value, int family);
+static int set_static_route_simple_outgoing_if(struct route_list_element **routes_head, char *node_value);
 static int delete_control_plane_protocol_value(char *xpath);
 static int delete_static_route_value(char *xpath, char *node_name, int family);
 
@@ -90,12 +90,12 @@ static int routing_build_protos_map(struct control_plane_protocol map[ROUTING_PR
 static inline int routing_is_proto_type_known(int type);
 static bool routing_running_datastore_is_empty(void);
 
-static struct route_list_hash *ipv4_static_routes = NULL;
-static struct route_list_hash *ipv6_static_routes = NULL;
+static struct route_list_hash_element *ipv4_static_routes_head = NULL;
+static struct route_list_hash_element *ipv6_static_routes_head = NULL;
 
-static int static_routes_init(struct route_list_hash **ipv4_routes, struct route_list_hash **ipv6_routes);
+static int static_routes_init(struct route_list_hash_element **ipv4_head, struct route_list_hash_element **ipv6_head);
 static void foreach_nexthop(struct rtnl_nexthop *nh, void *arg);
-static int update_static_routes(struct route_list_hash *routes, uint8_t family);
+static int update_static_routes(struct route_list_hash_element **routes_head, uint8_t family);
 
 int sr_plugin_init_cb(sr_session_ctx_t *session, void **private_data)
 {
@@ -116,7 +116,7 @@ int sr_plugin_init_cb(sr_session_ctx_t *session, void **private_data)
 
 	*private_data = startup_session;
 
-	error = static_routes_init(&ipv4_static_routes, &ipv6_static_routes);
+	error = static_routes_init(&ipv4_static_routes_head, &ipv6_static_routes_head);
 	if (error) {
 		SRPLG_LOG_ERR(PLUGIN_NAME, "static_routes_init error");
 		goto error_out;
@@ -177,7 +177,7 @@ out:
 	return error;
 }
 
-static int static_routes_init(struct route_list_hash **ipv4_routes, struct route_list_hash **ipv6_routes)
+static int static_routes_init(struct route_list_hash_element **ipv4_routes_head, struct route_list_hash_element **ipv6_routes_head)
 {
 	int nl_err = 0;
 	int error = 0;
@@ -191,11 +191,11 @@ static int static_routes_init(struct route_list_hash **ipv4_routes, struct route
 	char *if_name = NULL;
 	int ifindex = 0;
 
-	*ipv4_routes = xmalloc(sizeof(struct route_list_hash));
-	*ipv6_routes = xmalloc(sizeof(struct route_list_hash));
+	// *ipv4_routes = xmalloc(sizeof(struct route_list_hash));
+	// *ipv6_routes = xmalloc(sizeof(struct route_list_hash));
 
-	route_list_hash_init(*ipv4_routes);
-	route_list_hash_init(*ipv6_routes);
+	route_list_hash_init(ipv4_routes_head);
+	route_list_hash_init(ipv6_routes_head);
 
 	socket = nl_socket_alloc();
 	if (socket == NULL) {
@@ -250,10 +250,10 @@ static int static_routes_init(struct route_list_hash **ipv4_routes, struct route
 			// add the route to the protocol's container
 			if (AF == AF_INET) {
 				// v4
-				route_list_hash_add(*ipv4_routes, rtnl_route_get_dst(route), &tmp_route);
+				route_list_hash_add(ipv4_routes_head, rtnl_route_get_dst(route), &tmp_route);
 			} else if (AF == AF_INET6) {
 				// v6
-				route_list_hash_add(*ipv6_routes, rtnl_route_get_dst(route), &tmp_route);
+				route_list_hash_add(ipv6_routes_head, rtnl_route_get_dst(route), &tmp_route);
 			}
 
 			route_free(&tmp_route);
@@ -275,10 +275,8 @@ out:
 
 void sr_plugin_cleanup_cb(sr_session_ctx_t *session, void *private_data)
 {
-	route_list_hash_free(ipv4_static_routes);
-	route_list_hash_free(ipv6_static_routes);
-	FREE_SAFE(ipv4_static_routes);
-	FREE_SAFE(ipv6_static_routes);
+	route_list_hash_free(&ipv4_static_routes_head);
+	route_list_hash_free(&ipv6_static_routes_head);
 }
 
 static int routing_module_change_cb(sr_session_ctx_t *session, uint32_t subscription_id, const char *module_name, const char *xpath, sr_event_t event, uint32_t request_id, void *private_data)
@@ -364,21 +362,20 @@ static int routing_module_change_cb(sr_session_ctx_t *session, uint32_t subscrip
 		}
 
 		if (ipv4_update) {
-			error = update_static_routes(ipv4_static_routes, AF_INET);
+			error = update_static_routes(&ipv4_static_routes_head, AF_INET);
 			if (error) {
 				SRPLG_LOG_ERR(PLUGIN_NAME, "failed to update IPv4 static routes on system");
 				goto error_out;
 			}
-			route_list_hash_prune(ipv4_static_routes);
+			// route_list_hash_prune(ipv4_static_routes);
 		}
 
 		if (ipv6_update) {
-			error = update_static_routes(ipv6_static_routes, AF_INET6);
+			error = update_static_routes(&ipv6_static_routes_head, AF_INET6);
 			if (error) {
 				SRPLG_LOG_ERR(PLUGIN_NAME, "failed to update IPv6 static routes on system");
 				goto error_out;
 			}
-			route_list_hash_prune(ipv6_static_routes);
 		}
 	}
 	goto out;
@@ -395,7 +392,7 @@ out:
 	return error != 0 ? SR_ERR_CALLBACK_FAILED : SR_ERR_OK;
 }
 
-static int update_static_routes(struct route_list_hash *routes, uint8_t family)
+static int update_static_routes(struct route_list_hash_element **routes_head, uint8_t family)
 {
 	struct nl_sock *socket = NULL;
 	struct rtnl_route *route = NULL;
@@ -403,6 +400,7 @@ static int update_static_routes(struct route_list_hash *routes, uint8_t family)
 	struct nl_addr *dst_addr = NULL;
 	int error = 0;
 	int nl_err = 0;
+	struct route_list_hash_element *routes_iter = NULL;
 
 	socket = nl_socket_alloc();
 	if (socket == NULL) {
@@ -418,8 +416,9 @@ static int update_static_routes(struct route_list_hash *routes, uint8_t family)
 		goto error_out;
 	}
 
-	for (size_t i = 0; i < routes->size; i++) {
-		if (route_list_is_empty(&routes->list_route[i])) {
+	LL_FOREACH(*routes_head, routes_iter)
+	{
+		if (route_list_is_empty(&routes_iter->routes_head)) {
 			continue;
 		}
 
@@ -433,24 +432,11 @@ static int update_static_routes(struct route_list_hash *routes, uint8_t family)
 		rtnl_route_set_table(route, RT_TABLE_MAIN);
 		rtnl_route_set_protocol(route, RTPROT_STATIC);
 		rtnl_route_set_family(route, family);
-		dst_addr = nl_addr_clone(routes->list_addr[i]);
+		dst_addr = nl_addr_clone(routes_iter->prefix);
 		rtnl_route_set_dst(route, dst_addr);
-		rtnl_route_set_priority(route, routes->list_route[i].list[0].preference);
+		rtnl_route_set_priority(route, routes_iter->routes_head->route.preference);
 
-		if (routes->list_route[i].delete) {
-			rtnl_route_set_scope(route, RT_SCOPE_NOWHERE);
-			nl_err = rtnl_route_delete(socket, route, 0);
-			if (nl_err != 0) {
-				error = -1;
-				SRPLG_LOG_ERR(PLUGIN_NAME, "nl_connect failed (%d): %s", nl_err, nl_geterror(nl_err));
-				goto error_out;
-			}
-			rtnl_route_put(route);
-			route = NULL;
-			continue;
-		}
-
-		if (routes->list_route[i].list[0].next_hop.kind == route_next_hop_kind_simple) {
+		if (routes_iter->routes_head->route.next_hop.kind == route_next_hop_kind_simple) {
 			next_hop = rtnl_route_nh_alloc();
 			if (next_hop == NULL) {
 				error = -1;
@@ -458,22 +444,22 @@ static int update_static_routes(struct route_list_hash *routes, uint8_t family)
 				goto error_out;
 			}
 
-			if (routes->list_route[i].list[0].next_hop.value.simple.if_name == NULL && routes->list_route[i].list[0].next_hop.value.simple.addr == NULL) {
+			if (routes_iter->routes_head->route.next_hop.value.simple.if_name == NULL && routes_iter->routes_head->route.next_hop.value.simple.addr == NULL) {
 				error = -1;
 				SRPLG_LOG_ERR(PLUGIN_NAME, "outgoing-interface and next-hop-address can't both be NULL");
 				goto error_out;
 			}
 
-			if (routes->list_route[i].list[0].next_hop.value.simple.if_name != NULL) {
-				rtnl_route_nh_set_ifindex(next_hop, routes->list_route[i].list[0].next_hop.value.simple.ifindex);
+			if (routes_iter->routes_head->route.next_hop.value.simple.if_name != NULL) {
+				rtnl_route_nh_set_ifindex(next_hop, routes_iter->routes_head->route.next_hop.value.simple.ifindex);
 			}
 
-			if (routes->list_route[i].list[0].next_hop.value.simple.addr != NULL) {
-				rtnl_route_nh_set_gateway(next_hop, routes->list_route[i].list[0].next_hop.value.simple.addr);
+			if (routes_iter->routes_head->route.next_hop.value.simple.addr != NULL) {
+				rtnl_route_nh_set_gateway(next_hop, routes_iter->routes_head->route.next_hop.value.simple.addr);
 			}
 			rtnl_route_add_nexthop(route, next_hop);
-		} else if (routes->list_route[i].list[0].next_hop.kind == route_next_hop_kind_list) {
-			for (size_t j = 0; j < routes->list_route[i].list[0].next_hop.value.list.size; j++) {
+		} else if (routes_iter->routes_head->route.next_hop.kind == route_next_hop_kind_list) {
+			for (size_t j = 0; j < routes_iter->routes_head->route.next_hop.value.list.size; j++) {
 				next_hop = rtnl_route_nh_alloc();
 				if (next_hop == NULL) {
 					error = -1;
@@ -481,8 +467,8 @@ static int update_static_routes(struct route_list_hash *routes, uint8_t family)
 					goto error_out;
 				}
 
-				rtnl_route_nh_set_ifindex(next_hop, routes->list_route[i].list[0].next_hop.value.list.list[j].ifindex);
-				rtnl_route_nh_set_gateway(next_hop, routes->list_route[i].list[0].next_hop.value.list.list[j].addr);
+				rtnl_route_nh_set_ifindex(next_hop, routes_iter->routes_head->route.next_hop.value.list.list[j].ifindex);
+				rtnl_route_nh_set_gateway(next_hop, routes_iter->routes_head->route.next_hop.value.list.list[j].addr);
 				rtnl_route_add_nexthop(route, next_hop);
 			}
 		}
@@ -501,6 +487,7 @@ static int update_static_routes(struct route_list_hash *routes, uint8_t family)
 		rtnl_route_put(route);
 		route = NULL;
 	}
+
 error_out:
 	if (dst_addr) {
 		nl_addr_put(dst_addr);
@@ -529,13 +516,13 @@ static int set_control_plane_protocol_value(char *node_xpath, char *node_value)
 	node_name = sr_xpath_node_name(node_xpath);
 
 	if (strstr(orig_xpath, "ietf-ipv4-unicast-routing:ipv4")) {
-		error = set_static_route_value(orig_xpath, node_name, node_value, ipv4_static_routes, AF_INET);
+		error = set_static_route_value(orig_xpath, node_name, node_value, &ipv4_static_routes_head, AF_INET);
 		if (error != 0) {
 			SRPLG_LOG_ERR(PLUGIN_NAME, "error setting IPv4 static route value");
 			goto out;
 		}
 	} else if (strstr(orig_xpath, "ietf-ipv6-unicast-routing:ipv6")) {
-		error = set_static_route_value(orig_xpath, node_name, node_value, ipv6_static_routes, AF_INET6);
+		error = set_static_route_value(orig_xpath, node_name, node_value, &ipv6_static_routes_head, AF_INET6);
 		if (error != 0) {
 			SRPLG_LOG_ERR(PLUGIN_NAME, "error setting IPv6 static route value");
 			goto out;
@@ -550,13 +537,14 @@ out:
 	return error ? SR_ERR_CALLBACK_FAILED : SR_ERR_OK;
 }
 
-static int set_static_route_value(char *xpath, char *node_name, char *node_value, struct route_list_hash *routes_hash, int family)
+static int set_static_route_value(char *xpath, char *node_name, char *node_value, struct route_list_hash_element **routes_hash_head, int family)
 {
 	sr_xpath_ctx_t xpath_ctx = {0};
 
 	struct nl_addr *destination_prefix_addr = NULL;
 
-	struct route_list *route_list = NULL;
+	// struct route_list *route_list = NULL;
+	struct route_list_element **routes_head = NULL;
 	char *next_hop_list = NULL;
 	char *destination_prefix = NULL;
 	int error = 0;
@@ -578,8 +566,8 @@ static int set_static_route_value(char *xpath, char *node_name, char *node_value
 	}
 
 	if (strcmp(node_name, "destination-prefix")) {
-		route_list = route_list_hash_get_by_addr(routes_hash, destination_prefix_addr);
-		if (route_list == NULL) {
+		routes_head = route_list_hash_get(routes_hash_head, destination_prefix_addr);
+		if (routes_head == NULL) {
 			error = -1;
 			SRPLG_LOG_ERR(PLUGIN_NAME, "matching route_list destination-prefix %s not found", destination_prefix);
 			goto out;
@@ -587,24 +575,24 @@ static int set_static_route_value(char *xpath, char *node_name, char *node_value
 	}
 
 	if (next_hop_list != NULL) {
-		route_list->list[0].next_hop.kind = route_next_hop_kind_list;
+		(*routes_head)->route.next_hop.kind = route_next_hop_kind_list;
 
 		if (!strcmp(node_name, "next-hop-address")) {
 		} else if (!strcmp(node_name, "outgoing-interface")) {
 		}
 	} else if (!strcmp(node_name, "destination-prefix")) {
-		route_list_hash_add(routes_hash, destination_prefix_addr, &(struct route){0});
+		route_list_hash_add(routes_hash_head, destination_prefix_addr, &(struct route){0});
 	} else if (!strcmp(node_name, "description")) {
-		set_static_route_description(route_list, node_value);
+		set_static_route_description(routes_head, node_value);
 	} else if (!strcmp(node_name, "next-hop-address")) {
-		error = set_static_route_simple_next_hop(route_list, node_value, family);
+		error = set_static_route_simple_next_hop(routes_head, node_value, family);
 		if (error) {
 			error = -1;
 			SRPLG_LOG_ERR(PLUGIN_NAME, "failed to set static route next-hop-address");
 			goto out;
 		}
 	} else if (!strcmp(node_name, "outgoing-interface")) {
-		error = set_static_route_simple_outgoing_if(route_list, node_value);
+		error = set_static_route_simple_outgoing_if(routes_head, node_value);
 		if (error) {
 			error = -1;
 			SRPLG_LOG_ERR(PLUGIN_NAME, "failed to set static route next-hop-address");
@@ -620,18 +608,18 @@ out:
 	return error ? SR_ERR_CALLBACK_FAILED : SR_ERR_OK;
 }
 
-static void set_static_route_description(struct route_list *route_list, char *node_value)
+static void set_static_route_description(struct route_list_element **routes_head, char *node_value)
 {
-	route_list->list[0].metadata.description = node_value ? xstrdup(node_value) : NULL;
+	(*routes_head)->route.metadata.description = node_value ? xstrdup(node_value) : NULL;
 }
 
-static int set_static_route_simple_next_hop(struct route_list *route_list, char *node_value, int family)
+static int set_static_route_simple_next_hop(struct route_list_element **routes_head, char *node_value, int family)
 {
 	int error = 0;
 
-	route_list->list[0].next_hop.kind = route_next_hop_kind_simple;
+	(*routes_head)->route.next_hop.kind = route_next_hop_kind_simple;
 
-	error = nl_addr_parse(node_value, family, &route_list->list[0].next_hop.value.simple.addr);
+	error = nl_addr_parse(node_value, family, &(*routes_head)->route.next_hop.value.simple.addr);
 	if (error != 0) {
 		SRPLG_LOG_ERR(PLUGIN_NAME, "failed to parse next-hop-address into nl_addr");
 		return -1;
@@ -640,19 +628,19 @@ static int set_static_route_simple_next_hop(struct route_list *route_list, char 
 	return 0;
 }
 
-static int set_static_route_simple_outgoing_if(struct route_list *route_list, char *node_value)
+static int set_static_route_simple_outgoing_if(struct route_list_element **routes_head, char *node_value)
 {
 	int ifindex = 0;
 
-	route_list->list[0].next_hop.kind = route_next_hop_kind_simple;
-	route_list->list[0].next_hop.value.simple.if_name = xstrdup(node_value);
+	(*routes_head)->route.next_hop.kind = route_next_hop_kind_simple;
+	(*routes_head)->route.next_hop.value.simple.if_name = xstrdup(node_value);
 	ifindex = (int) if_nametoindex(node_value);
 	if (ifindex == 0) {
 		SRPLG_LOG_ERR(PLUGIN_NAME, "failed to get ifindex for %s", node_value);
 		return -1;
 	}
 
-	route_list->list[0].next_hop.value.simple.ifindex = ifindex;
+	(*routes_head)->route.next_hop.value.simple.ifindex = ifindex;
 	return 0;
 }
 
@@ -695,7 +683,8 @@ static int delete_static_route_value(char *xpath, char *node_name, int family)
 
 	struct nl_addr *destination_prefix_addr = NULL;
 
-	struct route_list *route_list = NULL;
+	// struct route_list *route_list = NULL;
+	struct route_list_element **routes_head = NULL;
 	char *next_hop_list = NULL;
 	char *destination_prefix = NULL;
 	int error = 0;
@@ -717,31 +706,32 @@ static int delete_static_route_value(char *xpath, char *node_name, int family)
 	}
 
 	if (family == AF_INET) {
-		route_list = route_list_hash_get_by_addr(ipv4_static_routes, destination_prefix_addr);
+		routes_head = route_list_hash_get(&ipv4_static_routes_head, destination_prefix_addr);
 	} else if (family == AF_INET6) {
-		route_list = route_list_hash_get_by_addr(ipv6_static_routes, destination_prefix_addr);
+		routes_head = route_list_hash_get(&ipv4_static_routes_head, destination_prefix_addr);
 	}
 
-	if (route_list == NULL) {
+	if (routes_head == NULL) {
 		error = -1;
 		SRPLG_LOG_ERR(PLUGIN_NAME, "matching route_list destination-prefix %s not found", destination_prefix);
 		goto out;
 	}
 
 	if (next_hop_list != NULL) {
-		route_list->list[0].next_hop.kind = route_next_hop_kind_list;
+		(*routes_head)->route.next_hop.kind = route_next_hop_kind_list;
 
 		if (!strcmp(node_name, "next-hop-address")) {
 		} else if (!strcmp(node_name, "outgoing-interface")) {
 		}
 	} else if (!strcmp(node_name, "destination-prefix")) {
-		route_list->delete = true;
+		// delete item
+		LL_DELETE(*routes_head, *routes_head);
 	} else if (!strcmp(node_name, "description")) {
-		set_static_route_description(route_list, NULL);
+		set_static_route_description(routes_head, NULL);
 	} else if (!strcmp(node_name, "next-hop-address")) {
-		route_list->list[0].next_hop.value.simple.addr = NULL;
+		(*routes_head)->route.next_hop.value.simple.addr = NULL;
 	} else if (!strcmp(node_name, "outgoing-interface")) {
-		route_list->list[0].next_hop.value.simple.if_name = NULL;
+		(*routes_head)->route.next_hop.value.simple.if_name = NULL;
 	}
 
 out:
@@ -880,6 +870,8 @@ static int routing_oper_get_rib_routes_cb(sr_session_ctx_t *session, uint32_t su
 	struct nl_cache *cache = NULL;
 	struct nl_cache *link_cache = NULL;
 	struct rib_list_element *ribs_head = NULL, *ribs_iter = NULL;
+	struct route_list_hash_element *routes_hash_iter = NULL;
+	struct route_list_element *routes_iter = NULL;
 
 	// not needed -> set to NULL already
 	// rib_list_init(&ribs_head);
@@ -940,7 +932,7 @@ static int routing_oper_get_rib_routes_cb(sr_session_ctx_t *session, uint32_t su
 	LL_FOREACH(ribs_head, ribs_iter)
 	{
 		// create new routes container for every table
-		const struct route_list_hash *ROUTES_HASH = &ribs_iter->rib.routes;
+		struct route_list_hash_element **routes_hash_head = &ribs_iter->rib.routes_head;
 		const int ADDR_FAMILY = ribs_iter->rib.address_family;
 		const char *TABLE_NAME = ribs_iter->rib.name;
 		snprintf(routes_buffer, sizeof(routes_buffer), "%s[name='%s-%s']/routes", ROUTING_RIB_LIST_YANG_PATH, ADDR_FAMILY == AF_INET ? "ipv4" : "ipv6", TABLE_NAME);
@@ -950,9 +942,10 @@ static int routing_oper_get_rib_routes_cb(sr_session_ctx_t *session, uint32_t su
 			goto error_out;
 		}
 
-		for (size_t i = 0; i < ROUTES_HASH->size; i++) {
-			struct route_list *list_ptr = &ROUTES_HASH->list_route[i];
-			struct nl_addr *dst_prefix = ROUTES_HASH->list_addr[i];
+		LL_FOREACH(*routes_hash_head, routes_hash_iter)
+		{
+			struct route_list_element **routes_list_head = &routes_hash_iter->routes_head;
+			struct nl_addr *dst_prefix = routes_hash_iter->prefix;
 			nl_addr2str(dst_prefix, ip_buffer, sizeof(ip_buffer));
 
 			// check for prefix - libnl doesn't write prefix into the buffer if its 8*4/8*6 i.e. only that address/no subnet
@@ -962,8 +955,9 @@ static int routing_oper_get_rib_routes_cb(sr_session_ctx_t *session, uint32_t su
 				snprintf(prefix_buffer, sizeof(prefix_buffer), "%s", ip_buffer);
 			}
 
-			for (size_t j = 0; j < list_ptr->size; j++) {
-				const struct route *ROUTE = &list_ptr->list[j];
+			LL_FOREACH(*routes_list_head, routes_iter)
+			{
+				const struct route *ROUTE = &routes_iter->route;
 				// create a new list and after that add properties to it
 				ly_err = lyd_new_path(routes_node, ly_ctx, "routes/route", NULL, 0, &ly_node);
 				if (ly_err != LY_SUCCESS) {
@@ -1376,6 +1370,8 @@ static int routing_collect_routes(struct nl_cache *routes_cache, struct nl_cache
 	int ifindex = 0;
 	char *if_name = NULL;
 	struct rib_list_element *ribs_iter = NULL;
+	struct route_list_hash_element *routes_hash_iter = NULL;
+	struct route_list_element *routes_iter = NULL;
 
 	error = routing_collect_ribs(routes_cache, ribs_head);
 	if (error != 0) {
@@ -1441,7 +1437,7 @@ static int routing_collect_routes(struct nl_cache *routes_cache, struct nl_cache
 		}
 
 		// add the created route to the hash by a destination address
-		route_list_hash_add(&tmp_rib->routes, rtnl_route_get_dst(route), &tmp_route);
+		route_list_hash_add(&tmp_rib->routes_head, rtnl_route_get_dst(route), &tmp_route);
 
 		// last-updated -> TODO: implement later
 		route_free(&tmp_route);
@@ -1450,21 +1446,23 @@ static int routing_collect_routes(struct nl_cache *routes_cache, struct nl_cache
 
 	LL_FOREACH(*ribs_head, ribs_iter)
 	{
-		const struct route_list_hash *routes_hash = &ribs_iter->rib.routes;
-		if (routes_hash->size) {
-			// iterate every "hash" and set the active value for the preferred route
-			for (size_t j = 0; j < routes_hash->size; j++) {
-				struct route_list *ls = &routes_hash->list_route[j];
-				if (ls->size > 0) {
-					struct route *pref = &ls->list[0];
-					for (size_t k = 1; k < ls->size; k++) {
-						struct route *ptr = &ls->list[k];
-						if (ptr->preference < pref->preference) {
-							pref = ptr;
-						}
+		struct route_list_hash_element **routes_hash_head = &ribs_iter->rib.routes_head;
+
+		LL_FOREACH(*routes_hash_head, routes_hash_iter)
+		{
+			struct route_list_element **routes_list_head = &routes_hash_iter->routes_head;
+			if (*routes_list_head != NULL) {
+				struct route *pref = &(*routes_list_head)->route;
+
+				LL_FOREACH(*routes_list_head, routes_iter)
+				{
+					// struct route *ptr = &ls->list[k];
+					if (routes_iter->route.preference < pref->preference) {
+						pref = &routes_iter->route;
 					}
-					pref->metadata.active = 1;
 				}
+
+				pref->metadata.active = 1;
 			}
 		}
 	}
@@ -1497,6 +1495,9 @@ static int routing_load_control_plane_protocols(sr_session_ctx_t *session, struc
 	char prefix_buffer[INET6_ADDRSTRLEN + 1 + 3] = {0};
 	char route_path_buffer[PATH_MAX] = {0};
 	char xpath_buffer[256] = {0};
+
+	// iterators
+	struct route_list_hash_element *routes_hash_iter = NULL;
 
 	// control-plane-protocol structs
 	struct control_plane_protocol cpp_map[ROUTING_PROTOS_COUNT] = {0};
@@ -1577,10 +1578,10 @@ static int routing_load_control_plane_protocols(sr_session_ctx_t *session, struc
 					goto error_out;
 				}
 
-				// ipv4
-				for (size_t j = 0; j < ipv4_static_routes->size; j++) {
-					const struct nl_addr *DST_PREFIX = ipv4_static_routes->list_addr[j];
-					const struct route *ROUTE = &ipv4_static_routes->list_route[j].list[0];
+				LL_FOREACH(ipv4_static_routes_head, routes_hash_iter)
+				{
+					const struct nl_addr *DST_PREFIX = routes_hash_iter->prefix;
+					const struct route *ROUTE = &routes_hash_iter->routes_head->route;
 					const union route_next_hop_value *NEXTHOP = &ROUTE->next_hop.value;
 
 					// configure prefix
@@ -1674,10 +1675,10 @@ static int routing_load_control_plane_protocols(sr_session_ctx_t *session, struc
 					}
 				}
 
-				// ipv6
-				for (size_t j = 0; j < ipv6_static_routes->size; j++) {
-					const struct nl_addr *DST_PREFIX = ipv6_static_routes->list_addr[j];
-					const struct route *ROUTE = &ipv6_static_routes->list_route[j].list[0];
+				LL_FOREACH(ipv6_static_routes_head, routes_hash_iter)
+				{
+					const struct nl_addr *DST_PREFIX = routes_hash_iter->prefix;
+					const struct route *ROUTE = &routes_hash_iter->routes_head->route;
 					const union route_next_hop_value *NEXTHOP = &ROUTE->next_hop.value;
 
 					// configure prefix

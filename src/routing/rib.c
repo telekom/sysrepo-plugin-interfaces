@@ -16,7 +16,7 @@ void rib_init(struct rib *rib)
 	memset(rib->name, 0, sizeof(rib->name));
 	memset(rib->description, 0, sizeof(rib->description));
 
-	route_list_hash_init(&rib->routes);
+	route_list_hash_init(&rib->routes_head);
 }
 
 void rib_set_address_family(struct rib *rib, int af)
@@ -41,5 +41,5 @@ void rib_set_name(struct rib *rib, char *buff)
 
 void rib_free(struct rib *rib)
 {
-	route_list_hash_free(&rib->routes);
+	route_list_hash_free(&rib->routes_head);
 }

@@ -1,6 +1,7 @@
-#include "route/list_hash.h"
 #include "control_plane_protocol.h"
 #include "utils/memory.h"
+
+#include <string.h>
 
 void control_plane_protocol_init(struct control_plane_protocol *cpp)
 {
