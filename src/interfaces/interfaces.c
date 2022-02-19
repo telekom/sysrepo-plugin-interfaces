@@ -1699,8 +1699,17 @@ int add_interface_ipv6(link_data_t *ld, struct rtnl_link *old, struct rtnl_link 
 
 	// set mtu
 	if (ipv6->ip_data.mtu != 0) {
+		// If the new ipv6 MTU value is greater than link (ipv4) MTU, the
+		// kernel will return EINVAL when attempting to write
+		// the value to the MTU proc file.
+		if (ipv6->ip_data.mtu > ld->ipv4.mtu) {
+			SRP_LOG_ERR("Attempted to set ipv6 MTU value (%hd) greater than the current ipv4 MTU value (%hd).", ipv6->ip_data.mtu, ld->ipv4.mtu);
+			error = -1;
+			goto out;
+		}
 		error = write_to_proc_file(ipv6_base, if_name, "mtu", ipv6->ip_data.mtu);
 		if (error != 0) {
+			SRP_LOG_ERRMSG("write_to_proc_file error (mtu)");
 			goto out;
 		}
 	}
