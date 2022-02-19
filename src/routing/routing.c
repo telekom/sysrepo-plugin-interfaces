@@ -19,6 +19,8 @@
 #include <sysrepo.h>
 #include <sysrepo/xpath.h>
 
+#include <utlist.h>
+
 #include "route/next_hop.h"
 #include "routing.h"
 #include "rib.h"
@@ -79,10 +81,10 @@ static int routing_rpc_active_route_cb(sr_session_ctx_t *session, uint32_t subsc
 // initial loading into the datastore
 static int routing_load_data(sr_session_ctx_t *session);
 static int routing_load_ribs(sr_session_ctx_t *session, struct lyd_node *routing_container_node);
-static int routing_collect_ribs(struct nl_cache *routes_cache, struct rib_list *ribs);
-static int routing_collect_routes(struct nl_cache *routes_cache, struct nl_cache *link_cache, struct rib_list *ribs);
+static int routing_collect_ribs(struct nl_cache *routes_cache, struct rib_list_element **ribs_head);
+static int routing_collect_routes(struct nl_cache *routes_cache, struct nl_cache *link_cache, struct rib_list_element **ribs_head);
 static int routing_load_control_plane_protocols(sr_session_ctx_t *session, struct lyd_node *routing_container_node);
-static int routing_build_rib_descriptions(struct rib_list *ribs);
+static int routing_build_rib_descriptions(struct rib_list_element **ribs_head);
 static inline int routing_is_rib_known(int table);
 static int routing_build_protos_map(struct control_plane_protocol map[ROUTING_PROTOS_COUNT]);
 static inline int routing_is_proto_type_known(int type);
@@ -877,7 +879,10 @@ static int routing_oper_get_rib_routes_cb(sr_session_ctx_t *session, uint32_t su
 	struct nl_sock *socket = NULL;
 	struct nl_cache *cache = NULL;
 	struct nl_cache *link_cache = NULL;
-	struct rib_list ribs = {0};
+	struct rib_list_element *ribs_head = NULL, *ribs_iter = NULL;
+
+	// not needed -> set to NULL already
+	// rib_list_init(&ribs_head);
 
 	// temp buffers
 	char routes_buffer[PATH_MAX];
@@ -927,16 +932,17 @@ static int routing_oper_get_rib_routes_cb(sr_session_ctx_t *session, uint32_t su
 		goto error_out;
 	}
 
-	error = routing_collect_routes(cache, link_cache, &ribs);
+	error = routing_collect_routes(cache, link_cache, &ribs_head);
 	if (error != 0) {
 		goto error_out;
 	}
 
-	for (size_t hash_iter = 0; hash_iter < ribs.size; hash_iter++) {
+	LL_FOREACH(ribs_head, ribs_iter)
+	{
 		// create new routes container for every table
-		const struct route_list_hash *ROUTES_HASH = &ribs.list[hash_iter].routes;
-		const int ADDR_FAMILY = ribs.list[hash_iter].address_family;
-		const char *TABLE_NAME = ribs.list[hash_iter].name;
+		const struct route_list_hash *ROUTES_HASH = &ribs_iter->rib.routes;
+		const int ADDR_FAMILY = ribs_iter->rib.address_family;
+		const char *TABLE_NAME = ribs_iter->rib.name;
 		snprintf(routes_buffer, sizeof(routes_buffer), "%s[name='%s-%s']/routes", ROUTING_RIB_LIST_YANG_PATH, ADDR_FAMILY == AF_INET ? "ipv4" : "ipv6", TABLE_NAME);
 		ly_err = lyd_new_path(*parent, ly_ctx, routes_buffer, NULL, LYD_NEW_PATH_UPDATE, &routes_node);
 		if (ly_err != LY_SUCCESS) {
@@ -1135,7 +1141,7 @@ error_out:
 	error = SR_ERR_CALLBACK_FAILED;
 
 out:
-	rib_list_free(&ribs);
+	rib_list_free(&ribs_head);
 	nl_socket_free(socket);
 	nl_cache_free(cache);
 	nl_cache_free(link_cache);
@@ -1217,7 +1223,7 @@ static int routing_load_ribs(sr_session_ctx_t *session, struct lyd_node *routing
 	// libnl
 	struct nl_sock *socket = NULL;
 	struct nl_cache *cache = NULL;
-	struct rib_list ribs = {0};
+	struct rib_list_element *ribs_head = NULL, *ribs_iter = NULL;
 
 	// temp buffers
 	char list_buffer[PATH_MAX] = {0};
@@ -1229,7 +1235,7 @@ static int routing_load_ribs(sr_session_ctx_t *session, struct lyd_node *routing
 		goto error_out;
 	}
 
-	rib_list_init(&ribs);
+	// rib_list_init(&ribs_head);
 
 	socket = nl_socket_alloc();
 	if (socket == NULL) {
@@ -1261,7 +1267,7 @@ static int routing_load_ribs(sr_session_ctx_t *session, struct lyd_node *routing
 		goto error_out;
 	}
 
-	error = routing_collect_ribs(cache, &ribs);
+	error = routing_collect_ribs(cache, &ribs_head);
 	if (error != 0) {
 		goto error_out;
 	}
@@ -1274,8 +1280,9 @@ static int routing_load_ribs(sr_session_ctx_t *session, struct lyd_node *routing
 
 	// all RIBs loaded - add them to the initial config
 	struct rib *iter = NULL;
-	for (size_t i = 0; i < ribs.size; i++) {
-		iter = &ribs.list[i];
+	LL_FOREACH(ribs_head, ribs_iter)
+	{
+		iter = &ribs_iter->rib;
 		SRPLG_LOG_DBG(PLUGIN_NAME, "adding table %s to the list", iter->name);
 
 		// write the current adding table into the buffer
@@ -1309,14 +1316,14 @@ error_out:
 	error = -1;
 
 out:
-	rib_list_free(&ribs);
+	rib_list_free(&ribs_head);
 	nl_socket_free(socket);
 	nl_cache_free(cache);
 
 	return error;
 }
 
-static int routing_collect_ribs(struct nl_cache *routes_cache, struct rib_list *ribs)
+static int routing_collect_ribs(struct nl_cache *routes_cache, struct rib_list_element **ribs_head)
 {
 	int error = 0;
 	struct rtnl_route *route = NULL;
@@ -1333,18 +1340,18 @@ static int routing_collect_ribs(struct nl_cache *routes_cache, struct rib_list *
 		snprintf(name_buffer, sizeof(name_buffer), "%s-%s", af == AF_INET ? "ipv4" : "ipv6", table_buffer);
 
 		// add the table to the list and set properties
-		rib_list_add(ribs, table_buffer, af);
+		rib_list_add(ribs_head, table_buffer, af);
 
 		// default table is main (same as iproute2) - for both ipv4 and ipv6 addresses
 		if (strncmp(table_buffer, "main", sizeof("main") - 1) == 0) {
-			rib_list_set_default(ribs, table_buffer, af, 1);
+			rib_list_set_default(ribs_head, table_buffer, af, 1);
 		}
 
 		route = (struct rtnl_route *) nl_cache_get_next((struct nl_object *) route);
 	}
 
 	// after the list is finished -> build descriptions for all ribs
-	error = routing_build_rib_descriptions(ribs);
+	error = routing_build_rib_descriptions(ribs_head);
 	if (error != 0) {
 		goto error_out;
 	}
@@ -1358,7 +1365,7 @@ out:
 	return error;
 }
 
-static int routing_collect_routes(struct nl_cache *routes_cache, struct nl_cache *link_cache, struct rib_list *ribs)
+static int routing_collect_routes(struct nl_cache *routes_cache, struct nl_cache *link_cache, struct rib_list_element **ribs_head)
 {
 	int error = 0;
 	struct rtnl_route *route = NULL;
@@ -1368,8 +1375,9 @@ static int routing_collect_routes(struct nl_cache *routes_cache, struct nl_cache
 	struct rtnl_link *iface = NULL;
 	int ifindex = 0;
 	char *if_name = NULL;
+	struct rib_list_element *ribs_iter = NULL;
 
-	error = routing_collect_ribs(routes_cache, ribs);
+	error = routing_collect_ribs(routes_cache, ribs_head);
 	if (error != 0) {
 		goto error_out;
 	}
@@ -1384,7 +1392,7 @@ static int routing_collect_routes(struct nl_cache *routes_cache, struct nl_cache
 		rtnl_route_table2str(table_id, table_buffer, sizeof(table_buffer));
 
 		// get the current RIB of the route
-		tmp_rib = rib_list_get(ribs, table_buffer, af);
+		tmp_rib = rib_list_get(ribs_head, table_buffer, af);
 		if (tmp_rib == NULL) {
 			error = -1;
 			goto error_out;
@@ -1440,8 +1448,9 @@ static int routing_collect_routes(struct nl_cache *routes_cache, struct nl_cache
 		route = (struct rtnl_route *) nl_cache_get_next((struct nl_object *) route);
 	}
 
-	for (size_t i = 0; i < ribs->size; i++) {
-		const struct route_list_hash *routes_hash = &ribs->list[i].routes;
+	LL_FOREACH(*ribs_head, ribs_iter)
+	{
+		const struct route_list_hash *routes_hash = &ribs_iter->rib.routes;
 		if (routes_hash->size) {
 			// iterate every "hash" and set the active value for the preferred route
 			for (size_t j = 0; j < routes_hash->size; j++) {
@@ -1777,11 +1786,12 @@ out:
 	return error;
 }
 
-static int routing_build_rib_descriptions(struct rib_list *ribs)
+static int routing_build_rib_descriptions(struct rib_list_element **ribs_head)
 {
 	int error = 0;
 
 	char name_buffer[32 + 5] = {0};
+	struct rib_list_element *ribs_iter = NULL;
 
 	struct rib_description_pair default_descriptions[] = {
 		{"ipv4-main", "main routing table - normal routing table containing all non-policy routes (ipv4 only)"},
@@ -1793,8 +1803,9 @@ static int routing_build_rib_descriptions(struct rib_list *ribs)
 	};
 
 	// now iterate over each rib and set its description
-	for (size_t i = 0; i < ribs->size; i++) {
-		const struct rib *RIB = &ribs->list[i];
+	LL_FOREACH(*ribs_head, ribs_iter)
+	{
+		const struct rib *RIB = &ribs_iter->rib;
 		const int TABLE_ID = rtnl_route_str2table(RIB->name);
 
 		// for default, local and main add prefixes, for other use given names

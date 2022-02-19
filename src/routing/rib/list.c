@@ -9,67 +9,93 @@
 #include "rib.h"
 #include "rib/list.h"
 
-void rib_list_init(struct rib_list *ls)
+#include <utlist.h>
+
+static int rib_list_element_cmp(struct rib_list_element *e1, struct rib_list_element *e2);
+
+void rib_list_init(struct rib_list_element **head)
 {
-	ls->list = NULL;
-	ls->size = 0;
+	*head = NULL;
 }
 
-void rib_list_add(struct rib_list *ls, char *name, int af)
+void rib_list_add(struct rib_list_element **head, char *name, int af)
 {
-	struct rib *exists = rib_list_get(ls, name, af);
-	if (exists == NULL) {
-		struct rib *ptr = NULL;
-		ls->list = realloc(ls->list, sizeof(struct rib) * (unsigned) (ls->size + 1));
-		ptr = &ls->list[ls->size];
+	struct rib *found = NULL;
+	struct rib_list_element *new_rib = NULL;
 
-		rib_init(ptr);
-		rib_set_name(ptr, name);
-		rib_set_address_family(ptr, af);
+	found = rib_list_get(head, name, af);
+	if (!found) {
+		new_rib = xmalloc(sizeof(*new_rib));
+		new_rib->next = NULL;
 
-		ls->size += 1;
+		rib_init(&new_rib->rib);
+		rib_set_name(&new_rib->rib, name);
+		rib_set_address_family(&new_rib->rib, af);
+
+		LL_APPEND(*head, new_rib);
 	}
 }
 
-int rib_list_set_description(struct rib_list *ls, char *name, int af, const char *desc)
+int rib_list_set_description(struct rib_list_element **head, char *name, int af, const char *desc)
 {
-	struct rib *rib = rib_list_get(ls, name, af);
-	if (rib == NULL) {
-		return -1;
+	int error = 0;
+	struct rib *rib = NULL;
+
+	rib = rib_list_get(head, name, af);
+	if (rib) {
+		rib_set_description(rib, desc);
+	} else {
+		error = -1;
 	}
 
-	rib_set_description(rib, desc);
-	return 0;
+	return error;
 }
 
-int rib_list_set_default(struct rib_list *ls, char *name, int af, int def)
+int rib_list_set_default(struct rib_list_element **head, char *name, int af, int def)
 {
-	struct rib *rib = rib_list_get(ls, name, af);
-	if (rib == NULL) {
-		return -1;
+	int error = 0;
+	struct rib *rib = NULL;
+
+	rib = rib_list_get(head, name, af);
+	if (rib) {
+		rib_set_default(rib, def);
+	} else {
+		error = -1;
 	}
 
-	rib_set_default(rib, def);
-	return 0;
+	return error;
 }
 
-struct rib *rib_list_get(struct rib_list *ls, char *name, int af)
+struct rib *rib_list_get(struct rib_list_element **head, char *name, int af)
 {
-	for (size_t i = 0; i < ls->size; i++) {
-		struct rib *ptr = &ls->list[i];
-		if (strcmp(ptr->name, name) == 0 && ptr->address_family == af) {
-			return &ls->list[i];
-		}
+	struct rib_list_element *found = NULL;
+	struct rib_list_element find_element = {0};
+	struct rib *rib_ptr = NULL;
+
+	// setup find element
+	rib_set_name(&find_element.rib, name);
+
+	LL_SEARCH(*head, found, &find_element, rib_list_element_cmp);
+	if (found) {
+		rib_ptr = &found->rib;
 	}
-	return NULL;
+
+	return rib_ptr;
 }
 
-void rib_list_free(struct rib_list *ls)
+void rib_list_free(struct rib_list_element **head)
 {
-	if (ls->list) {
-		for (size_t i = 0; i < ls->size; i++) {
-			rib_free(&ls->list[i]);
-		}
-		FREE_SAFE(ls->list);
+	struct rib_list_element *iter = NULL, *tmp = NULL;
+
+	LL_FOREACH_SAFE(*head, iter, tmp)
+	{
+		LL_DELETE(*head, iter);
+		rib_free(&iter->rib);
 	}
+}
+
+static int rib_list_element_cmp(struct rib_list_element *e1, struct rib_list_element *e2)
+{
+	// return only eq/neq
+	return strcmp(e1->rib.name, e2->rib.name) == 0 && e1->rib.address_family == e2->rib.address_family;
 }
