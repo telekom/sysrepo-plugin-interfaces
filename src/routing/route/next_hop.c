@@ -4,6 +4,8 @@
 #include "route/next_hop.h"
 #include "utils/memory.h"
 
+#include <utlist.h>
+
 void route_next_hop_init(struct route_next_hop *nh)
 {
 	nh->kind = route_next_hop_kind_none;
@@ -31,30 +33,30 @@ void route_next_hop_set_special(struct route_next_hop *nh, char *value)
 
 void route_next_hop_add_list(struct route_next_hop *nh, int ifindex, const char *if_name, struct nl_addr *gw)
 {
-	size_t idx = 0;
+	struct route_next_hop_list_element *new_element = NULL;
 
 	if (nh->kind == route_next_hop_kind_none) {
-		// initialize the list
+		nh->value.list_head = NULL;
 		nh->kind = route_next_hop_kind_list;
-		nh->value.list.list = xmalloc(sizeof(struct route_next_hop_simple));
-		idx = 0;
-	} else {
-		nh->value.list.list = xrealloc(nh->value.list.list, sizeof(struct route_next_hop_simple) * (unsigned long) (nh->value.list.size + 1));
-		idx = nh->value.list.size;
 	}
-	nh->value.list.list[idx].ifindex = ifindex;
-	nh->value.list.list[idx].if_name = xstrdup(if_name);
+
+	new_element = xmalloc(sizeof(*new_element));
+	new_element->next = NULL;
+	new_element->simple.ifindex = ifindex;
+	new_element->simple.if_name = xstrdup(if_name);
 	if (gw) {
-		nh->value.list.list[idx].addr = nl_addr_clone(gw);
+		new_element->simple.addr = nl_addr_clone(gw);
 	} else {
-		nh->value.list.list[idx].addr = NULL;
+		new_element->simple.addr = NULL;
 	}
-	++nh->value.list.size;
+
+	LL_APPEND(nh->value.list_head, new_element);
 }
 
 struct route_next_hop route_next_hop_clone(struct route_next_hop *nh)
 {
 	struct route_next_hop out = {0};
+	struct route_next_hop_list_element *list_iter = NULL;
 
 	switch (nh->kind) {
 		case route_next_hop_kind_none:
@@ -66,8 +68,9 @@ struct route_next_hop route_next_hop_clone(struct route_next_hop *nh)
 			route_next_hop_set_special(&out, nh->value.special.value);
 			break;
 		case route_next_hop_kind_list:
-			for (size_t i = 0; i < nh->value.list.size; i++) {
-				route_next_hop_add_list(&out, nh->value.list.list[i].ifindex, nh->value.list.list[i].if_name, nh->value.list.list[i].addr);
+			LL_FOREACH(nh->value.list_head, list_iter)
+			{
+				route_next_hop_add_list(&out, list_iter->simple.ifindex, list_iter->simple.if_name, list_iter->simple.addr);
 			}
 			break;
 	}
@@ -77,6 +80,8 @@ struct route_next_hop route_next_hop_clone(struct route_next_hop *nh)
 
 void route_next_hop_free(struct route_next_hop *nh)
 {
+	struct route_next_hop_list_element *list_iter = NULL, *tmp = NULL;
+
 	switch (nh->kind) {
 		case route_next_hop_kind_none:
 			break;
@@ -88,7 +93,6 @@ void route_next_hop_free(struct route_next_hop *nh)
 			if (nh->value.simple.if_name) {
 				FREE_SAFE(nh->value.simple.if_name);
 			}
-
 			break;
 		case route_next_hop_kind_special:
 			if (nh->value.special.value != NULL) {
@@ -96,17 +100,19 @@ void route_next_hop_free(struct route_next_hop *nh)
 			}
 			break;
 		case route_next_hop_kind_list:
-			if (nh->value.list.size > 0) {
-				for (size_t i = 0; i < nh->value.list.size; i++) {
-					if (nh->value.list.list[i].addr) {
-						nl_addr_put(nh->value.list.list[i].addr);
-					}
+			LL_FOREACH_SAFE(nh->value.list_head, list_iter, tmp)
+			{
+				LL_DELETE(nh->value.list_head, list_iter);
 
-					if (nh->value.simple.if_name) {
-						FREE_SAFE(nh->value.simple.if_name);
-					}
+				if (list_iter->simple.addr) {
+					nl_addr_put(list_iter->simple.addr);
 				}
-				FREE_SAFE(nh->value.list.list);
+
+				if (list_iter->simple.if_name) {
+					FREE_SAFE(list_iter->simple.if_name);
+				}
+
+				free(list_iter);
 			}
 			break;
 	}

@@ -30,6 +30,7 @@ void route_list_hash_add(struct route_list_hash_element **head, struct nl_addr *
 		new_hash->routes_head = NULL;
 
 		route_list_add(&new_hash->routes_head, route);
+		LL_APPEND(*head, new_hash);
 	}
 }
 
@@ -57,6 +58,7 @@ void route_list_hash_free(struct route_list_hash_element **head)
 		LL_DELETE(*head, iter);
 		nl_addr_put(iter->prefix);
 		route_list_free(&iter->routes_head);
+		free(iter);
 	}
 }
 

@@ -35,5 +35,6 @@ void route_list_free(struct route_list_element **head)
 	{
 		LL_DELETE(*head, iter);
 		route_free(&iter->route);
+		free(iter);
 	}
 }

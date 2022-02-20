@@ -30,6 +30,7 @@
 #include "route/list_hash.h"
 #include "control_plane_protocol.h"
 #include "control_plane_protocol/list.h"
+#include "sysrepo_types.h"
 #include "utils/memory.h"
 
 #define ROUTING_RIBS_COUNT 256
@@ -275,6 +276,12 @@ out:
 
 void sr_plugin_cleanup_cb(sr_session_ctx_t *session, void *private_data)
 {
+	sr_session_ctx_t *startup_session = (sr_session_ctx_t *) private_data;
+
+	if (startup_session) {
+		sr_session_stop(startup_session);
+	}
+	// sr_session_stop(session);
 	route_list_hash_free(&ipv4_static_routes_head);
 	route_list_hash_free(&ipv6_static_routes_head);
 }
@@ -459,7 +466,10 @@ static int update_static_routes(struct route_list_hash_element **routes_head, ui
 			}
 			rtnl_route_add_nexthop(route, next_hop);
 		} else if (routes_iter->routes_head->route.next_hop.kind == route_next_hop_kind_list) {
-			for (size_t j = 0; j < routes_iter->routes_head->route.next_hop.value.list.size; j++) {
+			struct route_next_hop_list_element *nexthop_iter = NULL;
+
+			LL_FOREACH(routes_iter->routes_head->route.next_hop.value.list_head, nexthop_iter)
+			{
 				next_hop = rtnl_route_nh_alloc();
 				if (next_hop == NULL) {
 					error = -1;
@@ -467,8 +477,8 @@ static int update_static_routes(struct route_list_hash_element **routes_head, ui
 					goto error_out;
 				}
 
-				rtnl_route_nh_set_ifindex(next_hop, routes_iter->routes_head->route.next_hop.value.list.list[j].ifindex);
-				rtnl_route_nh_set_gateway(next_hop, routes_iter->routes_head->route.next_hop.value.list.list[j].addr);
+				rtnl_route_nh_set_ifindex(next_hop, nexthop_iter->simple.ifindex);
+				rtnl_route_nh_set_gateway(next_hop, nexthop_iter->simple.addr);
 				rtnl_route_add_nexthop(route, next_hop);
 			}
 		}
@@ -931,6 +941,9 @@ static int routing_oper_get_rib_routes_cb(sr_session_ctx_t *session, uint32_t su
 
 	LL_FOREACH(ribs_head, ribs_iter)
 	{
+		SRPLG_LOG_DBG(PLUGIN_NAME, "RIB %s:", ribs_iter->rib.name);
+		SRPLG_LOG_DBG(PLUGIN_NAME, "\tdescription: %s", ribs_iter->rib.description);
+
 		// create new routes container for every table
 		struct route_list_hash_element **routes_hash_head = &ribs_iter->rib.routes_head;
 		const int ADDR_FAMILY = ribs_iter->rib.address_family;
@@ -1028,13 +1041,14 @@ static int routing_oper_get_rib_routes_cb(sr_session_ctx_t *session, uint32_t su
 						// }
 						break;
 					case route_next_hop_kind_list: {
-						const struct route_next_hop_list *NEXTHOP_LIST = &ROUTE->next_hop.value.list;
+						struct route_next_hop_list_element *nexthop_iter = NULL;
 
-						for (size_t k = 0; k < NEXTHOP_LIST->size; k++) {
-							struct rtnl_link *iface = rtnl_link_get(link_cache, NEXTHOP_LIST->list[k].ifindex);
+						LL_FOREACH(ROUTE->next_hop.value.list_head, nexthop_iter)
+						{
+							struct rtnl_link *iface = rtnl_link_get(link_cache, nexthop_iter->simple.ifindex);
 							const char *if_name = rtnl_link_get_name(iface);
 
-							error = snprintf(xpath_buffer, sizeof(xpath_buffer), "next-hop/next-hop-list/next-hop[index=%d]", NEXTHOP_LIST->list[k].ifindex);
+							error = snprintf(xpath_buffer, sizeof(xpath_buffer), "next-hop/next-hop-list/next-hop[index=%d]", nexthop_iter->simple.ifindex);
 							if (error < 0) {
 								SRPLG_LOG_ERR(PLUGIN_NAME, "unable to create new next-hop-list/next-hop node, couldn't retrieve interface index");
 								goto error_out;
@@ -1054,8 +1068,8 @@ static int routing_oper_get_rib_routes_cb(sr_session_ctx_t *session, uint32_t su
 							}
 
 							// next-hop-address
-							if (NEXTHOP_LIST->list[k].addr) {
-								nl_addr2str(NEXTHOP_LIST->list[k].addr, ip_buffer, sizeof(ip_buffer));
+							if (nexthop_iter->simple.addr) {
+								nl_addr2str(nexthop_iter->simple.addr, ip_buffer, sizeof(ip_buffer));
 								if (ADDR_FAMILY == AF_INET && ly_uv4mod != NULL) {
 									SRPLG_LOG_DBG(PLUGIN_NAME, "IPv4 next-hop/next-hop-list/next-hop/next-hop-address = %s", ip_buffer);
 									ly_err = lyd_new_term(nh_list_node, ly_uv4mod, "next-hop-address", ip_buffer, false, NULL);
@@ -1322,7 +1336,7 @@ static int routing_collect_ribs(struct nl_cache *routes_cache, struct rib_list_e
 	int error = 0;
 	struct rtnl_route *route = NULL;
 	char table_buffer[32] = {0};
-	char name_buffer[32 + 5] = {0};
+	// char name_buffer[32 + 5] = {0};
 
 	route = (struct rtnl_route *) nl_cache_get_first(routes_cache);
 
@@ -1331,7 +1345,8 @@ static int routing_collect_ribs(struct nl_cache *routes_cache, struct rib_list_e
 		const int table_id = (int) rtnl_route_get_table(route);
 		const uint8_t af = rtnl_route_get_family(route);
 		rtnl_route_table2str(table_id, table_buffer, sizeof(table_buffer));
-		snprintf(name_buffer, sizeof(name_buffer), "%s-%s", af == AF_INET ? "ipv4" : "ipv6", table_buffer);
+		// snprintf(name_buffer, sizeof(name_buffer), "%s-%s", af == AF_INET ? "ipv4" : "ipv6", table_buffer);
+		// SRPLG_LOG_DBG(PLUGIN_NAME, "table name: %s", name_buffer);
 
 		// add the table to the list and set properties
 		rib_list_add(ribs_head, table_buffer, af);
@@ -1347,6 +1362,7 @@ static int routing_collect_ribs(struct nl_cache *routes_cache, struct rib_list_e
 	// after the list is finished -> build descriptions for all ribs
 	error = routing_build_rib_descriptions(ribs_head);
 	if (error != 0) {
+		SRPLG_LOG_DBG(PLUGIN_NAME, "routing_build_rib_descriptions() failed");
 		goto error_out;
 	}
 
@@ -1387,12 +1403,16 @@ static int routing_collect_routes(struct nl_cache *routes_cache, struct nl_cache
 		const uint8_t af = rtnl_route_get_family(route);
 		rtnl_route_table2str(table_id, table_buffer, sizeof(table_buffer));
 
+		SRPLG_LOG_DBG(PLUGIN_NAME, "route table: %s", table_buffer);
+
 		// get the current RIB of the route
 		tmp_rib = rib_list_get(ribs_head, table_buffer, af);
 		if (tmp_rib == NULL) {
 			error = -1;
 			goto error_out;
 		}
+
+		SRPLG_LOG_DBG(PLUGIN_NAME, "found rib: %s-%d", tmp_rib->name, tmp_rib->address_family);
 
 		// fill the route with info and add to the hash of the current RIB
 		route_init(&tmp_route);
@@ -1639,10 +1659,11 @@ static int routing_load_control_plane_protocols(sr_session_ctx_t *session, struc
 						case route_next_hop_kind_special:
 							break;
 						case route_next_hop_kind_list: {
-							const struct route_next_hop_list *NEXTHOP_LIST = &ROUTE->next_hop.value.list;
-							for (size_t k = 0; k < NEXTHOP_LIST->size; k++) {
+							struct route_next_hop_list_element *nexthop_iter = NULL;
 
-								error = snprintf(xpath_buffer, sizeof(xpath_buffer), "next-hop/next-hop-list]/next-hop[index=%d]", NEXTHOP_LIST->list[k].ifindex);
+							LL_FOREACH(ROUTE->next_hop.value.list_head, nexthop_iter)
+							{
+								error = snprintf(xpath_buffer, sizeof(xpath_buffer), "next-hop/next-hop-list]/next-hop[index=%d]", nexthop_iter->simple.ifindex);
 								if (error < 0) {
 									SRPLG_LOG_ERR(PLUGIN_NAME, "unable to create new next-hop-list/next-hop node, couldn't retrieve interface index");
 									goto error_out;
@@ -1655,15 +1676,15 @@ static int routing_load_control_plane_protocols(sr_session_ctx_t *session, struc
 									goto error_out;
 								}
 								// next-hop-address
-								if (NEXTHOP_LIST->list[k].addr) {
-									nl_addr2str(NEXTHOP_LIST->list[k].addr, ip_buffer, sizeof(ip_buffer));
+								if (nexthop_iter->simple.addr) {
+									nl_addr2str(nexthop_iter->simple.addr, ip_buffer, sizeof(ip_buffer));
 									ly_err = lyd_new_term(nh_list_node, ly_uv4mod, "next-hop-address", ip_buffer, false, &tmp_node);
 									if (ly_err != LY_SUCCESS) {
 										SRPLG_LOG_ERR(PLUGIN_NAME, "unable to create next-hop-address leaf in the list for route %s", route_path_buffer);
 										goto error_out;
 									}
 
-									ly_err = lyd_new_term(nh_list_node, ly_uv4mod, "outgoing-interface", NEXTHOP_LIST->list[k].if_name, false, &tmp_node);
+									ly_err = lyd_new_term(nh_list_node, ly_uv4mod, "outgoing-interface", nexthop_iter->simple.if_name, false, &tmp_node);
 									if (ly_err != LY_SUCCESS) {
 										SRPLG_LOG_ERR(PLUGIN_NAME, "unable to create outgoing-interface leaf in the list for route %s", route_path_buffer);
 										goto error_out;
@@ -1736,9 +1757,10 @@ static int routing_load_control_plane_protocols(sr_session_ctx_t *session, struc
 						case route_next_hop_kind_special:
 							break;
 						case route_next_hop_kind_list: {
-							const struct route_next_hop_list *NEXTHOP_LIST = &ROUTE->next_hop.value.list;
-							for (size_t k = 0; k < NEXTHOP_LIST->size; k++) {
-								error = snprintf(xpath_buffer, sizeof(xpath_buffer), "next-hop/next-hop-list/next-hop[index=%d]", NEXTHOP_LIST->list[k].ifindex);
+							struct route_next_hop_list_element *nexthop_iter = NULL;
+							LL_FOREACH(ROUTE->next_hop.value.list_head, nexthop_iter)
+							{
+								error = snprintf(xpath_buffer, sizeof(xpath_buffer), "next-hop/next-hop-list/next-hop[index=%d]", nexthop_iter->simple.ifindex);
 								if (error < 0) {
 									SRPLG_LOG_ERR(PLUGIN_NAME, "unable to create new next-hop-list/next-hop node, couldn't retrieve interface index");
 									goto error_out;
@@ -1750,15 +1772,15 @@ static int routing_load_control_plane_protocols(sr_session_ctx_t *session, struc
 									goto error_out;
 								}
 								// next-hop-address
-								if (NEXTHOP_LIST->list[k].addr) {
-									nl_addr2str(NEXTHOP_LIST->list[k].addr, ip_buffer, sizeof(ip_buffer));
+								if (nexthop_iter->simple.addr) {
+									nl_addr2str(nexthop_iter->simple.addr, ip_buffer, sizeof(ip_buffer));
 									ly_err = lyd_new_term(nh_list_node, ly_uv6mod, "next-hop-address", ip_buffer, false, &tmp_node);
 									if (ly_err != LY_SUCCESS) {
 										SRPLG_LOG_ERR(PLUGIN_NAME, "unable to create next-hop-address leaf in the list for route %s", route_path_buffer);
 										goto error_out;
 									}
 
-									ly_err = lyd_new_term(nh_list_node, ly_uv6mod, "outgoing-interface", NEXTHOP_LIST->list[k].if_name, false, &tmp_node);
+									ly_err = lyd_new_term(nh_list_node, ly_uv6mod, "outgoing-interface", nexthop_iter->simple.if_name, false, &tmp_node);
 									if (ly_err != LY_SUCCESS) {
 										SRPLG_LOG_ERR(PLUGIN_NAME, "unable to create outgoing-interface leaf in the list for route %s", route_path_buffer);
 										goto error_out;

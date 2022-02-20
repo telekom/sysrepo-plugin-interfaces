@@ -74,6 +74,7 @@ struct rib *rib_list_get(struct rib_list_element **head, char *name, int af)
 
 	// setup find element
 	rib_set_name(&find_element.rib, name);
+	rib_set_address_family(&find_element.rib, af);
 
 	LL_SEARCH(*head, found, &find_element, rib_list_element_cmp);
 	if (found) {
@@ -91,11 +92,12 @@ void rib_list_free(struct rib_list_element **head)
 	{
 		LL_DELETE(*head, iter);
 		rib_free(&iter->rib);
+		free(iter);
 	}
 }
 
 static int rib_list_element_cmp(struct rib_list_element *e1, struct rib_list_element *e2)
 {
 	// return only eq/neq
-	return strcmp(e1->rib.name, e2->rib.name) == 0 && e1->rib.address_family == e2->rib.address_family;
+	return !(strcmp(e1->rib.name, e2->rib.name) == 0 && e1->rib.address_family == e2->rib.address_family);
 }

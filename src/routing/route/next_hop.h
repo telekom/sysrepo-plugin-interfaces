@@ -22,16 +22,15 @@ struct route_next_hop_special {
 	char *value;
 };
 
-// list of interface indexes
-struct route_next_hop_list {
-	struct route_next_hop_simple *list;
-	size_t size;
+struct route_next_hop_list_element {
+	struct route_next_hop_simple simple;
+	struct route_next_hop_list_element *next;
 };
 
 union route_next_hop_value {
 	struct route_next_hop_simple simple;
 	struct route_next_hop_special special;
-	struct route_next_hop_list list;
+	struct route_next_hop_list_element *list_head;
 };
 
 struct route_next_hop {
