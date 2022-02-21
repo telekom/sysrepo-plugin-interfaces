@@ -16,7 +16,6 @@ set(
     route/next_hop.c
     route.c
     control_plane_protocol.c
-    control_plane_protocol/list.c
 )
 
 if (NOT PLUGIN)

@@ -29,7 +29,6 @@
 #include "route/list.h"
 #include "route/list_hash.h"
 #include "control_plane_protocol.h"
-#include "control_plane_protocol/list.h"
 #include "sysrepo_types.h"
 #include "utils/memory.h"
 
