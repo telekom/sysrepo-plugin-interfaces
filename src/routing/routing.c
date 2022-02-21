@@ -89,7 +89,7 @@ static int routing_build_rib_descriptions(struct rib_list_element **ribs_head);
 static inline int routing_is_rib_known(int table);
 static int routing_build_protos_map(struct control_plane_protocol map[ROUTING_PROTOS_COUNT]);
 static inline int routing_is_proto_type_known(int type);
-static bool routing_running_datastore_is_empty(void);
+static bool routing_running_datastore_is_empty(sr_session_ctx_t *session);
 
 static struct route_list_hash_element *ipv4_static_routes_head = NULL;
 static struct route_list_hash_element *ipv6_static_routes_head = NULL;
@@ -98,7 +98,7 @@ static int static_routes_init(struct route_list_hash_element **ipv4_head, struct
 static void foreach_nexthop(struct rtnl_nexthop *nh, void *arg);
 static int update_static_routes(struct route_list_hash_element **routes_head, uint8_t family);
 
-int sr_plugin_init_cb(sr_session_ctx_t *session, void **private_data)
+int routing_sr_plugin_init_cb(sr_session_ctx_t *session, void **private_data)
 {
 	int error = 0;
 
@@ -123,7 +123,7 @@ int sr_plugin_init_cb(sr_session_ctx_t *session, void **private_data)
 		goto error_out;
 	}
 
-	if (routing_running_datastore_is_empty()) {
+	if (routing_running_datastore_is_empty(session)) {
 		SRPLG_LOG_INF(PLUGIN_NAME, "running datasore is empty -> loading data");
 		error = routing_load_data(session);
 		if (error) {
@@ -274,14 +274,14 @@ out:
 	return error;
 }
 
-void sr_plugin_cleanup_cb(sr_session_ctx_t *session, void *private_data)
+void routing_sr_plugin_cleanup_cb(sr_session_ctx_t *session, void *private_data)
 {
-	sr_session_ctx_t *startup_session = (sr_session_ctx_t *) private_data;
+	sr_session_ctx_t *startup_session = private_data;
 
 	if (startup_session) {
 		sr_session_stop(startup_session);
 	}
-	// sr_session_stop(session);
+
 	route_list_hash_free(&ipv4_static_routes_head);
 	route_list_hash_free(&ipv6_static_routes_head);
 }
@@ -1947,26 +1947,25 @@ static inline int routing_is_proto_type_known(int type)
 		   type == RTPROT_EIGRP;
 }
 
-static bool routing_running_datastore_is_empty(void)
+static bool routing_running_datastore_is_empty(sr_session_ctx_t *session)
 {
-	FILE *sysrepocfg_DS_empty_check = NULL;
-	bool is_empty = false;
+	int error = SR_ERR_OK;
+	bool is_empty = true;
+	sr_val_t *values = NULL;
+	size_t value_cnt = 0;
 
-	sysrepocfg_DS_empty_check = popen(SYSREPOCFG_EMPTY_CHECK_COMMAND, "r");
-	if (sysrepocfg_DS_empty_check == NULL) {
-		SRPLG_LOG_WRN(PLUGIN_NAME, "could not execute %s", SYSREPOCFG_EMPTY_CHECK_COMMAND);
-		is_empty = true;
+	error = sr_get_items(session, ROUTING_CONTROL_PLANE_PROTOCOL_LIST_YANG_PATH, 0, SR_OPER_DEFAULT, &values, &value_cnt);
+	if (error) {
+		SRPLG_LOG_ERR(PLUGIN_NAME, "sr_get_items error (%d): %s", error, sr_strerror(error));
 		goto out;
 	}
 
-	if (fgetc(sysrepocfg_DS_empty_check) == EOF) {
-		is_empty = true;
+	// check if cpp list is empty
+	if (value_cnt > 0) {
+		sr_free_values(values, value_cnt);
+		is_empty = false;
 	}
 
 out:
-	if (sysrepocfg_DS_empty_check) {
-		pclose(sysrepocfg_DS_empty_check);
-	}
-
 	return is_empty;
 }
