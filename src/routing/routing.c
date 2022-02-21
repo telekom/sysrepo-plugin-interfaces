@@ -23,6 +23,7 @@
 
 #include "route/next_hop.h"
 #include "routing.h"
+#include "context.h"
 #include "rib.h"
 #include "rib/list.h"
 #include "rib/description_pair.h"
@@ -105,8 +106,22 @@ int routing_sr_plugin_init_cb(sr_session_ctx_t *session, void **private_data)
 	sr_session_ctx_t *startup_session = NULL;
 	sr_conn_ctx_t *connection = NULL;
 	sr_subscription_ctx_t *subscription = NULL;
+	struct routing_ctx *ctx = NULL;
 
 	*private_data = NULL;
+
+	// allocate routing plugin context
+	ctx = xmalloc(sizeof(*ctx));
+	if (!ctx) {
+		SRPLG_LOG_ERR(PLUGIN_NAME, "unable to allocate memory for routing context struct");
+		goto error_out;
+	}
+
+	// memset context to 0
+	*ctx = (struct routing_ctx){0};
+
+	// set to private data
+	*private_data = ctx;
 
 	connection = sr_session_get_connection(session);
 	error = sr_session_start(connection, SR_DS_STARTUP, &startup_session);
@@ -114,7 +129,7 @@ int routing_sr_plugin_init_cb(sr_session_ctx_t *session, void **private_data)
 		SRPLG_LOG_ERR(PLUGIN_NAME, "sr_session_start error: %d -> %s", error, sr_strerror(error));
 	}
 
-	*private_data = startup_session;
+	ctx->startup_session = startup_session;
 
 	error = static_routes_init(&ipv4_static_routes_head, &ipv6_static_routes_head);
 	if (error) {
@@ -275,7 +290,9 @@ out:
 
 void routing_sr_plugin_cleanup_cb(sr_session_ctx_t *session, void *private_data)
 {
-	sr_session_ctx_t *startup_session = private_data;
+	struct routing_ctx *ctx = (struct routing_ctx *) private_data;
+
+	sr_session_ctx_t *startup_session = ctx->startup_session;
 
 	if (startup_session) {
 		sr_session_stop(startup_session);
@@ -283,14 +300,20 @@ void routing_sr_plugin_cleanup_cb(sr_session_ctx_t *session, void *private_data)
 
 	route_list_hash_free(&ipv4_static_routes_head);
 	route_list_hash_free(&ipv6_static_routes_head);
+
+	// release context memory
+	FREE_SAFE(ctx);
 }
 
 static int routing_module_change_cb(sr_session_ctx_t *session, uint32_t subscription_id, const char *module_name, const char *xpath, sr_event_t event, uint32_t request_id, void *private_data)
 {
 	int error = 0;
 
+	// context
+	struct routing_ctx *ctx = (struct routing_ctx *) private_data;
+
 	// sysrepo
-	sr_session_ctx_t *startup_session = (sr_session_ctx_t *) private_data;
+	sr_session_ctx_t *startup_session = ctx->startup_session;
 	sr_change_iter_t *routing_change_iter = NULL;
 	sr_change_oper_t operation = SR_OP_CREATED;
 
@@ -1335,7 +1358,6 @@ static int routing_collect_ribs(struct nl_cache *routes_cache, struct rib_list_e
 	int error = 0;
 	struct rtnl_route *route = NULL;
 	char table_buffer[32] = {0};
-	// char name_buffer[32 + 5] = {0};
 
 	route = (struct rtnl_route *) nl_cache_get_first(routes_cache);
 
@@ -1344,8 +1366,6 @@ static int routing_collect_ribs(struct nl_cache *routes_cache, struct rib_list_e
 		const int table_id = (int) rtnl_route_get_table(route);
 		const uint8_t af = rtnl_route_get_family(route);
 		rtnl_route_table2str(table_id, table_buffer, sizeof(table_buffer));
-		// snprintf(name_buffer, sizeof(name_buffer), "%s-%s", af == AF_INET ? "ipv4" : "ipv6", table_buffer);
-		// SRPLG_LOG_DBG(PLUGIN_NAME, "table name: %s", name_buffer);
 
 		// add the table to the list and set properties
 		rib_list_add(ribs_head, table_buffer, af);
@@ -1402,16 +1422,12 @@ static int routing_collect_routes(struct nl_cache *routes_cache, struct nl_cache
 		const uint8_t af = rtnl_route_get_family(route);
 		rtnl_route_table2str(table_id, table_buffer, sizeof(table_buffer));
 
-		SRPLG_LOG_DBG(PLUGIN_NAME, "route table: %s", table_buffer);
-
 		// get the current RIB of the route
 		tmp_rib = rib_list_get(ribs_head, table_buffer, af);
 		if (tmp_rib == NULL) {
 			error = -1;
 			goto error_out;
 		}
-
-		SRPLG_LOG_DBG(PLUGIN_NAME, "found rib: %s-%d", tmp_rib->name, tmp_rib->address_family);
 
 		// fill the route with info and add to the hash of the current RIB
 		route_init(&tmp_route);
