@@ -266,6 +266,8 @@ static int load_data(sr_session_ctx_t *session, link_data_list_t *ld)
 			type = "iana-if-type:ethernetCsmacd";
 		} else if (strcmp(type, "vlan") == 0) {
 			type = "iana-if-type:l2vlan";
+		}  else if (strcmp(type, "bridge") == 0) {
+			type = "iana-if-type:bridge";
 		} else if (strcmp(type, "dummy") == 0) {
 			type = "iana-if-type:other"; // since dummy is not a real type
 		} else {
@@ -1002,6 +1004,8 @@ static char *convert_ianaiftype(char *iana_if_type)
 		if_type = "eth";
 	} else if (strstr(iana_if_type, "l2vlan") != NULL) {
 		if_type = "vlan";
+	} else if (strstr(iana_if_type, "bridge") != NULL) {
+		if_type = "bridge";
 	} else if (strstr(iana_if_type, "other") != NULL) {
 		if_type = "dummy";
 	}
