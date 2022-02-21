@@ -64,13 +64,13 @@
 static int routing_module_change_cb(sr_session_ctx_t *session, uint32_t subscription_id, const char *module_name, const char *xpath, sr_event_t event, uint32_t request_id, void *private_data);
 
 // module change helpers - changing/deleting values
-static int set_control_plane_protocol_value(char *xpath, char *value);
+static int set_control_plane_protocol_value(struct routing_ctx *ctx, char *xpath, char *value);
 static int set_static_route_value(char *xpath, char *node_name, char *node_value, struct route_list_hash_element **routes_hash_head, int family);
 static void set_static_route_description(struct route_list_element **routes_head, char *node_value);
 static int set_static_route_simple_next_hop(struct route_list_element **routes_head, char *node_value, int family);
 static int set_static_route_simple_outgoing_if(struct route_list_element **routes_head, char *node_value);
-static int delete_control_plane_protocol_value(char *xpath);
-static int delete_static_route_value(char *xpath, char *node_name, int family);
+static int delete_control_plane_protocol_value(struct routing_ctx *ctx, char *xpath);
+static int delete_static_route_value(struct routing_ctx *ctx, char *xpath, char *node_name, int family);
 
 // operational callbacks
 static int routing_oper_get_rib_routes_cb(sr_session_ctx_t *session, uint32_t subscription_id, const char *module_name, const char *path, const char *request_xpath, uint32_t request_id, struct lyd_node **parent, void *private_data);
@@ -80,19 +80,16 @@ static int routing_oper_get_interfaces_cb(sr_session_ctx_t *session, uint32_t su
 static int routing_rpc_active_route_cb(sr_session_ctx_t *session, uint32_t subscription_id, const char *op_path, const sr_val_t *input, const size_t input_cnt, sr_event_t event, uint32_t request_id, sr_val_t **output, size_t *output_cnt, void *private_data);
 
 // initial loading into the datastore
-static int routing_load_data(sr_session_ctx_t *session);
-static int routing_load_ribs(sr_session_ctx_t *session, struct lyd_node *routing_container_node);
+static int routing_load_data(struct routing_ctx *ctx, sr_session_ctx_t *session);
+static int routing_load_ribs(struct routing_ctx *ctx, sr_session_ctx_t *session, struct lyd_node *routing_container_node);
+static int routing_load_control_plane_protocols(struct routing_ctx *ctx, sr_session_ctx_t *session, struct lyd_node *routing_container_node);
 static int routing_collect_ribs(struct nl_cache *routes_cache, struct rib_list_element **ribs_head);
 static int routing_collect_routes(struct nl_cache *routes_cache, struct nl_cache *link_cache, struct rib_list_element **ribs_head);
-static int routing_load_control_plane_protocols(sr_session_ctx_t *session, struct lyd_node *routing_container_node);
 static int routing_build_rib_descriptions(struct rib_list_element **ribs_head);
 static inline int routing_is_rib_known(int table);
 static int routing_build_protos_map(struct control_plane_protocol map[ROUTING_PROTOS_COUNT]);
 static inline int routing_is_proto_type_known(int type);
 static bool routing_running_datastore_is_empty(sr_session_ctx_t *session);
-
-static struct route_list_hash_element *ipv4_static_routes_head = NULL;
-static struct route_list_hash_element *ipv6_static_routes_head = NULL;
 
 static int static_routes_init(struct route_list_hash_element **ipv4_head, struct route_list_hash_element **ipv6_head);
 static void foreach_nexthop(struct rtnl_nexthop *nh, void *arg);
@@ -131,7 +128,7 @@ int routing_sr_plugin_init_cb(sr_session_ctx_t *session, void **private_data)
 
 	ctx->startup_session = startup_session;
 
-	error = static_routes_init(&ipv4_static_routes_head, &ipv6_static_routes_head);
+	error = static_routes_init(&ctx->ipv4_static_routes_head, &ctx->ipv6_static_routes_head);
 	if (error) {
 		SRPLG_LOG_ERR(PLUGIN_NAME, "static_routes_init error");
 		goto error_out;
@@ -139,7 +136,7 @@ int routing_sr_plugin_init_cb(sr_session_ctx_t *session, void **private_data)
 
 	if (routing_running_datastore_is_empty(session)) {
 		SRPLG_LOG_INF(PLUGIN_NAME, "running datasore is empty -> loading data");
-		error = routing_load_data(session);
+		error = routing_load_data(ctx, session);
 		if (error) {
 			SRPLG_LOG_ERR(PLUGIN_NAME, "error loading initial data into the datastore... exiting");
 			goto error_out;
@@ -298,8 +295,8 @@ void routing_sr_plugin_cleanup_cb(sr_session_ctx_t *session, void *private_data)
 		sr_session_stop(startup_session);
 	}
 
-	route_list_hash_free(&ipv4_static_routes_head);
-	route_list_hash_free(&ipv6_static_routes_head);
+	route_list_hash_free(&ctx->ipv4_static_routes_head);
+	route_list_hash_free(&ctx->ipv6_static_routes_head);
 
 	// release context memory
 	FREE_SAFE(ctx);
@@ -370,7 +367,7 @@ static int routing_module_change_cb(sr_session_ctx_t *session, uint32_t subscrip
 
 				if (operation == SR_OP_CREATED || operation == SR_OP_MODIFIED) {
 					if (strstr(node_xpath, "ietf-routing:routing/control-plane-protocols")) {
-						error = set_control_plane_protocol_value(node_xpath, (char *) node_value);
+						error = set_control_plane_protocol_value(ctx, node_xpath, (char *) node_value);
 						if (error) {
 							SRPLG_LOG_ERR(PLUGIN_NAME, "set_control_plane_protocol_value error (%d)", error);
 							goto error_out;
@@ -378,7 +375,7 @@ static int routing_module_change_cb(sr_session_ctx_t *session, uint32_t subscrip
 					}
 				} else if (operation == SR_OP_DELETED) {
 					if (strstr(node_xpath, "ietf-routing:routing/control-plane-protocols")) {
-						error = delete_control_plane_protocol_value(node_xpath);
+						error = delete_control_plane_protocol_value(ctx, node_xpath);
 						if (error) {
 							SRPLG_LOG_ERR(PLUGIN_NAME, "set_control_plane_protocol_value error (%d)", error);
 							goto error_out;
@@ -391,7 +388,7 @@ static int routing_module_change_cb(sr_session_ctx_t *session, uint32_t subscrip
 		}
 
 		if (ipv4_update) {
-			error = update_static_routes(&ipv4_static_routes_head, AF_INET);
+			error = update_static_routes(&ctx->ipv4_static_routes_head, AF_INET);
 			if (error) {
 				SRPLG_LOG_ERR(PLUGIN_NAME, "failed to update IPv4 static routes on system");
 				goto error_out;
@@ -400,7 +397,7 @@ static int routing_module_change_cb(sr_session_ctx_t *session, uint32_t subscrip
 		}
 
 		if (ipv6_update) {
-			error = update_static_routes(&ipv6_static_routes_head, AF_INET6);
+			error = update_static_routes(&ctx->ipv6_static_routes_head, AF_INET6);
 			if (error) {
 				SRPLG_LOG_ERR(PLUGIN_NAME, "failed to update IPv6 static routes on system");
 				goto error_out;
@@ -536,7 +533,7 @@ error_out:
 	return error;
 }
 
-static int set_control_plane_protocol_value(char *node_xpath, char *node_value)
+static int set_control_plane_protocol_value(struct routing_ctx *ctx, char *node_xpath, char *node_value)
 {
 	char *node_name = NULL;
 	char *orig_xpath = NULL;
@@ -548,13 +545,13 @@ static int set_control_plane_protocol_value(char *node_xpath, char *node_value)
 	node_name = sr_xpath_node_name(node_xpath);
 
 	if (strstr(orig_xpath, "ietf-ipv4-unicast-routing:ipv4")) {
-		error = set_static_route_value(orig_xpath, node_name, node_value, &ipv4_static_routes_head, AF_INET);
+		error = set_static_route_value(orig_xpath, node_name, node_value, &ctx->ipv4_static_routes_head, AF_INET);
 		if (error != 0) {
 			SRPLG_LOG_ERR(PLUGIN_NAME, "error setting IPv4 static route value");
 			goto out;
 		}
 	} else if (strstr(orig_xpath, "ietf-ipv6-unicast-routing:ipv6")) {
-		error = set_static_route_value(orig_xpath, node_name, node_value, &ipv6_static_routes_head, AF_INET6);
+		error = set_static_route_value(orig_xpath, node_name, node_value, &ctx->ipv6_static_routes_head, AF_INET6);
 		if (error != 0) {
 			SRPLG_LOG_ERR(PLUGIN_NAME, "error setting IPv6 static route value");
 			goto out;
@@ -676,7 +673,7 @@ static int set_static_route_simple_outgoing_if(struct route_list_element **route
 	return 0;
 }
 
-static int delete_control_plane_protocol_value(char *node_xpath)
+static int delete_control_plane_protocol_value(struct routing_ctx *ctx, char *node_xpath)
 {
 	char *node_name = NULL;
 	char *orig_xpath = NULL;
@@ -688,13 +685,13 @@ static int delete_control_plane_protocol_value(char *node_xpath)
 	node_name = sr_xpath_node_name(node_xpath);
 
 	if (strstr(orig_xpath, "ietf-ipv4-unicast-routing:ipv4")) {
-		error = delete_static_route_value(orig_xpath, node_name, AF_INET);
+		error = delete_static_route_value(ctx, orig_xpath, node_name, AF_INET);
 		if (error != 0) {
 			SRPLG_LOG_ERR(PLUGIN_NAME, "error setting IPv4 static route value");
 			goto out;
 		}
 	} else if (strstr(orig_xpath, "ietf-ipv6-unicast-routing:ipv6")) {
-		error = delete_static_route_value(orig_xpath, node_name, AF_INET6);
+		error = delete_static_route_value(ctx, orig_xpath, node_name, AF_INET6);
 		if (error != 0) {
 			SRPLG_LOG_ERR(PLUGIN_NAME, "error setting IPv6 static route value");
 			goto out;
@@ -709,7 +706,7 @@ out:
 	return error ? SR_ERR_CALLBACK_FAILED : SR_ERR_OK;
 }
 
-static int delete_static_route_value(char *xpath, char *node_name, int family)
+static int delete_static_route_value(struct routing_ctx *ctx, char *xpath, char *node_name, int family)
 {
 	sr_xpath_ctx_t xpath_ctx = {0};
 
@@ -738,9 +735,9 @@ static int delete_static_route_value(char *xpath, char *node_name, int family)
 	}
 
 	if (family == AF_INET) {
-		routes_head = route_list_hash_get(&ipv4_static_routes_head, destination_prefix_addr);
+		routes_head = route_list_hash_get(&ctx->ipv4_static_routes_head, destination_prefix_addr);
 	} else if (family == AF_INET6) {
-		routes_head = route_list_hash_get(&ipv4_static_routes_head, destination_prefix_addr);
+		routes_head = route_list_hash_get(&ctx->ipv6_static_routes_head, destination_prefix_addr);
 	}
 
 	if (routes_head == NULL) {
@@ -1185,7 +1182,7 @@ static int routing_rpc_active_route_cb(sr_session_ctx_t *session, uint32_t subsc
 	return error;
 }
 
-static int routing_load_data(sr_session_ctx_t *session)
+static int routing_load_data(struct routing_ctx *ctx, sr_session_ctx_t *session)
 {
 	int error = 0;
 	LY_ERR ly_err = LY_SUCCESS;
@@ -1205,13 +1202,13 @@ static int routing_load_data(sr_session_ctx_t *session)
 		goto error_out;
 	}
 
-	error = routing_load_ribs(session, routing_container_node);
+	error = routing_load_ribs(ctx, session, routing_container_node);
 	if (error) {
 		SRPLG_LOG_ERR(PLUGIN_NAME, "routing_load_ribs failed : %d", error);
 		goto error_out;
 	}
 
-	error = routing_load_control_plane_protocols(session, routing_container_node);
+	error = routing_load_control_plane_protocols(ctx, session, routing_container_node);
 	if (error) {
 		SRPLG_LOG_ERR(PLUGIN_NAME, "routing_load_control_plane_protocols failed : %d", error);
 		goto error_out;
@@ -1239,7 +1236,7 @@ out:
 	return error;
 }
 
-static int routing_load_ribs(sr_session_ctx_t *session, struct lyd_node *routing_container_node)
+static int routing_load_ribs(struct routing_ctx *ctx, sr_session_ctx_t *session, struct lyd_node *routing_container_node)
 {
 	// error handling
 	int error = 0;
@@ -1506,7 +1503,7 @@ error_out:
 	return error;
 }
 
-static int routing_load_control_plane_protocols(sr_session_ctx_t *session, struct lyd_node *routing_container_node)
+static int routing_load_control_plane_protocols(struct routing_ctx *ctx, sr_session_ctx_t *session, struct lyd_node *routing_container_node)
 {
 	// error handling
 	int error = 0;
@@ -1613,7 +1610,7 @@ static int routing_load_control_plane_protocols(sr_session_ctx_t *session, struc
 					goto error_out;
 				}
 
-				LL_FOREACH(ipv4_static_routes_head, routes_hash_iter)
+				LL_FOREACH(ctx->ipv4_static_routes_head, routes_hash_iter)
 				{
 					const struct nl_addr *DST_PREFIX = routes_hash_iter->prefix;
 					const struct route *ROUTE = &routes_hash_iter->routes_head->route;
@@ -1711,7 +1708,7 @@ static int routing_load_control_plane_protocols(sr_session_ctx_t *session, struc
 					}
 				}
 
-				LL_FOREACH(ipv6_static_routes_head, routes_hash_iter)
+				LL_FOREACH(ctx->ipv6_static_routes_head, routes_hash_iter)
 				{
 					const struct nl_addr *DST_PREFIX = routes_hash_iter->prefix;
 					const struct route *ROUTE = &routes_hash_iter->routes_head->route;
