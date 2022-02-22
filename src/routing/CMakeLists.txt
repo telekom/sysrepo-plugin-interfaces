@@ -16,10 +16,12 @@ set(
     route/next_hop.c
     route.c
     control_plane_protocol.c
+    common.c
 
     # subscriptions
     subscription/change.c
     subscription/rpc.c
+    subscription/operational.c
 )
 
 if (NOT PLUGIN)

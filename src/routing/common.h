@@ -27,4 +27,14 @@
 #define ROUTING_RIB_LIST_YANG_PATH ROUTING_RIBS_CONTAINER_YANG_PATH "/rib"
 #define ROUTING_RIB_LIST_ACTIVE_ROUTE_RPC_PATH ROUTING_RIB_LIST_YANG_PATH "/active-route"
 
+#include <netlink/route/nexthop.h>
+#include <routing/rib/list.h>
+
+void foreach_nexthop(struct rtnl_nexthop *nh, void *arg);
+
+int routing_collect_ribs(struct nl_cache *routes_cache, struct rib_list_element **ribs_head);
+int routing_collect_routes(struct nl_cache *routes_cache, struct nl_cache *link_cache, struct rib_list_element **ribs_head);
+int routing_build_rib_descriptions(struct rib_list_element **ribs_head);
+int routing_is_rib_known(int table);
+
 #endif // ROUTING_PLUGIN_COMMON_H
