@@ -17,6 +17,7 @@ set(
     route.c
     control_plane_protocol.c
     common.c
+    startup.c
 
     # subscriptions
     subscription/change.c
