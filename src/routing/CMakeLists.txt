@@ -19,6 +19,7 @@ set(
 
     # subscriptions
     subscription/change.c
+    subscription/rpc.c
 )
 
 if (NOT PLUGIN)
