@@ -2202,7 +2202,7 @@ int add_existing_links(sr_session_ctx_t *session, link_data_list_t *ld)
 			}
 
 			// check if vlan_id in name, if it is this is the QinQ interface, skip it
-			char *first = NULL;
+			/*char *first = NULL;
 			char *second = NULL;
 
 			first = strchr(name, '.');
@@ -2211,7 +2211,7 @@ int add_existing_links(sr_session_ctx_t *session, link_data_list_t *ld)
 			if (second != 0) {
 				link = (struct rtnl_link *) nl_cache_get_next((struct nl_object *) link);
 				continue;
-			}
+			}*/
 		}
 
 		error = link_data_list_add(ld, name);
@@ -2802,6 +2802,10 @@ static int interfaces_state_data_cb(sr_session_ctx_t *session, uint32_t subscrip
 		interface_data.name = rtnl_link_get_name(link);
 
 		link_data_t *l = data_list_get_by_name(&link_data_list, interface_data.name);
+		if (l == NULL) {
+			SRPLG_LOG_ERR(PLUGIN_NAME, "could not find interface %s in internal list", interface_data.name);
+			goto error_out;
+		}
 		interface_data.description = l->description;
 
 		interface_data.type = rtnl_link_get_type(link);
