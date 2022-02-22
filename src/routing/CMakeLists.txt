@@ -16,6 +16,9 @@ set(
     route/next_hop.c
     route.c
     control_plane_protocol.c
+
+    # subscriptions
+    subscription/change.c
 )
 
 if (NOT PLUGIN)

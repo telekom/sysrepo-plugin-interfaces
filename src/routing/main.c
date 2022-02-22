@@ -1,8 +1,8 @@
-#include "sysrepo_types.h"
 #include <sysrepo.h>
 #include <signal.h>
 #include <unistd.h>
 #include <routing.h>
+#include <routing/common.h>
 
 volatile int exit_application = 0;
 
