@@ -2143,8 +2143,7 @@ int add_existing_links(sr_session_ctx_t *session, link_data_list_t *ld)
 		error = get_interface_description(session, name, &description);
 		if (error != 0) {
 			SRPLG_LOG_ERR(PLUGIN_NAME, "get_interface_description error");
-			// don't return in case of error
-			// some interfaces may not have a description already set (wlan0, etc.)
+			goto error_out;
 		}
 
 		type = rtnl_link_get_type(link);
@@ -2576,14 +2575,11 @@ static int get_interface_description(sr_session_ctx_t *session, char *name, char
 		goto error_out;
 	}
 
-	// get the interface description value 
+	// get the interface description value
 	error = sr_get_item(session, path_buffer, 0, &val);
 	if (error != SR_ERR_OK) {
-		SRPLG_LOG_ERR(PLUGIN_NAME, "sr_get_item error (%d): %s", error, sr_strerror(error));
-		goto error_out;
-	}
-
-	if (strlen(val->data.string_val) > 0) {
+		SRPLG_LOG_INF(PLUGIN_NAME, "interface description is not yet present in the datastore");
+	} else if (strlen(val->data.string_val) > 0) {
 		*description = val->data.string_val;
 	}
 
