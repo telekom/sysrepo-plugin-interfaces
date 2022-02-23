@@ -1,4 +1,5 @@
 #include "startup.h"
+#include "route/list_hash.h"
 #include <routing/common.h>
 #include <routing/control_plane_protocol.h>
 #include <utils/memory.h>
@@ -11,8 +12,11 @@
 
 #include <utlist.h>
 
+static int routing_startup_load_ribs(sr_session_ctx_t *session, struct lyd_node *routing_container_node);
+static int routing_startup_load_control_plane_protocols(sr_session_ctx_t *session, struct lyd_node *routing_container_node);
+static int routing_startup_collect_static_routes(struct route_list_hash_element **ipv4_head, struct route_list_hash_element **ipv6_head);
 static int routing_build_protos_map(struct control_plane_protocol map[ROUTING_PROTOS_COUNT]);
-static inline int routing_is_proto_type_known(int type);
+static int routing_is_proto_type_known(int type);
 
 int routing_startup_load_data(struct routing_ctx *ctx, sr_session_ctx_t *session)
 {
@@ -34,13 +38,13 @@ int routing_startup_load_data(struct routing_ctx *ctx, sr_session_ctx_t *session
 		goto error_out;
 	}
 
-	error = routing_startup_load_ribs(ctx, session, routing_container_node);
+	error = routing_startup_load_ribs(session, routing_container_node);
 	if (error) {
 		SRPLG_LOG_ERR(PLUGIN_NAME, "routing_load_ribs failed : %d", error);
 		goto error_out;
 	}
 
-	error = routing_startup_load_control_plane_protocols(ctx, session, routing_container_node);
+	error = routing_startup_load_control_plane_protocols(session, routing_container_node);
 	if (error) {
 		SRPLG_LOG_ERR(PLUGIN_NAME, "routing_load_control_plane_protocols failed : %d", error);
 		goto error_out;
@@ -68,7 +72,7 @@ out:
 	return error;
 }
 
-int routing_startup_load_ribs(struct routing_ctx *ctx, sr_session_ctx_t *session, struct lyd_node *routing_container_node)
+static int routing_startup_load_ribs(sr_session_ctx_t *session, struct lyd_node *routing_container_node)
 {
 	// error handling
 	int error = 0;
@@ -182,7 +186,7 @@ out:
 	return error;
 }
 
-int routing_startup_load_control_plane_protocols(struct routing_ctx *ctx, sr_session_ctx_t *session, struct lyd_node *routing_container_node)
+static int routing_startup_load_control_plane_protocols(sr_session_ctx_t *session, struct lyd_node *routing_container_node)
 {
 	// error handling
 	int error = 0;
@@ -206,6 +210,9 @@ int routing_startup_load_control_plane_protocols(struct routing_ctx *ctx, sr_ses
 	char prefix_buffer[INET6_ADDRSTRLEN + 1 + 3] = {0};
 	char route_path_buffer[PATH_MAX] = {0};
 	char xpath_buffer[256] = {0};
+
+	// static routes for static protocol
+	struct route_list_hash_element *ipv4_static_routes_head = NULL, *ipv6_static_routes_head = NULL;
 
 	// iterators
 	struct route_list_hash_element *routes_hash_iter = NULL;
@@ -239,6 +246,13 @@ int routing_startup_load_control_plane_protocols(struct routing_ctx *ctx, sr_ses
 	error = routing_build_protos_map(cpp_map);
 	if (error) {
 		SRPLG_LOG_ERR(PLUGIN_NAME, "unable to build protocols mapping array: %d", error);
+		goto error_out;
+	}
+
+	// collect current system static routes
+	error = routing_startup_collect_static_routes(&ipv4_static_routes_head, &ipv6_static_routes_head);
+	if (error) {
+		SRPLG_LOG_ERR(PLUGIN_NAME, "routing_startup_collect_static_routes() failed: %d", error);
 		goto error_out;
 	}
 
@@ -289,7 +303,7 @@ int routing_startup_load_control_plane_protocols(struct routing_ctx *ctx, sr_ses
 					goto error_out;
 				}
 
-				LL_FOREACH(ctx->ipv4_static_routes_head, routes_hash_iter)
+				LL_FOREACH(ipv4_static_routes_head, routes_hash_iter)
 				{
 					const struct nl_addr *DST_PREFIX = routes_hash_iter->prefix;
 					const struct route *ROUTE = &routes_hash_iter->routes_head->route;
@@ -387,7 +401,7 @@ int routing_startup_load_control_plane_protocols(struct routing_ctx *ctx, sr_ses
 					}
 				}
 
-				LL_FOREACH(ctx->ipv6_static_routes_head, routes_hash_iter)
+				LL_FOREACH(ipv6_static_routes_head, routes_hash_iter)
 				{
 					const struct nl_addr *DST_PREFIX = routes_hash_iter->prefix;
 					const struct route *ROUTE = &routes_hash_iter->routes_head->route;
@@ -497,6 +511,99 @@ out:
 		control_plane_protocol_free(&cpp_map[i]);
 	}
 
+	route_list_hash_free(&ipv4_static_routes_head);
+	route_list_hash_free(&ipv6_static_routes_head);
+
+	return error;
+}
+
+static int routing_startup_collect_static_routes(struct route_list_hash_element **ipv4_head, struct route_list_hash_element **ipv6_head)
+{
+	int nl_err = 0;
+	int error = 0;
+
+	struct nl_sock *socket = NULL;
+	struct rtnl_route *route = NULL;
+	struct nl_cache *cache = NULL;
+	struct nl_cache *link_cache = NULL;
+	struct route tmp_route = {0};
+	struct rtnl_link *iface = NULL;
+	char *if_name = NULL;
+	int ifindex = 0;
+
+	socket = nl_socket_alloc();
+	if (socket == NULL) {
+		SRPLG_LOG_ERR(PLUGIN_NAME, "unable to init nl_sock struct...");
+		goto error_out;
+	}
+
+	nl_err = nl_connect(socket, NETLINK_ROUTE);
+	if (nl_err != 0) {
+		SRPLG_LOG_ERR(PLUGIN_NAME, "nl_connect failed (%d): %s", nl_err, nl_geterror(nl_err));
+		goto error_out;
+	}
+
+	nl_err = rtnl_route_alloc_cache(socket, AF_UNSPEC, 0, &cache);
+	if (nl_err != 0) {
+		SRPLG_LOG_ERR(PLUGIN_NAME, "rtnl_route_alloc_cache failed (%d): %s", nl_err, nl_geterror(nl_err));
+		goto error_out;
+	}
+
+	nl_err = rtnl_link_alloc_cache(socket, AF_UNSPEC, &link_cache);
+	if (nl_err != 0) {
+		SRPLG_LOG_ERR(PLUGIN_NAME, "rtnl_route_alloc_cache failed (%d): %s", nl_err, nl_geterror(nl_err));
+		goto error_out;
+	}
+
+	route = (struct rtnl_route *) nl_cache_get_first(cache);
+	while (route != NULL) {
+		const int PROTO = rtnl_route_get_protocol(route);
+
+		if (PROTO == RTPROT_STATIC) {
+			const int AF = rtnl_route_get_family(route);
+			// fill the route with info and add to the hash of the current RIB
+			route_init(&tmp_route);
+			route_set_preference(&tmp_route, rtnl_route_get_priority(route));
+
+			// next-hop container -> TODO: see what about special type
+			const int NEXTHOP_COUNT = rtnl_route_get_nnexthops(route);
+			if (NEXTHOP_COUNT == 1) {
+				struct rtnl_nexthop *nh = rtnl_route_nexthop_n(route, 0);
+				ifindex = rtnl_route_nh_get_ifindex(nh);
+				iface = rtnl_link_get(link_cache, ifindex);
+				if_name = rtnl_link_get_name(iface);
+				route_next_hop_set_simple(&tmp_route.next_hop, ifindex, if_name, rtnl_route_nh_get_gateway(nh));
+				rtnl_link_put(iface);
+			} else {
+				rtnl_route_foreach_nexthop(route, foreach_nexthop, &tmp_route.next_hop);
+			}
+
+			// route-metadata/source-protocol
+			route_set_source_protocol(&tmp_route, "ietf-routing:static");
+
+			// add the route to the protocol's container
+			if (AF == AF_INET) {
+				// v4
+				route_list_hash_add(ipv4_head, rtnl_route_get_dst(route), &tmp_route);
+			} else if (AF == AF_INET6) {
+				// v6
+				route_list_hash_add(ipv6_head, rtnl_route_get_dst(route), &tmp_route);
+			}
+
+			route_free(&tmp_route);
+		}
+		route = (struct rtnl_route *) nl_cache_get_next((struct nl_object *) route);
+	}
+
+	goto out;
+
+error_out:
+	SRPLG_LOG_ERR(PLUGIN_NAME, "error initializing static routes");
+	error = -1;
+out:
+	nl_cache_free(cache);
+	nl_cache_free(link_cache);
+	nl_socket_free(socket);
 	return error;
 }
 
