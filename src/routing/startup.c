@@ -14,7 +14,7 @@
 static int routing_build_protos_map(struct control_plane_protocol map[ROUTING_PROTOS_COUNT]);
 static inline int routing_is_proto_type_known(int type);
 
-int routing_load_data(struct routing_ctx *ctx, sr_session_ctx_t *session)
+int routing_startup_load_data(struct routing_ctx *ctx, sr_session_ctx_t *session)
 {
 	int error = 0;
 	LY_ERR ly_err = LY_SUCCESS;
@@ -34,13 +34,13 @@ int routing_load_data(struct routing_ctx *ctx, sr_session_ctx_t *session)
 		goto error_out;
 	}
 
-	error = routing_load_ribs(ctx, session, routing_container_node);
+	error = routing_startup_load_ribs(ctx, session, routing_container_node);
 	if (error) {
 		SRPLG_LOG_ERR(PLUGIN_NAME, "routing_load_ribs failed : %d", error);
 		goto error_out;
 	}
 
-	error = routing_load_control_plane_protocols(ctx, session, routing_container_node);
+	error = routing_startup_load_control_plane_protocols(ctx, session, routing_container_node);
 	if (error) {
 		SRPLG_LOG_ERR(PLUGIN_NAME, "routing_load_control_plane_protocols failed : %d", error);
 		goto error_out;
@@ -68,7 +68,7 @@ out:
 	return error;
 }
 
-int routing_load_ribs(struct routing_ctx *ctx, sr_session_ctx_t *session, struct lyd_node *routing_container_node)
+int routing_startup_load_ribs(struct routing_ctx *ctx, sr_session_ctx_t *session, struct lyd_node *routing_container_node)
 {
 	// error handling
 	int error = 0;
@@ -182,7 +182,7 @@ out:
 	return error;
 }
 
-int routing_load_control_plane_protocols(struct routing_ctx *ctx, sr_session_ctx_t *session, struct lyd_node *routing_container_node)
+int routing_startup_load_control_plane_protocols(struct routing_ctx *ctx, sr_session_ctx_t *session, struct lyd_node *routing_container_node)
 {
 	// error handling
 	int error = 0;

@@ -87,7 +87,7 @@ int routing_sr_plugin_init_cb(sr_session_ctx_t *session, void **private_data)
 
 	if (routing_running_datastore_is_empty(session)) {
 		SRPLG_LOG_INF(PLUGIN_NAME, "running datasore is empty -> loading data");
-		error = routing_load_data(ctx, session);
+		error = routing_startup_load_data(ctx, session);
 		if (error) {
 			SRPLG_LOG_ERR(PLUGIN_NAME, "error loading initial data into the datastore... exiting");
 			goto error_out;
