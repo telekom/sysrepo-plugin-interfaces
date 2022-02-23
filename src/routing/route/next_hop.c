@@ -11,16 +11,26 @@ void route_next_hop_init(struct route_next_hop *nh)
 	nh->kind = route_next_hop_kind_none;
 }
 
-void route_next_hop_set_simple(struct route_next_hop *nh, int ifindex, const char *if_name, struct nl_addr *gw)
+void route_next_hop_set_simple_gateway(struct route_next_hop *nh, struct nl_addr *gw)
 {
 	nh->kind = route_next_hop_kind_simple;
-	nh->value.simple.ifindex = ifindex;
-	nh->value.simple.if_name = xstrdup(if_name);
 	if (gw) {
 		nh->value.simple.addr = nl_addr_clone(gw);
 	} else {
 		nh->value.simple.addr = NULL;
 	}
+}
+
+void route_next_hop_set_simple_interface(struct route_next_hop *nh, int ifindex, const char *if_name)
+{
+	nh->value.simple.ifindex = ifindex;
+	nh->value.simple.if_name = xstrdup(if_name);
+}
+
+void route_next_hop_set_simple(struct route_next_hop *nh, int ifindex, const char *if_name, struct nl_addr *gw)
+{
+	route_next_hop_set_simple_gateway(nh, gw);
+	route_next_hop_set_simple_interface(nh, ifindex, if_name);
 }
 
 void route_next_hop_set_special(struct route_next_hop *nh, char *value)

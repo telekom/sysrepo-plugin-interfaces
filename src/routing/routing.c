@@ -94,7 +94,7 @@ int routing_sr_plugin_init_cb(sr_session_ctx_t *session, void **private_data)
 	SRPLG_LOG_INF(PLUGIN_NAME, "subscribing to module change");
 
 	// control-plane-protocol list module changes
-	error = sr_module_change_subscribe(session, BASE_YANG_MODEL, "/" BASE_YANG_MODEL ":*", routing_module_change_cb, *private_data, 0, SR_SUBSCR_DEFAULT, &subscription);
+	error = sr_module_change_subscribe(session, BASE_YANG_MODEL, ROUTING_CONTROL_PLANE_PROTOCOL_LIST_YANG_PATH, routing_control_plane_protocol_list_change_cb, *private_data, 0, SR_SUBSCR_DEFAULT, &subscription);
 	if (error) {
 		SRPLG_LOG_ERR(PLUGIN_NAME, "sr_module_change_subscribe error (%d): %s", error, sr_strerror(error));
 		goto error_out;
@@ -142,9 +142,6 @@ void routing_sr_plugin_cleanup_cb(sr_session_ctx_t *session, void *private_data)
 	if (startup_session) {
 		sr_session_stop(startup_session);
 	}
-
-	route_list_hash_free(&ctx->ipv4_static_routes_head);
-	route_list_hash_free(&ctx->ipv6_static_routes_head);
 
 	// release context memory
 	FREE_SAFE(ctx);

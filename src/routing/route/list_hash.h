@@ -16,6 +16,7 @@ struct route_list_hash_element {
 
 void route_list_hash_init(struct route_list_hash_element **head);
 void route_list_hash_add(struct route_list_hash_element **head, struct nl_addr *addr, struct route *route);
+void route_list_hash_add_empty(struct route_list_hash_element **head, struct nl_addr *addr);
 struct route_list_element **route_list_hash_get(struct route_list_hash_element **head, struct nl_addr *addr);
 void route_list_hash_free(struct route_list_hash_element **head);
 

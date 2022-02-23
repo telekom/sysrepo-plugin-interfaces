@@ -39,6 +39,8 @@ struct route_next_hop {
 };
 
 void route_next_hop_init(struct route_next_hop *nh);
+void route_next_hop_set_simple_gateway(struct route_next_hop *nh, struct nl_addr *gw);
+void route_next_hop_set_simple_interface(struct route_next_hop *nh, int ifindex, const char *if_name);
 void route_next_hop_set_simple(struct route_next_hop *nh, int ifindex, const char *if_name, struct nl_addr *gw);
 void route_next_hop_set_special(struct route_next_hop *nh, char *value);
 void route_next_hop_add_list(struct route_next_hop *nh, int ifindex, const char *if_name, struct nl_addr *gw);

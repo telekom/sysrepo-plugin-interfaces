@@ -24,7 +24,8 @@ void route_list_add(struct route_list_element **head, struct route *route)
 	new_route->next = NULL;
 	new_route->route = route_clone(route);
 
-	LL_APPEND(*head, new_route);
+	// use prepend - used when adding static routes - head is always the newest element and can be modified easily
+	LL_PREPEND(*head, new_route);
 }
 
 void route_list_free(struct route_list_element **head)

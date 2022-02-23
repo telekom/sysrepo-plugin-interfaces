@@ -35,6 +35,13 @@ void route_set_last_updated(struct route *route, char *last_up)
 	}
 }
 
+void route_set_description(struct route *route, const char *description)
+{
+	if (description) {
+		route->metadata.description = xstrdup(description);
+	}
+}
+
 struct route route_clone(struct route *route)
 {
 	struct route out;
@@ -45,6 +52,7 @@ struct route route_clone(struct route *route)
 	route_set_active(&out, route->metadata.active);
 	route_set_source_protocol(&out, route->metadata.source_protocol);
 	route_set_last_updated(&out, route->metadata.last_updated);
+	route_set_description(&out, route->metadata.description);
 	out.next_hop = route_next_hop_clone(&route->next_hop);
 
 	return out;
@@ -55,6 +63,7 @@ void route_free(struct route *route)
 	if (route->metadata.source_protocol) {
 		FREE_SAFE(route->metadata.source_protocol);
 	}
+
 	if (route->metadata.last_updated) {
 		FREE_SAFE(route->metadata.last_updated);
 	}
