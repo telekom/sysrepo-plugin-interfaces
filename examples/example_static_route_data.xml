@@ -17,4 +17,5 @@
         </ipv4>
       </static-routes>
     </control-plane-protocol>
+  </control-plane-protocols>
 </routing>
