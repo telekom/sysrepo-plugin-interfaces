@@ -1317,13 +1317,20 @@ int update_link_info(link_data_list_t *ld, sr_change_oper_t operation)
 				goto out;
 			}
 
+			// the interface with name already exists, change it
+			error = rtnl_link_change(socket, old, request, 0);
+			if (error != 0) {
+				SRP_LOG_ERR("rtnl_link_change error (%d): %s", error, nl_geterror(error));
+				goto out;
+			}
+
 			error = add_interface_ipv6(&ld->links[i], old, request, rtnl_link_get_ifindex(old));
 			if (error != 0) {
 				SRP_LOG_ERRMSG("add_interface_ipv6 error");
 				goto out;
 			}
 
-			// the interface with name already exists, change it
+			// update ipv6 config
 			error = rtnl_link_change(socket, old, request, 0);
 			if (error != 0) {
 				SRP_LOG_ERR("rtnl_link_change error (%d): %s", error, nl_geterror(error));
@@ -1386,13 +1393,19 @@ int update_link_info(link_data_list_t *ld, sr_change_oper_t operation)
 					SRP_LOG_ERRMSG("add_interface_ipv4 error");
 					goto out;
 				}
-
+				// ipv4 config
+				error = rtnl_link_change(socket, old, request, 0);
+				if (error != 0) {
+					SRP_LOG_ERR("rtnl_link_change error (%d): %s", error, nl_geterror(error));
+					goto out;
+				}
 				error = add_interface_ipv6(&ld->links[i], old, request, rtnl_link_get_ifindex(old));
 				if (error != 0) {
 					SRP_LOG_ERRMSG("add_interface_ipv6 error");
 					goto out;
 				}
 
+				// ipv6 config
 				error = rtnl_link_change(socket, old, request, 0);
 				if (error != 0) {
 					SRP_LOG_ERR("rtnl_link_change error (%d): %s", error, nl_geterror(error));
