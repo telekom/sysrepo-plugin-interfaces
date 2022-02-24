@@ -937,6 +937,7 @@ static int routing_oper_get_rib_routes_cb(sr_session_ctx_t *session, uint32_t su
 		const struct route_list_hash *ROUTES_HASH = &ribs.list[hash_iter].routes;
 		const int ADDR_FAMILY = ribs.list[hash_iter].address_family;
 		const char *TABLE_NAME = ribs.list[hash_iter].name;
+
 		snprintf(routes_buffer, sizeof(routes_buffer), "%s[name='%s-%s']/routes", ROUTING_RIB_LIST_YANG_PATH, ADDR_FAMILY == AF_INET ? "ipv4" : "ipv6", TABLE_NAME);
 		ly_err = lyd_new_path(*parent, ly_ctx, routes_buffer, NULL, LYD_NEW_PATH_UPDATE, &routes_node);
 		if (ly_err != LY_SUCCESS) {
@@ -1007,6 +1008,7 @@ static int routing_oper_get_rib_routes_cb(sr_session_ctx_t *session, uint32_t su
 									SRPLG_LOG_ERR(PLUGIN_NAME, "unable to create new IPv4 next-hop-address node");
 									goto error_out;
 								}
+
 							} else if (ADDR_FAMILY == AF_INET6 && ly_uv6mod != NULL) {
 								SRPLG_LOG_DBG(PLUGIN_NAME, "IPv6 next-hop-address = %s", ip_buffer);
 								ly_err = lyd_new_term(nh_node, ly_uv6mod, "next-hop-address", ip_buffer, false, NULL);
@@ -1777,6 +1779,7 @@ out:
 	return error;
 }
 
+
 static int routing_build_rib_descriptions(struct rib_list *ribs)
 {
 	int error = 0;
@@ -1818,6 +1821,7 @@ static int routing_build_rib_descriptions(struct rib_list *ribs)
 
 	return error;
 }
+
 
 static inline int routing_is_rib_known(int table)
 {

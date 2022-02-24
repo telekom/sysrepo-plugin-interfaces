@@ -90,7 +90,7 @@ static int remove_ipv6_address(ip_address_list_t *addr_list, struct nl_sock *soc
 static int remove_neighbors(ip_neighbor_list_t *nbor_list, struct nl_sock *socket, int addr_ver, int if_index);
 int write_to_proc_file(const char *dir_path, char *interface, const char *fn, int val);
 static int read_from_proc_file(const char *dir_path, char *interface, const char *fn, int *val);
-static int read_from_sys_file(const char *dir_path, char *interface, int *val);
+static int read_interface_type_from_sys_file(const char *dir_path, char *interface, int *val);
 int delete_config_value(const char *xpath, const char *value);
 int update_link_info(link_data_list_t *ld, sr_change_oper_t operation);
 static char *convert_ianaiftype(char *iana_if_type);
@@ -266,6 +266,8 @@ static int load_data(sr_session_ctx_t *session, link_data_list_t *ld)
 			type = "iana-if-type:ethernetCsmacd";
 		} else if (strcmp(type, "vlan") == 0) {
 			type = "iana-if-type:l2vlan";
+		}  else if (strcmp(type, "bridge") == 0) {
+			type = "iana-if-type:bridge";
 		} else if (strcmp(type, "dummy") == 0) {
 			type = "iana-if-type:other"; // since dummy is not a real type
 		} else {
@@ -1002,6 +1004,8 @@ static char *convert_ianaiftype(char *iana_if_type)
 		if_type = "eth";
 	} else if (strstr(iana_if_type, "l2vlan") != NULL) {
 		if_type = "vlan";
+	} else if (strstr(iana_if_type, "bridge") != NULL) {
+		if_type = "bridge";
 	} else if (strstr(iana_if_type, "other") != NULL) {
 		if_type = "dummy";
 	}
@@ -1311,13 +1315,20 @@ int update_link_info(link_data_list_t *ld, sr_change_oper_t operation)
 				goto out;
 			}
 
+			// the interface with name already exists, change it
+			error = rtnl_link_change(socket, old, request, 0);
+			if (error != 0) {
+				SRPLG_LOG_ERR(PLUGIN_NAME, "rtnl_link_change error (%d): %s", error, nl_geterror(error));
+				goto out;
+			}
+
 			error = add_interface_ipv6(&ld->links[i], old, request, rtnl_link_get_ifindex(old));
 			if (error != 0) {
 				SRPLG_LOG_ERR(PLUGIN_NAME, "add_interface_ipv6 error");
 				goto out;
 			}
 
-			// the interface with name already exists, change it
+			// update ipv6 config
 			error = rtnl_link_change(socket, old, request, 0);
 			if (error != 0) {
 				SRPLG_LOG_ERR(PLUGIN_NAME, "rtnl_link_change error (%d): %s", error, nl_geterror(error));
@@ -1380,13 +1391,19 @@ int update_link_info(link_data_list_t *ld, sr_change_oper_t operation)
 					SRPLG_LOG_ERR(PLUGIN_NAME, "add_interface_ipv4 error");
 					goto out;
 				}
-
+				// ipv4 config
+				error = rtnl_link_change(socket, old, request, 0);
+				if (error != 0) {
+					SRPLG_LOG_ERR(PLUGIN_NAME, "rtnl_link_change error (%d): %s", error, nl_geterror(error));
+					goto out;
+				}
 				error = add_interface_ipv6(&ld->links[i], old, request, rtnl_link_get_ifindex(old));
 				if (error != 0) {
 					SRPLG_LOG_ERR(PLUGIN_NAME, "add_interface_ipv6 error");
 					goto out;
 				}
 
+				// ipv6 config
 				error = rtnl_link_change(socket, old, request, 0);
 				if (error != 0) {
 					SRPLG_LOG_ERR(PLUGIN_NAME, "rtnl_link_change error (%d): %s", error, nl_geterror(error));
@@ -1693,8 +1710,17 @@ int add_interface_ipv6(link_data_t *ld, struct rtnl_link *old, struct rtnl_link 
 
 	// set mtu
 	if (ipv6->ip_data.mtu != 0) {
+		// If the new ipv6 MTU value is greater than link (ipv4) MTU, the
+		// kernel will return EINVAL when attempting to write
+		// the value to the MTU proc file.
+		if (ipv6->ip_data.mtu > ld->ipv4.mtu) {
+			SRPLG_LOG_ERR(PLUGIN_NAME, "Attempted to set ipv6 MTU value (%hd) greater than the current ipv4 MTU value (%hd).", ipv6->ip_data.mtu, ld->ipv4.mtu);
+			error = -1;
+			goto out;
+		}
 		error = write_to_proc_file(ipv6_base, if_name, "mtu", ipv6->ip_data.mtu);
 		if (error != 0) {
+			SRPLG_LOG_ERR(PLUGIN_NAME, "write_to_proc_file error (mtu)");
 			goto out;
 		}
 	}
@@ -1999,16 +2025,26 @@ int write_to_proc_file(const char *dir_path, char *interface, const char *fn, in
 	error = 0;
 
 	fptr = fopen((const char *) tmp_buffer, "w");
-
-	if (fptr != NULL) {
-		fprintf(fptr, "%d", val);
-		fclose(fptr);
-	} else {
+	if (fptr == NULL) {
 		SRPLG_LOG_ERR(PLUGIN_NAME, "failed to open %s: %s", tmp_buffer, strerror(errno));
 		error = -1;
 		goto out;
 	}
 
+	error = fprintf(fptr, "%d", val);
+	if (error < 0) {
+		SRPLG_LOG_ERR(PLUGIN_NAME, "fprintf error: %s", strerror(errno));
+		error = -1;
+		goto out;
+	}
+
+	error = 0;
+	error = fclose(fptr);
+	if (error != 0) {
+		SRPLG_LOG_ERR(PLUGIN_NAME, "fclose error: %s", strerror(errno));
+		error = -1;
+		goto out;
+	}
 out:
 	return error;
 }
@@ -2019,7 +2055,7 @@ static int read_from_proc_file(const char *dir_path, char *interface, const char
 	int error = 0;
 	char tmp_buffer[PATH_MAX];
 	FILE *fptr = NULL;
-	char tmp_val[2] = {0};
+	char val_str[20] = {0};
 
 	error = snprintf(tmp_buffer, sizeof(tmp_buffer), "%s/%s/%s", dir_path, interface, fn);
 	if (error < 0) {
@@ -2031,17 +2067,31 @@ static int read_from_proc_file(const char *dir_path, char *interface, const char
 	// snprintf returns return the number of bytes that are written
 	// reset error to 0
 	error = 0;
-
 	fptr = fopen((const char *) tmp_buffer, "r");
-
-	if (fptr != NULL) {
-		fgets(tmp_val, sizeof(tmp_val), fptr);
-
-		*val = atoi(tmp_val);
-
-		fclose(fptr);
-	} else {
+	if (fptr == NULL) {
 		SRPLG_LOG_ERR(PLUGIN_NAME, "failed to open %s: %s", tmp_buffer, strerror(errno));
+		error = -1;
+		goto out;
+	}
+
+	char *s = fgets(val_str, sizeof(val_str), fptr);
+	if (s == NULL) {
+		SRPLG_LOG_ERR(PLUGIN_NAME, "fgets error: %s", strerror(errno));
+		error = -1;
+		goto out;
+	}
+
+	errno = 0;
+	*val = (int) strtol(val_str, NULL, 10);
+	if (errno != 0) {
+		SRPLG_LOG_ERR(PLUGIN_NAME, "strtol error: %s", strerror(errno));
+		error = -1;
+		goto out;
+	}
+
+	error = fclose(fptr);
+	if (error != 0) {
+		SRPLG_LOG_ERR(PLUGIN_NAME, "fclose error: %s", strerror(errno));
 		error = -1;
 		goto out;
 	}
@@ -2050,12 +2100,12 @@ out:
 	return error;
 }
 
-static int read_from_sys_file(const char *dir_path, char *interface, int *val)
+static int read_interface_type_from_sys_file(const char *dir_path, char *interface, int *val)
 {
 	int error = 0;
 	char tmp_buffer[PATH_MAX];
 	FILE *fptr = NULL;
-	char tmp_val[4] = {0};
+	char val_str[20] = {0};
 
 	error = snprintf(tmp_buffer, sizeof(tmp_buffer), "%s/%s/type", dir_path, interface);
 	if (error < 0) {
@@ -2067,17 +2117,31 @@ static int read_from_sys_file(const char *dir_path, char *interface, int *val)
 	// snprintf returns return the number of bytes that are written
 	// reset error to 0
 	error = 0;
-
 	fptr = fopen((const char *) tmp_buffer, "r");
-
-	if (fptr != NULL) {
-		fgets(tmp_val, sizeof(tmp_val), fptr);
-
-		*val = atoi(tmp_val);
-
-		fclose(fptr);
-	} else {
+	if (fptr == NULL) {
 		SRPLG_LOG_ERR(PLUGIN_NAME, "failed to open %s: %s", tmp_buffer, strerror(errno));
+		error = -1;
+		goto out;
+	}
+
+	char *s = fgets(val_str, sizeof(val_str), fptr);
+	if (s == NULL) {
+		SRPLG_LOG_ERR(PLUGIN_NAME, "fgets error: %s", strerror(errno));
+		error = -1;
+		goto out;
+	}
+
+	errno = 0;
+	*val = (int) strtol(val_str, NULL, 10);
+	if (errno != 0) {
+		SRPLG_LOG_ERR(PLUGIN_NAME, "strtol error: %s", strerror(errno));
+		error = -1;
+		goto out;
+	}
+
+	error = fclose(fptr);
+	if (error != 0) {
+		SRPLG_LOG_ERR(PLUGIN_NAME, "fclose error: %s", strerror(errno));
 		error = -1;
 		goto out;
 	}
@@ -2139,8 +2203,7 @@ int add_existing_links(sr_session_ctx_t *session, link_data_list_t *ld)
 		error = get_interface_description(session, name, &description);
 		if (error != 0) {
 			SRPLG_LOG_ERR(PLUGIN_NAME, "get_interface_description error");
-			// don't return in case of error
-			// some interfaces may not have a description already set (wlan0, etc.)
+			goto error_out;
 		}
 
 		type = rtnl_link_get_type(link);
@@ -2153,9 +2216,9 @@ int add_existing_links(sr_session_ctx_t *session, link_data_list_t *ld)
 			const char *path_to_sys = "/sys/class/net/";
 			int type_id = 0;
 
-			error = read_from_sys_file(path_to_sys, name, &type_id);
+			error = read_interface_type_from_sys_file(path_to_sys, name, &type_id);
 			if (error != 0) {
-				SRPLG_LOG_ERR(PLUGIN_NAME, "read_from_sys_file error");
+				SRPLG_LOG_ERR(PLUGIN_NAME, "read_interface_type_from_sys_file error");
 				goto error_out;
 			}
 
@@ -2198,7 +2261,7 @@ int add_existing_links(sr_session_ctx_t *session, link_data_list_t *ld)
 			}
 
 			// check if vlan_id in name, if it is this is the QinQ interface, skip it
-			char *first = NULL;
+			/*char *first = NULL;
 			char *second = NULL;
 
 			first = strchr(name, '.');
@@ -2207,7 +2270,7 @@ int add_existing_links(sr_session_ctx_t *session, link_data_list_t *ld)
 			if (second != 0) {
 				link = (struct rtnl_link *) nl_cache_get_next((struct nl_object *) link);
 				continue;
-			}
+			}*/
 		}
 
 		error = link_data_list_add(ld, name);
@@ -2572,14 +2635,11 @@ static int get_interface_description(sr_session_ctx_t *session, char *name, char
 		goto error_out;
 	}
 
-	// get the interface description value 
+	// get the interface description value
 	error = sr_get_item(session, path_buffer, 0, &val);
 	if (error != SR_ERR_OK) {
-		SRPLG_LOG_ERR(PLUGIN_NAME, "sr_get_item error (%d): %s", error, sr_strerror(error));
-		goto error_out;
-	}
-
-	if (strlen(val->data.string_val) > 0) {
+		SRPLG_LOG_INF(PLUGIN_NAME, "interface description is not yet present in the datastore");
+	} else if (strlen(val->data.string_val) > 0) {
 		*description = val->data.string_val;
 	}
 
@@ -2798,6 +2858,10 @@ static int interfaces_state_data_cb(sr_session_ctx_t *session, uint32_t subscrip
 		interface_data.name = rtnl_link_get_name(link);
 
 		link_data_t *l = data_list_get_by_name(&link_data_list, interface_data.name);
+		if (l == NULL) {
+			SRPLG_LOG_ERR(PLUGIN_NAME, "could not find interface %s in internal list", interface_data.name);
+			goto error_out;
+		}
 		interface_data.description = l->description;
 
 		interface_data.type = rtnl_link_get_type(link);
