@@ -24,8 +24,7 @@
 // uthash
 #include <utlist.h>
 
-static int update_delete_static_rotues(struct route_list_hash_element **routes_hash_head, uint8_t family);
-
+// helpers
 static int apply_static_routes_changes(struct routing_ctx *ctx, sr_session_ctx_t *session, const char *base_xpath);
 
 int routing_control_plane_protocol_list_change_cb(sr_session_ctx_t *session, uint32_t subscription_id, const char *module_name, const char *xpath, sr_event_t event, uint32_t request_id, void *private_data)
@@ -188,6 +187,45 @@ static int apply_static_routes_changes(struct routing_ctx *ctx, sr_session_ctx_t
 				break;
 			case SR_OP_DELETED:
 				// data needed: destination-prefix (optional next-hop value)
+				if (!strncmp(node_name, "destination-prefix", sizeof("destination-prefix") - 1)) {
+					// create new route
+					error = nl_addr_parse(node_value, AF_UNSPEC, &prefix);
+					if (error != 0) {
+						SRPLG_LOG_ERR(PLUGIN_NAME, "nl_addr_parse() error (%d): %s", error, nl_geterror(error));
+						goto error_out;
+					}
+
+					// add empty route to the start of the list for 'prefix'
+					route_list_hash_add(&delete_routes, prefix, &(struct route){0});
+					routes_head = route_list_hash_get(&delete_routes, prefix);
+
+					// free created prefix
+					nl_addr_put(prefix);
+				} else if (!strncmp(node_name, "description", sizeof("description") - 1)) {
+					if (!routes_head) {
+						// error
+						SRPLG_LOG_ERR(PLUGIN_NAME, "invalid routes_head value");
+						goto error_out;
+					} else {
+						route_set_description(&(*routes_head)->route, node_value);
+					}
+				} else if (!strncmp(node_name, "next-hop-address", sizeof("next-hop-address") - 1)) {
+					// simple next hop
+					if (!routes_head) {
+						SRPLG_LOG_ERR(PLUGIN_NAME, "invalid routes_head value");
+						goto error_out;
+					} else {
+						error = nl_addr_parse(node_value, AF_UNSPEC, &gateway);
+						if (error != 0) {
+							SRPLG_LOG_ERR(PLUGIN_NAME, "nl_addr_parse() error (%d): %s", error, nl_geterror(error));
+							goto error_out;
+						}
+						route_next_hop_set_simple_gateway(&(*routes_head)->route.next_hop, gateway);
+
+						// free created gateway
+						nl_addr_put(gateway);
+					}
+				}
 				break;
 			default:
 				break;
@@ -212,19 +250,19 @@ static int apply_static_routes_changes(struct routing_ctx *ctx, sr_session_ctx_t
 
 	error = routing_apply_new_routes(socket, new_routes);
 	if (error) {
-		SRPLG_LOG_ERR(PLUGIN_NAME, "apply_new_routes() error (%d)", error);
+		SRPLG_LOG_ERR(PLUGIN_NAME, "routing_apply_new_routes() error (%d)", error);
 		goto error_out;
 	}
 
 	error = routing_apply_modify_routes(socket, modify_routes);
 	if (error) {
-		SRPLG_LOG_ERR(PLUGIN_NAME, "apply_modify_routes() error (%d)", error);
+		SRPLG_LOG_ERR(PLUGIN_NAME, "routing_apply_modify_routes() error (%d)", error);
 		goto error_out;
 	}
 
 	error = routing_apply_delete_routes(socket, delete_routes);
 	if (error) {
-		SRPLG_LOG_ERR(PLUGIN_NAME, "apply_delete_routes() error (%d)", error);
+		SRPLG_LOG_ERR(PLUGIN_NAME, "routing_apply_delete_routes() error (%d)", error);
 		goto error_out;
 	}
 
@@ -246,85 +284,6 @@ out:
 
 	// iterator
 	sr_free_change_iter(changes_iterator);
-
-	return error;
-}
-
-static int update_delete_static_rotues(struct route_list_hash_element **routes_hash_head, uint8_t family)
-{
-	int error = 0;
-	int nl_err = 0;
-
-	// libnl
-	struct nl_sock *socket = NULL;
-	struct rtnl_route *route = NULL;
-	struct nl_addr *dst_addr = NULL;
-
-	// plugin
-	struct route_list_hash_element *routes_iter = NULL;
-	struct route_list_element *route_iter = NULL;
-
-	socket = nl_socket_alloc();
-	if (socket == NULL) {
-		error = -1;
-		SRPLG_LOG_ERR(PLUGIN_NAME, "unable to init nl_sock struct...");
-		goto error_out;
-	}
-
-	nl_err = nl_connect(socket, NETLINK_ROUTE);
-	if (nl_err != 0) {
-		error = -1;
-		SRPLG_LOG_ERR(PLUGIN_NAME, "nl_connect failed (%d): %s", nl_err, nl_geterror(nl_err));
-		goto error_out;
-	}
-
-	LL_FOREACH(*routes_hash_head, routes_iter)
-	{
-		LL_FOREACH(routes_iter->routes_head, route_iter)
-		{
-			route = rtnl_route_alloc();
-			if (route == NULL) {
-				error = -1;
-				SRPLG_LOG_ERR(PLUGIN_NAME, "unable to alloc rtnl_route struct");
-				goto error_out;
-			}
-
-			// alloc destination prefix for route
-			dst_addr = nl_addr_clone(routes_iter->prefix);
-
-			// setup route for deletion
-			rtnl_route_set_table(route, RT_TABLE_MAIN);
-			rtnl_route_set_protocol(route, RTPROT_STATIC);
-			rtnl_route_set_family(route, family);
-			rtnl_route_set_dst(route, dst_addr);
-			rtnl_route_set_priority(route, route_iter->route.preference);
-			rtnl_route_set_scope(route, RT_SCOPE_NOWHERE);
-
-			// delete route
-			nl_err = rtnl_route_delete(socket, route, 0);
-			if (nl_err != 0) {
-				SRPLG_LOG_ERR(PLUGIN_NAME, "rtnl_route_delete() failed (%d): %s", nl_err, nl_geterror(nl_err));
-				error = -1;
-				goto error_out;
-			}
-
-			nl_addr_put(dst_addr);
-			rtnl_route_put(route);
-		}
-	}
-
-error_out:
-	if (dst_addr) {
-		nl_addr_put(dst_addr);
-	}
-
-	if (route) {
-		rtnl_route_put(route);
-	}
-
-	if (socket) {
-		nl_socket_free(socket);
-	}
 
 	return error;
 }

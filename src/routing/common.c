@@ -365,6 +365,60 @@ int routing_apply_modify_routes(struct nl_sock *socket, struct route_list_hash_e
 int routing_apply_delete_routes(struct nl_sock *socket, struct route_list_hash_element *routes_hash)
 {
 	int error = 0;
+	int nl_err = 0;
+
+	// libnl
+	struct rtnl_route *route = NULL;
+	struct nl_addr *dst_addr = NULL;
+
+	// plugin
+	struct route_list_hash_element *routes_iter = NULL;
+	struct route_list_element *route_iter = NULL;
+
+	LL_FOREACH(routes_hash, routes_iter)
+	{
+		LL_FOREACH(routes_iter->routes_head, route_iter)
+		{
+			route = rtnl_route_alloc();
+			if (route == NULL) {
+				error = -1;
+				SRPLG_LOG_ERR(PLUGIN_NAME, "unable to alloc rtnl_route struct");
+				goto error_out;
+			}
+
+			// alloc destination prefix for route
+			dst_addr = nl_addr_clone(routes_iter->prefix);
+
+			// setup route for deletion
+			rtnl_route_set_table(route, RT_TABLE_MAIN);
+			rtnl_route_set_protocol(route, RTPROT_STATIC);
+			rtnl_route_set_dst(route, dst_addr);
+			rtnl_route_set_priority(route, route_iter->route.preference);
+			rtnl_route_set_scope(route, RT_SCOPE_NOWHERE);
+
+			// delete route
+			nl_err = rtnl_route_delete(socket, route, 0);
+			if (nl_err != 0) {
+				SRPLG_LOG_ERR(PLUGIN_NAME, "rtnl_route_delete() failed (%d): %s", nl_err, nl_geterror(nl_err));
+				error = -1;
+				goto error_out;
+			}
+
+			nl_addr_put(dst_addr);
+			rtnl_route_put(route);
+			route = NULL;
+			dst_addr = NULL;
+		}
+	}
+
+error_out:
+	if (dst_addr) {
+		nl_addr_put(dst_addr);
+	}
+
+	if (route) {
+		rtnl_route_put(route);
+	}
 
 	return error;
 }
