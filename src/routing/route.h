@@ -25,6 +25,7 @@ void route_set_preference(struct route *route, uint32_t pref);
 void route_set_active(struct route *route, bool active);
 void route_set_source_protocol(struct route *route, char *proto);
 void route_set_last_updated(struct route *route, char *last_up);
+void route_set_description(struct route *route, const char *description);
 struct route route_clone(struct route *route);
 void route_free(struct route *route);
 

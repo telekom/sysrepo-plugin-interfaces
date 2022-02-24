@@ -3,14 +3,6 @@
 
 #include "route/list_hash.h"
 
-struct static_routes_ipv4 {
-	struct route_list_hash routes;
-};
-
-struct static_routes_ipv6 {
-	struct route_list_hash routes;
-};
-
 struct control_plane_protocol {
 	char *type;
 	char *description;

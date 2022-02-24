@@ -2,6 +2,7 @@
 #include <signal.h>
 #include <unistd.h>
 #include <routing.h>
+#include <routing/common.h>
 
 volatile int exit_application = 0;
 
@@ -29,7 +30,7 @@ int main(void)
 		goto out;
 	}
 
-	error = sr_plugin_init_cb(session, &private_data);
+	error = routing_sr_plugin_init_cb(session, &private_data);
 	if (error) {
 		SRPLG_LOG_ERR(PLUGIN_NAME, "sr_plugin_init_cb error");
 		goto out;
@@ -43,7 +44,7 @@ int main(void)
 	}
 
 out:
-	sr_plugin_cleanup_cb(session, private_data);
+	routing_sr_plugin_cleanup_cb(session, private_data);
 	sr_disconnect(connection);
 
 	return error ? -1 : 0;

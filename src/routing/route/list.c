@@ -4,37 +4,38 @@
 #include "route.h"
 #include "utils/memory.h"
 
-void route_list_init(struct route_list *ls)
+#include <utlist.h>
+
+void route_list_init(struct route_list_element **head)
 {
-	ls->list = NULL;
-	ls->size = 0;
-	ls->delete = false;
+	*head = NULL;
 }
 
-bool route_list_is_empty(struct route_list *ls)
+bool route_list_is_empty(struct route_list_element **head)
 {
-	return ls->list == NULL && ls->size == 0;
+	return *head == NULL;
 }
 
-void route_list_add(struct route_list *ls, struct route *route)
+void route_list_add(struct route_list_element **head, struct route *route)
 {
-	ls->list = xrealloc(ls->list, sizeof(struct route) * (unsigned long) (ls->size + 1));
-	ls->list[ls->size] = route_clone(route);
-	ls->size += 1;
+	struct route_list_element *new_route = NULL;
+
+	new_route = xmalloc(sizeof(*new_route));
+	new_route->next = NULL;
+	new_route->route = route_clone(route);
+
+	// use prepend - used when adding static routes - head is always the newest element and can be modified easily
+	LL_PREPEND(*head, new_route);
 }
 
-struct route *route_list_get_last(struct route_list *ls)
+void route_list_free(struct route_list_element **head)
 {
-	return &ls->list[ls->size - 1];
-}
+	struct route_list_element *iter = NULL, *tmp = NULL;
 
-void route_list_free(struct route_list *ls)
-{
-	if (ls->list) {
-		for (size_t i = 0; i < ls->size; i++) {
-			route_free(&ls->list[i]);
-		}
-		FREE_SAFE(ls->list);
+	LL_FOREACH_SAFE(*head, iter, tmp)
+	{
+		LL_DELETE(*head, iter);
+		route_free(&iter->route);
+		free(iter);
 	}
-	route_list_init(ls);
 }
