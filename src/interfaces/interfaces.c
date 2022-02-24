@@ -1714,7 +1714,7 @@ int add_interface_ipv6(link_data_t *ld, struct rtnl_link *old, struct rtnl_link 
 		// kernel will return EINVAL when attempting to write
 		// the value to the MTU proc file.
 		if (ipv6->ip_data.mtu > ld->ipv4.mtu) {
-			SRPLG_LOG_ERR(PLUGIN_NAME, "Attempted to set ipv6 MTU value (%hd) greater than the current ipv4 MTU value (%hd).", ipv6->ip_data.mtu, ld->ipv4.mtu);
+			SRPLG_LOG_ERR(PLUGIN_NAME, "Attempted to set ipv6 MTU value (%hd) greater than the current ipv4 MTU value (%hd) on interface: %s.", ipv6->ip_data.mtu, ld->ipv4.mtu, ld->name);
 			error = -1;
 			goto out;
 		}
@@ -2242,11 +2242,6 @@ int add_existing_links(sr_session_ctx_t *session, link_data_list_t *ld)
 			enabled = "false";
 		}
 
-		// mtu
-		mtu = rtnl_link_get_mtu(link);
-
-		snprintf(tmp_buffer, sizeof(tmp_buffer), "%u", mtu);
-
 		// vlan
 		if (rtnl_link_is_vlan(link)) {
 			// parent interface
@@ -2261,7 +2256,7 @@ int add_existing_links(sr_session_ctx_t *session, link_data_list_t *ld)
 			}
 
 			// check if vlan_id in name, if it is this is the QinQ interface, skip it
-			/*char *first = NULL;
+			char *first = NULL;
 			char *second = NULL;
 
 			first = strchr(name, '.');
@@ -2270,7 +2265,7 @@ int add_existing_links(sr_session_ctx_t *session, link_data_list_t *ld)
 			if (second != 0) {
 				link = (struct rtnl_link *) nl_cache_get_next((struct nl_object *) link);
 				continue;
-			}*/
+			}
 		}
 
 		error = link_data_list_add(ld, name);
@@ -2313,6 +2308,39 @@ int add_existing_links(sr_session_ctx_t *session, link_data_list_t *ld)
 			error = link_data_list_set_outer_vlan_id(ld, name, vlan_id);
 			if (error != 0) {
 				SRPLG_LOG_ERR(PLUGIN_NAME, "link_data_list_set_outer_vlan_id error");
+				goto error_out;
+			}
+		}
+
+		// get ipv4 mtu
+		mtu = rtnl_link_get_mtu(link);
+
+		snprintf(tmp_buffer, sizeof(tmp_buffer), "%u", mtu);
+
+		if (mtu > 0) {
+			error = link_data_list_set_ipv4_mtu(&link_data_list, name, tmp_buffer);
+			if (error != 0) {
+				SRPLG_LOG_ERR(PLUGIN_NAME, "link_data_list_set_ipv4_mtu error (%d) : %s", error, strerror(error));
+				goto error_out;
+			}
+		}
+
+		// get ipv6 mtu
+		const char *ipv6_base = "/proc/sys/net/ipv6/conf";
+		int ipv6_mtu = 0;
+
+		error = read_from_proc_file(ipv6_base, name, "mtu", &ipv6_mtu);
+		if (error != 0) {
+			SRPLG_LOG_ERR(PLUGIN_NAME, "read_from_proc_file error (%d) : %s", error, strerror(error));
+			goto error_out;
+		}
+
+		snprintf(tmp_buffer, sizeof(tmp_buffer), "%u", ipv6_mtu);
+
+		if (ipv6_mtu > 0) {
+			error = link_data_list_set_ipv6_mtu(&link_data_list, name, tmp_buffer);
+			if (error != 0) {
+				SRPLG_LOG_ERR(PLUGIN_NAME, "link_data_list_set_ipv6_mtu error (%d) : %s", error, strerror(error));
 				goto error_out;
 			}
 		}
@@ -2468,18 +2496,6 @@ int add_existing_links(sr_session_ctx_t *session, link_data_list_t *ld)
 					goto error_out;
 				}
 
-				if (mtu > 0) {
-					error = link_data_list_set_ipv4_mtu(&link_data_list, name, tmp_buffer);
-					if (error != 0) {
-						SRPLG_LOG_ERR(PLUGIN_NAME, "link_data_list_set_ipv4_mtu error (%d) : %s", error, strerror(error));
-
-						FREE_SAFE(str);
-						FREE_SAFE(address);
-						FREE_SAFE(subnet);
-						goto error_out;
-					}
-				}
-
 				// enabled
 				const char *ipv4_base = "/proc/sys/net/ipv4/conf";
 				// TODO: figure out how to enable/disable ipv4
@@ -2518,20 +2534,8 @@ int add_existing_links(sr_session_ctx_t *session, link_data_list_t *ld)
 					goto error_out;
 				}
 
-				if (mtu > 0) {
-					error = link_data_list_set_ipv6_mtu(&link_data_list, name, tmp_buffer);
-					if (error != 0) {
-						SRPLG_LOG_ERR(PLUGIN_NAME, "link_data_list_set_ipv6_mtu error (%d) : %s", error, strerror(error));
-
-						FREE_SAFE(str);
-						FREE_SAFE(address);
-						FREE_SAFE(subnet);
-						goto error_out;
-					}
-				}
-
 				// enabled
-				const char *ipv6_base = "/proc/sys/net/ipv6/conf";
+				ipv6_base = "/proc/sys/net/ipv6/conf";
 
 				int ipv6_enabled = 0;
 
@@ -2858,11 +2862,9 @@ static int interfaces_state_data_cb(sr_session_ctx_t *session, uint32_t subscrip
 		interface_data.name = rtnl_link_get_name(link);
 
 		link_data_t *l = data_list_get_by_name(&link_data_list, interface_data.name);
-		if (l == NULL) {
-			SRPLG_LOG_ERR(PLUGIN_NAME, "could not find interface %s in internal list", interface_data.name);
-			goto error_out;
+		if (l != NULL) {
+			interface_data.description = l->description;
 		}
-		interface_data.description = l->description;
 
 		interface_data.type = rtnl_link_get_type(link);
 		interface_data.enabled = rtnl_link_get_operstate(link) == IF_OPER_UP ? "enabled" : "disabled";
