@@ -18,6 +18,7 @@ set(
     control_plane_protocol.c
     common.c
     startup.c
+    persist.c
 
     # subscriptions
     subscription/change.c

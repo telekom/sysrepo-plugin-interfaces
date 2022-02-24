@@ -41,6 +41,7 @@
 
 // startup datastore -> initial load
 #include "startup.h"
+#include "persist.h"
 
 static bool routing_running_datastore_is_empty(sr_session_ctx_t *session);
 
@@ -89,6 +90,14 @@ int routing_sr_plugin_init_cb(sr_session_ctx_t *session, void **private_data)
 			SRPLG_LOG_ERR(PLUGIN_NAME, "sr_copy_config error (%d): %s", error, sr_strerror(error));
 			goto error_out;
 		}
+	} else {
+		// load needed persistent data which needs to be applied from the running datastore
+		// TODO: figure out a way to run this only once when the system starts
+		// error = routing_persist_static_routes(session);
+		// if (error) {
+		// 	SRPLG_LOG_ERR(PLUGIN_NAME, "routing_persist_static_routes() failed (%d)", error);
+		// 	goto error_out;
+		// }
 	}
 
 	SRPLG_LOG_INF(PLUGIN_NAME, "subscribing to module change");

@@ -249,3 +249,122 @@ int routing_is_rib_known(int table)
 {
 	return table == RT_TABLE_DEFAULT || table == RT_TABLE_LOCAL || table == RT_TABLE_MAIN;
 }
+
+int routing_apply_new_routes(struct nl_sock *socket, struct route_list_hash_element *routes_hash)
+{
+	int error = 0;
+	int nl_err = 0;
+
+	// libnl
+	struct rtnl_route *route = NULL;
+	struct rtnl_nexthop *next_hop = NULL;
+	struct nl_addr *dst_addr = NULL;
+
+	// plugin
+	struct route_list_hash_element *routes_iter = NULL;
+	struct route_list_element *route_iter = NULL;
+
+	LL_FOREACH(routes_hash, routes_iter)
+	{
+		LL_FOREACH(routes_iter->routes_head, route_iter)
+		{
+			route = rtnl_route_alloc();
+			if (route == NULL) {
+				SRPLG_LOG_ERR(PLUGIN_NAME, "unable to alloc rtnl_route struct");
+				goto error_out;
+			}
+
+			dst_addr = nl_addr_clone(routes_iter->prefix);
+
+			rtnl_route_set_table(route, RT_TABLE_MAIN);
+			rtnl_route_set_protocol(route, RTPROT_STATIC);
+			rtnl_route_set_dst(route, dst_addr);
+			rtnl_route_set_priority(route, route_iter->route.preference);
+
+			if (route_iter->route.next_hop.kind == route_next_hop_kind_simple) {
+				next_hop = rtnl_route_nh_alloc();
+				if (next_hop == NULL) {
+					error = -1;
+					SRPLG_LOG_ERR(PLUGIN_NAME, "unable to alloc rtnl_nexthop struct");
+					goto error_out;
+				}
+
+				if (route_iter->route.next_hop.value.simple.if_name == NULL && route_iter->route.next_hop.value.simple.addr == NULL) {
+					error = -1;
+					SRPLG_LOG_ERR(PLUGIN_NAME, "outgoing-interface and next-hop-address can't both be NULL");
+					goto error_out;
+				}
+
+				if (route_iter->route.next_hop.value.simple.if_name != NULL) {
+					rtnl_route_nh_set_ifindex(next_hop, route_iter->route.next_hop.value.simple.ifindex);
+				}
+
+				if (route_iter->route.next_hop.value.simple.addr != NULL) {
+					rtnl_route_nh_set_gateway(next_hop, route_iter->route.next_hop.value.simple.addr);
+				}
+				rtnl_route_add_nexthop(route, next_hop);
+			} else if (route_iter->route.next_hop.kind == route_next_hop_kind_list) {
+				struct route_next_hop_list_element *nexthop_iter = NULL;
+
+				LL_FOREACH(route_iter->route.next_hop.value.list_head, nexthop_iter)
+				{
+					next_hop = rtnl_route_nh_alloc();
+					if (next_hop == NULL) {
+						error = -1;
+						SRPLG_LOG_ERR(PLUGIN_NAME, "unable to alloc rtnl_nexthop struct");
+						goto error_out;
+					}
+
+					rtnl_route_nh_set_ifindex(next_hop, nexthop_iter->simple.ifindex);
+					rtnl_route_nh_set_gateway(next_hop, nexthop_iter->simple.addr);
+					rtnl_route_add_nexthop(route, next_hop);
+				}
+			}
+
+			rtnl_route_set_scope(route, (uint8_t) rtnl_route_guess_scope(route));
+
+			// create new route
+			nl_err = rtnl_route_add(socket, route, NLM_F_CREATE);
+			if (nl_err != 0) {
+				error = -1;
+				SRPLG_LOG_ERR(PLUGIN_NAME, "rtnl_route_add() failed (%d): %s", nl_err, nl_geterror(nl_err));
+				goto error_out;
+			}
+
+			nl_addr_put(dst_addr);
+			rtnl_route_put(route);
+			route = NULL;
+			dst_addr = NULL;
+		}
+	}
+
+	goto out;
+
+error_out:
+	error = -1;
+
+out:
+	if (dst_addr) {
+		nl_addr_put(dst_addr);
+	}
+
+	if (route) {
+		rtnl_route_put(route);
+	}
+
+	return error;
+}
+
+int routing_apply_modify_routes(struct nl_sock *socket, struct route_list_hash_element *routes_hash)
+{
+	int error = 0;
+
+	return error;
+}
+
+int routing_apply_delete_routes(struct nl_sock *socket, struct route_list_hash_element *routes_hash)
+{
+	int error = 0;
+
+	return error;
+}
