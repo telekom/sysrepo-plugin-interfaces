@@ -70,7 +70,7 @@ static bool bridging_running_datastore_is_empty(sr_session_ctx_t *session)
 		goto out;
 	}
 
-	if (test_data->tree != NULL) {
+	if (test_data->tree != NULL && lyd_child(test_data->tree) != NULL) {
 		// main container found: datastore is not empty
 		is_empty = false;
 	}
