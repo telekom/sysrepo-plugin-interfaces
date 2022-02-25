@@ -44,6 +44,10 @@ if(ROUTING_PLUGIN)
 	add_subdirectory(src/routing)
 endif()
 
+if(BRIDGING_PLUGIN)
+	add_subdirectory(src/bridging)
+endif()
+
 if(ENABLE_BUILD_TESTS)
 	find_package(CMOCKA REQUIRED)
     include (CTest)
