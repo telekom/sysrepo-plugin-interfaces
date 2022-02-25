@@ -2653,6 +2653,94 @@ error_out:
 	return -1;
 }
 
+/*
+ * function: create_node_neighbor_origin
+ * -------------------------------------
+ * creates a neighbor <origin> node: "static", "dynamic" or "other" 
+ *
+ * @arg ip_addr
+ * 	neighbor destination address
+ * 	
+ * @arg if_index
+ * 	interface index
+ *
+ * @arg family
+ * 	address family AF_INET OR AF_INET6
+ *
+ * @returns:
+ *      0 on successful neighbor-origin node creation, -1 on error
+ */
+int create_node_neighbor_origin(struct lyd_node **parent, const struct ly_ctx *ly_ctx, char xpath_buffer[PATH_MAX], char interface_path_buffer[PATH_MAX], 
+				struct nl_sock *socket, int32_t if_index, char *ip_addr, int family)
+{
+	struct nl_cache *cache = NULL;
+	struct nl_addr *dst_addr = NULL;
+	struct rtnl_neigh *neigh = NULL;
+
+	size_t addr_maxsize = -1;
+	int state = -1;
+	char *origin = NULL;
+
+	int error = -1;
+
+	error = rtnl_neigh_alloc_cache(socket, &cache);
+	if (error < 0) {
+		goto error;
+	}
+
+	addr_maxsize = family == AF_INET6 ? 128 : 32;
+	dst_addr = nl_addr_alloc(addr_maxsize);
+	if (dst_addr == NULL) {
+		goto error;
+	}
+
+	error =  nl_addr_parse(ip_addr, family, &dst_addr);
+	if (error != 0) {
+	    	nl_addr_put(dst_addr);
+		goto error;
+	}
+
+	neigh = rtnl_neigh_get(cache, if_index, dst_addr);
+	if (neigh == NULL) {
+		goto error;
+	}
+
+	// TODO: discern dynamic/static/other neighbor origin, currently only dynamic/static are used
+	state = rtnl_neigh_get_state(neigh);
+	if (state == -1) {
+	    	nl_addr_put(dst_addr);
+		rtnl_neigh_put(neigh);
+		goto error;
+	}
+
+	// since state is a bit mask
+	// NUD_PERMANENT signifies a static entry
+	origin = state & NUD_PERMANENT ? "static" : "dynamic";
+
+	error = snprintf(xpath_buffer, PATH_MAX, "%s/ietf-ip:ipv%u/neighbor[ip='%s']/origin", 
+			 interface_path_buffer, family == AF_INET6 ? 6 : 4, ip_addr);
+	// null character not counted in written chars, therefore greater or equal than
+	if (error < 0 || error >= PATH_MAX) {
+		goto error;
+	}
+
+	// add neighbor origin node to the oper datastore, if successful show it (debug)
+	error = lyd_new_path(*parent, ly_ctx, xpath_buffer, origin, LYD_ANYDATA_STRING, 0);
+	if (error != LY_SUCCESS) {
+		goto error;
+	}
+	SRPLG_LOG_DBG(PLUGIN_NAME, "%s = %s", xpath_buffer, origin);
+
+	nl_addr_put(dst_addr);
+	rtnl_neigh_put(neigh);
+
+	return 0;
+
+error:
+	SRPLG_LOG_ERR(PLUGIN_NAME, "create_node_neighbor_origin failed for address %s", ip_addr);
+	return -1;
+}
+
 static int interfaces_state_data_cb(sr_session_ctx_t *session, uint32_t subscription_id, const char *module_name, const char *path, const char *request_xpath, uint32_t request_id, struct lyd_node **parent, void *private_data)
 {
 	int error = SR_ERR_OK;
@@ -3122,6 +3210,12 @@ static int interfaces_state_data_cb(sr_session_ctx_t *session, uint32_t subscrip
 
 							SRPLG_LOG_DBG(PLUGIN_NAME, "%s = %s", xpath_buffer, link_data_list.links[i].ipv4.nbor_list.nbor[j].phys_addr);
 							lyd_new_path(*parent, ly_ctx, xpath_buffer, link_data_list.links[i].ipv4.nbor_list.nbor[j].phys_addr, LYD_ANYDATA_STRING, 0);
+
+							// neighbor-origin
+							error = create_node_neighbor_origin(parent, ly_ctx, xpath_buffer, interface_path_buffer, socket, interface_data.if_index, ip_addr, AF_INET);
+							if (error < 0) {
+								goto error_out;
+							}
 						}
 					}
 				}
@@ -3216,6 +3310,12 @@ static int interfaces_state_data_cb(sr_session_ctx_t *session, uint32_t subscrip
 
 							SRPLG_LOG_DBG(PLUGIN_NAME, "%s = %s", xpath_buffer, link_data_list.links[i].ipv6.ip_data.nbor_list.nbor[j].phys_addr);
 							lyd_new_path(*parent, ly_ctx, xpath_buffer, link_data_list.links[i].ipv6.ip_data.nbor_list.nbor[j].phys_addr, LYD_ANYDATA_STRING, 0);
+
+							// neighbor-origin
+							error = create_node_neighbor_origin(parent, ly_ctx, xpath_buffer, interface_path_buffer, socket, interface_data.if_index, ip_addr, AF_INET6);
+							if (error < 0) {
+								goto error_out;
+							}
 						}
 					}
 				}
