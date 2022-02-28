@@ -1,4 +1,3 @@
-#include "libyang/tree_data.h"
 #include <bridging/bridging.h>
 #include <bridging/common.h>
 #include <bridging/context.h>
@@ -7,7 +6,14 @@
 // stdlib
 #include <stdbool.h>
 
+// sysrepo
 #include <sysrepo.h>
+
+// libyang
+#include <libyang/tree_data.h>
+
+// bridging
+#include "startup.h"
 
 static bool bridging_running_datastore_is_empty(sr_session_ctx_t *session);
 
@@ -32,20 +38,31 @@ int bridging_sr_plugin_init_cb(sr_session_ctx_t *session, void **private_data)
 	connection = sr_session_get_connection(session);
 	error = sr_session_start(connection, SR_DS_STARTUP, &startup_session);
 	if (error) {
-		SRPLG_LOG_ERR(PLUGIN_NAME, "sr_session_start error: %d -> %s", error, sr_strerror(error));
+		SRPLG_LOG_ERR(PLUGIN_NAME, "sr_session_start() error (%d): %s", error, sr_strerror(error));
 	}
 
 	ctx->startup_session = startup_session;
 
 	if (bridging_running_datastore_is_empty(session)) {
-		SRPLG_LOG_INF(PLUGIN_NAME, "running datasore is empty -> loading data");
+		SRPLG_LOG_INF(PLUGIN_NAME, "Running datasore is empty");
+		SRPLG_LOG_INF(PLUGIN_NAME, "Loading initial data");
+		error = bridging_startup_load_data(ctx, session);
+		if (error) {
+			SRPLG_LOG_ERR(PLUGIN_NAME, "Error loading initial data into the datastore... exiting");
+			goto error_out;
+		}
+		error = sr_copy_config(startup_session, BASE_YANG_MODEL, SR_DS_RUNNING, 0);
+		if (error) {
+			SRPLG_LOG_ERR(PLUGIN_NAME, "sr_copy_config() error (%d): %s", error, sr_strerror(error));
+			goto error_out;
+		}
 	}
 
 	goto out;
 
 error_out:
 	error = -1;
-	SRPLG_LOG_ERR(PLUGIN_NAME, "error occured while initializing the plugin -> %d", error);
+	SRPLG_LOG_ERR(PLUGIN_NAME, "Error occured while initializing the plugin (%d)", error);
 
 out:
 	return error ? SR_ERR_CALLBACK_FAILED : SR_ERR_OK;
@@ -76,10 +93,7 @@ static bool bridging_running_datastore_is_empty(sr_session_ctx_t *session)
 	}
 
 out:
-	if (test_data) {
-		lyd_free_tree(test_data->tree);
-		FREE_SAFE(test_data);
-	}
+	sr_release_data(test_data);
 
 	return is_empty;
 }
