@@ -8,6 +8,14 @@ include_directories(
 set(
     SOURCES
     bridging.c
+    startup.c
+
+    # bridge
+    bridge.c
+    
+    # component
+    bridge/component.c
+    bridge/component/list.c
 
     # utils
     ${CMAKE_SOURCE_DIR}/src/utils/memory.c
