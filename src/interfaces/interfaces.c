@@ -2385,6 +2385,7 @@ int add_existing_links(sr_session_ctx_t *session, link_data_list_t *ld)
 				// skip neighs with no arp state
 				if (NUD_NOARP == neigh_state) {
 					nl_neigh_object = nl_cache_get_next(nl_neigh_object);
+					rtnl_neigh_put(neigh);
 					continue;
 				}
 
@@ -2392,6 +2393,7 @@ int add_existing_links(sr_session_ctx_t *session, link_data_list_t *ld)
 
 				if (if_index != cur_neigh_index) {
 					nl_neigh_object = nl_cache_get_next(nl_neigh_object);
+					rtnl_neigh_put(neigh);
 					continue;
 				}
 
@@ -2400,6 +2402,7 @@ int add_existing_links(sr_session_ctx_t *session, link_data_list_t *ld)
 				char *ll_addr_s = nl_addr2str(ll_addr, ll_addr_str, sizeof(ll_addr_str));
 				if (NULL == ll_addr_s) {
 					SRPLG_LOG_ERR(PLUGIN_NAME, "nl_addr2str error");
+					rtnl_neigh_put(neigh);
 					goto error_out;
 				}
 
@@ -2410,12 +2413,14 @@ int add_existing_links(sr_session_ctx_t *session, link_data_list_t *ld)
 					error = link_data_list_add_ipv4_neighbor(&link_data_list, name, dst_addr, ll_addr_s);
 					if (error != 0) {
 						SRPLG_LOG_ERR(PLUGIN_NAME, "link_data_list_add_ipv4_neighbor error (%d) : %s", error, strerror(error));
+						rtnl_neigh_put(neigh);
 						goto error_out;
 					}
 				} else if (addr_family == AF_INET6) {
 					error = link_data_list_add_ipv6_neighbor(&link_data_list, name, dst_addr, ll_addr_s);
 					if (error != 0) {
 						SRPLG_LOG_ERR(PLUGIN_NAME, "link_data_list_add_ipv6_neighbor error (%d) : %s", error, strerror(error));
+						rtnl_neigh_put(neigh);
 						goto error_out;
 					}
 				}
