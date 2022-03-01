@@ -54,15 +54,8 @@
 #include "ip_data.h"
 #include "link_data.h"
 #include "utils/memory.h"
+#include "datastore.h"
 
-#define BASE_YANG_MODEL "ietf-interfaces"
-#define BASE_IP_YANG_MODEL "ietf-ip"
-
-// config data
-#define INTERFACES_YANG_MODEL "/" BASE_YANG_MODEL ":interfaces"
-#define INTERFACE_LIST_YANG_PATH INTERFACES_YANG_MODEL "/interface"
-
-#define PLUGIN_NAME "interfaces-plugin"
 
 // other #defines
 #define MAC_ADDR_MAX_LENGTH 18
@@ -247,324 +240,138 @@ out:
 static int load_data(sr_session_ctx_t *session, link_data_list_t *ld)
 {
 	int error = 0;
-	char interface_path_buffer[PATH_MAX] = {0};
-	char xpath_buffer[PATH_MAX] = {0};
-	char tmp_buffer[PATH_MAX] = {0};
-
 	for (int i = 0; i < ld->count; i++) {
-		char *name = ld->links[i].name;
-		char *type = ld->links[i].type;
-		char *description = ld->links[i].description;
-		char *enabled = ld->links[i].enabled;
-		char *parent_interface = ld->links[i].extensions.parent_interface;
+		link_data_t *link = &ld->links[i];
 
-		snprintf(interface_path_buffer, sizeof(interface_path_buffer) / sizeof(char), "%s[name=\"%s\"]", INTERFACE_LIST_YANG_PATH, name);
-
+		// general interface config
+		char *interface_leaf_values[IF_LEAF_COUNT] = {NULL};
+		interface_leaf_values[IF_DESCRIPTION] = link->description != NULL ? ld->links[i].description : "";
+		interface_leaf_values[IF_ENABLED] = link->enabled;
+		interface_leaf_values[IF_PARENT_INTERFACE] = link->extensions.parent_interface;
+		char *type = link->type;
 		if (strcmp(type, "lo") == 0) {
-			type = "iana-if-type:softwareLoopback";
+			interface_leaf_values[IF_TYPE] = "iana-if-type:softwareLoopback";
 		} else if (strcmp(type, "eth") == 0) {
-			type = "iana-if-type:ethernetCsmacd";
+			interface_leaf_values[IF_TYPE] = "iana-if-type:ethernetCsmacd";
 		} else if (strcmp(type, "vlan") == 0) {
-			type = "iana-if-type:l2vlan";
+			interface_leaf_values[IF_TYPE] = "iana-if-type:l2vlan";
 		}  else if (strcmp(type, "bridge") == 0) {
-			type = "iana-if-type:bridge";
+			interface_leaf_values[IF_TYPE] = "iana-if-type:bridge";
 		} else if (strcmp(type, "dummy") == 0) {
-			type = "iana-if-type:other"; // since dummy is not a real type
+			interface_leaf_values[IF_TYPE] = "iana-if-type:other"; // since dummy is not a real type
 		} else {
 			SRPLG_LOG_INF(PLUGIN_NAME, "load_data unsupported interface type %s", type);
 			continue;
 		}
 
-		error = sr_set_item_str(session, interface_path_buffer, name, NULL, SR_EDIT_DEFAULT);
+		error = ds_set_general_interface_config(session, link->name, interface_leaf_values);
 		if (error) {
-			SRPLG_LOG_ERR(PLUGIN_NAME, "sr_set_item_str error (%d): %s", error, sr_strerror(error));
+			SRPLG_LOG_ERR(PLUGIN_NAME, "ds_set_interface_general_info error");
 			goto error_out;
 		}
 
-		error = snprintf(xpath_buffer, sizeof(xpath_buffer), "%s/description", interface_path_buffer);
-		if (error < 0) {
-			goto error_out;
-		}
+		// TODO: handle vlan interfaces
 
-		error = sr_set_item_str(session, xpath_buffer, description, NULL, SR_EDIT_DEFAULT);
+		// ipv4 config
+		char *ipv4_leaf_values[IF_IP_LEAF_COUNT] = {NULL};
+		ipv4_leaf_values[IF_IP_ENABLED] = link->ipv4.enabled == 0 ? "false" : "true";
+		ipv4_leaf_values[IF_IP_FORWARDING] = link->ipv4.forwarding == 0 ? "false" : "true";
+		char ipv4_mtu[16] = {0};
+		if (link->ipv4.mtu > 0) {
+			snprintf(ipv4_mtu, sizeof(ipv4_mtu), "%u", ld->links[i].ipv4.mtu);
+			ipv4_leaf_values[IF_IP_MTU] = ipv4_mtu;
+		}
+		error = ds_set_interface_ipv4_config(session, link->name, ipv4_leaf_values);
 		if (error) {
-			SRPLG_LOG_ERR(PLUGIN_NAME, "sr_set_item_str error (%d): %s", error, sr_strerror(error));
+			SRPLG_LOG_ERR(PLUGIN_NAME, "ds_set_interface_ipv4_config error");
 			goto error_out;
 		}
 
-		error = snprintf(xpath_buffer, sizeof(xpath_buffer), "%s/type", interface_path_buffer);
-		if (error < 0) {
-			goto error_out;
-		}
-
-		error = sr_set_item_str(session, xpath_buffer, type, NULL, SR_EDIT_DEFAULT);
-		if (error) {
-			SRPLG_LOG_ERR(PLUGIN_NAME, "sr_set_item_str error (%d): %s", error, sr_strerror(error));
-			goto error_out;
-		}
-
-		error = snprintf(xpath_buffer, sizeof(xpath_buffer), "%s/enabled", interface_path_buffer);
-		if (error < 0) {
-			goto error_out;
-		}
-
-		error = sr_set_item_str(session, xpath_buffer, enabled, NULL, SR_EDIT_DEFAULT);
-		if (error) {
-			SRPLG_LOG_ERR(PLUGIN_NAME, "sr_set_item_str error (%d): %s", error, sr_strerror(error));
-			goto error_out;
-		}
-
-		if (parent_interface != 0) {
-			error = snprintf(xpath_buffer, sizeof(xpath_buffer), "%s/ietf-if-extensions:parent-interface", interface_path_buffer);
-			if (error < 0) {
-				goto error_out;
-			}
-
-			error = sr_set_item_str(session, xpath_buffer, parent_interface, NULL, SR_EDIT_DEFAULT);
-			if (error) {
-				SRPLG_LOG_ERR(PLUGIN_NAME, "sr_set_item_str error (%d): %s", error, sr_strerror(error));
-				goto error_out;
-			}
-		}
-
-		// handle vlan interfaces
-
-
-		// ietf-ip
-		// TODO: refactor this!
 		// list of ipv4 addresses
-		if (strcmp(ld->links[i].name, name ) == 0) {
-			// enabled
-			// TODO
-
-			// forwarding
-			uint8_t ipv4_forwarding = ld->links[i].ipv4.forwarding;
-
-			error = snprintf(xpath_buffer, sizeof(xpath_buffer), "%s/ietf-ip:ipv4/forwarding", interface_path_buffer);
-			if (error < 0) {
-				goto error_out;
+		uint32_t ipv4_addr_count = link->ipv4.addr_list.count;
+		for (uint32_t j = 0; j < ipv4_addr_count; j++) {
+			if (link->ipv4.addr_list.addr[j].ip == NULL) { // in case we deleted an ip address it will be NULL
+				continue;
 			}
+			ip_address_t *addr = &link->ipv4.addr_list.addr[j];
 
-			SRPLG_LOG_DBG(PLUGIN_NAME, "xpath_buffer: %s = %s", xpath_buffer, ipv4_forwarding == 0 ? "false" : "true");
+			char *ipv4_addr_leaf_values[IF_IPV4_ADDR_LEAF_COUNT] = {NULL};
+			char prefix_len[8] = {0};
+			snprintf(prefix_len, sizeof(prefix_len), "%u", addr->subnet);
+			ipv4_addr_leaf_values[IF_IPV4_ADDR_PREFIX_LENGTH] = prefix_len;
 
-			error = sr_set_item_str(session, xpath_buffer, ipv4_forwarding == 0 ? "false" : "true", NULL, SR_EDIT_DEFAULT);
+			error = ds_add_interface_ipv4_address(session, link->name, addr->ip, ipv4_addr_leaf_values);
 			if (error) {
-				SRPLG_LOG_ERR(PLUGIN_NAME, "sr_set_item_str error (%d): %s", error, sr_strerror(error));
+				SRPLG_LOG_ERR(PLUGIN_NAME, "ds_add_interface_ipv4_address error");
 				goto error_out;
 			}
+		}
 
-			uint32_t ipv4_addr_count = ld->links[i].ipv4.addr_list.count;
+		// list of ipv4 neighbors
+		uint32_t ipv4_neigh_count = link->ipv4.nbor_list.count;
+		for (uint32_t j = 0; j < ipv4_neigh_count; j++) {
+			ip_neighbor_t *neigh = &link->ipv4.nbor_list.nbor[j];
 
-			for (uint32_t j = 0; j < ipv4_addr_count; j++) {
-				if (ld->links[i].ipv4.addr_list.addr[j].ip != NULL) { // in case we deleted an ip address it will be NULL
-					char *ip_addr = ld->links[i].ipv4.addr_list.addr[j].ip;
+			char *ipv4_neigh_leaf_values[IF_IPV4_NEIGH_LEAF_COUNT] = {NULL};
+			ipv4_neigh_leaf_values[IF_IPV4_NEIGH_LINK_LAYER_ADDR] = neigh->phys_addr;
 
-					int ipv4_mtu = ld->links[i].ipv4.mtu;
-					if (ipv4_mtu > 0) {
-						error = snprintf(xpath_buffer, sizeof(xpath_buffer), "%s/ietf-ip:ipv4/mtu", interface_path_buffer);
-						if (error < 0) {
-							goto error_out;
-						}
-
-						snprintf(tmp_buffer, sizeof(tmp_buffer), "%u", ipv4_mtu);
-
-						SRPLG_LOG_DBG(PLUGIN_NAME, "xpath_buffer: %s = %s", xpath_buffer, tmp_buffer);
-
-						error = sr_set_item_str(session, xpath_buffer, tmp_buffer, NULL, SR_EDIT_DEFAULT);
-						if (error) {
-							SRPLG_LOG_ERR(PLUGIN_NAME, "sr_set_item_str error (%d): %s", error, sr_strerror(error));
-							goto error_out;
-						}
-					}
-
-					error = snprintf(xpath_buffer, sizeof(xpath_buffer), "%s/ietf-ip:ipv4/address[ip='%s']", interface_path_buffer, ip_addr);
-					if (error < 0) {
-						goto error_out;
-					}
-
-					// ip
-					SRPLG_LOG_DBG(PLUGIN_NAME, "xpath_buffer: %s = %s", xpath_buffer, ld->links[i].ipv4.addr_list.addr[j].ip);
-					error = sr_set_item_str(session, xpath_buffer, ld->links[i].ipv4.addr_list.addr[j].ip, NULL, SR_EDIT_DEFAULT);
-					if (error) {
-						SRPLG_LOG_ERR(PLUGIN_NAME, "sr_set_item_str error (%d): %s", error, sr_strerror(error));
-						goto error_out;
-					}
-
-					// subnet
-					snprintf(tmp_buffer, sizeof(tmp_buffer), "%u", ld->links[i].ipv4.addr_list.addr[j].subnet);
-
-					error = snprintf(xpath_buffer, sizeof(xpath_buffer), "%s/ietf-ip:ipv4/address[ip='%s']/prefix-length", interface_path_buffer, ip_addr);
-					if (error < 0) {
-						goto error_out;
-					}
-
-					SRPLG_LOG_DBG(PLUGIN_NAME, "xpath_buffer: %s = %s", xpath_buffer, tmp_buffer);
-
-					error = sr_set_item_str(session, xpath_buffer, tmp_buffer, NULL, SR_EDIT_DEFAULT);
-					if (error) {
-						SRPLG_LOG_ERR(PLUGIN_NAME, "sr_set_item_str error (%d): %s", error, sr_strerror(error));
-						goto error_out;
-					}
-				}
-			}
-
-			// list of ipv4 neighbors
-			uint32_t ipv4_neigh_count = ld->links[i].ipv4.nbor_list.count;
-			for (uint32_t j = 0; j < ipv4_neigh_count; j++) {
-				char *ip_addr = ld->links[i].ipv4.nbor_list.nbor[j].ip;
-
-				error = snprintf(xpath_buffer, sizeof(xpath_buffer), "%s/ietf-ip:ipv4/neighbor[ip='%s']", interface_path_buffer, ip_addr);
-				if (error < 0) {
-					goto error_out;
-				}
-
-				// ip
-				SRPLG_LOG_DBG(PLUGIN_NAME, "xpath_buffer: %s = %s", xpath_buffer, ld->links[i].ipv4.nbor_list.nbor[j].ip);
-				error = sr_set_item_str(session, xpath_buffer, ld->links[i].ipv4.nbor_list.nbor[j].ip, NULL, SR_EDIT_DEFAULT);
-				if (error) {
-					SRPLG_LOG_ERR(PLUGIN_NAME, "sr_set_item_str error (%d): %s", error, sr_strerror(error));
-					goto error_out;
-				}
-
-				// link-layer-address
-				error = snprintf(xpath_buffer, sizeof(xpath_buffer), "%s/ietf-ip:ipv4/neighbor[ip='%s']/link-layer-address", interface_path_buffer, ip_addr);
-				if (error < 0) {
-					goto error_out;
-				}
-
-				SRPLG_LOG_DBG(PLUGIN_NAME, "xpath_buffer: %s = %s", xpath_buffer, ld->links[i].ipv4.nbor_list.nbor[j].phys_addr);
-
-				error = sr_set_item_str(session, xpath_buffer, ld->links[i].ipv4.nbor_list.nbor[j].phys_addr, NULL, SR_EDIT_DEFAULT);
-				if (error) {
-					SRPLG_LOG_ERR(PLUGIN_NAME, "sr_set_item_str error (%d): %s", error, sr_strerror(error));
-					goto error_out;
-				}
-			}
-
-			// list of ipv6 addresses
-			// enabled
-			uint8_t ipv6_enabled = ld->links[i].ipv6.ip_data.enabled;
-
-			error = snprintf(xpath_buffer, sizeof(xpath_buffer), "%s/ietf-ip:ipv6/enabled", interface_path_buffer);
-			if (error < 0) {
-				goto error_out;
-			}
-
-			SRPLG_LOG_DBG(PLUGIN_NAME, "xpath_buffer: %s = %s", xpath_buffer, ipv6_enabled == 0 ? "false" : "true");
-
-			error = sr_set_item_str(session, xpath_buffer, ipv6_enabled == 0 ? "false" : "true", NULL, SR_EDIT_DEFAULT);
+			error = ds_add_interface_ipv4_neighbor(session, link->name, neigh->ip, ipv4_neigh_leaf_values);
 			if (error) {
-				SRPLG_LOG_ERR(PLUGIN_NAME, "sr_set_item_str error (%d): %s", error, sr_strerror(error));
+				SRPLG_LOG_ERR(PLUGIN_NAME, "ds_add_interface_ipv4_neighbor error");
 				goto error_out;
 			}
+		}
 
-			// forwarding
-			uint8_t ipv6_forwarding = ld->links[i].ipv6.ip_data.forwarding;
+		// ipv6 config
+		char *ipv6_leaf_values[IF_IP_LEAF_COUNT] = {NULL};
+		ipv6_leaf_values[IF_IP_ENABLED] = link->ipv6.ip_data.enabled == 0 ? "false" : "true";
+		ipv6_leaf_values[IF_IP_FORWARDING] = link->ipv6.ip_data.forwarding == 0 ? "false" : "true";
+		char ipv6_mtu[16] = {0};
+		if (link->ipv6.ip_data.mtu > 0) {
+			snprintf(ipv6_mtu, sizeof(ipv6_mtu), "%u", ld->links[i].ipv6.ip_data.mtu);
+			ipv4_leaf_values[IF_IP_MTU] = ipv6_mtu;
+		}
+		error = ds_set_interface_ipv6_config(session, link->name, ipv6_leaf_values);
+		if (error) {
+			SRPLG_LOG_ERR(PLUGIN_NAME, "ds_set_interface_ipv6_config error");
+			goto error_out;
+		}
 
-			error = snprintf(xpath_buffer, sizeof(xpath_buffer), "%s/ietf-ip:ipv6/forwarding", interface_path_buffer);
-			if (error < 0) {
-				goto error_out;
+		// list of ipv6 addresses
+		uint32_t ipv6_addr_count = link->ipv6.ip_data.addr_list.count;
+		for (uint32_t j = 0; j < ipv6_addr_count; j++) {
+			if (link->ipv6.ip_data.addr_list.addr[j].ip == NULL) { // in case we deleted an ip address it will be NULL
+				continue;
 			}
+			ip_address_t *addr = &link->ipv6.ip_data.addr_list.addr[j];
 
-			SRPLG_LOG_DBG(PLUGIN_NAME, "xpath_buffer: %s = %s", xpath_buffer, ipv6_forwarding == 0 ? "false" : "true");
+			char *ipv6_addr_leaf_values[IF_IPV6_ADDR_LEAF_COUNT] = {NULL};
+			char prefix_len[8] = {0};
+			snprintf(prefix_len, sizeof(prefix_len), "%u", addr->subnet);
+			ipv6_addr_leaf_values[IF_IPV6_ADDR_PREFIX_LENGTH] = prefix_len;
 
-			error = sr_set_item_str(session, xpath_buffer, ipv6_forwarding == 0 ? "false" : "true", NULL, SR_EDIT_DEFAULT);
+			error = ds_add_interface_ipv6_address(session, link->name, addr->ip, ipv6_addr_leaf_values);
 			if (error) {
-				SRPLG_LOG_ERR(PLUGIN_NAME, "sr_set_item_str error (%d): %s", error, sr_strerror(error));
+				SRPLG_LOG_ERR(PLUGIN_NAME, "ds_add_interface_ipv6_address error");
 				goto error_out;
 			}
+		}
 
-			uint32_t ipv6_addr_count = ld->links[i].ipv6.ip_data.addr_list.count;
+		// list of ipv6 neighbors
+		uint32_t ipv6_neigh_count = ld->links[i].ipv6.ip_data.nbor_list.count;
+		for (uint32_t j = 0; j < ipv6_neigh_count; j++) {
+			ip_neighbor_t *neigh = &link->ipv6.ip_data.nbor_list.nbor[j];
 
-			for (uint32_t j = 0; j < ipv6_addr_count; j++) {
-				if (ld->links[i].ipv6.ip_data.addr_list.addr[j].ip != NULL) { // in case we deleted an ip address it will be NULL
-					char *ip_addr = ld->links[i].ipv6.ip_data.addr_list.addr[j].ip;
-					int ipv6_mtu = ld->links[i].ipv6.ip_data.mtu;
+			char *ipv6_neigh_leaf_values[IF_IPV6_NEIGH_LEAF_COUNT] = {NULL};
+			ipv6_neigh_leaf_values[IF_IPV6_NEIGH_LINK_LAYER_ADDR] = neigh->phys_addr;
 
-					// mtu
-					if (ipv6_mtu > 0 && ip_addr != NULL) {
-						error = snprintf(xpath_buffer, sizeof(xpath_buffer), "%s/ietf-ip:ipv6/mtu", interface_path_buffer);
-						if (error < 0) {
-							goto error_out;
-						}
-						snprintf(tmp_buffer, sizeof(tmp_buffer), "%u", ipv6_mtu);
-
-						SRPLG_LOG_DBG(PLUGIN_NAME, "xpath_buffer: %s = %s", xpath_buffer, tmp_buffer);
-
-						error = sr_set_item_str(session, xpath_buffer, tmp_buffer, NULL, SR_EDIT_DEFAULT);
-						if (error) {
-							SRPLG_LOG_ERR(PLUGIN_NAME, "sr_set_item_str error (%d): %s", error, sr_strerror(error));
-							goto error_out;
-						}
-					}
-
-					error = snprintf(xpath_buffer, sizeof(xpath_buffer), "%s/ietf-ip:ipv6/address[ip='%s']", interface_path_buffer, ip_addr);
-					if (error < 0) {
-						goto error_out;
-					}
-
-					// ip
-					SRPLG_LOG_DBG(PLUGIN_NAME, "xpath_buffer: %s = %s", xpath_buffer, ld->links[i].ipv6.ip_data.addr_list.addr[j].ip);
-
-					error = sr_set_item_str(session, xpath_buffer, ld->links[i].ipv6.ip_data.addr_list.addr[j].ip, NULL, SR_EDIT_DEFAULT);
-					if (error) {
-						SRPLG_LOG_ERR(PLUGIN_NAME, "sr_set_item_str error (%d): %s", error, sr_strerror(error));
-						goto error_out;
-					}
-
-					// subnet
-					snprintf(tmp_buffer, sizeof(tmp_buffer), "%u", ld->links[i].ipv6.ip_data.addr_list.addr[j].subnet);
-
-					error = snprintf(xpath_buffer, sizeof(xpath_buffer), "%s/ietf-ip:ipv6/address[ip='%s']/prefix-length", interface_path_buffer, ip_addr);
-					if (error < 0) {
-						goto error_out;
-					}
-
-					SRPLG_LOG_DBG(PLUGIN_NAME, "xpath_buffer: %s = %s", xpath_buffer, tmp_buffer);
-
-					error = sr_set_item_str(session, xpath_buffer, tmp_buffer, NULL, SR_EDIT_DEFAULT);
-					if (error) {
-						SRPLG_LOG_ERR(PLUGIN_NAME, "sr_set_item_str error (%d): %s", error, sr_strerror(error));
-						goto error_out;
-					}
-				}
-			}
-
-			// list of ipv6 neighbors
-			uint32_t ipv6_neigh_count = ld->links[i].ipv6.ip_data.nbor_list.count;
-			for (uint32_t j = 0; j < ipv6_neigh_count; j++) {
-				char *ip_addr = ld->links[i].ipv6.ip_data.nbor_list.nbor[j].ip;
-
-				error = snprintf(xpath_buffer, sizeof(xpath_buffer), "%s/ietf-ip:ipv6/neighbor[ip='%s']", interface_path_buffer, ip_addr);
-				if (error < 0) {
-					goto error_out;
-				}
-
-				// ip
-				SRPLG_LOG_DBG(PLUGIN_NAME, "xpath_buffer: %s = %s", xpath_buffer, ld->links[i].ipv6.ip_data.nbor_list.nbor[j].ip);
-				error = sr_set_item_str(session, xpath_buffer, ld->links[i].ipv6.ip_data.nbor_list.nbor[j].ip, NULL, SR_EDIT_DEFAULT);
-				if (error) {
-					SRPLG_LOG_ERR(PLUGIN_NAME, "sr_set_item_str error (%d): %s", error, sr_strerror(error));
-					goto error_out;
-				}
-
-				// link-layer-address
-				error = snprintf(xpath_buffer, sizeof(xpath_buffer), "%s/ietf-ip:ipv6/neighbor[ip='%s']/link-layer-address", interface_path_buffer, ip_addr);
-				if (error < 0) {
-					goto error_out;
-				}
-
-				SRPLG_LOG_DBG(PLUGIN_NAME, "xpath_buffer: %s = %s", xpath_buffer, ld->links[i].ipv6.ip_data.nbor_list.nbor[j].phys_addr);
-
-				error = sr_set_item_str(session, xpath_buffer, ld->links[i].ipv6.ip_data.nbor_list.nbor[j].phys_addr, NULL, SR_EDIT_DEFAULT);
-				if (error) {
-					SRPLG_LOG_ERR(PLUGIN_NAME, "sr_set_item_str error (%d): %s", error, sr_strerror(error));
-					goto error_out;
-				}
+			error = ds_add_interface_ipv6_neighbor(session, link->name, neigh->ip, ipv6_neigh_leaf_values);
+			if (error) {
+				SRPLG_LOG_ERR(PLUGIN_NAME, "ds_add_interface_ipv6_neighbor error");
+				goto error_out;
 			}
 		}
 	}
-
 	error = sr_apply_changes(session, 0);
 	if (error) {
 		SRPLG_LOG_ERR(PLUGIN_NAME, "sr_apply_changes error (%d): %s", error, sr_strerror(error));
@@ -2950,6 +2757,7 @@ static int interfaces_state_data_cb(sr_session_ctx_t *session, uint32_t subscrip
 
 		interface_data.type = rtnl_link_get_type(link);
 		interface_data.enabled = rtnl_link_get_operstate(link) == IF_OPER_UP ? "enabled" : "disabled";
+	
 		// interface_data.link_up_down_trap_enable = ?
 		// interface_data.admin_status = ?
 		interface_data.oper_status = OPER_STRING_MAP[rtnl_link_get_operstate(link)];

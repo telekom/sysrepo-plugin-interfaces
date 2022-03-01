@@ -8,6 +8,7 @@ set(SOURCES
     ip_data.c
     ipv6_data.c
     if_nic_stats.c
+    datastore.c
     ${CMAKE_SOURCE_DIR}/src/utils/memory.c
 )
 
