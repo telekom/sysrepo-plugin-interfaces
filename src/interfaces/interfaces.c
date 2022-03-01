@@ -618,14 +618,17 @@ static int load_startup(sr_session_ctx_t *session, link_data_list_t *ld)
 		xpath = xstrdup(vals[i].xpath);
 
 		error = set_config_value(xpath, val);
+
+		FREE_SAFE(xpath);
+		FREE_SAFE(val);
+
 		if (error != 0) {
 			SRPLG_LOG_ERR(PLUGIN_NAME, "set_config_value error (%d)", error);
 			goto error_out;
 		}
-
-		FREE_SAFE(xpath);
-		FREE_SAFE(val);
 	}
+
+	sr_free_values(vals, val_count);
 
 	return 0;
 
@@ -635,6 +638,9 @@ error_out:
 	}
 	if (val != NULL) {
 		FREE_SAFE(val);
+	}
+	if (vals) {
+		sr_free_values(vals, val_count);
 	}
 	return -1;
 }
@@ -2631,7 +2637,7 @@ static int get_interface_description(sr_session_ctx_t *session, char *name, char
 {
 	int error = SR_ERR_OK;
 	char path_buffer[PATH_MAX] = {0};
-	sr_val_t *val = {0};
+	sr_val_t *val = NULL;
 
 	// conjure description path for this interface
 	// /ietf-interfaces:interfaces/interface[name='test_interface']/description
@@ -2646,8 +2652,10 @@ static int get_interface_description(sr_session_ctx_t *session, char *name, char
 	if (error != SR_ERR_OK) {
 		SRPLG_LOG_INF(PLUGIN_NAME, "interface description is not yet present in the datastore");
 	} else if (strlen(val->data.string_val) > 0) {
-		*description = val->data.string_val;
+		*description = xstrdup(val->data.string_val);
 	}
+
+	sr_free_values(val, 1);
 
 	return 0;
 
@@ -3521,9 +3529,6 @@ static int init_state_changes(void)
 
 	pthread_t manager_thread;
 
-	pthread_attr_init(&attr);
-	pthread_attr_setdetachstate(&attr, 1);
-
 	socket = nl_socket_alloc();
 	if (socket == NULL) {
 		SRPLG_LOG_ERR(PLUGIN_NAME, "nl_socket_alloc error: invalid socket");
@@ -3588,9 +3593,21 @@ static int init_state_changes(void)
 		goto error_out;
 	}
 
-	pthread_create(&manager_thread, NULL, manager_thread_cb, 0);
-
-	pthread_detach(manager_thread);
+	error = pthread_attr_init(&attr);
+	if (error != 0) {
+		SRPLG_LOG_ERR(PLUGIN_NAME, "pthread_attr_init failed (%d)", error);
+		goto error_out;
+	}
+	error = pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED);
+	if (error != 0) {
+		SRPLG_LOG_ERR(PLUGIN_NAME, "pthread_attr_setdetachstate failed (%d): invalid value in detachstate", error);
+		goto error_out;
+	}
+	error = pthread_create(&manager_thread, &attr, manager_thread_cb, NULL);
+	if (error != 0) {
+		SRPLG_LOG_ERR(PLUGIN_NAME, "pthread_create failed (%d)", error);
+		goto error_out;
+	}
 
 error_out:
 
@@ -3602,6 +3619,7 @@ error_out:
 	if (thread_ls.count) {
 		free(thread_ls.data);
 	}
+
 	return error;
 }
 
