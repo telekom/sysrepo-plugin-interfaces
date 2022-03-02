@@ -15,6 +15,9 @@
 // bridging
 #include "startup.h"
 
+// subs
+#include "subscription/operational.h"
+
 static bool bridging_running_datastore_is_empty(sr_session_ctx_t *session);
 
 int bridging_sr_plugin_init_cb(sr_session_ctx_t *session, void **private_data)
@@ -56,6 +59,15 @@ int bridging_sr_plugin_init_cb(sr_session_ctx_t *session, void **private_data)
 			SRPLG_LOG_ERR(PLUGIN_NAME, "sr_copy_config() error (%d): %s", error, sr_strerror(error));
 			goto error_out;
 		}
+	}
+
+	// operational subscription
+
+	// number of ports
+	error = sr_oper_get_subscribe(session, BASE_YANG_MODEL, BRIDGING_BRIDGE_LIST_YANG_PATH, bridging_oper_get_bridges, NULL, 0, &subscription);
+	if (error) {
+		SRPLG_LOG_ERR(PLUGIN_NAME, "sr_oper_get_items_subscribe error (%d): %s", error, sr_strerror(error));
+		goto error_out;
 	}
 
 	goto out;

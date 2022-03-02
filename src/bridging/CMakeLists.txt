@@ -9,6 +9,7 @@ set(
     SOURCES
     bridging.c
     startup.c
+    ly_tree.c
 
     # bridge
     bridge.c
@@ -16,6 +17,9 @@ set(
     # component
     bridge/component.c
     bridge/component/list.c
+
+    # subs
+    subscription/operational.c
 
     # utils
     ${CMAKE_SOURCE_DIR}/src/utils/memory.c
