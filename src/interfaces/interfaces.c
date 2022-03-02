@@ -2797,14 +2797,15 @@ static int interfaces_state_data_cb(sr_session_ctx_t *session, uint32_t subscrip
 		snprintf(speed, sizeof(speed), "%lu", rtnl_tc_get_stat(tc, RTNL_TC_RATE_BPS));
 		interface_oper_leaf_values[IF_SPEED] = speed;
 
+		// set interface state info in operational ds
 		error = ds_oper_set_interface_info(*parent, ly_ctx, interface_data.name, interface_oper_leaf_values);
 		if (error) {
 			SRPLG_LOG_ERR(PLUGIN_NAME, "ds_oper_set_interface_info error");
 			goto error_out;
 		}
 
-		// stats:
-		interface_data.statistics.discontinuity_time = system_boot_time;
+		// collect operational statistics
+		char *statistics[IF_STATS_LEAF_COUNT] = {NULL};
 
 		// gather interface statistics that are not accessable via netlink
 		nic_stats_t nic_stats = {0};
@@ -2813,29 +2814,74 @@ static int interfaces_state_data_cb(sr_session_ctx_t *session, uint32_t subscrip
 			SRPLG_LOG_ERR(PLUGIN_NAME, "get_nic_stats error: %s", strerror(errno));
 		}
 
-		// Rx
-		interface_data.statistics.in_octets = rtnl_link_get_stat(link, RTNL_LINK_RX_BYTES);
-		interface_data.statistics.in_broadcast_pkts = nic_stats.rx_broadcast;
-		interface_data.statistics.in_multicast_pkts = rtnl_link_get_stat(link, RTNL_LINK_MULTICAST);
-		interface_data.statistics.in_unicast_pkts = nic_stats.rx_packets - nic_stats.rx_broadcast - interface_data.statistics.in_multicast_pkts;
-
-		interface_data.statistics.in_discards = (uint32_t) rtnl_link_get_stat(link, RTNL_LINK_RX_DROPPED);
-		interface_data.statistics.in_errors = (uint32_t) rtnl_link_get_stat(link, RTNL_LINK_RX_ERRORS);
-		interface_data.statistics.in_unknown_protos = (uint32_t) rtnl_link_get_stat(link, RTNL_LINK_IP6_INUNKNOWNPROTOS);
-
-		// Tx
-		interface_data.statistics.out_octets = rtnl_link_get_stat(link, RTNL_LINK_TX_BYTES);
-		interface_data.statistics.out_broadcast_pkts = nic_stats.tx_broadcast;
-		interface_data.statistics.out_multicast_pkts = nic_stats.tx_multicast;
-		interface_data.statistics.out_unicast_pkts = nic_stats.tx_packets - nic_stats.tx_broadcast - nic_stats.tx_multicast;
-
-		interface_data.statistics.out_discards = (uint32_t) rtnl_link_get_stat(link, RTNL_LINK_TX_DROPPED);
-		interface_data.statistics.out_errors = (uint32_t) rtnl_link_get_stat(link, RTNL_LINK_TX_ERRORS);
-
 		snprintf(interface_path_buffer, sizeof(interface_path_buffer) / sizeof(char), "%s[name=\"%s\"]", INTERFACE_LIST_YANG_PATH, rtnl_link_get_name(link));
 
+		// discontinuity-time
+		statistics[IF_STATS_DISCONTINUITY_TIME] =  system_boot_time;
 
+		// Rx
+		// in-octets
+		char in_octets[32] = {0};
+		snprintf(in_octets, sizeof(in_octets), "%lu", rtnl_link_get_stat(link, RTNL_LINK_RX_BYTES));
+		statistics[IF_STATS_IN_OCTETS] = in_octets;
+		// in-broadcast-pkts
+		char in_broadcast_pkts[32] = {0};
+		snprintf(in_broadcast_pkts, sizeof(in_broadcast_pkts), "%lu", nic_stats.rx_broadcast);
+		statistics[IF_STATS_IN_BROADCAST_PKTS] = in_broadcast_pkts;
+		// in-multicast-pkts
+		uint64_t in_multicast_pkts = rtnl_link_get_stat(link, RTNL_LINK_MULTICAST);
+		char in_multicast_pkts_str[32] = {0};
+		snprintf(in_multicast_pkts_str, sizeof(in_multicast_pkts_str), "%lu", in_multicast_pkts);
+		statistics[IF_STATS_IN_MULTICAST_PKTS] = in_multicast_pkts_str;
+		// in-unicast-pkts
+		uint64_t in_unicast_pkts = nic_stats.rx_packets - nic_stats.rx_broadcast - in_multicast_pkts;
+		char in_unicast_pkts_str[32] = {0};
+		snprintf(in_unicast_pkts_str, sizeof(in_unicast_pkts_str), "%lu", in_unicast_pkts);
+		statistics[IF_STATS_IN_UNICAST_PKTS] = in_unicast_pkts_str;
+		// in-discards
+		char in_discards[32] = {0};
+		snprintf(in_discards, sizeof(in_discards), "%u", (uint32_t) rtnl_link_get_stat(link, RTNL_LINK_RX_DROPPED));
+		statistics[IF_STATS_IN_DISCARDS] = in_discards;
+		// in-errors
+		char in_errors[32] = {0};
+		snprintf(in_errors, sizeof(in_errors), "%u", (uint32_t) rtnl_link_get_stat(link, RTNL_LINK_RX_ERRORS));
+		statistics[IF_STATS_IN_ERRORS] = in_errors;
+		// in-unknown-protos
+		char in_unknown_protos[32] = {0};
+		snprintf(in_unknown_protos, sizeof(in_unknown_protos), "%u", (uint32_t) rtnl_link_get_stat(link, RTNL_LINK_IP6_INUNKNOWNPROTOS));
+		statistics[IF_STATS_IN_UNKNOWN_PROTOS] = in_unknown_protos;
 
+		// Tx
+		// out-octets
+		char out_octets[32] = {0};
+		snprintf(out_octets, sizeof(out_octets), "%lu",rtnl_link_get_stat(link, RTNL_LINK_TX_BYTES));
+		statistics[IF_STATS_OUT_OCTETS] = out_octets;
+		// out-unicast-pkts
+		char out_unicast_pkts[32] = {0};
+		snprintf(out_unicast_pkts, sizeof(out_unicast_pkts), "%lu", nic_stats.tx_packets - nic_stats.tx_broadcast - nic_stats.tx_multicast);
+		statistics[IF_STATS_OUT_UNICAST_PKTS] = out_unicast_pkts;
+		// out-broadcast-pkts
+		char out_broadcast_pkts[32] = {0};
+		snprintf(out_broadcast_pkts, sizeof(out_broadcast_pkts), "%lu", nic_stats.tx_broadcast);
+		statistics[IF_STATS_OUT_BROADCAST_PKTS] = out_broadcast_pkts;
+		// out-multicast-pkts
+		char out_multicast_pkts[32] = {0};
+		snprintf(out_multicast_pkts, sizeof(out_multicast_pkts), "%lu", nic_stats.tx_multicast);
+		statistics[IF_STATS_OUT_MULTICAST_PKTS] = out_multicast_pkts;
+		// out-discards
+		char out_discards[32] = {0};
+		snprintf(out_discards, sizeof(out_discards), "%u", (uint32_t) rtnl_link_get_stat(link, RTNL_LINK_TX_DROPPED));
+		statistics[IF_STATS_OUT_DISCARDS] = out_discards;
+		// out-errors
+		char out_errors[32] = {0};
+		snprintf(out_errors, sizeof(out_errors), "%u", (uint32_t) rtnl_link_get_stat(link, RTNL_LINK_TX_ERRORS));
+		statistics[IF_STATS_OUT_ERRORS] = out_errors;
+
+		error = ds_oper_set_interface_statistics(*parent, ly_ctx, interface_data.name, statistics);
+		if (error) {
+			SRPLG_LOG_ERR(PLUGIN_NAME, "ds_oper_set_interface_statistics error");
+			goto error_out;
+		}
 
 		// higher-layer-if
 		for (uint64_t i = 0; i < master_list.count; i++) {
@@ -3066,121 +3112,7 @@ static int interfaces_state_data_cb(sr_session_ctx_t *session, uint32_t subscrip
 			}
 		}
 
-		// stats:
-		// discontinuity-time
-		error = snprintf(xpath_buffer, sizeof(xpath_buffer), "%s/statistics/discontinuity-time", interface_path_buffer);
-		if (error < 0) {
-			goto error_out;
-		}
-		SRPLG_LOG_DBG(PLUGIN_NAME, "%s = %s", xpath_buffer, interface_data.statistics.discontinuity_time);
-		lyd_new_path(*parent, ly_ctx, xpath_buffer, interface_data.statistics.discontinuity_time, LYD_ANYDATA_STRING, 0);
-
-		// in-octets
-		error = snprintf(xpath_buffer, sizeof(xpath_buffer), "%s/statistics/in-octets", interface_path_buffer);
-		if (error < 0) {
-			goto error_out;
-		}
-		snprintf(tmp_buffer, sizeof(tmp_buffer), "%lu", interface_data.statistics.in_octets);
-		lyd_new_path(*parent, ly_ctx, xpath_buffer, tmp_buffer, LYD_ANYDATA_STRING, 0);
-
-		// in-unicast-pkts
-		error = snprintf(xpath_buffer, sizeof(xpath_buffer), "%s/statistics/in-unicast-pkts", interface_path_buffer);
-		if (error < 0) {
-			goto error_out;
-		}
-		snprintf(tmp_buffer, sizeof(tmp_buffer), "%lu", interface_data.statistics.in_unicast_pkts);
-		lyd_new_path(*parent, ly_ctx, xpath_buffer, tmp_buffer, LYD_ANYDATA_STRING, 0);
-
-		// in-broadcast-pkts
-		error = snprintf(xpath_buffer, sizeof(xpath_buffer), "%s/statistics/in-broadcast-pkts", interface_path_buffer);
-		if (error < 0) {
-			goto error_out;
-		}
-		snprintf(tmp_buffer, sizeof(tmp_buffer), "%lu", interface_data.statistics.in_broadcast_pkts);
-		lyd_new_path(*parent, ly_ctx, xpath_buffer, tmp_buffer, LYD_ANYDATA_STRING, 0);
-
-		// in-multicast-pkts
-		error = snprintf(xpath_buffer, sizeof(xpath_buffer), "%s/statistics/in-multicast-pkts", interface_path_buffer);
-		if (error < 0) {
-			goto error_out;
-		}
-		snprintf(tmp_buffer, sizeof(tmp_buffer), "%lu", interface_data.statistics.in_multicast_pkts);
-		lyd_new_path(*parent, ly_ctx, xpath_buffer, tmp_buffer, LYD_ANYDATA_STRING, 0);
-
-		// in-discards
-		error = snprintf(xpath_buffer, sizeof(xpath_buffer), "%s/statistics/in-discards", interface_path_buffer);
-		if (error < 0) {
-			goto error_out;
-		}
-		snprintf(tmp_buffer, sizeof(tmp_buffer), "%u", interface_data.statistics.in_discards);
-		lyd_new_path(*parent, ly_ctx, xpath_buffer, tmp_buffer, LYD_ANYDATA_STRING, 0);
-
-		// in-errors
-		error = snprintf(xpath_buffer, sizeof(xpath_buffer), "%s/statistics/in-errors", interface_path_buffer);
-		if (error < 0) {
-			goto error_out;
-		}
-		snprintf(tmp_buffer, sizeof(tmp_buffer), "%u", interface_data.statistics.in_errors);
-		lyd_new_path(*parent, ly_ctx, xpath_buffer, tmp_buffer, LYD_ANYDATA_STRING, 0);
-
-		// in-unknown-protos
-		error = snprintf(xpath_buffer, sizeof(xpath_buffer), "%s/statistics/in-unknown-protos", interface_path_buffer);
-		if (error < 0) {
-			goto error_out;
-		}
-		snprintf(tmp_buffer, sizeof(tmp_buffer), "%u", interface_data.statistics.in_unknown_protos);
-		lyd_new_path(*parent, ly_ctx, xpath_buffer, tmp_buffer, LYD_ANYDATA_STRING, 0);
-
-		// out-octets
-		error = snprintf(xpath_buffer, sizeof(xpath_buffer), "%s/statistics/out-octets", interface_path_buffer);
-		if (error < 0) {
-			goto error_out;
-		}
-		snprintf(tmp_buffer, sizeof(tmp_buffer), "%lu", interface_data.statistics.out_octets);
-		lyd_new_path(*parent, ly_ctx, xpath_buffer, tmp_buffer, LYD_ANYDATA_STRING, 0);
-
-		// out-unicast-pkts
-		error = snprintf(xpath_buffer, sizeof(xpath_buffer), "%s/statistics/out-unicast-pkts", interface_path_buffer);
-		if (error < 0) {
-			goto error_out;
-		}
-		snprintf(tmp_buffer, sizeof(tmp_buffer), "%lu", interface_data.statistics.out_unicast_pkts);
-		lyd_new_path(*parent, ly_ctx, xpath_buffer, tmp_buffer, LYD_ANYDATA_STRING, 0);
-
-		// out-broadcast-pkts
-		error = snprintf(xpath_buffer, sizeof(xpath_buffer), "%s/statistics/out-broadcast-pkts", interface_path_buffer);
-		if (error < 0) {
-			goto error_out;
-		}
-		snprintf(tmp_buffer, sizeof(tmp_buffer), "%lu", interface_data.statistics.out_broadcast_pkts);
-		lyd_new_path(*parent, ly_ctx, xpath_buffer, tmp_buffer, LYD_ANYDATA_STRING, 0);
-
-		// out-multicast-pkts
-		error = snprintf(xpath_buffer, sizeof(xpath_buffer), "%s/statistics/out-multicast-pkts", interface_path_buffer);
-		if (error < 0) {
-			goto error_out;
-		}
-		snprintf(tmp_buffer, sizeof(tmp_buffer), "%lu", interface_data.statistics.out_multicast_pkts);
-		lyd_new_path(*parent, ly_ctx, xpath_buffer, tmp_buffer, LYD_ANYDATA_STRING, 0);
-
-		// out-discards
-		error = snprintf(xpath_buffer, sizeof(xpath_buffer), "%s/statistics/out-discards", interface_path_buffer);
-		if (error < 0) {
-			goto error_out;
-		}
-		snprintf(tmp_buffer, sizeof(tmp_buffer), "%u", interface_data.statistics.out_discards);
-		lyd_new_path(*parent, ly_ctx, xpath_buffer, tmp_buffer, LYD_ANYDATA_STRING, 0);
-
-		// out-errors
-		error = snprintf(xpath_buffer, sizeof(xpath_buffer), "%s/statistics/out-errors", interface_path_buffer);
-		if (error < 0) {
-			goto error_out;
-		}
-		snprintf(tmp_buffer, sizeof(tmp_buffer), "%u", interface_data.statistics.out_errors);
-		lyd_new_path(*parent, ly_ctx, xpath_buffer, tmp_buffer, LYD_ANYDATA_STRING, 0);
-
 		// free all allocated data
-		FREE_SAFE(interface_data.phys_address);
 
 		// continue to next link node
 		link = (struct rtnl_link *) nl_cache_get_next((struct nl_object *) link);
