@@ -2660,6 +2660,13 @@ static int interfaces_state_data_cb(sr_session_ctx_t *session, const char *modul
 		link = (struct rtnl_link *) nl_cache_get_next((struct nl_object *) link);
 	}
 
+	char system_boot_time[DATETIME_BUF_SIZE] = {0};
+	error = get_system_boot_time(system_boot_time);
+	if (error != 0) {
+		SRP_LOG_ERR("get_system_boot_time error: %s", strerror(errno));
+		goto error_out;
+	}
+
 	link = (struct rtnl_link *) nl_cache_get_first(cache);
 	qdisc = rtnl_qdisc_alloc();
 
@@ -2668,49 +2675,55 @@ static int interfaces_state_data_cb(sr_session_ctx_t *session, const char *modul
 		tc = TC_CAST(qdisc);
 		rtnl_tc_set_link(tc, link);
 
-		char *interface_leaf_values[IF_LEAF_COUNT] = {NULL};
 		interface_data.name = rtnl_link_get_name(link);
-		interface_leaf_values[IF_NAME] = rtnl_link_get_name(link);
 
-		link_data_t *l = data_list_get_by_name(&link_data_list, interface_data.name);
-		//interface_data.description = l->description;
-		interface_leaf_values[IF_DESCRIPTION] = l->description;
+		// collect operational state information
+		char *interface_oper_leaf_values[IF_OPER_LEAF_COUNT] = {NULL};
 
-		//interface_data.type = rtnl_link_get_type(link);
-		interface_leaf_values[IF_TYPE] = rtnl_link_get_type(link);
-		interface_data.enabled = rtnl_link_get_operstate(link) == IF_OPER_UP ? "enabled" : "disabled";
-	
 		// interface_data.link_up_down_trap_enable = ?
 		// interface_data.admin_status = ?
-		interface_data.oper_status = OPER_STRING_MAP[rtnl_link_get_operstate(link)];
-		interface_data.if_index = rtnl_link_get_ifindex(link);
 
-		// last-change field
+		// oper-status
+		interface_oper_leaf_values[IF_OPER_STATUS] = (char *) OPER_STRING_MAP[rtnl_link_get_operstate(link)];
+
+		// last-change
 		tmp_ifs = if_state_list_get_by_if_name(&if_state_changes, interface_data.name);
 		interface_data.last_change = (tmp_ifs->last_change != 0) ? localtime(&tmp_ifs->last_change) : NULL;
-
-		// get_system_boot_time will change the struct tm which is held in interface_data.last_change if it's not NULL
-		char system_time[DATETIME_BUF_SIZE] = {0};
+		char last_change_time[DATETIME_BUF_SIZE] = {0};
+		// last-change -> only if changed at one point
 		if (interface_data.last_change != NULL) {
 			// convert it to human readable format here
-			strftime(system_time, sizeof system_time, "%FT%TZ", interface_data.last_change);
+			strftime(last_change_time, sizeof(last_change_time), "%FT%TZ", interface_data.last_change);
+			interface_oper_leaf_values[IF_LAST_CHANGE] = last_change_time;
+		} else {
+			// default value of last-change should be system boot time
+			interface_oper_leaf_values[IF_LAST_CHANGE] = system_boot_time;
 		}
 
-		// mac address
+		// if-index
+		char if_index[16] = {0};
+		snprintf(if_index, sizeof(if_index), "%u", rtnl_link_get_ifindex(link));
+		interface_oper_leaf_values[IF_IF_INDEX] = if_index;
+
+		// phys-address
 		addr = rtnl_link_get_addr(link);
-		interface_data.phys_address = xmalloc(sizeof(char) * (MAC_ADDR_MAX_LENGTH + 1));
-		nl_addr2str(addr, interface_data.phys_address, MAC_ADDR_MAX_LENGTH);
-		interface_data.phys_address[MAC_ADDR_MAX_LENGTH] = 0;
+		char phys_address[MAC_ADDR_MAX_LENGTH + 1] = {0};
+		nl_addr2str(addr, phys_address, MAC_ADDR_MAX_LENGTH + 1);
+		phys_address[MAC_ADDR_MAX_LENGTH] = 0;
+		interface_oper_leaf_values[IF_PHYS_ADDRESS] = phys_address;
 
-		interface_data.speed = rtnl_tc_get_stat(tc, RTNL_TC_RATE_BPS);
+		// speed
+		char speed[32] = {0};
+		snprintf(speed, sizeof(speed), "%lu", rtnl_tc_get_stat(tc, RTNL_TC_RATE_BPS));
+		interface_oper_leaf_values[IF_SPEED] = speed;
 
-		// stats:
-		char system_boot_time[DATETIME_BUF_SIZE] = {0};
-		error = get_system_boot_time(system_boot_time);
-		if (error != 0) {
-			SRP_LOG_ERR("get_system_boot_time error: %s", strerror(errno));
+		error = ds_oper_set_interface_info(*parent, ly_ctx, interface_data.name, interface_oper_leaf_values);
+		if (error) {
+			SRP_LOG_ERR("ds_oper_set_interface_info error");
 			goto error_out;
 		}
+
+		// stats:
 		interface_data.statistics.discontinuity_time = system_boot_time;
 
 		// gather interface statistics that are not accessable via netlink
@@ -2741,63 +2754,8 @@ static int interfaces_state_data_cb(sr_session_ctx_t *session, const char *modul
 
 		snprintf(interface_path_buffer, sizeof(interface_path_buffer) / sizeof(char), "%s[name=\"%s\"]", INTERFACE_LIST_YANG_PATH, rtnl_link_get_name(link));
 
-		error = ds_set_general_interface_config(session, interface_data.name, interface_leaf_values);
-		if (error) {
-			SRP_LOG_ERR("ds_set_general_interface_config error");
-			goto error_out;
-		}
 
-		// oper-status
-		error = snprintf(xpath_buffer, sizeof(xpath_buffer), "%s/oper-status", interface_path_buffer);
-		if (error < 0) {
-			goto error_out;
-		}
-		SRP_LOG_DBG("%s = %s", xpath_buffer, interface_data.oper_status);
-		lyd_new_path(*parent, ly_ctx, xpath_buffer, (char *) interface_data.oper_status, LYD_ANYDATA_STRING, 0);
 
-		// last-change -> only if changed at one point
-		if (interface_data.last_change != NULL) {
-			error = snprintf(xpath_buffer, sizeof(xpath_buffer), "%s/last-change", interface_path_buffer);
-			if (error < 0) {
-				goto error_out;
-			}
-			SRP_LOG_DBG("%s = %s", xpath_buffer, interface_data.type);
-			lyd_new_path(*parent, ly_ctx, xpath_buffer, system_time, LYD_ANYDATA_STRING, 0);
-		} else {
-			// default value of last-change should be system boot time
-			error = snprintf(xpath_buffer, sizeof(xpath_buffer), "%s/last-change", interface_path_buffer);
-			if (error < 0) {
-				goto error_out;
-			}
-			SRP_LOG_DBG("%s = %s", xpath_buffer, interface_data.type);
-			lyd_new_path(*parent, ly_ctx, xpath_buffer, system_boot_time, LYD_ANYDATA_STRING, 0);
-		}
-
-		// if-index
-		error = snprintf(xpath_buffer, sizeof(xpath_buffer), "%s/if-index", interface_path_buffer);
-		if (error < 0) {
-			goto error_out;
-		}
-		SRP_LOG_DBG("%s = %d", xpath_buffer, interface_data.if_index);
-		snprintf(tmp_buffer, sizeof(tmp_buffer), "%u", interface_data.if_index);
-		lyd_new_path(*parent, ly_ctx, xpath_buffer, tmp_buffer, LYD_ANYDATA_STRING, 0);
-
-		// phys-address
-		error = snprintf(xpath_buffer, sizeof(xpath_buffer), "%s/phys-address", interface_path_buffer);
-		if (error < 0) {
-			goto error_out;
-		}
-		SRP_LOG_DBG("%s = %s", xpath_buffer, interface_data.phys_address);
-		lyd_new_path(*parent, ly_ctx, xpath_buffer, interface_data.phys_address, LYD_ANYDATA_STRING, 0);
-
-		// speed
-		error = snprintf(xpath_buffer, sizeof(xpath_buffer), "%s/speed", interface_path_buffer);
-		if (error < 0) {
-			goto error_out;
-		}
-		SRP_LOG_DBG("%s = %s", xpath_buffer, interface_data.speed);
-		snprintf(tmp_buffer, sizeof(tmp_buffer), "%lu", interface_data.speed);
-		lyd_new_path(*parent, ly_ctx, xpath_buffer, tmp_buffer, LYD_ANYDATA_STRING, 0);
 
 		// higher-layer-if
 		for (uint64_t i = 0; i < master_list.count; i++) {
