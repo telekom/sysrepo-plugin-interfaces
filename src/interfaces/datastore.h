@@ -82,4 +82,39 @@ enum interface_ipv6_neighbour_leaf {
 
 int ds_add_interface_ipv6_neighbor(sr_session_ctx_t *session, char *interface_name, char *leaf_values[IF_IPV6_NEIGH_LEAF_COUNT]);
 
+enum interface_oper_info_leaf {
+	IF_ADMIN_STATUS,
+	IF_OPER_STATUS,
+	IF_LAST_CHANGE,
+	IF_IF_INDEX,
+	IF_PHYS_ADDRESS,
+	IF_SPEED,
+	IF_OPER_LEAF_COUNT
+};
+
+int ds_oper_set_interface_info(struct lyd_node *parent, const struct ly_ctx *ly_ctx, char *interface_name, char *leaf_values[IF_OPER_LEAF_COUNT]);
+
+int ds_oper_add_interface_higher_layer_if(struct lyd_node *parent, const struct ly_ctx *ly_ctx, char *interface_name, char *higher_layer_if);
+int ds_oper_add_interface_lower_layer_if(struct lyd_node *parent, const struct ly_ctx *ly_ctx, char *interface_name, char *lower_layer_if);
+
+enum interface_statistics_leaf {
+	IF_STATS_DISCONTINUITY_TIME,
+	IF_STATS_IN_OCTETS,
+	IF_STATS_IN_UNICAST_PKTS,
+	IF_STATS_IN_BROADCAST_PKTS,
+	IF_STATS_IN_MULTICAST_PKTS,
+	IF_STATS_IN_DISCARDS,
+	IF_STATS_IN_ERRORS,
+	IF_STATS_IN_UNKNOWN_PROTOS,
+	IF_STATS_OUT_OCTETS,
+	IF_STATS_OUT_UNICAST_PKTS,
+	IF_STATS_OUT_BROADCAST_PKTS,
+	IF_STATS_OUT_MULTICAST_PKTS,
+	IF_STATS_OUT_DISCARDS,
+	IF_STATS_OUT_ERRORS,
+	IF_STATS_LEAF_COUNT
+};
+
+int ds_oper_set_interface_statistics(struct lyd_node *parent, const struct ly_ctx *ly_ctx, char *interface_name, char *leaf_values[IF_STATS_LEAF_COUNT]);
+
 #endif // DATASTORE_H_ONCE
