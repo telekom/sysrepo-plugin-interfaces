@@ -2473,12 +2473,13 @@ error_out:
  * @returns:
  *      0 on successful neighbor-origin node creation, -1 on error
  */
-int create_node_neighbor_origin(struct lyd_node **parent, const struct ly_ctx *ly_ctx, char xpath_buffer[PATH_MAX], char interface_path_buffer[PATH_MAX], 
+int create_node_neighbor_origin(struct lyd_node **parent, const struct ly_ctx *ly_ctx, char *interface_name,
 				struct nl_sock *socket, int32_t if_index, char *ip_addr, int family)
 {
 	struct nl_cache *cache = NULL;
 	struct nl_addr *dst_addr = NULL;
 	struct rtnl_neigh *neigh = NULL;
+	char xpath_buffer[PATH_MAX];
 
 	int state = -1;
 	char *origin = NULL;
@@ -2511,8 +2512,8 @@ int create_node_neighbor_origin(struct lyd_node **parent, const struct ly_ctx *l
 	// NUD_PERMANENT signifies a static entry
 	origin = state & NUD_PERMANENT ? "static" : "dynamic";
 
-	error = snprintf(xpath_buffer, PATH_MAX, "%s/ietf-ip:ipv%u/neighbor[ip='%s']/origin", 
-			 interface_path_buffer, family == AF_INET6 ? 6 : 4, ip_addr);
+	error = snprintf(xpath_buffer, PATH_MAX, "%s[name=\"%s\"]/ietf-ip:ipv%u/neighbor[ip='%s']/origin", 
+			 INTERFACE_LIST_YANG_PATH, interface_name, family == AF_INET6 ? 6 : 4, ip_addr);
 	// null character not counted in written chars, therefore greater or equal than
 	if (error < 0 || error >= PATH_MAX) {
 		goto error;
@@ -2526,8 +2527,11 @@ int create_node_neighbor_origin(struct lyd_node **parent, const struct ly_ctx *l
 
 	SRPLG_LOG_DBG(PLUGIN_NAME, "%s = %s", xpath_buffer, origin);
 	rc = 0;
+	goto out;
 
 error:
+	SRPLG_LOG_ERR(PLUGIN_NAME, "create_node_neighbor_origin failed for address %s", ip_addr);
+out:
 	if (cache != NULL) {
 		nl_cache_free(cache);
 	}
@@ -2537,7 +2541,6 @@ error:
 	if (neigh) {
 		rtnl_neigh_put(neigh);
 	}
-	SRPLG_LOG_ERR(PLUGIN_NAME, "create_node_neighbor_origin failed for address %s", ip_addr);
 
 	return rc;
 }
@@ -2553,13 +2556,7 @@ static int interfaces_state_data_cb(sr_session_ctx_t *session, uint32_t subscrip
 	struct rtnl_tc *tc = NULL;
 	struct rtnl_qdisc *qdisc = NULL;
 
-	char tmp_buffer[PATH_MAX] = {0};
-	char xpath_buffer[PATH_MAX] = {0};
-	char interface_path_buffer[PATH_MAX] = {0};
-
 	if_state_t *tmp_ifs = NULL;
-
-	unsigned int mtu = 0;
 
 	struct {
 		char *name;
@@ -2701,8 +2698,6 @@ static int interfaces_state_data_cb(sr_session_ctx_t *session, uint32_t subscrip
 			SRPLG_LOG_ERR(PLUGIN_NAME, "get_nic_stats error: %s", strerror(errno));
 		}
 
-		snprintf(interface_path_buffer, sizeof(interface_path_buffer) / sizeof(char), "%s[name=\"%s\"]", INTERFACE_LIST_YANG_PATH, rtnl_link_get_name(link));
-
 		// discontinuity-time
 		statistics[IF_STATS_DISCONTINUITY_TIME] =  system_boot_time;
 
@@ -2793,197 +2788,26 @@ static int interfaces_state_data_cb(sr_session_ctx_t *session, uint32_t subscrip
 			master_if_index = rtnl_link_get_master(master_link);
 		}
 
-		// ietf-ip
-		// mtu
-		mtu = rtnl_link_get_mtu(link);
-
-		// list of ipv4 addresses
-		for (uint32_t i = 0; i < link_data_list.count; i++) {
-			if (link_data_list.links[i].name != NULL) { // in case we deleted a link it will be NULL
-				if (strcmp(link_data_list.links[i].name, interface_data.name ) == 0) {
-
-					// enabled
-					// TODO
-
-					// forwarding
-					uint8_t ipv4_forwarding = link_data_list.links[i].ipv4.forwarding;
-
-					error = snprintf(xpath_buffer, sizeof(xpath_buffer), "%s/ietf-ip:ipv4/forwarding", interface_path_buffer);
-					if (error < 0) {
-						goto error_out;
-					}
-
-					SRPLG_LOG_DBG(PLUGIN_NAME, "%s = %d", xpath_buffer, ipv4_forwarding);
-					lyd_new_path(*parent, ly_ctx, xpath_buffer, ipv4_forwarding == 0 ? "false" : "true", LYD_ANYDATA_STRING, 0);
-
-					uint32_t ipv4_addr_count = link_data_list.links[i].ipv4.addr_list.count;
-
-					for (uint32_t j = 0; j < ipv4_addr_count; j++) {
-						if (link_data_list.links[i].ipv4.addr_list.addr[j].ip != NULL) { // in case we deleted an ip address it will be NULL
-							char *ip_addr = link_data_list.links[i].ipv4.addr_list.addr[j].ip;
-
-							if (mtu > 0) {
-								error = snprintf(xpath_buffer, sizeof(xpath_buffer), "%s/ietf-ip:ipv4/mtu", interface_path_buffer);
-								if (error < 0) {
-									goto error_out;
-								}
-								snprintf(tmp_buffer, sizeof(tmp_buffer), "%u", mtu);
-								SRPLG_LOG_DBG(PLUGIN_NAME, "%s = %s", xpath_buffer, tmp_buffer);
-								lyd_new_path(*parent, ly_ctx, xpath_buffer, tmp_buffer, LYD_ANYDATA_STRING, 0);
-							}
-
-							error = snprintf(xpath_buffer, sizeof(xpath_buffer), "%s/ietf-ip:ipv4/address[ip='%s']/ip", interface_path_buffer, ip_addr);
-							if (error < 0) {
-								goto error_out;
-							}
-							// ip
-							SRPLG_LOG_DBG(PLUGIN_NAME, "%s = %s", xpath_buffer, link_data_list.links[i].ipv4.addr_list.addr[j].ip);
-							lyd_new_path(*parent, ly_ctx, xpath_buffer, link_data_list.links[i].ipv4.addr_list.addr[j].ip, LYD_ANYDATA_STRING, 0);
-
-							// subnet
-							snprintf(tmp_buffer, sizeof(tmp_buffer), "%u", link_data_list.links[i].ipv4.addr_list.addr[j].subnet);
-
-							error = snprintf(xpath_buffer, sizeof(xpath_buffer), "%s/ietf-ip:ipv4/address[ip='%s']/prefix-length", interface_path_buffer, ip_addr);
-							if (error < 0) {
-								goto error_out;
-							}
-
-							SRPLG_LOG_DBG(PLUGIN_NAME, "%s = %s", xpath_buffer, tmp_buffer);
-							lyd_new_path(*parent, ly_ctx, xpath_buffer, tmp_buffer, LYD_ANYDATA_STRING, 0);
-						}
-					}
-
-					// neighbors
-					uint32_t ipv4_neigh_count = link_data_list.links[i].ipv4.nbor_list.count;
-
-					for (uint32_t j = 0; j < ipv4_neigh_count; j++) {
-						if (link_data_list.links[i].ipv4.nbor_list.nbor[j].ip != NULL) { // in case we deleted an ip address it will be NULL
-							char *ip_addr = link_data_list.links[i].ipv4.nbor_list.nbor[j].ip;
-
-							error = snprintf(xpath_buffer, sizeof(xpath_buffer), "%s/ietf-ip:ipv4/neighbor[ip='%s']/ip", interface_path_buffer, ip_addr);
-							if (error < 0) {
-								goto error_out;
-							}
-							// ip
-							SRPLG_LOG_DBG(PLUGIN_NAME, "%s = %s", xpath_buffer, link_data_list.links[i].ipv4.nbor_list.nbor[j].ip);
-							lyd_new_path(*parent, ly_ctx, xpath_buffer, link_data_list.links[i].ipv4.nbor_list.nbor[j].ip, LYD_ANYDATA_STRING, 0);
-
-							// link-layer-address
-							error = snprintf(xpath_buffer, sizeof(xpath_buffer), "%s/ietf-ip:ipv4/neighbor[ip='%s']/link-layer-address", interface_path_buffer, ip_addr);
-							if (error < 0) {
-								goto error_out;
-							}
-
-							SRPLG_LOG_DBG(PLUGIN_NAME, "%s = %s", xpath_buffer, link_data_list.links[i].ipv4.nbor_list.nbor[j].phys_addr);
-							lyd_new_path(*parent, ly_ctx, xpath_buffer, link_data_list.links[i].ipv4.nbor_list.nbor[j].phys_addr, LYD_ANYDATA_STRING, 0);
-
-							// neighbor-origin
-							error = create_node_neighbor_origin(parent, ly_ctx, xpath_buffer, interface_path_buffer, socket, rtnl_link_get_ifindex(link), ip_addr, AF_INET);
-							if (error < 0) {
-								goto error_out;
-							}
-						}
-					}
+		link_data_t *l = data_list_get_by_name(&link_data_list, interface_data.name);
+		if (l != NULL) {
+			// set origin for ipv4 neighbors
+			uint32_t ipv4_neigh_count = l->ipv4.nbor_list.count;
+			for (uint32_t i = 0; i < ipv4_neigh_count; i++) {
+				char *neigh_ip = l->ipv4.nbor_list.nbor[i].ip;
+				error = create_node_neighbor_origin(parent, ly_ctx, interface_data.name, socket, rtnl_link_get_ifindex(link), neigh_ip, AF_INET);
+				if (error < 0) {
+					SRPLG_LOG_ERR(PLUGIN_NAME, "create_node_neighbor_origin error (ipv4)");
+					goto error_out;
 				}
 			}
-		}
-
-		// list of ipv6 addresses
-		for (uint32_t i = 0; i < link_data_list.count; i++) {
-			if (link_data_list.links[i].name != NULL) { // in case we deleted a link it will be NULL
-				if (strcmp(link_data_list.links[i].name, interface_data.name ) == 0) {
-
-					// enabled
-					uint8_t ipv6_enabled = link_data_list.links[i].ipv6.ip_data.enabled;
-
-					error = snprintf(xpath_buffer, sizeof(xpath_buffer), "%s/ietf-ip:ipv6/enabled", interface_path_buffer);
-					if (error < 0) {
-						goto error_out;
-					}
-
-					SRPLG_LOG_DBG(PLUGIN_NAME, "%s = %d", xpath_buffer, ipv6_enabled);
-					lyd_new_path(*parent, ly_ctx, xpath_buffer, ipv6_enabled == 0 ? "false" : "true", LYD_ANYDATA_STRING, 0);
-
-					// forwarding
-					uint8_t ipv6_forwarding = link_data_list.links[i].ipv6.ip_data.forwarding;
-
-					error = snprintf(xpath_buffer, sizeof(xpath_buffer), "%s/ietf-ip:ipv6/forwarding", interface_path_buffer);
-					if (error < 0) {
-						goto error_out;
-					}
-
-					SRPLG_LOG_DBG(PLUGIN_NAME, "%s = %d", xpath_buffer, ipv6_forwarding);
-					lyd_new_path(*parent, ly_ctx, xpath_buffer, ipv6_forwarding == 0 ? "false" : "true", LYD_ANYDATA_STRING, 0);
-
-					uint32_t ipv6_addr_count = link_data_list.links[i].ipv6.ip_data.addr_list.count;
-
-					for (uint32_t j = 0; j < ipv6_addr_count; j++) {
-						if (link_data_list.links[i].ipv6.ip_data.addr_list.addr[j].ip != NULL) { // in case we deleted an ip address it will be NULL
-							char *ip_addr = link_data_list.links[i].ipv6.ip_data.addr_list.addr[j].ip;
-
-							// mtu
-							if (mtu > 0 && ip_addr != NULL) {
-								error = snprintf(xpath_buffer, sizeof(xpath_buffer), "%s/ietf-ip:ipv6/mtu", interface_path_buffer);
-								if (error < 0) {
-									goto error_out;
-								}
-								snprintf(tmp_buffer, sizeof(tmp_buffer), "%u", mtu);
-								SRPLG_LOG_DBG(PLUGIN_NAME, "%s = %s", xpath_buffer, tmp_buffer);
-								lyd_new_path(*parent, ly_ctx, xpath_buffer, tmp_buffer, LYD_ANYDATA_STRING, 0);
-							}
-
-							error = snprintf(xpath_buffer, sizeof(xpath_buffer), "%s/ietf-ip:ipv6/address[ip='%s']/ip", interface_path_buffer, ip_addr);
-							if (error < 0) {
-								goto error_out;
-							}
-							// ip
-							SRPLG_LOG_DBG(PLUGIN_NAME, "%s = %s", xpath_buffer, link_data_list.links[i].ipv6.ip_data.addr_list.addr[j].ip);
-							lyd_new_path(*parent, ly_ctx, xpath_buffer, link_data_list.links[i].ipv6.ip_data.addr_list.addr[j].ip, LYD_ANYDATA_STRING, 0);
-
-							// subnet
-							snprintf(tmp_buffer, sizeof(tmp_buffer), "%u", link_data_list.links[i].ipv6.ip_data.addr_list.addr[j].subnet);
-
-							error = snprintf(xpath_buffer, sizeof(xpath_buffer), "%s/ietf-ip:ipv6/address[ip='%s']/prefix-length", interface_path_buffer, ip_addr);
-							if (error < 0) {
-								goto error_out;
-							}
-
-							SRPLG_LOG_DBG(PLUGIN_NAME, "%s = %s", xpath_buffer, tmp_buffer);
-							lyd_new_path(*parent, ly_ctx, xpath_buffer, tmp_buffer, LYD_ANYDATA_STRING, 0);
-						}
-					}
-
-					// neighbors
-					uint32_t ipv6_neigh_count = link_data_list.links[i].ipv6.ip_data.nbor_list.count;
-
-					for (uint32_t j = 0; j < ipv6_neigh_count; j++) {
-						if (link_data_list.links[i].ipv6.ip_data.nbor_list.nbor[j].ip != NULL) { // in case we deleted an ip address it will be NULL
-							char *ip_addr = link_data_list.links[i].ipv6.ip_data.nbor_list.nbor[j].ip;
-
-							error = snprintf(xpath_buffer, sizeof(xpath_buffer), "%s/ietf-ip:ipv6/neighbor[ip='%s']/ip", interface_path_buffer, ip_addr);
-							if (error < 0) {
-								goto error_out;
-							}
-							// ip
-							SRPLG_LOG_DBG(PLUGIN_NAME, "%s = %s", xpath_buffer, link_data_list.links[i].ipv6.ip_data.nbor_list.nbor[j].ip);
-							lyd_new_path(*parent, ly_ctx, xpath_buffer, link_data_list.links[i].ipv6.ip_data.nbor_list.nbor[j].ip, LYD_ANYDATA_STRING, 0);
-
-							// link-layer-address
-							error = snprintf(xpath_buffer, sizeof(xpath_buffer), "%s/ietf-ip:ipv6/neighbor[ip='%s']/link-layer-address", interface_path_buffer, ip_addr);
-							if (error < 0) {
-								goto error_out;
-							}
-
-							SRPLG_LOG_DBG(PLUGIN_NAME, "%s = %s", xpath_buffer, link_data_list.links[i].ipv6.ip_data.nbor_list.nbor[j].phys_addr);
-							lyd_new_path(*parent, ly_ctx, xpath_buffer, link_data_list.links[i].ipv6.ip_data.nbor_list.nbor[j].phys_addr, LYD_ANYDATA_STRING, 0);
-
-							// neighbor-origin
-							error = create_node_neighbor_origin(parent, ly_ctx, xpath_buffer, interface_path_buffer, socket, rtnl_link_get_ifindex(link), ip_addr, AF_INET6);
-							if (error < 0) {
-								goto error_out;
-							}
-						}
-					}
+			// set origin for ipv6 neighbors
+			uint32_t ipv6_neigh_count = l->ipv6.ip_data.nbor_list.count;
+			for (uint32_t i = 0; i < ipv6_neigh_count; i++) {
+				char *neigh_ip = l->ipv6.ip_data.nbor_list.nbor[i].ip;
+				error = create_node_neighbor_origin(parent, ly_ctx, interface_data.name, socket, rtnl_link_get_ifindex(link), neigh_ip, AF_INET6);
+				if (error < 0) {
+					SRPLG_LOG_ERR(PLUGIN_NAME, "create_node_neighbor_origin error (ipv6)");
+					goto error_out;
 				}
 			}
 		}
