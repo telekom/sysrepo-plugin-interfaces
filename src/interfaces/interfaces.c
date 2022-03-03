@@ -2472,38 +2472,8 @@ static int interfaces_state_data_cb(sr_session_ctx_t *session, const char *modul
 	struct nl_addr *addr = NULL;
 	struct rtnl_tc *tc = NULL;
 	struct rtnl_qdisc *qdisc = NULL;
-
 	if_state_t *tmp_ifs = NULL;
-
-	struct {
-		char *name;
-		char *description;
-		char *type;
-		char *enabled;
-		char *link_up_down_trap_enable;
-		char *admin_status;
-		const char *oper_status;
-		struct tm *last_change;
-		int32_t if_index;
-		char *phys_address;
-		uint64_t speed;
-		struct {
-			char *discontinuity_time;
-			uint64_t in_octets;
-			uint64_t in_unicast_pkts;
-			uint64_t in_broadcast_pkts;
-			uint64_t in_multicast_pkts;
-			uint32_t in_discards;
-			uint32_t in_errors;
-			uint32_t in_unknown_protos;
-			uint64_t out_octets;
-			uint64_t out_unicast_pkts;
-			uint64_t out_broadcast_pkts;
-			uint64_t out_multicast_pkts;
-			uint32_t out_discards;
-			uint32_t out_errors;
-		} statistics;
-	} interface_data = {0};
+	struct tm *last_change = NULL;
 
 	const char *OPER_STRING_MAP[] = {
 		[IF_OPER_UNKNOWN] = "unknown",
@@ -2556,7 +2526,7 @@ static int interfaces_state_data_cb(sr_session_ctx_t *session, const char *modul
 		tc = TC_CAST(qdisc);
 		rtnl_tc_set_link(tc, link);
 
-		interface_data.name = rtnl_link_get_name(link);
+		char *interface_name = rtnl_link_get_name(link);
 
 		// collect operational state information
 		char *interface_oper_leaf_values[IF_OPER_LEAF_COUNT] = {NULL};
@@ -2568,13 +2538,13 @@ static int interfaces_state_data_cb(sr_session_ctx_t *session, const char *modul
 		interface_oper_leaf_values[IF_OPER_STATUS] = (char *) OPER_STRING_MAP[rtnl_link_get_operstate(link)];
 
 		// last-change
-		tmp_ifs = if_state_list_get_by_if_name(&if_state_changes, interface_data.name);
-		interface_data.last_change = (tmp_ifs->last_change != 0) ? localtime(&tmp_ifs->last_change) : NULL;
+		tmp_ifs = if_state_list_get_by_if_name(&if_state_changes, interface_name);
+		last_change = (tmp_ifs->last_change != 0) ? localtime(&tmp_ifs->last_change) : NULL;
 		char last_change_time[DATETIME_BUF_SIZE] = {0};
 		// last-change -> only if changed at one point
-		if (interface_data.last_change != NULL) {
+		if (last_change != NULL) {
 			// convert it to human readable format here
-			strftime(last_change_time, sizeof(last_change_time), "%FT%TZ", interface_data.last_change);
+			strftime(last_change_time, sizeof(last_change_time), "%FT%TZ", last_change);
 			interface_oper_leaf_values[IF_LAST_CHANGE] = last_change_time;
 		} else {
 			// default value of last-change should be system boot time
@@ -2599,7 +2569,7 @@ static int interfaces_state_data_cb(sr_session_ctx_t *session, const char *modul
 		interface_oper_leaf_values[IF_SPEED] = speed;
 
 		// set interface state info in operational ds
-		error = ds_oper_set_interface_info(*parent, ly_ctx, interface_data.name, interface_oper_leaf_values);
+		error = ds_oper_set_interface_info(*parent, ly_ctx, interface_name, interface_oper_leaf_values);
 		if (error) {
 			SRP_LOG_ERR("ds_oper_set_interface_info error");
 			goto error_out;
@@ -2610,7 +2580,7 @@ static int interfaces_state_data_cb(sr_session_ctx_t *session, const char *modul
 
 		// gather interface statistics that are not accessable via netlink
 		nic_stats_t nic_stats = {0};
-		error = get_nic_stats(interface_data.name, &nic_stats);
+		error = get_nic_stats(interface_name, &nic_stats);
 		if (error != 0) {
 			SRP_LOG_ERR("get_nic_stats error: %s", strerror(errno));
 		}
@@ -2676,7 +2646,7 @@ static int interfaces_state_data_cb(sr_session_ctx_t *session, const char *modul
 		snprintf(out_errors, sizeof(out_errors), "%u", (uint32_t) rtnl_link_get_stat(link, RTNL_LINK_TX_ERRORS));
 		statistics[IF_STATS_OUT_ERRORS] = out_errors;
 
-		error = ds_oper_set_interface_statistics(*parent, ly_ctx, interface_data.name, statistics);
+		error = ds_oper_set_interface_statistics(*parent, ly_ctx, interface_name, statistics);
 		if (error) {
 			SRP_LOG_ERR("ds_oper_set_interface_statistics error");
 			goto error_out;
@@ -2690,12 +2660,12 @@ static int interfaces_state_data_cb(sr_session_ctx_t *session, const char *modul
 			master_link = rtnl_link_get(cache, master_if_index);
 			char *master_name = rtnl_link_get_name(master_link);
 
-			error = ds_oper_add_interface_higher_layer_if(*parent, ly_ctx, interface_data.name, master_name);
+			error = ds_oper_add_interface_higher_layer_if(*parent, ly_ctx, interface_name, master_name);
 			if (error) {
 				SRP_LOG_ERR("ds_oper_add_interface_higher_layer_if error");
 				goto error_out;
 			}
-			error = ds_oper_add_interface_lower_layer_if(*parent, ly_ctx, master_name, interface_data.name);
+			error = ds_oper_add_interface_lower_layer_if(*parent, ly_ctx, master_name, interface_name);
 			if (error) {
 				SRP_LOG_ERR("ds_oper_add_interface_lower_layer_if error");
 				goto error_out;
