@@ -2473,10 +2473,6 @@ static int interfaces_state_data_cb(sr_session_ctx_t *session, const char *modul
 	struct rtnl_tc *tc = NULL;
 	struct rtnl_qdisc *qdisc = NULL;
 
-	int32_t tmp_if_index = 0;
-	uint64_t tmp_len = 0;
-	struct rtnl_link *tmp_link = NULL;
-
 	char tmp_buffer[PATH_MAX] = {0};
 	char xpath_buffer[PATH_MAX] = {0};
 	char interface_path_buffer[PATH_MAX] = {0};
@@ -2496,10 +2492,6 @@ static int interfaces_state_data_cb(sr_session_ctx_t *session, const char *modul
 		struct tm *last_change;
 		int32_t if_index;
 		char *phys_address;
-		struct {
-			char *masters[LD_MAX_LINKS];
-			uint32_t count;
-		} higher_layer_if;
 		uint64_t speed;
 		struct {
 			char *discontinuity_time;
@@ -2518,32 +2510,6 @@ static int interfaces_state_data_cb(sr_session_ctx_t *session, const char *modul
 			uint32_t out_errors;
 		} statistics;
 	} interface_data = {0};
-
-	typedef struct {
-		char *slave_name;
-		char *master_names[LD_MAX_LINKS];
-		uint32_t count;
-	} master_t;
-
-	typedef struct {
-		master_t masters[LD_MAX_LINKS];
-		uint32_t count;
-	} master_list_t;
-
-	master_list_t master_list = {0};
-
-	typedef struct {
-		char *master_name;
-		char *slave_names[LD_MAX_LINKS];
-		uint32_t count;
-	} slave_t;
-
-	typedef struct {
-		slave_t slaves[LD_MAX_LINKS];
-		uint32_t count;
-	} slave_list_t;
-
-	slave_list_t slave_list = {0};
 
 	const char *OPER_STRING_MAP[] = {
 		[IF_OPER_UNKNOWN] = "unknown",
@@ -2579,85 +2545,6 @@ static int interfaces_state_data_cb(sr_session_ctx_t *session, const char *modul
 	if (error != 0) {
 		SRP_LOG_ERR("rtnl_link_alloc_cache error (%d): %s", error, nl_geterror(error));
 		goto error_out;
-	}
-
-	// collect all master interfaces
-	link = (struct rtnl_link *) nl_cache_get_first(cache);
-
-	while (link != NULL) {
-		char *slave_name = rtnl_link_get_name(link);
-
-		// higher-layer-if
-		tmp_if_index = rtnl_link_get_master(link);
-		while (tmp_if_index) {
-			tmp_link = rtnl_link_get(cache, tmp_if_index);
-
-			char *master_name = rtnl_link_get_name(tmp_link);
-
-			tmp_len = strlen(master_name);
-
-			interface_data.higher_layer_if.masters[interface_data.higher_layer_if.count] = xstrndup(master_name, tmp_len);
-
-			interface_data.higher_layer_if.count++;
-
-			tmp_if_index = rtnl_link_get_master(tmp_link);
-		}
-
-		if (interface_data.higher_layer_if.count > 0) {
-			for (uint64_t i = 0; i < interface_data.higher_layer_if.count; i++) {
-				char *master_name = interface_data.higher_layer_if.masters[i];
-
-				tmp_len = strlen(slave_name);
-				master_list.masters[master_list.count].slave_name = xstrndup(slave_name, tmp_len);
-
-				tmp_len = strlen(master_name);
-				master_list.masters[master_list.count].master_names[i] = xstrndup(master_name, tmp_len);
-			}
-
-			master_list.masters[master_list.count].count = interface_data.higher_layer_if.count;
-			master_list.count++;
-		}
-
-		// continue to next link node
-		link = (struct rtnl_link *) nl_cache_get_next((struct nl_object *) link);
-	}
-
-	// collect all slave interfaces
-	link = (struct rtnl_link *) nl_cache_get_first(cache);
-
-	while (link != NULL) {
-		// lower-layer-if
-		char *if_name = rtnl_link_get_name(link);
-
-		bool break_out = false;
-		for (uint64_t i = 0; i < master_list.count; i++) {
-			for (uint64_t j = 0; j < master_list.masters[i].count; j++) {
-				if (strcmp(master_list.masters[i].slave_name, master_list.masters[i].master_names[j]) == 0) {
-					continue;
-				}
-
-				if (strcmp(master_list.masters[i].master_names[j], if_name) == 0) {
-					SRP_LOG_DBG("Slave of interface %s: %s", if_name, master_list.masters[i].slave_name);
-
-					tmp_len = strlen(if_name);
-					slave_list.slaves[slave_list.count].master_name = xstrndup(if_name, tmp_len);
-
-					tmp_len = strlen(master_list.masters[i].slave_name);
-					slave_list.slaves[slave_list.count].slave_names[i] = xstrndup(master_list.masters[i].slave_name, tmp_len);
-
-					slave_list.slaves[slave_list.count].count++;
-
-					break_out = true;
-					break;
-				}
-			}
-			if (break_out) {
-				slave_list.count++;
-				break;
-			}
-		}
-		// continue to next link node
-		link = (struct rtnl_link *) nl_cache_get_next((struct nl_object *) link);
 	}
 
 	char system_boot_time[DATETIME_BUF_SIZE] = {0};
@@ -2803,38 +2690,27 @@ static int interfaces_state_data_cb(sr_session_ctx_t *session, const char *modul
 			goto error_out;
 		}
 
-		// higher-layer-if
-		for (uint64_t i = 0; i < master_list.count; i++) {
-			if (strcmp(interface_data.name, master_list.masters[i].slave_name) == 0) {
-				for (uint64_t j = 0; j < master_list.masters[i].count; j++) {
+		// find all interfaces which are layered on top of this interface
+		// and update the operational datastore accordingly
+		int32_t master_if_index = rtnl_link_get_master(link);
+		struct rtnl_link *master_link = NULL;
+		while (master_if_index) {
+			master_link = rtnl_link_get(cache, master_if_index);
+			char *master_name = rtnl_link_get_name(master_link);
 
-					error = snprintf(xpath_buffer, sizeof(xpath_buffer), "%s/higher-layer-if", interface_path_buffer);
-					if (error < 0) {
-						goto error_out;
-					}
-
-					SRP_LOG_DBG("%s += %s", xpath_buffer, master_list.masters[i].master_names[j]);
-					lyd_new_path(*parent, ly_ctx, xpath_buffer, master_list.masters[i].master_names[j], LYD_ANYDATA_STRING, 0);
-
-					FREE_SAFE(interface_data.higher_layer_if.masters[i]);
-				}
+			error = ds_oper_add_interface_higher_layer_if(*parent, ly_ctx, interface_data.name, master_name);
+			if (error) {
+				SRP_LOG_ERR("ds_oper_add_interface_higher_layer_if error");
+				goto error_out;
 			}
-		}
-
-		// lower-layer-if
-		for (uint64_t i = 0; i < slave_list.count; i++) {
-			if (strcmp(interface_data.name, slave_list.slaves[i].master_name) == 0) {
-				for (uint64_t j = 0; j < slave_list.slaves[i].count; j++) {
-
-					error = snprintf(xpath_buffer, sizeof(xpath_buffer), "%s/lower-layer-if", interface_path_buffer);
-					if (error < 0) {
-						goto error_out;
-					}
-
-					SRP_LOG_DBG("%s += %s", xpath_buffer, slave_list.slaves[i].slave_names[j]);
-					lyd_new_path(*parent, ly_ctx, xpath_buffer, slave_list.slaves[i].slave_names[j], LYD_ANYDATA_STRING, 0);
-				}
+			error = ds_oper_add_interface_lower_layer_if(*parent, ly_ctx, master_name, interface_data.name);
+			if (error) {
+				SRP_LOG_ERR("ds_oper_add_interface_lower_layer_if error");
+				goto error_out;
 			}
+
+			// go one layer higher
+			master_if_index = rtnl_link_get_master(master_link);
 		}
 
 		// ietf-ip
@@ -3037,20 +2913,6 @@ error_out:
 	error = SR_ERR_CALLBACK_FAILED;
 
 out:
-	for (uint64_t i = 0; i < master_list.count; i++) {
-		for (uint64_t j = 0; j < master_list.masters[i].count; j++) {
-			FREE_SAFE(master_list.masters[i].master_names[j]);
-		}
-		FREE_SAFE(master_list.masters[i].slave_name);
-	}
-
-	for (uint64_t i = 0; i < slave_list.count; i++) {
-		for (uint64_t j = 0; j < slave_list.slaves[i].count; j++) {
-			FREE_SAFE(slave_list.slaves[i].slave_names[j]);
-		}
-		FREE_SAFE(slave_list.slaves[i].master_name);
-	}
-
 	nl_socket_free(socket);
 	return error ? SR_ERR_CALLBACK_FAILED : SR_ERR_OK;
 }
