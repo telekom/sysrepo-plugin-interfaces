@@ -17,10 +17,12 @@
 
 // subs
 #include "subscription/operational.h"
+#include "sysrepo_types.h"
 
-static bool bridging_running_datastore_is_empty(sr_session_ctx_t *session);
+// check if the datastore which the session uses is empty (startup or running)
+static bool bridging_datastore_is_empty(sr_session_ctx_t *session);
 
-int bridging_sr_plugin_init_cb(sr_session_ctx_t *session, void **private_data)
+int bridging_sr_plugin_init_cb(sr_session_ctx_t *running_session, void **private_data)
 {
 	int error = 0;
 
@@ -38,7 +40,7 @@ int bridging_sr_plugin_init_cb(sr_session_ctx_t *session, void **private_data)
 
 	*private_data = ctx;
 
-	connection = sr_session_get_connection(session);
+	connection = sr_session_get_connection(running_session);
 	error = sr_session_start(connection, SR_DS_STARTUP, &startup_session);
 	if (error) {
 		SRPLG_LOG_ERR(PLUGIN_NAME, "sr_session_start() error (%d): %s", error, sr_strerror(error));
@@ -46,15 +48,17 @@ int bridging_sr_plugin_init_cb(sr_session_ctx_t *session, void **private_data)
 
 	ctx->startup_session = startup_session;
 
-	if (bridging_running_datastore_is_empty(session)) {
-		SRPLG_LOG_INF(PLUGIN_NAME, "Running datasore is empty");
-		SRPLG_LOG_INF(PLUGIN_NAME, "Loading initial data");
-		error = bridging_startup_load_data(ctx, session);
+	if (bridging_datastore_is_empty(startup_session)) {
+		SRPLG_LOG_INF(PLUGIN_NAME, "Startup datasore is empty");
+		SRPLG_LOG_INF(PLUGIN_NAME, "Loading initial system data");
+		error = bridging_startup_load_data(ctx, startup_session);
 		if (error) {
-			SRPLG_LOG_ERR(PLUGIN_NAME, "Error loading initial data into the datastore... exiting");
+			SRPLG_LOG_ERR(PLUGIN_NAME, "Error loading initial data into the startup datastore... exiting");
 			goto error_out;
 		}
-		error = sr_copy_config(startup_session, BASE_YANG_MODEL, SR_DS_RUNNING, 0);
+
+		// copy contents of the startup session to the current running session
+		error = sr_copy_config(running_session, BASE_YANG_MODEL, SR_DS_STARTUP, 0);
 		if (error) {
 			SRPLG_LOG_ERR(PLUGIN_NAME, "sr_copy_config() error (%d): %s", error, sr_strerror(error));
 			goto error_out;
@@ -62,9 +66,7 @@ int bridging_sr_plugin_init_cb(sr_session_ctx_t *session, void **private_data)
 	}
 
 	// operational subscription
-
-	// number of ports
-	error = sr_oper_get_subscribe(session, BASE_YANG_MODEL, BRIDGING_BRIDGE_LIST_YANG_PATH, bridging_oper_get_bridges, NULL, 0, &subscription);
+	error = sr_oper_get_subscribe(running_session, BASE_YANG_MODEL, BRIDGING_BRIDGE_LIST_YANG_PATH, bridging_oper_get_bridges, NULL, 0, &subscription);
 	if (error) {
 		SRPLG_LOG_ERR(PLUGIN_NAME, "sr_oper_get_items_subscribe error (%d): %s", error, sr_strerror(error));
 		goto error_out;
@@ -80,14 +82,22 @@ out:
 	return error ? SR_ERR_CALLBACK_FAILED : SR_ERR_OK;
 }
 
-void bridging_sr_plugin_cleanup_cb(sr_session_ctx_t *session, void *private_data)
+void bridging_sr_plugin_cleanup_cb(sr_session_ctx_t *running_session, void *private_data)
 {
+	int error = 0;
+
 	bridging_ctx_t *ctx = (bridging_ctx_t *) private_data;
+
+	// save current running configuration into startup for next time when the plugin starts
+	error = sr_copy_config(ctx->startup_session, BASE_YANG_MODEL, SR_DS_RUNNING, 0);
+	if (error) {
+		SRPLG_LOG_ERR(PLUGIN_NAME, "sr_copy_config() error (%d): %s", error, sr_strerror(error));
+	}
 
 	FREE_SAFE(ctx);
 }
 
-static bool bridging_running_datastore_is_empty(sr_session_ctx_t *session)
+static bool bridging_datastore_is_empty(sr_session_ctx_t *session)
 {
 	int error = SR_ERR_OK;
 	bool is_empty = true;
