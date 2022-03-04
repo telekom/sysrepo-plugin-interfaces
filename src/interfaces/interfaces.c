@@ -2577,6 +2577,32 @@ static int interfaces_state_data_cb(sr_session_ctx_t *session, uint32_t subscrip
 		lyd_new_path(*parent, ly_ctx, request_xpath, NULL, 0, NULL);
 	}
 
+	// copy configuration data (subtree of the requested xpath)
+	// from the running datastore in order to return it along with the state data
+	// (merge it with the data tree which will be filled in the rest of this callback)
+	error = sr_session_switch_ds(session, SR_DS_RUNNING);
+	if (error) {
+	        SRPLG_LOG_ERR(PLUGIN_NAME, "sr_session_switch_ds error (%d): %s", error, sr_strerror(error));
+	        goto error_out;
+	}
+	sr_data_t *running_ds_data = NULL;
+	error = sr_get_subtree(session, request_xpath, 0, &running_ds_data);
+	if (error) {
+	        SRPLG_LOG_ERR(PLUGIN_NAME, "sr_get_subtree error (%d): %s", error, sr_strerror(error));
+	        goto error_out;
+	}
+	error = lyd_merge_tree(parent, running_ds_data->tree, 0);
+	if (error) {
+	        SRPLG_LOG_ERR(PLUGIN_NAME, "lyd_merge_tree error");
+	        goto error_out;
+	}
+	sr_release_data(running_ds_data);
+	error = sr_session_switch_ds(session, SR_DS_OPERATIONAL); // switch back
+	if (error) {
+	        SRPLG_LOG_ERR(PLUGIN_NAME, "sr_session_switch_ds error (%d): %s", error, sr_strerror(error));
+	        goto error_out;
+	}
+
 	socket = nl_socket_alloc();
 	if (socket == NULL) {
 		SRPLG_LOG_ERR(PLUGIN_NAME, "nl_socket_alloc error: invalid socket");
@@ -2669,7 +2695,7 @@ static int interfaces_state_data_cb(sr_session_ctx_t *session, uint32_t subscrip
 		}
 
 		// discontinuity-time
-		statistics[IF_STATS_DISCONTINUITY_TIME] =  system_boot_time;
+		statistics[IF_STATS_DISCONTINUITY_TIME] = system_boot_time;
 
 		// Rx
 		// in-octets
