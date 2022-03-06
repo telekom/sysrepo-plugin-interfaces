@@ -1578,20 +1578,14 @@ int add_interface_ipv4(link_data_t *ld, struct rtnl_link *old, struct rtnl_link 
 
 		error = nl_addr_parse(neigh_ls->nbor[i].ip, AF_INET, &local_addr);
 		if (error != 0) {
-			nl_addr_put(ll_addr);
-			nl_addr_put(local_addr);
-			rtnl_neigh_put(neigh);
 			SRPLG_LOG_ERR(PLUGIN_NAME, "nl_addr_parse error (%d): %s", error, nl_geterror(error));
-			goto out;
+			goto loop_end;
 		}
 
 		error = nl_addr_parse(neigh_ls->nbor[i].phys_addr, AF_LLC, &ll_addr);
 		if (error != 0) {
-			nl_addr_put(ll_addr);
-			nl_addr_put(local_addr);
-			rtnl_neigh_put(neigh);
 			SRPLG_LOG_ERR(PLUGIN_NAME, "nl_addr_parse error (%d): %s", error, nl_geterror(error));
-			goto out;
+			goto loop_end;
 		}
 
 		rtnl_neigh_set_ifindex(neigh, if_idx);
@@ -1603,11 +1597,7 @@ int add_interface_ipv4(link_data_t *ld, struct rtnl_link *old, struct rtnl_link 
 		error = rtnl_link_alloc_cache(socket, AF_UNSPEC, &cache);
 		if (error != 0) {
 			SRPLG_LOG_ERR(PLUGIN_NAME, "rtnl_link_alloc_cache error (%d): %s", error, nl_geterror(error));
-			nl_cache_free(cache);
-			nl_addr_put(ll_addr);
-			nl_addr_put(local_addr);
-			rtnl_neigh_put(neigh);
-			goto out;
+			goto loop_end;
 		}
 
 		struct rtnl_neigh *tmp_neigh = rtnl_neigh_get(cache, if_idx, local_addr);
@@ -1623,17 +1613,17 @@ int add_interface_ipv4(link_data_t *ld, struct rtnl_link *old, struct rtnl_link 
 		error = rtnl_neigh_add(socket, neigh, neigh_oper);
 		if (error != 0) {
 			SRPLG_LOG_ERR(PLUGIN_NAME, "rtnl_neigh_add error (%d): %s", error, nl_geterror(error));
-			nl_cache_free(cache);
-			nl_addr_put(ll_addr);
-			nl_addr_put(local_addr);
-			rtnl_neigh_put(neigh);
-			goto out;
+			goto loop_end;
 		}
 
+	loop_end:
 		nl_cache_free(cache);
 		nl_addr_put(ll_addr);
 		nl_addr_put(local_addr);
 		rtnl_neigh_put(neigh);
+		if (error != 0) {
+			break;
+		}
 	}
 
 out:
@@ -1787,18 +1777,12 @@ int add_interface_ipv6(link_data_t *ld, struct rtnl_link *old, struct rtnl_link 
 
 		error = nl_addr_parse(neigh_ls->nbor[i].ip, AF_INET6, &local_addr);
 		if (error != 0) {
-			nl_addr_put(ll_addr);
-			nl_addr_put(local_addr);
-			rtnl_neigh_put(neigh);
-			goto out;
+			goto loop_end;
 		}
 
 		error = nl_addr_parse(neigh_ls->nbor[i].phys_addr, AF_LLC, &ll_addr);
 		if (error != 0) {
-			nl_addr_put(ll_addr);
-			nl_addr_put(local_addr);
-			rtnl_neigh_put(neigh);
-			goto out;
+			goto loop_end;
 		}
 
 		rtnl_neigh_set_ifindex(neigh, if_idx);
@@ -1810,11 +1794,7 @@ int add_interface_ipv6(link_data_t *ld, struct rtnl_link *old, struct rtnl_link 
 		error = rtnl_link_alloc_cache(socket, AF_UNSPEC, &cache);
 		if (error != 0) {
 			SRPLG_LOG_ERR(PLUGIN_NAME, "rtnl_link_alloc_cache error (%d): %s", error, nl_geterror(error));
-			nl_cache_free(cache);
-			nl_addr_put(ll_addr);
-			nl_addr_put(local_addr);
-			rtnl_neigh_put(neigh);
-			goto out;
+			goto loop_end;
 		}
 
 		struct rtnl_neigh *tmp_neigh = rtnl_neigh_get(cache, if_idx, local_addr);
@@ -1830,17 +1810,18 @@ int add_interface_ipv6(link_data_t *ld, struct rtnl_link *old, struct rtnl_link 
 		error = rtnl_neigh_add(socket, neigh, neigh_oper);
 		if (error != 0) {
 			SRPLG_LOG_ERR(PLUGIN_NAME, "rtnl_neigh_add error (%d): %s", error, nl_geterror(error));
-			nl_cache_free(cache);
-			nl_addr_put(ll_addr);
-			nl_addr_put(local_addr);
-			rtnl_neigh_put(neigh);
-			goto out;
+			goto loop_end;
 		}
 
+	loop_end:
 		nl_cache_free(cache);
 		nl_addr_put(ll_addr);
 		nl_addr_put(local_addr);
 		rtnl_neigh_put(neigh);
+
+	if (error != 0) {
+		break;
+	}
 	}
 out:
 	nl_socket_free(socket);
