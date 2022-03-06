@@ -2685,7 +2685,7 @@ int create_node_neighbor_origin(struct lyd_node **parent, const struct ly_ctx *l
 
 	error =  nl_addr_parse(ip_addr, family, &dst_addr);
 	if (error != 0) {
-	    	nl_addr_put(dst_addr);
+		nl_addr_put(dst_addr);
 		goto error;
 	}
 
@@ -2697,7 +2697,7 @@ int create_node_neighbor_origin(struct lyd_node **parent, const struct ly_ctx *l
 	// TODO: discern dynamic/static/other neighbor origin, currently only dynamic/static are used
 	state = rtnl_neigh_get_state(neigh);
 	if (state == -1) {
-	    	nl_addr_put(dst_addr);
+		nl_addr_put(dst_addr);
 		rtnl_neigh_put(neigh);
 		goto error;
 	}
