@@ -310,6 +310,7 @@ static int routing_startup_load_control_plane_protocols(sr_session_ctx_t *sessio
 					SRPLG_LOG_ERR(PLUGIN_NAME, "unable to add ipv4 container node... exiting");
 					goto error_out;
 				}
+
 				ly_err = lyd_new_inner(static_routes_container_node, ly_uv6mod, "ipv6", false, &ipv6_container_node);
 				if (ly_err != LY_SUCCESS) {
 					SRPLG_LOG_ERR(PLUGIN_NAME, "unable to add ipv6 container node... exiting");
@@ -365,6 +366,11 @@ static int routing_startup_load_control_plane_protocols(sr_session_ctx_t *sessio
 									SRPLG_LOG_ERR(PLUGIN_NAME, "unable to create next-hop-address leaf for the node %s", route_path_buffer);
 									goto error_out;
 								}
+							}
+
+							// outgoing-interface
+							if (NEXTHOP->simple.if_name) {
+								SRPLG_LOG_DBG(PLUGIN_NAME, "outgoing-interface = %s", NEXTHOP->simple.if_name);
 
 								ly_err = lyd_new_term(nh_node, ly_uv4mod, "outgoing-interface", NEXTHOP->simple.if_name, false, &tmp_node);
 								if (ly_err != LY_SUCCESS) {
@@ -401,7 +407,10 @@ static int routing_startup_load_control_plane_protocols(sr_session_ctx_t *sessio
 										SRPLG_LOG_ERR(PLUGIN_NAME, "unable to create next-hop-address leaf in the list for route %s", route_path_buffer);
 										goto error_out;
 									}
+								}
 
+								// outgoing-interface
+								if (nexthop_iter->simple.if_name) {
 									ly_err = lyd_new_term(nh_list_node, ly_uv4mod, "outgoing-interface", nexthop_iter->simple.if_name, false, &tmp_node);
 									if (ly_err != LY_SUCCESS) {
 										SRPLG_LOG_ERR(PLUGIN_NAME, "unable to create outgoing-interface leaf in the list for route %s", route_path_buffer);
@@ -463,7 +472,10 @@ static int routing_startup_load_control_plane_protocols(sr_session_ctx_t *sessio
 									SRPLG_LOG_ERR(PLUGIN_NAME, "unable to create next-hop-address leaf for the node %s", route_path_buffer);
 									goto error_out;
 								}
+							}
 
+							// outgoing-interface
+							if (NEXTHOP->simple.if_name) {
 								ly_err = lyd_new_term(nh_node, ly_uv6mod, "outgoing-interface", NEXTHOP->simple.if_name, false, &tmp_node);
 								if (ly_err != LY_SUCCESS) {
 									SRPLG_LOG_ERR(PLUGIN_NAME, "unable to create outgoing-interface leaf for the node %s", route_path_buffer);
@@ -497,7 +509,10 @@ static int routing_startup_load_control_plane_protocols(sr_session_ctx_t *sessio
 										SRPLG_LOG_ERR(PLUGIN_NAME, "unable to create next-hop-address leaf in the list for route %s", route_path_buffer);
 										goto error_out;
 									}
+								}
 
+								// outgoing-interface
+								if (nexthop_iter->simple.if_name) {
 									ly_err = lyd_new_term(nh_list_node, ly_uv6mod, "outgoing-interface", nexthop_iter->simple.if_name, false, &tmp_node);
 									if (ly_err != LY_SUCCESS) {
 										SRPLG_LOG_ERR(PLUGIN_NAME, "unable to create outgoing-interface leaf in the list for route %s", route_path_buffer);
