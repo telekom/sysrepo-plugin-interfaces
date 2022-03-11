@@ -11,12 +11,15 @@
  * SPDX-License-Identifier: BSD-3-Clause
  */
 
-#ifndef ROUTING_PLUGIN_H
-#define ROUTING_PLUGIN_H
+#ifndef ROUTING_PLUGIN_CONTEXT_H
+#define ROUTING_PLUGIN_CONTEXT_H
 
-#include <sysrepo.h>
+#include <sysrepo_types.h>
 
-int routing_sr_plugin_init_cb(sr_session_ctx_t *session, void **private_data);
-void routing_sr_plugin_cleanup_cb(sr_session_ctx_t *session, void *private_data);
+#include "route/list_hash.h"
 
-#endif // ROUTING_PLUGIN_H
+struct routing_ctx {
+	sr_session_ctx_t *startup_session;
+};
+
+#endif // ROUTING_PLUGIN_CONTEXT_H
