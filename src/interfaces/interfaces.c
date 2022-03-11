@@ -72,7 +72,7 @@ static int interfaces_state_data_cb(sr_session_ctx_t *session, const char *modul
 
 // helper functions
 static bool system_running_datastore_is_empty_check(sr_session_ctx_t *session);
-static int load_data(sr_session_ctx_t *session, link_data_list_t *ld);
+static int fill_datastore_interface_list(sr_session_ctx_t *session, link_data_list_t *ld);
 static int load_startup(sr_session_ctx_t *session, link_data_list_t *ld);
 static char *interfaces_xpath_get(const struct lyd_node *node);
 static bool check_system_interface(const char *interface_name, bool *system_interface);
@@ -156,9 +156,9 @@ int sr_plugin_init_cb(sr_session_ctx_t *session, void **private_data)
 	if (system_running_datastore_is_empty_check(session) == true) {
 		SRP_LOG_INF("running DS is empty, loading data");
 
-		error = load_data(session, &link_data_list);
+		error = fill_datastore_interface_list(session, &link_data_list);
 		if (error) {
-			SRP_LOG_ERRMSG("load_data error");
+			SRP_LOG_ERRMSG("fill_datastore_interface_list error");
 			goto error_out;
 		}
 
@@ -238,7 +238,7 @@ out:
 	return is_empty;
 }
 
-static int load_data(sr_session_ctx_t *session, link_data_list_t *ld)
+static int fill_datastore_interface_list(sr_session_ctx_t *session, link_data_list_t *ld)
 {
 	int error = 0;
 	for (int i = 0; i < ld->count; i++) {
@@ -259,7 +259,7 @@ static int load_data(sr_session_ctx_t *session, link_data_list_t *ld)
 		} else if (strcmp(type, "dummy") == 0) {
 			interface_leaf_values[IF_TYPE] = "iana-if-type:other"; // since dummy is not a real type
 		} else {
-			SRP_LOG_INF("load_data unsupported interface type %s", type);
+			SRP_LOG_INF("fill_datastore_interface_list unsupported interface type %s", type);
 			continue;
 		}
 
