@@ -1,4 +1,6 @@
 #include "change.h"
+#include "netlink/errno.h"
+#include "netlink/route/link/bridge.h"
 #include "sysrepo_types.h"
 #include <bridging/common.h>
 #include <bridging/context.h>
@@ -6,12 +8,17 @@
 #include <sysrepo.h>
 #include <sysrepo/xpath.h>
 
+#include <assert.h>
+
+#include <netlink/socket.h>
+#include <netlink/route/link.h>
+
 // change callback type
-typedef int (*bridging_change_cb)(bridging_ctx_t *ctx, sr_session_ctx_t *session, const struct lyd_node *node, sr_change_oper_t operation);
+typedef int (*bridging_change_cb)(bridging_ctx_t *ctx, sr_session_ctx_t *session, struct nl_sock *socket, const struct lyd_node *node, sr_change_oper_t operation);
 
 // change callbacks - respond to node changes with the given operation
-int bridge_name_change_cb(bridging_ctx_t *ctx, sr_session_ctx_t *session, const struct lyd_node *node, sr_change_oper_t operation);
-int bridge_address_change_cb(bridging_ctx_t *ctx, sr_session_ctx_t *session, const struct lyd_node *node, sr_change_oper_t operation);
+int bridge_name_change_cb(bridging_ctx_t *ctx, sr_session_ctx_t *session, struct nl_sock *socket, const struct lyd_node *node, sr_change_oper_t operation);
+int bridge_address_change_cb(bridging_ctx_t *ctx, sr_session_ctx_t *session, struct nl_sock *socket, const struct lyd_node *node, sr_change_oper_t operation);
 
 // common functionality for iterating changes specified by the given xpath - calls callback function for each iterated node
 int apply_change(bridging_ctx_t *ctx, sr_session_ctx_t *session, const char *xpath, bridging_change_cb cb);
@@ -83,10 +90,27 @@ int apply_change(bridging_ctx_t *ctx, sr_session_ctx_t *session, const char *xpa
 	const char *prev_value = NULL, *prev_list = NULL;
 	int prev_default;
 
+	struct nl_sock *socket = NULL;
+
 	// libyang
 	const struct lyd_node *node = NULL;
 
 	SRPLG_LOG_DBG(PLUGIN_NAME, "Getting changes for xpath %s", xpath);
+
+	// connect to libnl
+
+	socket = nl_socket_alloc();
+	if (socket == NULL) {
+		error = -1;
+		SRPLG_LOG_ERR(PLUGIN_NAME, "unable to init nl_sock struct...");
+		goto error_out;
+	}
+
+	error = nl_connect(socket, NETLINK_ROUTE);
+	if (error != 0) {
+		SRPLG_LOG_ERR(PLUGIN_NAME, "nl_connect() failed (%d): %s", error, nl_geterror(error));
+		goto error_out;
+	}
 
 	error = sr_get_changes_iter(session, xpath, &changes_iterator);
 	if (error != SR_ERR_OK) {
@@ -95,7 +119,7 @@ int apply_change(bridging_ctx_t *ctx, sr_session_ctx_t *session, const char *xpa
 	}
 
 	while (sr_get_change_tree_next(session, changes_iterator, &operation, &node, &prev_value, &prev_list, &prev_default) == SR_ERR_OK) {
-		cb(ctx, session, node, operation);
+		cb(ctx, session, socket, node, operation);
 	}
 
 	goto out;
@@ -104,6 +128,10 @@ error_out:
 	error = -1;
 
 out:
+	// libnl
+	if (socket) {
+		nl_socket_free(socket);
+	}
 
 	// iterator
 	sr_free_change_iter(changes_iterator);
@@ -111,13 +139,16 @@ out:
 	return error;
 }
 
-int bridge_name_change_cb(bridging_ctx_t *ctx, sr_session_ctx_t *session, const struct lyd_node *node, sr_change_oper_t operation)
+int bridge_name_change_cb(bridging_ctx_t *ctx, sr_session_ctx_t *session, struct nl_sock *socket, const struct lyd_node *node, sr_change_oper_t operation)
 {
 	int error = 0;
 
 	char change_path[PATH_MAX] = {0};
 	const char *node_name = NULL;
 	const char *node_value = NULL;
+
+	// libnl
+	struct rtnl_link *tmp_bridge = NULL;
 
 	error = (lyd_path(node, LYD_PATH_STD, change_path, sizeof(change_path)) == NULL);
 	if (error) {
@@ -128,9 +159,43 @@ int bridge_name_change_cb(bridging_ctx_t *ctx, sr_session_ctx_t *session, const 
 	node_name = sr_xpath_node_name(change_path);
 	node_value = lyd_get_value(node);
 
+	assert(strcmp(node_name, "name") == 0);
+
 	SRPLG_LOG_DBG(PLUGIN_NAME, "Node Path: %s", change_path);
 	SRPLG_LOG_DBG(PLUGIN_NAME, "Node Name: %s", node_name);
 	SRPLG_LOG_DBG(PLUGIN_NAME, "Value: %s; Operation: %d", node_value, operation);
+
+	switch (operation) {
+		case SR_OP_CREATED:
+			// create new bridge interface
+			tmp_bridge = rtnl_link_bridge_alloc();
+			rtnl_link_set_name(tmp_bridge, node_value);
+
+			error = rtnl_link_add(socket, tmp_bridge, 0);
+			if (error != 0) {
+				SRPLG_LOG_ERR(PLUGIN_NAME, "rtnl_link_add() failed (%d): %s", error, nl_geterror(error));
+				goto error_out;
+			}
+
+			break;
+		case SR_OP_MODIFIED:
+			// name cannot be changed
+			break;
+		case SR_OP_DELETED:
+			// delete bridge whose name matches the given node value
+			tmp_bridge = rtnl_link_bridge_alloc();
+			rtnl_link_set_name(tmp_bridge, node_value);
+
+			// delete bridge
+			error = rtnl_link_delete(socket, tmp_bridge);
+			if (error != 0) {
+				SRPLG_LOG_ERR(PLUGIN_NAME, "rtnl_link_delete() failed (%d): %s", error, nl_geterror(error));
+				goto error_out;
+			}
+			break;
+		case SR_OP_MOVED:
+			break;
+	}
 
 	goto out;
 
@@ -138,16 +203,24 @@ error_out:
 	error = -1;
 
 out:
+
+	// free bridge
+	if (tmp_bridge) {
+		rtnl_link_put(tmp_bridge);
+	}
 	return error;
 }
 
-int bridge_address_change_cb(bridging_ctx_t *ctx, sr_session_ctx_t *session, const struct lyd_node *node, sr_change_oper_t operation)
+int bridge_address_change_cb(bridging_ctx_t *ctx, sr_session_ctx_t *session, struct nl_sock *socket, const struct lyd_node *node, sr_change_oper_t operation)
 {
 	int error = 0;
 
 	char change_path[PATH_MAX] = {0};
 	const char *node_name = NULL;
 	const char *node_value = NULL;
+	// const char *bridge_name = NULL;
+
+	// sr_xpath_ctx_t xpath_ctx = {0};
 
 	error = (lyd_path(node, LYD_PATH_STD, change_path, sizeof(change_path)) == NULL);
 	if (error) {
@@ -157,6 +230,8 @@ int bridge_address_change_cb(bridging_ctx_t *ctx, sr_session_ctx_t *session, con
 
 	node_name = sr_xpath_node_name(change_path);
 	node_value = lyd_get_value(node);
+
+	assert(strcmp(node_name, "address") == 0);
 
 	SRPLG_LOG_DBG(PLUGIN_NAME, "Node Path: %s", change_path);
 	SRPLG_LOG_DBG(PLUGIN_NAME, "Node Name: %s", node_name);
