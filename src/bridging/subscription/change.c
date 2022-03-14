@@ -5,6 +5,7 @@
 #include <bridging/common.h>
 #include <bridging/context.h>
 
+#include <string.h>
 #include <sysrepo.h>
 #include <sysrepo/xpath.h>
 
@@ -53,7 +54,7 @@ int bridging_bridge_list_change_cb(sr_session_ctx_t *session, uint32_t subscript
 			goto error_out;
 		}
 		error = apply_change(ctx, session, xpath_buffer, bridge_name_change_cb);
-		if (error < 0) {
+		if (error) {
 			SRPLG_LOG_ERR(PLUGIN_NAME, "apply_change() for bridge name failed: %d", error);
 			goto error_out;
 		}
@@ -65,7 +66,7 @@ int bridging_bridge_list_change_cb(sr_session_ctx_t *session, uint32_t subscript
 			goto error_out;
 		}
 		error = apply_change(ctx, session, xpath_buffer, bridge_address_change_cb);
-		if (error < 0) {
+		if (error) {
 			SRPLG_LOG_ERR(PLUGIN_NAME, "apply_change() for bridge address failed: %d", error);
 			goto error_out;
 		}
@@ -119,7 +120,10 @@ int apply_change(bridging_ctx_t *ctx, sr_session_ctx_t *session, const char *xpa
 	}
 
 	while (sr_get_change_tree_next(session, changes_iterator, &operation, &node, &prev_value, &prev_list, &prev_default) == SR_ERR_OK) {
-		cb(ctx, session, socket, node, operation);
+		error = cb(ctx, session, socket, node, operation);
+		if (error != 0) {
+			goto error_out;
+		}
 	}
 
 	goto out;
@@ -216,11 +220,12 @@ int bridge_address_change_cb(bridging_ctx_t *ctx, sr_session_ctx_t *session, str
 	int error = 0;
 
 	char change_path[PATH_MAX] = {0};
+	char tmp_xpath[PATH_MAX] = {0};
 	const char *node_name = NULL;
 	const char *node_value = NULL;
-	// const char *bridge_name = NULL;
+	const char *bridge_name = NULL;
 
-	// sr_xpath_ctx_t xpath_ctx = {0};
+	sr_xpath_ctx_t xpath_ctx = {0};
 
 	error = (lyd_path(node, LYD_PATH_STD, change_path, sizeof(change_path)) == NULL);
 	if (error) {
@@ -228,13 +233,18 @@ int bridge_address_change_cb(bridging_ctx_t *ctx, sr_session_ctx_t *session, str
 		goto error_out;
 	}
 
-	node_name = sr_xpath_node_name(change_path);
+	// use temp buffer for xpath operations
+	memcpy(tmp_xpath, change_path, sizeof(change_path));
+
+	node_name = sr_xpath_node_name(tmp_xpath);
 	node_value = lyd_get_value(node);
+	bridge_name = sr_xpath_key_value(tmp_xpath, "bridge", "name", &xpath_ctx);
 
 	assert(strcmp(node_name, "address") == 0);
 
 	SRPLG_LOG_DBG(PLUGIN_NAME, "Node Path: %s", change_path);
 	SRPLG_LOG_DBG(PLUGIN_NAME, "Node Name: %s", node_name);
+	SRPLG_LOG_DBG(PLUGIN_NAME, "Bridge name: %s", bridge_name);
 	SRPLG_LOG_DBG(PLUGIN_NAME, "Value: %s; Operation: %d", node_value, operation);
 
 	goto out;
