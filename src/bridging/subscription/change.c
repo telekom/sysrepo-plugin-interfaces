@@ -1,4 +1,6 @@
 #include "change.h"
+#include "netlink/addr.h"
+#include "netlink/cache.h"
 #include "netlink/errno.h"
 #include "netlink/route/link/bridge.h"
 #include "sysrepo_types.h"
@@ -23,6 +25,9 @@ int bridge_address_change_cb(bridging_ctx_t *ctx, sr_session_ctx_t *session, str
 
 // common functionality for iterating changes specified by the given xpath - calls callback function for each iterated node
 int apply_change(bridging_ctx_t *ctx, sr_session_ctx_t *session, const char *xpath, bridging_change_cb cb);
+
+// helpers
+static void mac_address_ly_to_nl(char *addr);
 
 int bridging_bridge_list_change_cb(sr_session_ctx_t *session, uint32_t subscription_id, const char *module_name, const char *xpath, sr_event_t event, uint32_t request_id, void *private_data)
 {
@@ -219,13 +224,21 @@ int bridge_address_change_cb(bridging_ctx_t *ctx, sr_session_ctx_t *session, str
 {
 	int error = 0;
 
+	// helper variables
 	char change_path[PATH_MAX] = {0};
 	char tmp_xpath[PATH_MAX] = {0};
 	const char *node_name = NULL;
 	const char *node_value = NULL;
 	const char *bridge_name = NULL;
 
+	// sysrepo
 	sr_xpath_ctx_t xpath_ctx = {0};
+
+	// libnl
+	struct rtnl_link *orig_link = NULL;
+	struct rtnl_link *change_link = NULL;
+	struct nl_addr *address = NULL;
+	struct nl_cache *link_cache = NULL;
 
 	error = (lyd_path(node, LYD_PATH_STD, change_path, sizeof(change_path)) == NULL);
 	if (error) {
@@ -242,10 +255,53 @@ int bridge_address_change_cb(bridging_ctx_t *ctx, sr_session_ctx_t *session, str
 
 	assert(strcmp(node_name, "address") == 0);
 
+	// get cache of interfaces
+	error = rtnl_link_alloc_cache(socket, AF_UNSPEC, &link_cache);
+	if (error < 0) {
+		SRPLG_LOG_ERR(PLUGIN_NAME, "rtnl_link_alloc_cache() failed (%d): %s", error, nl_geterror(error));
+		goto error_out;
+	}
+
 	SRPLG_LOG_DBG(PLUGIN_NAME, "Node Path: %s", change_path);
 	SRPLG_LOG_DBG(PLUGIN_NAME, "Node Name: %s", node_name);
 	SRPLG_LOG_DBG(PLUGIN_NAME, "Bridge name: %s", bridge_name);
 	SRPLG_LOG_DBG(PLUGIN_NAME, "Value: %s; Operation: %d", node_value, operation);
+
+	switch (operation) {
+		case SR_OP_CREATED:
+			// change address of the interface - same as modified
+		case SR_OP_MODIFIED:
+			// get bridge interface and set its address
+			orig_link = rtnl_link_get_by_name(link_cache, bridge_name);
+			if (orig_link == NULL) {
+				SRPLG_LOG_ERR(PLUGIN_NAME, "rtnl_link_get_by_name() failed (%d): %s", error, nl_geterror(error));
+				goto error_out;
+			}
+
+			// convert to libnl mac address format
+			mac_address_ly_to_nl((char *) node_value);
+			error = nl_addr_parse(node_value, AF_LLC, &address);
+			if (error < 0) {
+				SRPLG_LOG_ERR(PLUGIN_NAME, "nl_addr_parse() failed (%d): %s", error, nl_geterror(error));
+				goto error_out;
+			}
+
+			// configure link for changes
+			change_link = rtnl_link_bridge_alloc();
+			rtnl_link_set_name(change_link, bridge_name);
+			rtnl_link_set_addr(change_link, address);
+
+			error = rtnl_link_change(socket, orig_link, change_link, 0);
+			if (error < 0) {
+				SRPLG_LOG_ERR(PLUGIN_NAME, "rtnl_link_change() failed (%d): %s", error, nl_geterror(error));
+				goto error_out;
+			}
+			break;
+		case SR_OP_DELETED:
+			// address cannot be deleted
+		case SR_OP_MOVED:
+			break;
+	}
 
 	goto out;
 
@@ -253,5 +309,21 @@ error_out:
 	error = -1;
 
 out:
+
+	// libnl
+	if (link_cache) {
+		nl_cache_free(link_cache);
+	}
+	if (change_link) {
+		rtnl_link_put(change_link);
+	}
 	return error;
+}
+
+static void mac_address_ly_to_nl(char *addr)
+{
+	char *tmp_ptr = addr;
+	while ((tmp_ptr = strchr(tmp_ptr, '-'))) {
+		*tmp_ptr = ':';
+	}
 }
