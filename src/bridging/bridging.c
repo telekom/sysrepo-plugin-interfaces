@@ -17,7 +17,7 @@
 
 // subs
 #include "subscription/operational.h"
-#include "sysrepo_types.h"
+#include "subscription/change.h"
 
 // check if the datastore which the session uses is empty (startup or running)
 static bool bridging_datastore_is_empty(sr_session_ctx_t *session);
@@ -68,7 +68,14 @@ int bridging_sr_plugin_init_cb(sr_session_ctx_t *running_session, void **private
 	// operational subscription
 	error = sr_oper_get_subscribe(running_session, BASE_YANG_MODEL, BRIDGING_BRIDGE_LIST_YANG_PATH, bridging_oper_get_bridges, NULL, 0, &subscription);
 	if (error) {
-		SRPLG_LOG_ERR(PLUGIN_NAME, "sr_oper_get_items_subscribe error (%d): %s", error, sr_strerror(error));
+		SRPLG_LOG_ERR(PLUGIN_NAME, "sr_oper_get_items_subscribe() error (%d): %s", error, sr_strerror(error));
+		goto error_out;
+	}
+
+	// change subscription
+	error = sr_module_change_subscribe(running_session, BASE_YANG_MODEL, BRIDGING_BRIDGE_LIST_YANG_PATH, bridging_bridge_list_change_cb, *private_data, 0, SR_SUBSCR_DEFAULT, &subscription);
+	if (error) {
+		SRPLG_LOG_ERR(PLUGIN_NAME, "sr_module_change_subscribe() error (%d): %s", error, sr_strerror(error));
 		goto error_out;
 	}
 
