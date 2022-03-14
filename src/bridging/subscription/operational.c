@@ -1,8 +1,5 @@
 #include "operational.h"
-#include "libyang/log.h"
-#include "ly_tree.h"
-#include "netlink/cache.h"
-#include "netlink/route/link/bridge.h"
+#include <bridging/ly_tree.h>
 #include <bridging/common.h>
 
 #include <limits.h>
@@ -13,6 +10,8 @@
 
 #include <netlink/addr.h>
 #include <netlink/route/link.h>
+#include <netlink/cache.h>
+#include <netlink/route/link/bridge.h>
 
 int bridging_oper_get_bridges(sr_session_ctx_t *session, uint32_t sub_id, const char *module_name, const char *path, const char *request_xpath, uint32_t request_id, struct lyd_node **parent, void *private_data)
 {

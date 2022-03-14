@@ -20,6 +20,7 @@ set(
 
     # subs
     subscription/operational.c
+    subscription/change.c
 
     # utils
     ${CMAKE_SOURCE_DIR}/src/utils/memory.c
