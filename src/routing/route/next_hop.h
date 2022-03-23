@@ -1,16 +1,3 @@
-/*
- * telekom / sysrepo-plugin-interfaces
- *
- * This program is made available under the terms of the
- * BSD 3-Clause license which is available at
- * https://opensource.org/licenses/BSD-3-Clause
- *
- * SPDX-FileCopyrightText: 2022 Deutsche Telekom AG
- * SPDX-FileContributor: Sartura Ltd.
- *
- * SPDX-License-Identifier: BSD-3-Clause
- */
-
 #ifndef ROUTING_ROUTE_NEXT_HOP_H
 #define ROUTING_ROUTE_NEXT_HOP_H
 
@@ -35,15 +22,16 @@ struct route_next_hop_special {
 	char *value;
 };
 
-struct route_next_hop_list_element {
-	struct route_next_hop_simple simple;
-	struct route_next_hop_list_element *next;
+// list of interface indexes
+struct route_next_hop_list {
+	struct route_next_hop_simple *list;
+	size_t size;
 };
 
 union route_next_hop_value {
 	struct route_next_hop_simple simple;
 	struct route_next_hop_special special;
-	struct route_next_hop_list_element *list_head;
+	struct route_next_hop_list list;
 };
 
 struct route_next_hop {
@@ -52,8 +40,6 @@ struct route_next_hop {
 };
 
 void route_next_hop_init(struct route_next_hop *nh);
-void route_next_hop_set_simple_gateway(struct route_next_hop *nh, struct nl_addr *gw);
-void route_next_hop_set_simple_interface(struct route_next_hop *nh, int ifindex, const char *if_name);
 void route_next_hop_set_simple(struct route_next_hop *nh, int ifindex, const char *if_name, struct nl_addr *gw);
 void route_next_hop_set_special(struct route_next_hop *nh, char *value);
 void route_next_hop_add_list(struct route_next_hop *nh, int ifindex, const char *if_name, struct nl_addr *gw);

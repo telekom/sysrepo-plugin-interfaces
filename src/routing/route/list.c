@@ -1,54 +1,40 @@
-/*
- * telekom / sysrepo-plugin-interfaces
- *
- * This program is made available under the terms of the
- * BSD 3-Clause license which is available at
- * https://opensource.org/licenses/BSD-3-Clause
- *
- * SPDX-FileCopyrightText: 2022 Deutsche Telekom AG
- * SPDX-FileContributor: Sartura Ltd.
- *
- * SPDX-License-Identifier: BSD-3-Clause
- */
-
 #include <stdlib.h>
 
 #include "route/list.h"
 #include "route.h"
 #include "utils/memory.h"
 
-#include <utlist.h>
-
-void route_list_init(struct route_list_element **head)
+void route_list_init(struct route_list *ls)
 {
-	*head = NULL;
+	ls->list = NULL;
+	ls->size = 0;
+	ls->delete = false;
 }
 
-bool route_list_is_empty(struct route_list_element **head)
+bool route_list_is_empty(struct route_list *ls)
 {
-	return *head == NULL;
+	return ls->list == NULL && ls->size == 0;
 }
 
-void route_list_add(struct route_list_element **head, struct route *route)
+void route_list_add(struct route_list *ls, struct route *route)
 {
-	struct route_list_element *new_route = NULL;
-
-	new_route = xmalloc(sizeof(*new_route));
-	new_route->next = NULL;
-	new_route->route = route_clone(route);
-
-	// use prepend - used when adding static routes - head is always the newest element and can be modified easily
-	LL_PREPEND(*head, new_route);
+	ls->list = xrealloc(ls->list, sizeof(struct route) * (unsigned long) (ls->size + 1));
+	ls->list[ls->size] = route_clone(route);
+	ls->size += 1;
 }
 
-void route_list_free(struct route_list_element **head)
+struct route *route_list_get_last(struct route_list *ls)
 {
-	struct route_list_element *iter = NULL, *tmp = NULL;
+	return &ls->list[ls->size - 1];
+}
 
-	LL_FOREACH_SAFE(*head, iter, tmp)
-	{
-		LL_DELETE(*head, iter);
-		route_free(&iter->route);
-		free(iter);
+void route_list_free(struct route_list *ls)
+{
+	if (ls->list) {
+		for (size_t i = 0; i < ls->size; i++) {
+			route_free(&ls->list[i]);
+		}
+		FREE_SAFE(ls->list);
 	}
+	route_list_init(ls);
 }

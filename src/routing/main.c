@@ -1,21 +1,7 @@
-/*
- * telekom / sysrepo-plugin-interfaces
- *
- * This program is made available under the terms of the
- * BSD 3-Clause license which is available at
- * https://opensource.org/licenses/BSD-3-Clause
- *
- * SPDX-FileCopyrightText: 2022 Deutsche Telekom AG
- * SPDX-FileContributor: Sartura Ltd.
- *
- * SPDX-License-Identifier: BSD-3-Clause
- */
-
 #include <sysrepo.h>
 #include <signal.h>
 #include <unistd.h>
 #include <routing.h>
-#include <routing/common.h>
 
 volatile int exit_application = 0;
 
@@ -43,7 +29,7 @@ int main(void)
 		goto out;
 	}
 
-	error = routing_sr_plugin_init_cb(session, &private_data);
+	error = sr_plugin_init_cb(session, &private_data);
 	if (error) {
 		SRPLG_LOG_ERR(PLUGIN_NAME, "sr_plugin_init_cb error");
 		goto out;
@@ -57,7 +43,7 @@ int main(void)
 	}
 
 out:
-	routing_sr_plugin_cleanup_cb(session, private_data);
+	sr_plugin_cleanup_cb(session, private_data);
 	sr_disconnect(connection);
 
 	return error ? -1 : 0;

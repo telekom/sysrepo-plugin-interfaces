@@ -1,81 +1,70 @@
-/*
- * telekom / sysrepo-plugin-interfaces
- *
- * This program is made available under the terms of the
- * BSD 3-Clause license which is available at
- * https://opensource.org/licenses/BSD-3-Clause
- *
- * SPDX-FileCopyrightText: 2022 Deutsche Telekom AG
- * SPDX-FileContributor: Sartura Ltd.
- *
- * SPDX-License-Identifier: BSD-3-Clause
- */
-
 #include <sysrepo.h>
 
-#include "netlink/addr.h"
-#include "route/list.h"
 #include "route/list_hash.h"
 #include "utils/memory.h"
 
-#include <utlist.h>
-
-static int route_list_hash_element_cmp(struct route_list_hash_element *e1, struct route_list_hash_element *e2);
-
-void route_list_hash_init(struct route_list_hash_element **head)
+void route_list_hash_init(struct route_list_hash *hash)
 {
-	*head = NULL;
+	hash->list_addr = NULL;
+	hash->list_route = NULL;
+	hash->size = 0;
 }
 
-void route_list_hash_add(struct route_list_hash_element **head, struct nl_addr *addr, struct route *route)
+void route_list_hash_add(struct route_list_hash *hash, struct nl_addr *addr, struct route *route)
 {
-	struct route_list_element **routes_head = NULL;
-	struct route_list_hash_element *new_hash = NULL;
+	struct route_list *exists = NULL;
 
-	routes_head = route_list_hash_get(head, addr);
-	if (routes_head) {
-		route_list_add(routes_head, route);
+	exists = route_list_hash_get_by_addr(hash, addr);
+	if (exists != NULL) {
+		route_list_add(exists, route);
 	} else {
-		// create new hash
-		new_hash = xmalloc(sizeof(*new_hash));
-		new_hash->prefix = nl_addr_clone(addr);
-		new_hash->next = NULL;
-		new_hash->routes_head = NULL;
+		for (size_t i = 0; i < hash->size; i++) {
+			if (route_list_is_empty(&hash->list_route[i]) && hash->list_addr[i] == NULL) {
+				hash->list_addr[i] = nl_addr_clone(addr);
+				route_list_add(&hash->list_route[i], route);
+				return;
+			}
+		}
 
-		route_list_add(&new_hash->routes_head, route);
-		LL_APPEND(*head, new_hash);
+		hash->list_addr = xrealloc(hash->list_addr, sizeof(struct nl_addr *) * (unsigned long) (hash->size + 1));
+		hash->list_route = xrealloc(hash->list_route, sizeof(struct route_list) * (unsigned long) (hash->size + 1));
+		hash->list_addr[hash->size] = nl_addr_clone(addr);
+		route_list_init(&hash->list_route[hash->size]);
+		route_list_add(&hash->list_route[hash->size], route);
+		hash->size += 1;
 	}
 }
 
-struct route_list_element **route_list_hash_get(struct route_list_hash_element **head, struct nl_addr *addr)
+void route_list_hash_free(struct route_list_hash *hash)
 {
-	struct route_list_hash_element *found = NULL;
-	struct route_list_hash_element find_element = {
-		.prefix = addr,
-	};
-
-	LL_SEARCH(*head, found, &find_element, route_list_hash_element_cmp);
-	if (found) {
-		return &found->routes_head;
+	if (hash->size) {
+		for (size_t i = 0; i < hash->size; i++) {
+			nl_addr_put(hash->list_addr[i]);
+			route_list_free(&hash->list_route[i]);
+		}
+		FREE_SAFE(hash->list_addr);
+		FREE_SAFE(hash->list_route);
 	}
+	route_list_hash_init(hash);
+}
 
+struct route_list *route_list_hash_get_by_addr(struct route_list_hash *hash, struct nl_addr *addr)
+{
+	for (size_t i = 0; i < hash->size; i++) {
+		if (hash->list_addr[i] != NULL && nl_addr_cmp(addr, hash->list_addr[i]) == 0) {
+			return &hash->list_route[i];
+		}
+	}
 	return NULL;
 }
 
-void route_list_hash_free(struct route_list_hash_element **head)
+void route_list_hash_prune(struct route_list_hash *hash)
 {
-	struct route_list_hash_element *iter = NULL, *tmp = NULL;
-
-	LL_FOREACH_SAFE(*head, iter, tmp)
-	{
-		LL_DELETE(*head, iter);
-		nl_addr_put(iter->prefix);
-		route_list_free(&iter->routes_head);
-		free(iter);
+	for (size_t i = 0; i < hash->size; i++) {
+		if (hash->list_route[i].delete) {
+			route_list_free(&hash->list_route[i]);
+			nl_addr_put(hash->list_addr[i]);
+			hash->list_addr[i] = NULL;
+		}
 	}
-}
-
-static int route_list_hash_element_cmp(struct route_list_hash_element *e1, struct route_list_hash_element *e2)
-{
-	return nl_addr_cmp(e1->prefix, e2->prefix);
 }

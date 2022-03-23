@@ -1,16 +1,3 @@
-/*
- * telekom / sysrepo-plugin-interfaces
- *
- * This program is made available under the terms of the
- * BSD 3-Clause license which is available at
- * https://opensource.org/licenses/BSD-3-Clause
- *
- * SPDX-FileCopyrightText: 2022 Deutsche Telekom AG
- * SPDX-FileContributor: Sartura Ltd.
- *
- * SPDX-License-Identifier: BSD-3-Clause
- */
-
 #include <net/if.h>
 #include <string.h>
 #include <stdlib.h>
@@ -29,7 +16,7 @@ void rib_init(struct rib *rib)
 	memset(rib->name, 0, sizeof(rib->name));
 	memset(rib->description, 0, sizeof(rib->description));
 
-	route_list_hash_init(&rib->routes_head);
+	route_list_hash_init(&rib->routes);
 }
 
 void rib_set_address_family(struct rib *rib, int af)
@@ -54,5 +41,5 @@ void rib_set_name(struct rib *rib, char *buff)
 
 void rib_free(struct rib *rib)
 {
-	route_list_hash_free(&rib->routes_head);
+	route_list_hash_free(&rib->routes);
 }
