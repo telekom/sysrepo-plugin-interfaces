@@ -46,8 +46,9 @@ Besides the usual C development environment, the following additional dependenci
 
 First clone the repository:
 
-```
-$ git clone https://github.com/telekom/sysrepo-plugin-interfaces
+```sh
+# clone recursively to also clone uthash library
+$ git clone https://github.com/telekom/sysrepo-plugin-interfaces --recursive
 ```
 
 Next, create a build directory and generate the build recipes using CMake:
@@ -117,10 +118,10 @@ The full documentation for the Sysrepo interfaces and routing plugins can be fou
 
 The following channels are available for discussions, feedback, and support requests:
 
-| Type                     | Channel                                                |
-| ------------------------ | ------------------------------------------------------ |
-| **Issues**   | <a href="/../../issues/new/choose" title="General Discussion"><img src="https://img.shields.io/github/issues/telekom/sysrepo-plugin-interfaces?style=flat-square"></a> </a>   |
-| **Other Requests**    | <a href="mailto:opensource@telekom.de" title="Email Open Source Team"><img src="https://img.shields.io/badge/email-Open%20Source%20Team-green?logo=mail.ru&style=flat-square&logoColor=white"></a>   |
+| Type               | Channel                                                                                                                                                                                            |
+| ------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Issues**         | <a href="/../../issues/new/choose" title="General Discussion"><img src="https://img.shields.io/github/issues/telekom/sysrepo-plugin-interfaces?style=flat-square"></a> </a>                        |
+| **Other Requests** | <a href="mailto:opensource@telekom.de" title="Email Open Source Team"><img src="https://img.shields.io/badge/email-Open%20Source%20Team-green?logo=mail.ru&style=flat-square&logoColor=white"></a> |
 
 ## How to Contribute
 
