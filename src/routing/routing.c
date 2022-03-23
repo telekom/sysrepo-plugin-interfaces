@@ -58,7 +58,7 @@
 
 static bool routing_running_datastore_is_empty(sr_session_ctx_t *session);
 
-int routing_sr_plugin_init_cb(sr_session_ctx_t *session, void **private_data)
+int sr_plugin_init_cb(sr_session_ctx_t *session, void **private_data)
 {
 	int error = 0;
 
@@ -155,7 +155,7 @@ out:
 	return error;
 }
 
-void routing_sr_plugin_cleanup_cb(sr_session_ctx_t *session, void *private_data)
+void sr_plugin_cleanup_cb(sr_session_ctx_t *session, void *private_data)
 {
 	struct routing_ctx *ctx = (struct routing_ctx *) private_data;
 
