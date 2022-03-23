@@ -22,6 +22,7 @@
 
 // helpers - split loading into parts
 static int bridging_startup_load_bridges(sr_session_ctx_t *session, struct lyd_node *bridges_container);
+static int bridging_startup_load_bridge_components(sr_session_ctx_t *session, struct lyd_node *bridge_node);
 
 int bridging_startup_load_data(bridging_ctx_t *ctx, sr_session_ctx_t *session)
 {
@@ -137,6 +138,12 @@ static int bridging_startup_load_bridges(sr_session_ctx_t *session, struct lyd_n
 				SRPLG_LOG_ERR(PLUGIN_NAME, "bridging_ly_tree_add_bridge_type() failed (%d)", error);
 				goto error_out;
 			}
+
+			error = bridging_startup_load_bridge_components(session, bridge_node);
+			if (error != 0) {
+				SRPLG_LOG_ERR(PLUGIN_NAME, "bridging_startup_load_bridge_components() failed (%d)", error);
+				goto error_out;
+			}
 		}
 
 		link_iter = (struct rtnl_link *) nl_cache_get_next((struct nl_object *) link_iter);
@@ -166,6 +173,13 @@ out:
 		ly_out_free(ly_output, NULL, 1);
 	}
 	sr_release_context(conn_ctx);
+
+	return error;
+}
+
+static int bridging_startup_load_bridge_components(sr_session_ctx_t *session, struct lyd_node *bridge_node)
+{
+	int error = 0;
 
 	return error;
 }
