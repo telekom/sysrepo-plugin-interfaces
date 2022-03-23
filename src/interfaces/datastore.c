@@ -38,7 +38,7 @@ static int ds_set_leaf_values(sr_session_ctx_t *session, char *base_xpath, char 
 			continue;
 		}
 		error = snprintf(xpath, sizeof(xpath), "%s/%s", base_xpath, leaf_names[i]);
-		if (error < 0) {
+		if (error < 0 || error >= PATH_MAX) {
 			SRPLG_LOG_ERR(PLUGIN_NAME, "snprintf error (%d): %s", error, strerror(error));
 			goto out;
 		}
@@ -69,7 +69,7 @@ int ds_set_general_interface_config(sr_session_ctx_t *session, char *interface_n
 	char base_xpath[PATH_MAX] = {0};
 	error = snprintf(base_xpath, sizeof(base_xpath), "%s[name=\"%s\"]",
 			 INTERFACE_LIST_YANG_PATH, interface_name);
-	if (error < 0) {
+	if (error < 0 || error >= PATH_MAX) {
 		SRPLG_LOG_ERR(PLUGIN_NAME, "snprintf error (%d): %s", error, strerror(error));
 		goto out;
 	}
@@ -96,7 +96,7 @@ int ds_set_interface_ip_config(sr_session_ctx_t *session, char *interface_name, 
 	char base_xpath[PATH_MAX] = {0};
 	error = snprintf(base_xpath, sizeof(base_xpath), "%s[name=\"%s\"]/ietf-ip:%s",
 			 INTERFACE_LIST_YANG_PATH, interface_name, ip_version);
-	if (error < 0) {
+	if (error < 0 || error >= PATH_MAX) {
 		SRPLG_LOG_ERR(PLUGIN_NAME, "snprintf error (%d): %s", error, strerror(error));
 		goto out;
 	}
@@ -134,7 +134,7 @@ int ds_add_interface_ipv4_address(sr_session_ctx_t *session, char *interface_nam
 	char base_xpath[PATH_MAX] = {0};
 	error = snprintf(base_xpath, sizeof(base_xpath), "%s[name=\"%s\"]/ietf-ip:ipv4/address[ip='%s']",
 			 INTERFACE_LIST_YANG_PATH, interface_name, ip);
-	if (error < 0) {
+	if (error < 0 || error >= PATH_MAX) {
 		SRPLG_LOG_ERR(PLUGIN_NAME, "snprintf error (%d): %s", error, strerror(error));
 		goto out;
 	}
@@ -159,7 +159,7 @@ int ds_add_interface_ipv4_neighbor(sr_session_ctx_t *session, char *interface_na
 	char base_xpath[PATH_MAX] = {0};
 	error = snprintf(base_xpath, sizeof(base_xpath), "%s[name=\"%s\"]/ietf-ip:ipv4/neighbor[ip='%s']",
 			 INTERFACE_LIST_YANG_PATH, interface_name, neigh_ip);
-	if (error < 0) {
+	if (error < 0 || error >= PATH_MAX) {
 		SRPLG_LOG_ERR(PLUGIN_NAME, "snprintf error (%d): %s", error, strerror(error));
 		goto out;
 	}
@@ -185,7 +185,7 @@ int ds_add_interface_ipv6_address(sr_session_ctx_t *session, char *interface_nam
 	char base_xpath[PATH_MAX] = {0};
 	error = snprintf(base_xpath, sizeof(base_xpath), "%s[name=\"%s\"]/ietf-ip:ipv6/address[ip='%s']",
 			 INTERFACE_LIST_YANG_PATH, interface_name, ip);
-	if (error < 0) {
+	if (error < 0 || error >= PATH_MAX) {
 		SRPLG_LOG_ERR(PLUGIN_NAME, "snprintf error (%d): %s", error, strerror(error));
 		goto out;
 	}
@@ -212,7 +212,7 @@ int ds_add_interface_ipv6_neighbor(sr_session_ctx_t *session, char *interface_na
 	char base_xpath[PATH_MAX] = {0};
 	error = snprintf(base_xpath, sizeof(base_xpath), "%s[name=\"%s\"]/ietf-ip:ipv6/neighbor[ip='%s']",
 			 INTERFACE_LIST_YANG_PATH, interface_name, neigh_ip);
-	if (error < 0) {
+	if (error < 0 || error >= PATH_MAX) {
 		SRPLG_LOG_ERR(PLUGIN_NAME, "snprintf error (%d): %s", error, strerror(error));
 		goto out;
 	}
@@ -245,7 +245,7 @@ int ds_oper_set_interface_info(struct lyd_node *parent, const struct ly_ctx *ly_
 		char xpath[PATH_MAX] = {0};
 		error = snprintf(xpath, sizeof(xpath), "%s[name=\"%s\"]/%s", INTERFACE_LIST_YANG_PATH,
 				 interface_name, interface_oper_info_leaf_names[i]);
-		if (error < 0) {
+		if (error < 0 || error >= PATH_MAX) {
 			SRPLG_LOG_ERR(PLUGIN_NAME, "snprintf error (%d): %s", error, strerror(error));
 			goto out;
 		}
@@ -268,7 +268,7 @@ int ds_oper_add_interface_higher_layer_if(struct lyd_node *parent, const struct 
 	char xpath[PATH_MAX] = {0};
 	error = snprintf(xpath, sizeof(xpath), "%s[name=\"%s\"]/higher-layer-if",
 			 INTERFACE_LIST_YANG_PATH, interface_name);
-	if (error < 0) {
+	if (error < 0 || error >= PATH_MAX) {
 		SRPLG_LOG_ERR(PLUGIN_NAME, "snprintf error (%d): %s", error, strerror(error));
 		goto out;
 	}
@@ -289,7 +289,7 @@ int ds_oper_add_interface_lower_layer_if(struct lyd_node *parent, const struct l
 	char xpath[PATH_MAX] = {0};
 	error = snprintf(xpath, sizeof(xpath), "%s[name=\"%s\"]/lower-layer-if",
 			 INTERFACE_LIST_YANG_PATH, interface_name);
-	if (error < 0) {
+	if (error < 0 || error >= PATH_MAX) {
 		SRPLG_LOG_ERR(PLUGIN_NAME, "snprintf error (%d): %s", error, strerror(error));
 		goto out;
 	}
@@ -331,7 +331,7 @@ int ds_oper_set_interface_statistics(struct lyd_node *parent, const struct ly_ct
 		char xpath[PATH_MAX] = {0};
 		error = snprintf(xpath, sizeof(xpath), "%s[name=\"%s\"]/statistics/%s", INTERFACE_LIST_YANG_PATH,
 				 interface_name, interface_statistics_leaf_names[i]);
-		if (error < 0) {
+		if (error < 0 || error >= PATH_MAX) {
 			SRPLG_LOG_ERR(PLUGIN_NAME, "snprintf error (%d): %s", error, strerror(error));
 			goto out;
 		}
