@@ -509,7 +509,7 @@ class IpTestCase(InterfacesTestCase):
 
     def test_subinterface(self):
         """
-        Attempt to create a subinterface.
+        Attempt to create a vlan qinq subinterface.
 
         The `sub-interfaces` feature of the `ietf-if-extensions` yang module should be
         enabled before running this test.
@@ -556,6 +556,7 @@ class IpTestCase(InterfacesTestCase):
         subinterface_name = parent_interface + ".sub1"
         all_interfaces = set(os.listdir('/sys/class/net/'))
         self.assertTrue(subinterface_name in all_interfaces)
+        self.assertTrue(subinterface_name + ".20" in all_interfaces)
 
         # check ipv6 address and prefix-length
         p = subprocess.run(
@@ -563,18 +564,26 @@ class IpTestCase(InterfacesTestCase):
         )
         self.assertTrue("inet6 2001:db8:10::1/48" in p.stdout)
 
-        # check vlan
+        # check qinq vlan tag (s-tag)
         p = subprocess.run(
             ['ip', '-d', 'link', 'show', subinterface_name], capture_output=True, encoding="ascii"
         )
         self.assertTrue("vlan protocol 802.1ad id 10" in p.stdout)
 
+        # check second tag (c-tag)
+        p = subprocess.run(
+            ['ip', '-d', 'link', 'show', subinterface_name + ".20"], capture_output=True, encoding="ascii"
+        )
+        self.assertTrue("vlan protocol 802.1Q id 20" in p.stdout)
+
         data.free()
         self.session.replace_config_ly(self.initial_data, "ietf-interfaces")
 
-        # make sure the subinterface is deleted after replacing the configuration with initial data
+        # make sure both created subinterfaces (one for the s-tag and one for the c-tag)
+        # are deleted after replacing the configuration with initial data
         all_interfaces = set(os.listdir('/sys/class/net/'))
         self.assertTrue(subinterface_name not in all_interfaces)
+        self.assertTrue(subinterface_name + ".20" not in all_interfaces)
 
 
 if __name__ == '__main__':

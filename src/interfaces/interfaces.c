@@ -26,6 +26,7 @@
 #include <linux/if.h>
 #include <linux/if.h>
 #include <linux/if_addr.h>
+#include <linux/if_ether.h>
 #include <linux/ip.h>
 #include <linux/limits.h>
 
@@ -90,7 +91,7 @@ int update_link_info(link_data_list_t *ld, sr_change_oper_t operation);
 static char *convert_ianaiftype(char *iana_if_type);
 int add_existing_links(sr_session_ctx_t *session, link_data_list_t *ld);
 static int get_interface_description(sr_session_ctx_t *session, char *name, char **description);
-static int create_vlan_qinq(char *name, char *parent_interface, uint16_t outer_vlan_id, uint16_t second_vlan_id);
+static int create_vlan_qinq(struct nl_sock *socket, struct nl_cache *cache, char *second_vlan_name, char *name, char *parent_interface, uint16_t outer_vlan_id, uint16_t second_vlan_id);
 static int get_system_boot_time(char boot_datetime[]);
 
 // function to start all threads for each interface
@@ -1079,7 +1080,7 @@ int update_link_info(link_data_list_t *ld, sr_change_oper_t operation)
 					if_state_list_add(&if_state_changes, state, name);
 
 					// then create the interface with new parameters
-					create_vlan_qinq(name, parent_interface, outer_vlan_id, second_vlan_id);
+					create_vlan_qinq(socket, cache, second_vlan_name, name, parent_interface, outer_vlan_id, second_vlan_id);
 
 				} else if (second_vlan_id == 0) {
 					// normal vlan interface
@@ -1698,30 +1699,73 @@ static int remove_neighbors(ip_neighbor_list_t *nbor_list, struct nl_sock *socke
 	return 0;
 }
 
-static int create_vlan_qinq(char *name, char *parent_interface, uint16_t outer_vlan_id, uint16_t second_vlan_id)
+static int create_vlan_qinq(struct nl_sock *socket, struct nl_cache *cache, char *second_vlan_name, char *name, char *parent_interface, uint16_t outer_vlan_id, uint16_t second_vlan_id)
 {
 	int error = 0;
-	char cmd[CMD_LEN] = {0};
+	struct rtnl_link *outer_tag_link = rtnl_link_alloc();
+	struct rtnl_link *second_tag_link = rtnl_link_alloc();
 
-	// e.g.: # ip link add link eth0 name eth0.10 type vlan id 10 protocol 802.1ad
-	error = snprintf(cmd, sizeof(cmd), "ip link add link %s name %s type vlan id %d protocol 802.1ad", parent_interface, name, outer_vlan_id);
-	if (error < 0) {
-		SRP_LOG_ERRMSG("snprintf error");
-		return -1;
+	// create virtual link for outer tag
+	error = rtnl_link_set_type(outer_tag_link, "vlan");
+	if (error) {
+		SRP_LOG_ERR("rtnl_link_set_type error (%d): %s", error, nl_geterror(error));
+		goto out;
+	}
+	rtnl_link_set_name(outer_tag_link, name);
+	// set parent interface
+	int parent_index = rtnl_link_name2i(cache, parent_interface);
+	rtnl_link_set_link(outer_tag_link, parent_index);
+	// set protocol to 802.1ad (QinQ)
+	error = rtnl_link_vlan_set_protocol(outer_tag_link, htons(ETH_P_8021AD));
+	if (error) {
+		SRP_LOG_ERR("rtnl_link_vlan_set_protocol error (%d): %s", error, nl_geterror(error));
+		goto out;
+	}
+	// set outer vlan id (s-tag)
+	error = rtnl_link_vlan_set_id(outer_tag_link, outer_vlan_id);
+	if (error) {
+		SRP_LOG_ERR("rtnl_link_vlan_set_id error (%d): %s", error, nl_geterror(error));
+		goto out;
+	}
+	error = rtnl_link_add(socket, outer_tag_link, NLM_F_CREATE);
+	if (error) {
+		SRP_LOG_ERR("rtnl_link_add error (%d): %s", error, nl_geterror(error));
+		goto out;
 	}
 
-	error = system(cmd);
-
-	// e.g.: # ip link add link eth0.10 name eth0.10.20 type vlan id 20
-	error = snprintf(cmd, sizeof(cmd), "ip link add link %s name %s.%d type vlan id %d", name, name, second_vlan_id, second_vlan_id);
-	if (error < 0) {
-		SRP_LOG_ERRMSG("snprintf error");
-		return -1;
+	// create virtual link for second tag
+	error = rtnl_link_set_type(second_tag_link, "vlan");
+	if (error) {
+		SRP_LOG_ERR("rtnl_link_set_type error (%d): %s", error, nl_geterror(error));
+		goto out;
 	}
-
-	error = system(cmd);
-
-	return 0;
+	rtnl_link_set_name(second_tag_link, second_vlan_name);
+	// retrieve outer_tag_link struct from the kernel so that it contains the correct ifindex
+	rtnl_link_put(outer_tag_link);
+	outer_tag_link = NULL;
+	error = rtnl_link_get_kernel(socket, 0, name, &outer_tag_link);
+	if (error) {
+		SRP_LOG_ERR("rtnl_link_get_kernel error (%d): %s", error, nl_geterror(error));
+		goto out;
+	}
+	// set outer_tag_link as the parent of second_tag_link to ensure it
+	// will be deleted automatically when outer_tag_link is deleted
+	rtnl_link_set_link(second_tag_link, rtnl_link_get_ifindex(outer_tag_link));
+	// set second vlan id (c-tag)
+	error = rtnl_link_vlan_set_id(second_tag_link, second_vlan_id);
+	if (error) {
+		SRP_LOG_ERR("rtnl_link_vlan_set_id error (%d): %s", error, nl_geterror(error));
+		goto out;
+	}
+	error = rtnl_link_add(socket, second_tag_link, NLM_F_CREATE);
+	if (error) {
+		SRP_LOG_ERR("rtnl_link_add error (%d): %s", error, nl_geterror(error));
+		goto out;
+	}
+out:
+	rtnl_link_put(outer_tag_link);
+	rtnl_link_put(second_tag_link);
+	return error;
 }
 
 static bool check_system_interface(const char *interface_name, bool *system_interface)
