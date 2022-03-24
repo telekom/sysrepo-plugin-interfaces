@@ -1707,33 +1707,35 @@ static int create_vlan_qinq(struct nl_sock *socket, struct nl_cache *cache, char
 
 	// create virtual link for outer tag
 	error = rtnl_link_set_type(outer_tag_link, "vlan");
-	if (error < 0) {
+	if (error) {
 		SRP_LOG_ERR("rtnl_link_set_type error (%d): %s", error, nl_geterror(error));
 		goto out;
 	}
 	rtnl_link_set_name(outer_tag_link, name);
 	// set parent interface
-	int master_index = rtnl_link_name2i(cache, parent_interface);
-	rtnl_link_set_link(outer_tag_link, master_index);
+	int parent_index = rtnl_link_name2i(cache, parent_interface);
+	rtnl_link_set_link(outer_tag_link, parent_index);
 	// set protocol to 802.1ad (QinQ)
 	error = rtnl_link_vlan_set_protocol(outer_tag_link, htons(ETH_P_8021AD));
 	if (error) {
 		SRP_LOG_ERR("rtnl_link_vlan_set_protocol error (%d): %s", error, nl_geterror(error));
+		goto out;
 	}
 	// set outer vlan id (s-tag)
 	error = rtnl_link_vlan_set_id(outer_tag_link, outer_vlan_id);
 	if (error) {
 		SRP_LOG_ERR("rtnl_link_vlan_set_id error (%d): %s", error, nl_geterror(error));
+		goto out;
 	}
 	error = rtnl_link_add(socket, outer_tag_link, NLM_F_CREATE);
-	if (error != 0) {
+	if (error) {
 		SRP_LOG_ERR("rtnl_link_add error (%d): %s", error, nl_geterror(error));
 		goto out;
 	}
 
 	// create virtual link for second tag
 	error = rtnl_link_set_type(second_tag_link, "vlan");
-	if (error < 0) {
+	if (error) {
 		SRP_LOG_ERR("rtnl_link_set_type error (%d): %s", error, nl_geterror(error));
 		goto out;
 	}
@@ -1753,9 +1755,10 @@ static int create_vlan_qinq(struct nl_sock *socket, struct nl_cache *cache, char
 	error = rtnl_link_vlan_set_id(second_tag_link, second_vlan_id);
 	if (error) {
 		SRP_LOG_ERR("rtnl_link_vlan_set_id error (%d): %s", error, nl_geterror(error));
+		goto out;
 	}
 	error = rtnl_link_add(socket, second_tag_link, NLM_F_CREATE);
-	if (error != 0) {
+	if (error) {
 		SRP_LOG_ERR("rtnl_link_add error (%d): %s", error, nl_geterror(error));
 		goto out;
 	}
