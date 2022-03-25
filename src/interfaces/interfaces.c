@@ -2183,6 +2183,9 @@ int add_existing_links(sr_session_ctx_t *session, link_data_list_t *ld)
 	link = (struct rtnl_link *) nl_cache_get_first(cache);
 
 	while (link != NULL) {
+		// reset parent interface
+		parent_interface = NULL;
+
 		name = rtnl_link_get_name(link);
 		if (name == NULL) {
 			SRPLG_LOG_ERR(PLUGIN_NAME, "rtnl_link_get_name error");
