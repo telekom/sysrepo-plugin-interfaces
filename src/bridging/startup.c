@@ -1,4 +1,5 @@
 #include "startup.h"
+#include "netlink/route/link/vlan.h"
 #include <bridging/common.h>
 #include <bridging/ly_tree.h>
 
@@ -22,7 +23,7 @@
 
 // helpers - split loading into parts
 static int bridging_startup_load_bridges(sr_session_ctx_t *session, struct lyd_node *bridges_container);
-static int bridging_startup_load_bridge_components(sr_session_ctx_t *session, struct lyd_node *bridge_node);
+static int bridging_startup_load_bridge_component_list(sr_session_ctx_t *session, struct lyd_node *bridge_node, struct rtnl_link *bridge_link, struct nl_cache *link_cache);
 
 int bridging_startup_load_data(bridging_ctx_t *ctx, sr_session_ctx_t *session)
 {
@@ -139,9 +140,10 @@ static int bridging_startup_load_bridges(sr_session_ctx_t *session, struct lyd_n
 				goto error_out;
 			}
 
-			error = bridging_startup_load_bridge_components(session, bridge_node);
+			// component
+			error = bridging_startup_load_bridge_component_list(session, bridge_node, link_iter, link_cache);
 			if (error != 0) {
-				SRPLG_LOG_ERR(PLUGIN_NAME, "bridging_startup_load_bridge_components() failed (%d)", error);
+				SRPLG_LOG_ERR(PLUGIN_NAME, "bridging_startup_load_bridge_component_list() failed (%d)", error);
 				goto error_out;
 			}
 		}
@@ -177,9 +179,48 @@ out:
 	return error;
 }
 
-static int bridging_startup_load_bridge_components(sr_session_ctx_t *session, struct lyd_node *bridge_node)
+static int bridging_startup_load_bridge_component_list(sr_session_ctx_t *session, struct lyd_node *bridge_node, struct rtnl_link *bridge_link, struct nl_cache *link_cache)
 {
 	int error = 0;
+
+	sr_conn_ctx_t *conn_ctx = NULL;
+
+	// libyang
+	struct ly_out *ly_output = NULL;
+	struct lyd_node *component_node = NULL;
+	const struct ly_ctx *ly_ctx = NULL;
+	// LY_ERR ly_error = LY_SUCCESS;
+
+	// libnl
+	struct rtnl_link *link_iter = NULL;
+
+	conn_ctx = sr_session_get_connection(session);
+	ly_ctx = sr_acquire_context(conn_ctx);
+
+	link_iter = (struct rtnl_link *) nl_cache_get_first(link_cache);
+
+	while (link_iter != NULL) {
+		if (rtnl_link_get_master(link_iter) == rtnl_link_get_ifindex(bridge_link) && rtnl_link_is_vlan(link_iter)) {
+			// found VLAN interface associated with the bridge -> add a new component
+			error = bridging_ly_tree_add_bridge_component(ly_ctx, bridge_node, link_iter, &component_node);
+			if (error) {
+				SRPLG_LOG_ERR(PLUGIN_NAME, "bridging_ly_tree_add_bridge_component() failed (%d)", error);
+				goto error_out;
+			}
+		}
+		link_iter = (struct rtnl_link *) nl_cache_get_next((struct nl_object *) link_cache);
+	}
+
+	goto out;
+
+error_out:
+	error = -1;
+
+out:
+	if (ly_output) {
+		ly_out_free(ly_output, NULL, 1);
+	}
+	sr_release_context(conn_ctx);
 
 	return error;
 }

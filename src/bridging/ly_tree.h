@@ -12,6 +12,12 @@ int bridging_ly_tree_add_bridges_container(const struct ly_ctx *ly_ctx, struct l
 int bridging_ly_tree_add_bridge(const struct ly_ctx *ly_ctx, struct lyd_node *bridges_container, struct rtnl_link *bridge_link, struct lyd_node **bridge_node);
 int bridging_ly_tree_add_bridge_address(const struct ly_ctx *ly_ctx, struct lyd_node *bridge_node, struct rtnl_link *bridge_link);
 int bridging_ly_tree_add_bridge_type(const struct ly_ctx *ly_ctx, struct lyd_node *bridge_node, struct rtnl_link *bridge_link);
+
+// operational
 int bridging_ly_tree_add_bridge_ports(const struct ly_ctx *ly_ctx, struct lyd_node *bridge_node, struct rtnl_link *bridge_link, struct nl_cache *link_cache);
+int bridging_ly_tree_add_bridge_components(const struct ly_ctx *ly_ctx, struct lyd_node *bridge_node, struct rtnl_link *bridge_link, struct nl_cache *link_cache);
+
+// change - component
+int bridging_ly_tree_add_bridge_component(const struct ly_ctx *ly_ctx, struct lyd_node *bridge_node, struct rtnl_link *component_link, struct lyd_node **component_node);
 
 #endif // BRIDGING_PLUGIN_LY_TREE_H
