@@ -78,7 +78,7 @@ Lastly, invoke the build and install using `make`:
 $ make -j$(nproc) install
 ```
 
-The plugins require several YANG modules to be loaded into the Sysrepo datastore.
+The plugins require several YANG modules to be loaded into the Sysrepo datastore and several features need to be enabled.
 For the interfaces plugin this can be achieved by invoking the following commands:
 
 ```
@@ -88,6 +88,8 @@ $ sysrepoctl -i ./yang/ietf-ip@2018-02-22.yang
 $ sysrepoctl -i ./yang/ietf-if-extensions@2020-07-29.yang
 $ sysrepoctl -i ./yang/ieee802-dot1q-types.yang
 $ sysrepoctl -i ./yang/ietf-if-vlan-encapsulation@2020-07-13.yang
+$ sysrepoctl --change ietf-interfaces --enable-feature if-mib
+$ sysrepoctl --change ietf-if-extensions --enable-feature sub-interfaces
 ```
 
 For the routing plugin, the following models have to be installed:
