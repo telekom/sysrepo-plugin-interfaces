@@ -26,9 +26,6 @@ int bridge_address_change_cb(bridging_ctx_t *ctx, sr_session_ctx_t *session, str
 // common functionality for iterating changes specified by the given xpath - calls callback function for each iterated node
 int apply_change(bridging_ctx_t *ctx, sr_session_ctx_t *session, const char *xpath, bridging_change_cb cb);
 
-// helpers
-static void mac_address_ly_to_nl(char *addr);
-
 int bridging_bridge_list_change_cb(sr_session_ctx_t *session, uint32_t subscription_id, const char *module_name, const char *xpath, sr_event_t event, uint32_t request_id, void *private_data)
 {
 	int error = 0;
@@ -318,12 +315,4 @@ out:
 		rtnl_link_put(change_link);
 	}
 	return error;
-}
-
-static void mac_address_ly_to_nl(char *addr)
-{
-	char *tmp_ptr = addr;
-	while ((tmp_ptr = strchr(tmp_ptr, '-'))) {
-		*tmp_ptr = ':';
-	}
 }

@@ -201,10 +201,32 @@ static int bridging_startup_load_bridge_component_list(sr_session_ctx_t *session
 
 	while (link_iter != NULL) {
 		if (rtnl_link_get_master(link_iter) == rtnl_link_get_ifindex(bridge_link) && rtnl_link_is_vlan(link_iter)) {
+			struct rtnl_link *component_link = link_iter;
 			// found VLAN interface associated with the bridge -> add a new component
-			error = bridging_ly_tree_add_bridge_component(ly_ctx, bridge_node, link_iter, &component_node);
+			error = bridging_ly_tree_add_bridge_component(ly_ctx, bridge_node, component_link, &component_node);
 			if (error) {
 				SRPLG_LOG_ERR(PLUGIN_NAME, "bridging_ly_tree_add_bridge_component() failed (%d)", error);
+				goto error_out;
+			}
+
+			// id
+			error = bridging_ly_tree_add_bridge_component_id(ly_ctx, component_node, component_link);
+			if (error) {
+				SRPLG_LOG_ERR(PLUGIN_NAME, "bridging_ly_tree_add_bridge_component_id() failed (%d)", error);
+				goto error_out;
+			}
+
+			// type
+			error = bridging_ly_tree_add_bridge_component_type(ly_ctx, component_node, component_link);
+			if (error) {
+				SRPLG_LOG_ERR(PLUGIN_NAME, "bridging_ly_tree_add_bridge_component_type() failed (%d)", error);
+				goto error_out;
+			}
+
+			// address
+			error = bridging_ly_tree_add_bridge_component_address(ly_ctx, component_node, component_link);
+			if (error) {
+				SRPLG_LOG_ERR(PLUGIN_NAME, "bridging_ly_tree_add_bridge_component_address() failed (%d)", error);
 				goto error_out;
 			}
 		}

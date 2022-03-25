@@ -46,14 +46,10 @@ int bridging_ly_tree_add_bridge_address(const struct ly_ctx *ly_ctx, struct lyd_
 	LY_ERR ly_error = LY_SUCCESS;
 
 	char mac_addr_buffer[100] = {0};
-	char *tmp_ptr = mac_addr_buffer;
 
 	// get mac address and convert libnl format to libyang format
 	nl_addr2str(rtnl_link_get_addr(bridge_link), mac_addr_buffer, sizeof(mac_addr_buffer));
-	tmp_ptr = mac_addr_buffer;
-	while ((tmp_ptr = strchr(tmp_ptr, ':'))) {
-		*tmp_ptr = '-';
-	}
+	mac_address_nl_to_ly(mac_addr_buffer);
 
 	// add node
 	SRPLG_LOG_DBG(PLUGIN_NAME, "Bridge address = %s", mac_addr_buffer);
@@ -71,10 +67,12 @@ int bridging_ly_tree_add_bridge_type(const struct ly_ctx *ly_ctx, struct lyd_nod
 	int error = 0;
 	LY_ERR ly_error = LY_SUCCESS;
 
-	SRPLG_LOG_DBG(PLUGIN_NAME, "Bridge type = %s", "customer-vlan-bridge");
-	ly_error = lyd_new_path(bridge_node, ly_ctx, "bridge-type", "customer-vlan-bridge", 0, NULL);
+	const char *type = "customer-vlan-bridge";
+
+	SRPLG_LOG_DBG(PLUGIN_NAME, "Bridge type = %s", type);
+	ly_error = lyd_new_path(bridge_node, ly_ctx, "bridge-type", type, 0, NULL);
 	if (ly_error != LY_SUCCESS) {
-		SRPLG_LOG_ERR(PLUGIN_NAME, "lyd_new_path() for \"type\" failed (%d): %s", ly_error, ly_errmsg(ly_ctx));
+		SRPLG_LOG_ERR(PLUGIN_NAME, "lyd_new_path() for bridge:\"type\" failed (%d): %s", ly_error, ly_errmsg(ly_ctx));
 		return -1;
 	}
 
@@ -105,7 +103,7 @@ int bridging_ly_tree_add_bridge_ports(const struct ly_ctx *ly_ctx, struct lyd_no
 	SRPLG_LOG_DBG(PLUGIN_NAME, "Bridge ports = %s", str_buffer);
 	ly_error = lyd_new_path(bridge_node, ly_ctx, "ports", str_buffer, 0, NULL);
 	if (ly_error != LY_SUCCESS) {
-		SRPLG_LOG_ERR(PLUGIN_NAME, "lyd_new_path() for \"ports\" failed (%d): %s", ly_error, ly_errmsg(ly_ctx));
+		SRPLG_LOG_ERR(PLUGIN_NAME, "lyd_new_path() for bridge:\"ports\" failed (%d): %s", ly_error, ly_errmsg(ly_ctx));
 		return -1;
 	}
 
@@ -115,12 +113,13 @@ int bridging_ly_tree_add_bridge_ports(const struct ly_ctx *ly_ctx, struct lyd_no
 int bridging_ly_tree_add_bridge_components(const struct ly_ctx *ly_ctx, struct lyd_node *bridge_node, struct rtnl_link *bridge_link, struct nl_cache *link_cache)
 {
 	LY_ERR ly_error = LY_SUCCESS;
+	int error = 0;
 
 	struct rtnl_link *link_iter = NULL;
-	uint16_t components = 0;
+	uint32_t components = 0;
 
 	// max 4096 = 4 chars + null terminator
-	char str_buffer[5] = {0};
+	char str_buffer[100] = {0};
 
 	// count number of interfaces whose master is the bridge link
 	link_iter = (struct rtnl_link *) nl_cache_get_first(link_cache);
@@ -131,12 +130,16 @@ int bridging_ly_tree_add_bridge_components(const struct ly_ctx *ly_ctx, struct l
 		link_iter = (struct rtnl_link *) nl_cache_get_next((struct nl_object *) link_iter);
 	}
 
-	snprintf(str_buffer, sizeof(str_buffer), "%d", components);
+	error = snprintf(str_buffer, sizeof(str_buffer), "%d", components);
+	if (error < 0) {
+		SRPLG_LOG_ERR(PLUGIN_NAME, "snprintf() failed (%d)", error);
+		return -1;
+	}
 
-	SRPLG_LOG_DBG(PLUGIN_NAME, "Bridge ports = %s", str_buffer);
+	SRPLG_LOG_DBG(PLUGIN_NAME, "Bridge components = %s", str_buffer);
 	ly_error = lyd_new_path(bridge_node, ly_ctx, "components", str_buffer, 0, NULL);
 	if (ly_error != LY_SUCCESS) {
-		SRPLG_LOG_ERR(PLUGIN_NAME, "lyd_new_path() for \"components\" failed (%d): %s", ly_error, ly_errmsg(ly_ctx));
+		SRPLG_LOG_ERR(PLUGIN_NAME, "lyd_new_path() for bridge:\"components\" failed (%d): %s", ly_error, ly_errmsg(ly_ctx));
 		return -1;
 	}
 
@@ -158,7 +161,69 @@ int bridging_ly_tree_add_bridge_component(const struct ly_ctx *ly_ctx, struct ly
 
 	ly_error = lyd_new_path(bridge_node, ly_ctx, path_buffer, rtnl_link_get_name(component_link), LYD_NEW_PATH_UPDATE, component_node);
 	if (ly_error != LY_SUCCESS) {
-		SRPLG_LOG_ERR(PLUGIN_NAME, "lyd_new_path() for \"component\" failed (%d): %s", ly_error, ly_errmsg(ly_ctx));
+		SRPLG_LOG_ERR(PLUGIN_NAME, "lyd_new_path() for component:\"name\" failed (%d): %s", ly_error, ly_errmsg(ly_ctx));
+		return -1;
+	}
+
+	return 0;
+}
+
+int bridging_ly_tree_add_bridge_component_id(const struct ly_ctx *ly_ctx, struct lyd_node *component_node, struct rtnl_link *component_link)
+{
+	int error = 0;
+	LY_ERR ly_error = LY_SUCCESS;
+
+	char id_buffer[100] = {0};
+	uint32_t component_id = (uint32_t) rtnl_link_vlan_get_id(component_link);
+
+	error = snprintf(id_buffer, sizeof(id_buffer), "%u", component_id);
+	if (error < 0) {
+		SRPLG_LOG_ERR(PLUGIN_NAME, "snprintf() failed (%d)", error);
+		return -1;
+	}
+
+	SRPLG_LOG_DBG(PLUGIN_NAME, "Bridge component id = %s", id_buffer);
+	ly_error = lyd_new_path(component_node, ly_ctx, "id", id_buffer, 0, NULL);
+	if (ly_error != LY_SUCCESS) {
+		SRPLG_LOG_ERR(PLUGIN_NAME, "lyd_new_path() for component:\"id\" failed (%d): %s", ly_error, ly_errmsg(ly_ctx));
+		return -1;
+	}
+
+	return error;
+}
+
+int bridging_ly_tree_add_bridge_component_type(const struct ly_ctx *ly_ctx, struct lyd_node *component_node, struct rtnl_link *component_link)
+{
+	int error = 0;
+	LY_ERR ly_error = LY_SUCCESS;
+
+	const char *type = "c-vlan-component";
+
+	SRPLG_LOG_DBG(PLUGIN_NAME, "Bridge component type = %s", type);
+	ly_error = lyd_new_path(component_node, ly_ctx, "type", type, 0, NULL);
+	if (ly_error != LY_SUCCESS) {
+		SRPLG_LOG_ERR(PLUGIN_NAME, "lyd_new_path() for component:\"type\" failed (%d): %s", ly_error, ly_errmsg(ly_ctx));
+		return -1;
+	}
+
+	return error;
+}
+
+int bridging_ly_tree_add_bridge_component_address(const struct ly_ctx *ly_ctx, struct lyd_node *component_node, struct rtnl_link *component_link)
+{
+	LY_ERR ly_error = LY_SUCCESS;
+
+	char mac_addr_buffer[100] = {0};
+
+	// get mac address and convert libnl format to libyang format
+	nl_addr2str(rtnl_link_get_addr(component_link), mac_addr_buffer, sizeof(mac_addr_buffer));
+	mac_address_nl_to_ly(mac_addr_buffer);
+
+	// add node
+	SRPLG_LOG_DBG(PLUGIN_NAME, "Bridge component address = %s", mac_addr_buffer);
+	ly_error = lyd_new_path(component_node, ly_ctx, "address", mac_addr_buffer, 0, NULL);
+	if (ly_error != LY_SUCCESS) {
+		SRPLG_LOG_ERR(PLUGIN_NAME, "lyd_new_path() for component:\"address\" failed (%d): %s", ly_error, ly_errmsg(ly_ctx));
 		return -1;
 	}
 
