@@ -11,4 +11,7 @@
 // bridge list
 #define BRIDGING_BRIDGE_LIST_YANG_PATH BRIDGING_BRIDGES_CONTAINER_YANG_PATH "/bridge"
 
+void mac_address_ly_to_nl(char *addr);
+void mac_address_nl_to_ly(char *addr);
+
 #endif // BRIDGING_PLUGIN_COMMON_H
