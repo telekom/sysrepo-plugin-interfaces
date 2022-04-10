@@ -10,6 +10,7 @@ set(
     bridging.c
     startup.c
     ly_tree.c
+    common.c
 
     # bridge
     bridge.c
