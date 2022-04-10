@@ -30,7 +30,7 @@ int main(void)
 		goto out;
 	}
 
-	error = bridging_sr_plugin_init_cb(session, &private_data);
+	error = sr_plugin_init_cb(session, &private_data);
 	if (error) {
 		SRPLG_LOG_ERR(PLUGIN_NAME, "sr_plugin_init_cb error");
 		goto out;
@@ -44,7 +44,7 @@ int main(void)
 	}
 
 out:
-	bridging_sr_plugin_cleanup_cb(session, private_data);
+	sr_plugin_cleanup_cb(session, private_data);
 	sr_disconnect(connection);
 
 	return error ? -1 : 0;

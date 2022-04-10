@@ -197,6 +197,7 @@ int bridging_ly_tree_add_bridge_component_type(const struct ly_ctx *ly_ctx, stru
 	int error = 0;
 	LY_ERR ly_error = LY_SUCCESS;
 
+	// TODO: configure type variable to match VLAN type
 	const char *type = "c-vlan-component";
 
 	SRPLG_LOG_DBG(PLUGIN_NAME, "Bridge component type = %s", type);

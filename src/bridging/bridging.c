@@ -22,7 +22,7 @@
 // check if the datastore which the session uses is empty (startup or running)
 static bool bridging_datastore_is_empty(sr_session_ctx_t *session);
 
-int bridging_sr_plugin_init_cb(sr_session_ctx_t *running_session, void **private_data)
+int sr_plugin_init_cb(sr_session_ctx_t *running_session, void **private_data)
 {
 	int error = 0;
 
@@ -89,7 +89,7 @@ out:
 	return error ? SR_ERR_CALLBACK_FAILED : SR_ERR_OK;
 }
 
-void bridging_sr_plugin_cleanup_cb(sr_session_ctx_t *running_session, void *private_data)
+void sr_plugin_cleanup_cb(sr_session_ctx_t *running_session, void *private_data)
 {
 	int error = 0;
 
