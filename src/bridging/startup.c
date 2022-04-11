@@ -56,6 +56,7 @@ int bridging_startup_load_data(bridging_ctx_t *ctx, sr_session_ctx_t *session)
 		SRPLG_LOG_ERR(PLUGIN_NAME, "sr_edit_batch() error (%d): %s", error, sr_strerror(error));
 		goto error_out;
 	}
+
 	error = sr_apply_changes(session, 0);
 	if (error != 0) {
 		SRPLG_LOG_ERR(PLUGIN_NAME, "sr_apply_changes() error (%d): %s", error, sr_strerror(error));
@@ -202,6 +203,7 @@ static int bridging_startup_load_bridge_component_list(sr_session_ctx_t *session
 	while (link_iter != NULL) {
 		if (rtnl_link_get_master(link_iter) == rtnl_link_get_ifindex(bridge_link) && rtnl_link_is_vlan(link_iter)) {
 			struct rtnl_link *component_link = link_iter;
+
 			// found VLAN interface associated with the bridge -> add a new component
 			error = bridging_ly_tree_add_bridge_component(ly_ctx, bridge_node, component_link, &component_node);
 			if (error) {

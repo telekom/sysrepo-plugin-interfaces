@@ -27,14 +27,6 @@ set(
     ${CMAKE_SOURCE_DIR}/src/utils/memory.c
 )
 
-if (NOT PLUGIN)
-	set(
-        SOURCES
-        ${SOURCES}
-        main.c
-    )
-endif()
-
 # get sysrepo version
 find_package(PkgConfig)
 if (PKG_CONFIG_FOUND)
@@ -48,11 +40,14 @@ if (PKG_CONFIG_FOUND)
     endif()
 endif()
 
+add_library(${PROJECT_NAME}-static STATIC ${SOURCES})
+
 if(PLUGIN)
     add_library(${PROJECT_NAME} MODULE ${SOURCES})
     install(TARGETS ${PROJECT_NAME} DESTINATION lib)
 else()
-    add_executable(${PROJECT_NAME} ${SOURCES})
+    add_executable(${PROJECT_NAME} main.c)
+    target_link_libraries(${PROJECT_NAME} ${PROJECT_NAME}-static)
     install(TARGETS ${PROJECT_NAME} DESTINATION bin)
 endif()
 
