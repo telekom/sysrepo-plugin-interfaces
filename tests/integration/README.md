@@ -6,6 +6,7 @@ The tests are located in `ietf-interfaces.py` while the test data is in XML file
 
 # Dependencies
 
+## Python 3
 As the integration tests are writen in python, several dependencies are required
 in order to run the tests.
 
@@ -20,8 +21,29 @@ source test-venv
 pip3 install -r requirements.txt
 ```
 
+## Robot framework
+
+Make sure to have Sysrepo and accompanying plugins installed under `libyang1`.
+
+Create a virtual environment, activate it and make sure `pip`, `setuptools` and `wheel` are up to date.
+Finally install the packages.
+
+```
+$ python3 -m venv sysrepolibrary-venv
+$ source sysrepolibrary-venv/bin/activate
+$ python3 -m pip install --upgrade pip setuptools wheel
+$ python3 -m pip install rpaframework SysrepoLibrary robotframework-tidy
+```
+
+To autoformat code run:
+```
+$ robotidy robot-ietf-interfaces/
+```
+
+
 # Running the tests
 
+## Python 3
 After setting up the dependencies, to run the tests either execute the `.py` file or
 run it in a python interpreter.
 
@@ -39,3 +61,12 @@ Ran 3 tests in 6.182s
 
 OK
 ```
+
+## Robot framework
+`tests/connection.robot` checks if SysrepoLibrary manages to connect and disconnet to Sysrepo, Open and close a session, as well as get, set datastore data. Requires sysrepo-plugin-system.
+Note the root privileges when invoking the command (datastore permission issues otherwise, item not found):
+
+Run:
+
+`# robot robot-ietf-interfaces`
+
