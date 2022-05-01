@@ -3,12 +3,12 @@ Library             SysrepoLibrary
 Library             RPA.JSON
 
 Suite Setup         Setup IETF Interfaces
-Suite Teardown      Close All Sysrepo Connections And Sessions
+Suite Teardown      Cleanup IETF Interfaces
 
 
 *** Variables ***
 ${Xpath Interfaces}     /ietf-interfaces:interfaces
-${Format}               json
+${Format JSON}          json
 ${Running Datastore}    running
 
 
@@ -16,13 +16,18 @@ ${Running Datastore}    running
 Setup IETF Interfaces
     ${Connection Default}=    Open Sysrepo Connection
     ${Session Running}=    Open Datastore Session    ${Connection Default}    ${Running Datastore}
-    ${If Str}=    Get Datastore Data
+    ${If Init Str}=    Get Datastore Data
     ...    ${Connection Default}
     ...    ${Session Running}
     ...    ${Xpath Interfaces}
-    ...    ${Format}
-    &{If JSON}=    Convert String To JSON    ${If Str}
+    ...    ${Format JSON}
+    &{If Init JSON}=    Convert String To JSON    ${If Init Str}
     Set Global Variable    ${Connection Default}
     Set Global Variable    ${Session Running}
-    Set Global Variable    ${If Str}
-    Set Global Variable    ${If JSON}
+    Set Global Variable    ${If Init Str}
+    Set Global Variable    ${If Init JSON}
+
+Cleanup IETF Interfaces
+    # Restore initial data
+    Edit Datastore Config    ${Connection Default}    ${Session Running}    ${If Init Str}   json
+    Close All Sysrepo Connections And Sessions
