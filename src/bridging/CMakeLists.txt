@@ -14,6 +14,8 @@ set(
 
     # bridge
     bridge.c
+
+    bridge_netlink.c
     
     # component
     bridge/component.c

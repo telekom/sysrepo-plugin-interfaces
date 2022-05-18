@@ -138,6 +138,13 @@ static int bridging_startup_load_bridges(sr_session_ctx_t *session, struct lyd_n
 				goto error_out;
 			}
 
+			bridge_vlan_info_t vlan_info = {0};
+			error = bridge_get_vlan_info(socket, link_iter, &vlan_info);
+			if (error != 0) {
+				SRPLG_LOG_ERR(PLUGIN_NAME, "bridge_get_vlan_info() failed (%d)", error);
+				goto error_out;
+			}
+
 			// type
 			error = bridging_ly_tree_add_bridge_type(ly_ctx, bridge_node, link_iter);
 			if (error != 0) {
