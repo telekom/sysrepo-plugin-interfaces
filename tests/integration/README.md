@@ -63,10 +63,9 @@ OK
 ```
 
 ## Robot framework
-`tests/connection.robot` checks if SysrepoLibrary manages to connect and disconnet to Sysrepo, Open and close a session, as well as get, set datastore data. Requires sysrepo-plugin-system.
 Note the root privileges when invoking the command (datastore permission issues otherwise, item not found):
 
-Run:
-
+To test the interfaces plugin:
 `# robot robot-ietf-interfaces`
-
+To test the routing plugin:
+`# robot robot-ietf-routing`
