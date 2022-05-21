@@ -8,23 +8,26 @@ Suite Teardown      Cleanup IETF Interfaces
 
 *** Variables ***
 ${Xpath Interfaces}     /ietf-interfaces:interfaces
-${Format JSON}          json
 ${Running Datastore}    running
 
 
 *** Keywords ***
 Setup IETF Interfaces
+    [Documentation]    Create a default connection and running session
     ${Connection Default}=    Open Sysrepo Connection
+    Set Global Variable    ${Connection Default}
+    Init Running Session
+
+Init Running Session
     ${Session Running}=    Open Datastore Session    ${Connection Default}    ${Running Datastore}
+    Set Global Variable    ${Session Running}
     ${If Init Str}=    Get Datastore Data
     ...    ${Connection Default}
     ...    ${Session Running}
     ...    ${Xpath Interfaces}
-    ...    ${Format JSON}
-    &{If Init JSON}=    Convert String To JSON    ${If Init Str}
-    Set Global Variable    ${Connection Default}
-    Set Global Variable    ${Session Running}
+    ...    json
     Set Global Variable    ${If Init Str}
+    &{If Init JSON}=    Convert String To JSON    ${If Init Str}
     Set Global Variable    ${If Init JSON}
 
 Cleanup IETF Interfaces

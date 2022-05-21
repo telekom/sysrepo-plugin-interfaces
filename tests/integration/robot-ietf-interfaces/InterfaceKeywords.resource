@@ -15,7 +15,7 @@ Interface Operstate Should Be Up
     ${Sys Enabled}=    Get File    /sys/class/net/${If Name}/operstate
     Should Be Equal As Strings    "${Sys Enabled.strip()}"    "up"
 
-Interface Get Json Fields
+Sysrepo Get Json Fields
     [Arguments]    ${Path}    ${Field}
     ${Path Str}=    Get Datastore Data
     ...    ${Connection Default}
