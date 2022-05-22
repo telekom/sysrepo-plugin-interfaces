@@ -1,3 +1,4 @@
+#include <linux/if_ether.h>
 #include "change.h"
 #include "netlink/addr.h"
 #include "netlink/cache.h"
@@ -6,6 +7,7 @@
 #include "sysrepo_types.h"
 #include <bridging/common.h>
 #include <bridging/context.h>
+#include <bridge_netlink.h>
 
 #include <string.h>
 #include <sysrepo.h>
@@ -20,8 +22,9 @@
 typedef int (*bridging_change_cb)(bridging_ctx_t *ctx, sr_session_ctx_t *session, struct nl_sock *socket, const struct lyd_node *node, sr_change_oper_t operation);
 
 // change callbacks - respond to node changes with the given operation
-int bridge_name_change_cb(bridging_ctx_t *ctx, sr_session_ctx_t *session, struct nl_sock *socket, const struct lyd_node *node, sr_change_oper_t operation);
-int bridge_address_change_cb(bridging_ctx_t *ctx, sr_session_ctx_t *session, struct nl_sock *socket, const struct lyd_node *node, sr_change_oper_t operation);
+int bridge_component_name_change_cb(bridging_ctx_t *ctx, sr_session_ctx_t *session, struct nl_sock *socket, const struct lyd_node *node, sr_change_oper_t operation);
+int bridge_component_address_change_cb(bridging_ctx_t *ctx, sr_session_ctx_t *session, struct nl_sock *socket, const struct lyd_node *node, sr_change_oper_t operation);
+int bridge_component_type_change_cb(bridging_ctx_t *ctx, sr_session_ctx_t *session, struct nl_sock *socket, const struct lyd_node *node, sr_change_oper_t operation);
 
 // common functionality for iterating changes specified by the given xpath - calls callback function for each iterated node
 int apply_change(bridging_ctx_t *ctx, sr_session_ctx_t *session, const char *xpath, bridging_change_cb cb);
@@ -49,31 +52,42 @@ int bridging_bridge_list_change_cb(sr_session_ctx_t *session, uint32_t subscript
 			goto error_out;
 		}
 	} else if (event == SR_EV_CHANGE) {
-		// name change
-		error = snprintf(xpath_buffer, sizeof(xpath_buffer), "%s//name", xpath);
+		// component name change
+		error = snprintf(xpath_buffer, sizeof(xpath_buffer), "%s//component/name", xpath);
 		if (error < 0) {
 			SRPLG_LOG_ERR(PLUGIN_NAME, "snprintf() error: %d", error);
 			goto error_out;
 		}
-		error = apply_change(ctx, session, xpath_buffer, bridge_name_change_cb);
+		error = apply_change(ctx, session, xpath_buffer, bridge_component_name_change_cb);
 		if (error) {
-			SRPLG_LOG_ERR(PLUGIN_NAME, "apply_change() for bridge name failed: %d", error);
+			SRPLG_LOG_ERR(PLUGIN_NAME, "apply_change() for bridge component name failed: %d", error);
+			goto error_out;
+		}
+		// component type change
+		error = snprintf(xpath_buffer, sizeof(xpath_buffer), "%s//component/type", xpath);
+		if (error < 0) {
+			SRPLG_LOG_ERR(PLUGIN_NAME, "snprintf() error: %d", error);
+			goto error_out;
+		}
+		error = apply_change(ctx, session, xpath_buffer, bridge_component_type_change_cb);
+		if (error) {
+			SRPLG_LOG_ERR(PLUGIN_NAME, "apply_change() for bridge component type failed: %d", error);
 			goto error_out;
 		}
 
 		// address change
-		error = snprintf(xpath_buffer, sizeof(xpath_buffer), "%s//address", xpath);
+		error = snprintf(xpath_buffer, sizeof(xpath_buffer), "%s//component/address", xpath);
 		if (error < 0) {
 			SRPLG_LOG_ERR(PLUGIN_NAME, "snprintf() error: %d", error);
 			goto error_out;
 		}
-		error = apply_change(ctx, session, xpath_buffer, bridge_address_change_cb);
+		error = apply_change(ctx, session, xpath_buffer, bridge_component_address_change_cb);
 		if (error) {
-			SRPLG_LOG_ERR(PLUGIN_NAME, "apply_change() for bridge address failed: %d", error);
+			SRPLG_LOG_ERR(PLUGIN_NAME, "apply_change() for bridge component address failed: %d", error);
 			goto error_out;
 		}
 	}
-	goto error_out;
+	goto out;
 
 error_out:
 	SRPLG_LOG_ERR(PLUGIN_NAME, "error applying bridge list module changes");
@@ -145,7 +159,7 @@ out:
 	return error;
 }
 
-int bridge_name_change_cb(bridging_ctx_t *ctx, sr_session_ctx_t *session, struct nl_sock *socket, const struct lyd_node *node, sr_change_oper_t operation)
+int bridge_component_name_change_cb(bridging_ctx_t *ctx, sr_session_ctx_t *session, struct nl_sock *socket, const struct lyd_node *node, sr_change_oper_t operation)
 {
 	int error = 0;
 
@@ -177,7 +191,7 @@ int bridge_name_change_cb(bridging_ctx_t *ctx, sr_session_ctx_t *session, struct
 			tmp_bridge = rtnl_link_bridge_alloc();
 			rtnl_link_set_name(tmp_bridge, node_value);
 
-			error = rtnl_link_add(socket, tmp_bridge, 0);
+			error = rtnl_link_add(socket, tmp_bridge, NLM_F_CREATE);
 			if (error != 0) {
 				SRPLG_LOG_ERR(PLUGIN_NAME, "rtnl_link_add() failed (%d): %s", error, nl_geterror(error));
 				goto error_out;
@@ -217,7 +231,7 @@ out:
 	return error;
 }
 
-int bridge_address_change_cb(bridging_ctx_t *ctx, sr_session_ctx_t *session, struct nl_sock *socket, const struct lyd_node *node, sr_change_oper_t operation)
+int bridge_component_address_change_cb(bridging_ctx_t *ctx, sr_session_ctx_t *session, struct nl_sock *socket, const struct lyd_node *node, sr_change_oper_t operation)
 {
 	int error = 0;
 
@@ -248,7 +262,7 @@ int bridge_address_change_cb(bridging_ctx_t *ctx, sr_session_ctx_t *session, str
 
 	node_name = sr_xpath_node_name(tmp_xpath);
 	node_value = lyd_get_value(node);
-	bridge_name = sr_xpath_key_value(tmp_xpath, "bridge", "name", &xpath_ctx);
+	bridge_name = sr_xpath_key_value(tmp_xpath, "component", "name", &xpath_ctx);
 
 	assert(strcmp(node_name, "address") == 0);
 
@@ -313,6 +327,95 @@ out:
 	}
 	if (change_link) {
 		rtnl_link_put(change_link);
+	}
+	return error;
+}
+
+int bridge_component_type_change_cb(bridging_ctx_t *ctx, sr_session_ctx_t *session, struct nl_sock *socket, const struct lyd_node *node, sr_change_oper_t operation)
+{
+	int error = 0;
+
+	// helper variables
+	char change_path[PATH_MAX] = {0};
+	char tmp_xpath[PATH_MAX] = {0};
+	const char *node_name = NULL;
+	const char *node_value = NULL;
+	const char *bridge_component_name = NULL;
+
+	// sysrepo
+	sr_xpath_ctx_t xpath_ctx = {0};
+
+	// libnl
+	struct rtnl_link *orig_link = NULL;
+	struct nl_cache *link_cache = NULL;
+
+	error = (lyd_path(node, LYD_PATH_STD, change_path, sizeof(change_path)) == NULL);
+	if (error) {
+		SRPLG_LOG_ERR(PLUGIN_NAME, "lyd_path() error: %d", error);
+		goto error_out;
+	}
+
+	// use temp buffer for xpath operations
+	memcpy(tmp_xpath, change_path, sizeof(change_path));
+
+	node_name = sr_xpath_node_name(tmp_xpath);
+	node_value = lyd_get_value(node);
+	bridge_component_name = sr_xpath_key_value(tmp_xpath, "component", "name", &xpath_ctx);
+
+	assert(strcmp(node_name, "type") == 0);
+
+	// get cache of interfaces
+	error = rtnl_link_alloc_cache(socket, AF_UNSPEC, &link_cache);
+	if (error < 0) {
+		SRPLG_LOG_ERR(PLUGIN_NAME, "rtnl_link_alloc_cache() failed (%d): %s", error, nl_geterror(error));
+		goto error_out;
+	}
+
+	SRPLG_LOG_DBG(PLUGIN_NAME, "Node Path: %s", change_path);
+	SRPLG_LOG_DBG(PLUGIN_NAME, "Node Name: %s", node_name);
+	SRPLG_LOG_DBG(PLUGIN_NAME, "Bridge component name: %s", bridge_component_name);
+	SRPLG_LOG_DBG(PLUGIN_NAME, "Value: %s; Operation: %d", node_value, operation);
+
+	switch (operation) {
+		case SR_OP_CREATED:
+			// change type of created bridge - same as modified
+		case SR_OP_MODIFIED:
+			// get bridge interface and set vlan config depending on type
+			orig_link = rtnl_link_get_by_name(link_cache, bridge_component_name);
+			if (orig_link == NULL) {
+				SRPLG_LOG_ERR(PLUGIN_NAME, "rtnl_link_get_by_name() failed (%d): %s", error, nl_geterror(error));
+				goto error_out;
+			}
+			int bridge_link_idx = rtnl_link_get_ifindex(orig_link);
+			bridge_vlan_info_t vlan_config = {0}; // vlan_filtering off (0) by default
+			if (strcmp(node_value, "ieee802-dot1q-bridge:c-vlan-component") == 0) {
+				vlan_config.vlan_filtering = 1;
+				vlan_config.vlan_proto = htons(ETH_P_8021Q);
+			} else if (strcmp(node_value, "ieee802-dot1q-bridge:s-vlan-component") == 0) {
+				vlan_config.vlan_filtering = 1;
+				vlan_config.vlan_proto = htons(ETH_P_8021AD);
+			}
+			error = bridge_set_vlan_config(socket, bridge_link_idx, &vlan_config);
+			if (error) {
+				SRPLG_LOG_ERR(PLUGIN_NAME, "bridge_set_vlan_config() failed");
+				goto error_out;
+			}
+			break;
+		case SR_OP_DELETED:
+			// type cannot be deleted
+		case SR_OP_MOVED:
+			break;
+	}
+
+	goto out;
+
+error_out:
+	error = -1;
+
+out:
+	// libnl
+	if (link_cache) {
+		nl_cache_free(link_cache);
 	}
 	return error;
 }
