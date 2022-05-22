@@ -17,4 +17,10 @@ struct bridge_vlan_info_s {
  */
 int bridge_get_vlan_info(struct nl_sock *socket, struct rtnl_link *bridge_link, bridge_vlan_info_t *vlan_info);
 
+/**
+ * Set the IFLA_BR_VLAN_FILTERING and IFLA_BR_VLAN_PROTOCOL attributes
+ * for an existing bridge.
+ */
+int bridge_set_vlan_config(struct nl_sock *socket, int bridge_link_idx, bridge_vlan_info_t *vlan_info);
+
 #endif // BRIDGING_PLUGIN_BRIDGE_NETLINK_H
