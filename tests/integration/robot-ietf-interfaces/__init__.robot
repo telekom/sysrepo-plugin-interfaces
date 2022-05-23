@@ -40,5 +40,5 @@ Init Running Session
 
 Cleanup IETF Interfaces
     # Restore initial data
-    Edit Datastore Config    ${Connection Default}    ${Session Running}    ${If Init Str}   json
+    Terminate Process    ${Plugin}
     Close All Sysrepo Connections And Sessions
