@@ -6,6 +6,7 @@ Library         SysrepoLibrary
 Library         RPA.JSON
 Variables       RoutingVariables.py
 Resource        RoutingKeywords.resource
+Resource        RoutingInit.resource
 
 *** Test Cases ***
 Test Routing Routes
