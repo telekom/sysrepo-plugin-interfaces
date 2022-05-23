@@ -9,6 +9,7 @@ Library         RPA.JSON
 Library         Utils.py
 Variables       InterfaceVariables.py
 Resource        InterfaceKeywords.resource
+Resource        InterfaceInit.resource
 
 
 *** Test Cases ***

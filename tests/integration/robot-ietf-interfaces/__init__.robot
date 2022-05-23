@@ -1,6 +1,8 @@
 *** Settings ***
 Library             SysrepoLibrary
 Library             RPA.JSON
+Library             Process
+Resource            InterfaceInit.resource
 
 Suite Setup         Setup IETF Interfaces
 Suite Teardown      Cleanup IETF Interfaces
@@ -14,9 +16,15 @@ ${Running Datastore}    running
 *** Keywords ***
 Setup IETF Interfaces
     [Documentation]    Create a default connection and running session
+    Start Plugin
     ${Connection Default}=    Open Sysrepo Connection
     Set Global Variable    ${Connection Default}
     Init Running Session
+
+Start Plugin
+    ${Plugin}=    Start Process    %{SYSREPO_INTERFACES_PLUGIN_PATH}
+    Set Suite Variable    ${Plugin}
+    Wait For Process    ${Plugin}    timeout=2s    on_timeout=continue
 
 Init Running Session
     ${Session Running}=    Open Datastore Session    ${Connection Default}    ${Running Datastore}
