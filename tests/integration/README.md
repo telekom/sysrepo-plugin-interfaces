@@ -65,7 +65,7 @@ OK
 ## Robot framework
 Note the root privileges when invoking the command (datastore permission issues otherwise, item not found):
 
-To test the interfaces plugin:
-`# robot robot-ietf-interfaces`
+To test the interfaces plugin (change env var path):
+`# SYSREPO_INTERFACES_PLUGIN_PATH=/path/to/interfaces/plugin/executable robot robot-ietf-interfaces`
 To test the routing plugin:
-`# robot robot-ietf-routing`
+`#  SYSREPO_ROUTING_PLUGIN_PATH=/path/to/routing/plugin/executable robot robot-ietf-routing`
