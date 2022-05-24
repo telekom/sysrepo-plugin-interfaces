@@ -7,6 +7,7 @@ Resource            InterfaceInit.resource
 Suite Setup         Setup IETF Interfaces
 Suite Teardown      Cleanup IETF Interfaces
 
+Test Teardown       Restore Initial Running Datastore
 
 *** Variables ***
 ${Xpath Interfaces}     /ietf-interfaces:interfaces
