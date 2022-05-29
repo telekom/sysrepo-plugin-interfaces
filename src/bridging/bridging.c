@@ -72,13 +72,19 @@ int sr_plugin_init_cb(sr_session_ctx_t *running_session, void **private_data)
 		goto error_out;
 	}
 
-	// change subscription
+	// bridge change subscription
 	error = sr_module_change_subscribe(running_session, BASE_YANG_MODEL, BRIDGING_BRIDGE_LIST_YANG_PATH, bridging_bridge_list_change_cb, *private_data, 0, SR_SUBSCR_DEFAULT, &subscription);
 	if (error) {
 		SRPLG_LOG_ERR(PLUGIN_NAME, "sr_module_change_subscribe() error (%d): %s", error, sr_strerror(error));
 		goto error_out;
 	}
 
+	// bridge-port change subscription
+	error = sr_module_change_subscribe(running_session, INTERFACES_YANG_MODEL, INTERFACES_LIST_PATH, bridge_port_change_cb, *private_data, 0, SR_SUBSCR_DEFAULT, &subscription);
+	if (error) {
+		SRPLG_LOG_ERR(PLUGIN_NAME, "sr_module_change_subscribe() error (%d): %s", error, sr_strerror(error));
+		goto error_out;
+	}
 	goto out;
 
 error_out:

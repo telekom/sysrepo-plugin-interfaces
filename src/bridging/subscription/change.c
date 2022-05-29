@@ -26,6 +26,8 @@ int bridge_component_name_change_cb(bridging_ctx_t *ctx, sr_session_ctx_t *sessi
 int bridge_component_address_change_cb(bridging_ctx_t *ctx, sr_session_ctx_t *session, struct nl_sock *socket, const struct lyd_node *node, sr_change_oper_t operation);
 int bridge_component_type_change_cb(bridging_ctx_t *ctx, sr_session_ctx_t *session, struct nl_sock *socket, const struct lyd_node *node, sr_change_oper_t operation);
 
+int bridge_port_component_name_change_cb(bridging_ctx_t *ctx, sr_session_ctx_t *session, struct nl_sock *socket, const struct lyd_node *node, sr_change_oper_t operation);
+
 // common functionality for iterating changes specified by the given xpath - calls callback function for each iterated node
 int apply_change(bridging_ctx_t *ctx, sr_session_ctx_t *session, const char *xpath, bridging_change_cb cb);
 
@@ -92,6 +94,53 @@ int bridging_bridge_list_change_cb(sr_session_ctx_t *session, uint32_t subscript
 error_out:
 	SRPLG_LOG_ERR(PLUGIN_NAME, "error applying bridge list module changes");
 	error = -1;
+
+out:
+	return error != 0 ? SR_ERR_CALLBACK_FAILED : SR_ERR_OK;
+}
+
+int bridge_port_change_cb(sr_session_ctx_t *session, uint32_t subscription_id, const char *module_name, const char *xpath, sr_event_t event, uint32_t request_id, void *private_data)
+{
+	SRPLG_LOG_DBG(PLUGIN_NAME, "in bridge_port_change_cb");
+	int error = 0;
+
+	// context
+	bridging_ctx_t *ctx = (bridging_ctx_t *) private_data;
+
+	// xpath buffer
+	char xpath_buffer[PATH_MAX] = {0};
+
+	SRPLG_LOG_INF(PLUGIN_NAME, "Module Name: %s; XPath: %s; Event: %d, Request ID: %u", module_name, xpath, event, request_id);
+
+	if (event == SR_EV_ABORT) {
+		SRPLG_LOG_ERR(PLUGIN_NAME, "aborting changes for: %s", xpath);
+		error = -1;
+		goto error_out;
+	} else if (event == SR_EV_DONE) {
+		error = sr_copy_config(ctx->startup_session, INTERFACES_YANG_MODEL, SR_DS_RUNNING, 0);
+		if (error) {
+			SRPLG_LOG_ERR(PLUGIN_NAME, "sr_copy_config error (%d): %s", error, sr_strerror(error));
+			goto error_out;
+		}
+	} else if (event == SR_EV_CHANGE) {
+		// component name change
+		error = snprintf(xpath_buffer, sizeof(xpath_buffer), "%s//bridge-port/component-name", xpath);
+		if (error < 0) {
+			SRPLG_LOG_ERR(PLUGIN_NAME, "snprintf() error: %d", error);
+			goto error_out;
+		}
+		error = apply_change(ctx, session, xpath_buffer, bridge_port_component_name_change_cb);
+		if (error) {
+			SRPLG_LOG_ERR(PLUGIN_NAME, "apply_change() for bridge port component name failed: %d", error);
+			goto error_out;
+		}
+	}
+	goto out;
+
+error_out:
+	SRPLG_LOG_ERR(PLUGIN_NAME, "error applying bridge port module changes");
+	error = -1;
+
 
 out:
 	return error != 0 ? SR_ERR_CALLBACK_FAILED : SR_ERR_OK;
@@ -416,6 +465,100 @@ out:
 	// libnl
 	if (link_cache) {
 		nl_cache_free(link_cache);
+	}
+	return error;
+}
+
+int bridge_port_component_name_change_cb(bridging_ctx_t *ctx, sr_session_ctx_t *session, struct nl_sock *socket, const struct lyd_node *node, sr_change_oper_t operation)
+{
+	int error = 0;
+
+	char change_path[PATH_MAX] = {0};
+	char tmp_xpath[PATH_MAX] = {0};
+	const char *node_name = NULL;
+	const char *node_value = NULL;
+	const char *interface_name = NULL;
+
+	// libnl
+	struct rtnl_link *bridge = NULL;
+	struct rtnl_link *bridge_port = NULL;
+
+	sr_xpath_ctx_t xpath_ctx = {0};
+
+	error = (lyd_path(node, LYD_PATH_STD, change_path, sizeof(change_path)) == NULL);
+	if (error) {
+		SRPLG_LOG_ERR(PLUGIN_NAME, "lyd_path() error: %d", error);
+		goto error_out;
+	}
+	// use temp buffer for xpath operations (sr_xpath_key_value modifies the xpath argument)
+	memcpy(tmp_xpath, change_path, sizeof(change_path));
+
+	node_name = sr_xpath_node_name(change_path);
+	node_value = lyd_get_value(node);
+	interface_name = sr_xpath_key_value(tmp_xpath, "interface", "name", &xpath_ctx);
+
+	assert(strcmp(node_name, "component-name") == 0);
+
+	SRPLG_LOG_DBG(PLUGIN_NAME, "Node Path: %s", change_path);
+	SRPLG_LOG_DBG(PLUGIN_NAME, "Node Name: %s", node_name);
+	SRPLG_LOG_DBG(PLUGIN_NAME, "Value: %s; Operation: %d", node_value, operation);
+
+	error = rtnl_link_get_kernel(socket, 0, interface_name, &bridge_port);
+	if (error) {
+		SRPLG_LOG_ERR(PLUGIN_NAME, "rtnl_link_get_kernel() error: %d (for bridge-port)", error);
+		goto error_out;
+	}
+	error = rtnl_link_get_kernel(socket, 0, node_value, &bridge);
+	if (error) {
+		SRPLG_LOG_ERR(PLUGIN_NAME, "rtnl_link_get_kernel() error: %d (for bridge)", error);
+		goto error_out;
+	}
+
+	switch (operation) {
+		case SR_OP_CREATED:
+			// make the interface a port of the bridge component
+			error = rtnl_link_enslave(socket, bridge, bridge_port);
+			if (error) {
+				SRPLG_LOG_ERR(PLUGIN_NAME, "rtnl_link_enslave() failed (%d): %s", error, nl_geterror(error));
+				goto error_out;
+			}
+			break;
+		case SR_OP_MODIFIED:
+			// release from old bridge and set as port of new bridge component
+			error = rtnl_link_release(socket, bridge_port);
+			if (error) {
+				SRPLG_LOG_ERR(PLUGIN_NAME, "rtnl_link_release() failed (%d): %s", error, nl_geterror(error));
+				goto error_out;
+			}
+			error = rtnl_link_enslave(socket, bridge, bridge_port);
+			if (error) {
+				SRPLG_LOG_ERR(PLUGIN_NAME, "rtnl_link_enslave() failed (%d): %s", error, nl_geterror(error));
+				goto error_out;
+			}
+			break;
+		case SR_OP_DELETED:
+			// release from bridge
+			error = rtnl_link_release(socket, bridge_port);
+			if (error) {
+				SRPLG_LOG_ERR(PLUGIN_NAME, "rtnl_link_release() failed (%d): %s", error, nl_geterror(error));
+				goto error_out;
+			}
+			break;
+		case SR_OP_MOVED:
+			break;
+	}
+
+	goto out;
+
+error_out:
+	error = -1;
+
+out:
+	if (bridge) {
+		rtnl_link_put(bridge);
+	}
+	if (bridge_port) {
+		rtnl_link_put(bridge_port);
 	}
 	return error;
 }

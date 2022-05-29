@@ -11,6 +11,10 @@
 // bridge list
 #define BRIDGING_BRIDGE_LIST_YANG_PATH BRIDGING_BRIDGES_CONTAINER_YANG_PATH "/bridge"
 
+// for bridge-port callbacks
+#define INTERFACES_YANG_MODEL "ietf-interfaces"
+#define INTERFACES_LIST_PATH "/ietf-interfaces:interfaces/interface"
+
 #define APPLY_DATASTORE_CHANGES
 
 void mac_address_ly_to_nl(char *addr);
