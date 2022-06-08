@@ -23,4 +23,6 @@ int bridge_get_vlan_info(struct nl_sock *socket, struct rtnl_link *bridge_link, 
  */
 int bridge_set_vlan_config(struct nl_sock *socket, int bridge_link_idx, bridge_vlan_info_t *vlan_info);
 
+int bridge_set_ageing_time(struct nl_sock *socket, int bridge_link_idx, unsigned ageing_time);
+
 #endif // BRIDGING_PLUGIN_BRIDGE_NETLINK_H
