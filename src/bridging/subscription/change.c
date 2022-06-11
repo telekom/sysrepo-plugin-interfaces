@@ -5,6 +5,7 @@
 #include "netlink/cache.h"
 #include "netlink/errno.h"
 #include "netlink/route/link/bridge.h"
+#include "netlink/route/neighbour.h"
 #include "sysrepo_types.h"
 #include <bridging/common.h>
 #include <bridging/context.h>
@@ -484,6 +485,79 @@ out:
 	return error;
 }
 
+int create_neigh_from_control_element_xpath(sr_xpath_ctx_t *xpath_ctx, const char *change_xpath, char *tmp_xpath, struct rtnl_neigh **fdb_entry)
+{
+	int error = 0;
+	struct nl_addr *lladdr = NULL;
+
+	struct rtnl_neigh *neigh = rtnl_neigh_alloc();
+	if (neigh == NULL) {
+		SRPLG_LOG_ERR(PLUGIN_NAME, "rtnl_neigh_alloc() failed");
+		error = -1;
+		goto error_out;
+	}
+	rtnl_neigh_set_family(neigh, AF_BRIDGE);
+
+	// sr_xpath_key_value changes the xpath buffer, so copy
+	// the xpath to a temporary buffer every time it gets called
+	memcpy(tmp_xpath, change_xpath, PATH_MAX);
+	// set vlan id - only the first one for now (vids_str can hold multiple)
+	char *vids_str = sr_xpath_key_value(tmp_xpath, "filtering-entry", "vids", xpath_ctx);
+	errno = 0;
+	int vid = (int) strtol(vids_str, NULL, 10);
+	if (errno != 0) {
+		SRPLG_LOG_ERR(PLUGIN_NAME, "strtol error: %s", strerror(errno));
+		error = -1;
+		goto error_out;
+	}
+	rtnl_neigh_set_vlan(neigh, vid);
+
+	memcpy(tmp_xpath, change_xpath, PATH_MAX);
+	char *bridge_port_str = sr_xpath_key_value(tmp_xpath, "port-map", "port-ref", xpath_ctx);
+	errno = 0;
+	int bridge_port_idx = (int) strtol(bridge_port_str, NULL, 10);
+	if (errno != 0) {
+		SRPLG_LOG_ERR(PLUGIN_NAME, "strtol error: %s", strerror(errno));
+		error = -1;
+		goto error_out;
+	}
+	rtnl_neigh_set_ifindex(neigh, bridge_port_idx);
+
+	// set link-layer addr
+	memcpy(tmp_xpath, change_xpath, PATH_MAX);
+	char *lladdr_str = sr_xpath_key_value(tmp_xpath, "filtering-entry", "address", xpath_ctx);
+	// change addr format - replace - with :
+	char *c = lladdr_str;
+	while (*c != '\0') {
+		if (*c == '-') {
+			*c = ':';
+		}
+		c++;
+	}
+	error = nl_addr_parse(lladdr_str, AF_UNSPEC, &lladdr);
+	if (error) {
+		SRPLG_LOG_ERR(PLUGIN_NAME, "nl_addr_parse() error: (%d) %s", error, nl_geterror(error));
+		goto error_out;
+	}
+	rtnl_neigh_set_lladdr(neigh, lladdr);
+
+	// assume state and flags for now (TODO: don't assume)
+	rtnl_neigh_set_state(neigh, NUD_PERMANENT);
+	rtnl_neigh_set_flags(neigh, NTF_MASTER); // add neigh to bridge master FDB
+
+	*fdb_entry = neigh;
+	goto out;
+
+error_out:
+	if (neigh) {
+		rtnl_neigh_put(neigh);
+	}
+	if (lladdr) {
+		nl_addr_put(lladdr);
+	}
+out:
+	return error;
+}
 
 int bridge_filtering_database_change_cb(bridging_ctx_t *ctx, sr_session_ctx_t *session, struct nl_sock *socket, const struct lyd_node *node, sr_change_oper_t operation)
 {
@@ -493,12 +567,13 @@ int bridge_filtering_database_change_cb(bridging_ctx_t *ctx, sr_session_ctx_t *s
 	char tmp_xpath[PATH_MAX] = {0};
 	const char *node_name = NULL;
 	const char *node_value = NULL;
-	const char *component_name= NULL;
+	const char *component_name = NULL;
 	unsigned seconds = 0;
 	sr_xpath_ctx_t xpath_ctx = {0};
 
 	// libnl
 	struct rtnl_link *bridge = NULL;
+	struct rtnl_neigh *fdb_entry = NULL;
 
 	error = (lyd_path(node, LYD_PATH_STD, change_path, sizeof(change_path)) == NULL);
 	if (error) {
@@ -549,10 +624,29 @@ int bridge_filtering_database_change_cb(bridging_ctx_t *ctx, sr_session_ctx_t *s
 				break;
 		}
 	} else if (strcmp(node_name, "control-element") == 0) {
+		// Add entry to forwarding database.
+		// The value and xpath of a control-element node contains all keys necessary to create a FDB entry, eg:
+		// .../filtering-entry[database-id='0'][vids='444'][address='ab-cd-ab-cd-ab-cd']/
+		// port-map[port-ref='3']/static-filtering-entries/control-element
+		error = create_neigh_from_control_element_xpath(&xpath_ctx, change_path, tmp_xpath, &fdb_entry);
+		if (error) {
+			SRPLG_LOG_ERR(PLUGIN_NAME, "create_neigh_from_control_element_xpath() failed (%d)", error);
+			goto error_out;
+		}
 		switch (operation) {
 			case SR_OP_CREATED:
+				error = rtnl_neigh_add(socket, fdb_entry, NLM_F_CREATE);
+				if (error) {
+					SRPLG_LOG_ERR(PLUGIN_NAME, "rtnl_neigh_add() failed (%d) %s", error, nl_geterror(error));
+					goto error_out;
+				}
 				break;
 			case SR_OP_DELETED:
+				error = rtnl_neigh_delete(socket, fdb_entry, 0);
+				if (error) {
+					SRPLG_LOG_ERR(PLUGIN_NAME, "rtnl_neigh_delete() failed (%d) %s", error, nl_geterror(error));
+					goto error_out;
+				}
 				break;
 			case SR_OP_MOVED:
 				break;
@@ -566,6 +660,9 @@ out:
 	// free bridge
 	if (bridge) {
 		rtnl_link_put(bridge);
+	}
+	if (fdb_entry) {
+		rtnl_neigh_put(fdb_entry);
 	}
 	return error;
 }
