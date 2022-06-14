@@ -1,4 +1,5 @@
 #include <linux/if_ether.h>
+#include <linux/if_bridge.h>
 #include <errno.h>
 #include "change.h"
 #include "netlink/addr.h"
@@ -485,7 +486,7 @@ out:
 	return error;
 }
 
-int create_neigh_from_control_element_xpath(sr_xpath_ctx_t *xpath_ctx, const char *change_xpath, char *tmp_xpath, struct rtnl_neigh **fdb_entry)
+static int create_neigh_from_control_element_xpath(sr_xpath_ctx_t *xpath_ctx, const char *change_xpath, char *tmp_xpath, struct rtnl_neigh **fdb_entry)
 {
 	int error = 0;
 	struct nl_addr *lladdr = NULL;
@@ -559,6 +560,27 @@ out:
 	return error;
 }
 
+static int port_and_vid_from_xpath(struct nl_sock *socket, sr_xpath_ctx_t *xpath_ctx, const char *change_xpath, char *tmp_xpath, struct rtnl_link **bridge_port, uint16_t *vid)
+{
+	int error = 0;
+
+	memcpy(tmp_xpath, change_xpath, PATH_MAX);
+	// set vlan id - only the first one for now (vids_str can hold multiple)
+	char *vids_str = sr_xpath_key_value(tmp_xpath, "vlan-registration-entry", "vids", xpath_ctx);
+	*vid = (uint16_t) strtoul(vids_str, NULL, 10);
+
+	memcpy(tmp_xpath, change_xpath, PATH_MAX);
+	char *bridge_port_str = sr_xpath_key_value(tmp_xpath, "port-map", "port-ref", xpath_ctx);
+	int bridge_port_idx = (int) strtol(bridge_port_str, NULL, 10);
+
+	error = rtnl_link_get_kernel(socket, bridge_port_idx, NULL, bridge_port);
+	if (error) {
+		SRPLG_LOG_ERR(PLUGIN_NAME, "rtnl_link_get_kernel() error: (%d) %s", error, nl_geterror(error));
+	}
+
+	return error;
+}
+
 int bridge_filtering_database_change_cb(bridging_ctx_t *ctx, sr_session_ctx_t *session, struct nl_sock *socket, const struct lyd_node *node, sr_change_oper_t operation)
 {
 	int error = 0;
@@ -573,6 +595,7 @@ int bridge_filtering_database_change_cb(bridging_ctx_t *ctx, sr_session_ctx_t *s
 
 	// libnl
 	struct rtnl_link *bridge = NULL;
+	struct rtnl_link *bridge_port = NULL;
 	struct rtnl_neigh *fdb_entry = NULL;
 
 	error = (lyd_path(node, LYD_PATH_STD, change_path, sizeof(change_path)) == NULL);
@@ -651,6 +674,32 @@ int bridge_filtering_database_change_cb(bridging_ctx_t *ctx, sr_session_ctx_t *s
 			case SR_OP_MOVED:
 				break;
 		}
+	} else if (strcmp(node_name, "vlan-transmitted") == 0) {
+		// Add a VLAN entry on a bridge port.
+		// Use xpath keys to determine which port and VLAN ID to use.
+		uint16_t vid = 0;
+		uint16_t flags = 0;
+		if (strcmp(node_value, "untagged") == 0) {
+			flags |= BRIDGE_VLAN_INFO_UNTAGGED;
+		}
+		error = port_and_vid_from_xpath(socket, &xpath_ctx, change_path, tmp_xpath, &bridge_port, &vid);
+		if (error) {
+			SRPLG_LOG_ERR(PLUGIN_NAME, "port_and_vid_from_xpath() failed (%d)", error);
+			goto error_out;
+		}
+		switch (operation) {
+			case SR_OP_CREATED:
+				error = bridge_add_vlan(socket, bridge_port, vid, flags);
+				if (error) {
+					SRPLG_LOG_ERR(PLUGIN_NAME, "bridge_vlan_add() failed (%d)", error);
+					goto error_out;
+				}
+				break;
+			case SR_OP_DELETED:
+				break;
+			case SR_OP_MOVED:
+				break;
+		}
 	}
 	goto out;
 
@@ -660,6 +709,9 @@ out:
 	// free bridge
 	if (bridge) {
 		rtnl_link_put(bridge);
+	}
+	if (bridge_port) {
+		rtnl_link_put(bridge_port);
 	}
 	if (fdb_entry) {
 		rtnl_neigh_put(fdb_entry);
