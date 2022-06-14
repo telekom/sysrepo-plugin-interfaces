@@ -25,4 +25,12 @@ int bridge_set_vlan_config(struct nl_sock *socket, int bridge_link_idx, bridge_v
 
 int bridge_set_ageing_time(struct nl_sock *socket, int bridge_link_idx, unsigned ageing_time);
 
+/*
+ * Add vlan to bridge port or master (stored in link).
+ * Possible flags:
+ * - BRIDGE_VLAN_INFO_PVID - this VLAN (vid) is primary (assumed if no VLAN tag is present)
+ * - BRIDGE_VLAN_INFO_UNTAGGED - remove VLAN tag on egress for this vid on link
+ */
+int bridge_add_vlan(struct nl_sock *socket, struct rtnl_link *link, uint16_t vid, uint16_t flags);
+
 #endif // BRIDGING_PLUGIN_BRIDGE_NETLINK_H
