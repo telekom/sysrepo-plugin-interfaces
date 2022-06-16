@@ -2,7 +2,7 @@
 
 This directory contains the integration tests and required data for the ietf-interfaces plugin.
 
-The tests are located in `ietf-interfaces.py` while the test data is in XML files in `data/`.
+The tests are located in `ietf-interfaces.py` or in the directories starting with `robot-*` in case of Robot framework tests, while the test data is in XML files in `data`.
 
 # Dependencies
 
@@ -23,7 +23,7 @@ pip3 install -r requirements.txt
 
 ## Robot framework
 
-Make sure to have Sysrepo and accompanying plugins installed under `libyang1`.
+Make sure to have Sysrepo and the accompanying plugins installed under `devel`.
 
 Create a virtual environment, activate it and make sure `pip`, `setuptools` and `wheel` are up to date.
 Finally install the packages.
@@ -35,7 +35,7 @@ $ python3 -m pip install --upgrade pip setuptools wheel
 $ python3 -m pip install rpaframework SysrepoLibrary robotframework-tidy
 ```
 
-To autoformat code run:
+To autoformat the robot code:
 ```
 $ robotidy robot-ietf-interfaces/
 ```
@@ -63,10 +63,13 @@ OK
 ```
 
 ## Robot framework
-`tests/connection.robot` checks if SysrepoLibrary manages to connect and disconnet to Sysrepo, Open and close a session, as well as get, set datastore data. Requires sysrepo-plugin-system.
 Note the root privileges when invoking the command (datastore permission issues otherwise, item not found):
 
-Run:
-
-`# robot robot-ietf-interfaces`
-
+To test the interfaces plugin (change env var path):
+```
+# SYSREPO_INTERFACES_PLUGIN_PATH=/path/to/interfaces/plugin/executable robot robot-ietf-interfaces
+```
+To test the routing plugin:
+```
+#  SYSREPO_ROUTING_PLUGIN_PATH=/path/to/routing/plugin/executable robot robot-ietf-routing`
+```
