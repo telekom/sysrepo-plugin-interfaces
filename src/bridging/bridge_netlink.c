@@ -1,7 +1,9 @@
+#include <stdbool.h>
 #include <arpa/inet.h>
 #include <linux/if_ether.h>
 #include <linux/if_bridge.h>
 #include <linux/if_arp.h>
+
 #include <netlink/socket.h>
 #include <netlink/route/link.h>
 #include <netlink/route/link/bridge.h>
@@ -311,6 +313,7 @@ out:
 
 
 
+#if 0
 int bridge_add_vlan(struct nl_sock *socket, struct rtnl_link *link, uint16_t vid, uint16_t flags)
 {
 	struct nl_msg *msg = NULL;
@@ -376,5 +379,89 @@ out:
 	//if (msg != NULL) {
 	//	nlmsg_free(msg);
 	//}
+	return error;
+}
+#endif
+
+/* for multiple vlans in one msg */
+
+int bridge_vlan_msg_open(struct nl_msg **msg, struct rtnl_link *link, bool delete)
+{
+	struct nlattr *afspec = NULL;
+	int error = 0;
+
+	uint8_t request_type = RTM_SETLINK; // create or update vlans on this link
+	if (delete) {
+		request_type = RTM_DELLINK; // delete vlans
+	}
+	*msg = nlmsg_alloc_simple(request_type, NLM_F_REQUEST | NLM_F_ACK);
+	if (*msg == NULL) {
+		SRPLG_LOG_ERR(PLUGIN_NAME, "nlmsg_alloc() failed");
+		goto out;
+	}
+	// fill message header
+	struct ifinfomsg ifinfo = {
+		.ifi_family = AF_BRIDGE,
+		.ifi_type   = ARPHRD_NETROM,
+		.ifi_index  = rtnl_link_get_ifindex(link),
+		.ifi_flags  = 0,
+		.ifi_change = 0
+	};
+	error = nlmsg_append(*msg, &ifinfo, sizeof(ifinfo), nlmsg_padlen(sizeof(ifinfo)));
+	if (error) {
+		SRPLG_LOG_ERR(PLUGIN_NAME, "nl_append() failed (%d)", error);
+		goto out;
+	}
+
+	uint16_t cmd_flags = 0;
+	if (rtnl_link_is_bridge(link)) {
+		cmd_flags = BRIDGE_FLAGS_SELF;
+	} else {
+		cmd_flags = BRIDGE_FLAGS_MASTER; // send command to bridge master
+	}
+	error = nla_put_u16(*msg, IFLA_BRIDGE_FLAGS, cmd_flags);
+	if (error) {
+		SRPLG_LOG_ERR(PLUGIN_NAME, "nla_put_u16() failed");
+		goto out;
+	}
+
+	afspec = nla_nest_start(*msg, IFLA_AF_SPEC);
+	if (afspec == NULL) {
+		SRPLG_LOG_ERR(PLUGIN_NAME, "nlmsg_nest_start() failed");
+		error = -1;
+		goto out;
+	}
+out:
+	return error;
+}
+
+int bridge_vlan_msg_add_vlan(struct nl_msg *msg, struct bridge_vlan_info vinfo)
+{
+	int error = nla_put(msg, IFLA_BRIDGE_VLAN_INFO, sizeof(vinfo), &vinfo);
+	if (error) {
+		SRPLG_LOG_ERR(PLUGIN_NAME, "nla_put() failed");
+	}
+	return error;
+}
+
+int bridge_vlan_msg_finalize_and_send(struct nl_sock *socket, struct nl_msg *msg)
+{
+	int error = 0;
+	struct nlattr *afspec = nlmsg_find_attr(nlmsg_hdr(msg), sizeof(struct ifinfomsg), IFLA_AF_SPEC);
+	if (afspec == NULL) {
+		SRPLG_LOG_ERR(PLUGIN_NAME, "nlmsg_find_attr() failed, can't find IFLA_AF_SPEC attribute");
+		error = -1;
+		goto out;
+	}
+	error = nla_nest_end(msg, afspec);
+	if (error) {
+		SRPLG_LOG_ERR(PLUGIN_NAME, "nla_nest_end() failed");
+		goto out;
+	}
+	error = send_nl_request_and_error_check(socket, msg);
+	if (error) {
+		SRPLG_LOG_ERR(PLUGIN_NAME, "send_nl_request_and_error_check() failed");
+	}
+out:
 	return error;
 }
