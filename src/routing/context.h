@@ -11,19 +11,15 @@
  * SPDX-License-Identifier: BSD-3-Clause
  */
 
-#ifndef ROUTING_CONTROL_PLANE_PROTOCOL_H
-#define ROUTING_CONTROL_PLANE_PROTOCOL_H
+#ifndef ROUTING_PLUGIN_CONTEXT_H
+#define ROUTING_PLUGIN_CONTEXT_H
+
+#include <sysrepo_types.h>
 
 #include "route/list_hash.h"
 
-struct control_plane_protocol {
-	char *type;
-	char *description;
-	char name[32];
-	int initialized;
+struct routing_ctx {
+	sr_session_ctx_t *startup_session;
 };
 
-void control_plane_protocol_init(struct control_plane_protocol *cpp);
-void control_plane_protocol_free(struct control_plane_protocol *cpp);
-
-#endif // ROUTING_CONTROL_PLANE_PROTOCOL_H
+#endif // ROUTING_PLUGIN_CONTEXT_H
