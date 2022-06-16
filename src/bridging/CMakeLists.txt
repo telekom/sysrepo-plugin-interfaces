@@ -21,6 +21,9 @@ set(
     bridge/component.c
     bridge/component/list.c
 
+    # vlan list
+    bridge/vlan/list.c
+
     # subs
     subscription/operational.c
     subscription/change.c
