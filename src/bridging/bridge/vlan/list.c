@@ -63,10 +63,13 @@ void bridge_vlan_list_free(bridge_vlan_list_element_t **head)
 char *vids_str_next_vlan(char *vids_str, struct bridge_vlan_info *vlan_info)
 {
 	assert(vids_str != NULL);
+	// clear old values
+	vlan_info->vid = 0;
+	vlan_info->flags = 0;
 
 	if (*vids_str == '-') {
 		// new vid is end of vlan range
-		vlan_info-> flags |= BRIDGE_VLAN_INFO_RANGE_END;
+		vlan_info->flags |= BRIDGE_VLAN_INFO_RANGE_END;
 		vids_str++;
 	}
 
