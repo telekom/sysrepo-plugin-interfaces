@@ -1,0 +1,12 @@
+<interfaces xmlns="urn:ietf:params:xml:ns:yang:ietf-interfaces">
+  <interface>
+    <name>lo</name>
+    <type xmlns:ianaift="urn:ietf:params:xml:ns:yang:iana-if-type">ianaift:softwareLoopback</type>
+    <ipv4 xmlns="urn:ietf:params:xml:ns:yang:ietf-ip">
+      <address>
+        <ip>127.0.0.0</ip>
+        <netmask>255.0.0.0</netmask>
+      </address>
+    </ipv4>
+  </interface>
+</interfaces>
