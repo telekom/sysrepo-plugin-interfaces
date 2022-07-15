@@ -65,8 +65,13 @@ int sr_plugin_init_cb(sr_session_ctx_t *running_session, void **private_data)
 		}
 	}
 
-	// operational subscription
-	error = sr_oper_get_subscribe(running_session, BASE_YANG_MODEL, BRIDGING_BRIDGE_LIST_YANG_PATH, bridging_oper_get_bridges, NULL, 0, &subscription);
+	// operational subscriptions - merge with existing data (SR_SUBSCR_OPER_MERGE flag)
+	error = sr_oper_get_subscribe(running_session, BASE_YANG_MODEL, BRIDGING_BRIDGE_LIST_YANG_PATH, bridging_oper_get_bridges, NULL, SR_SUBSCR_OPER_MERGE, &subscription);
+	if (error) {
+		SRPLG_LOG_ERR(PLUGIN_NAME, "sr_oper_get_items_subscribe() error (%d): %s", error, sr_strerror(error));
+		goto error_out;
+	}
+	error = sr_oper_get_subscribe(running_session, BASE_YANG_MODEL, "/ieee802-dot1q-bridge:bridges/bridge/component/bridge-vlan", bridging_oper_get_bridge_vlan, NULL,SR_SUBSCR_OPER_MERGE, &subscription);
 	if (error) {
 		SRPLG_LOG_ERR(PLUGIN_NAME, "sr_oper_get_items_subscribe() error (%d): %s", error, sr_strerror(error));
 		goto error_out;

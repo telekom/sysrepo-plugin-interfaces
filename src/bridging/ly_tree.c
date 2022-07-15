@@ -230,3 +230,27 @@ int bridging_ly_tree_add_bridge_component_address(const struct ly_ctx *ly_ctx, s
 
 	return 0;
 }
+
+int bridging_ly_tree_add_general_bridge_vlan_info(const struct ly_ctx *ly_ctx, struct lyd_node *component_node)
+{
+	LY_ERR ly_error = LY_SUCCESS;
+
+	// set bridge-vlan version to 2 because the Linux bridging implementation supports
+	// MST (Multiple Spanning Tree), otherwise the version would be 1 (12.10.1.3 of IEEE Std 802.1Q-2018)
+	ly_error = lyd_new_path(component_node, ly_ctx, "bridge-vlan/version", "2", 0, NULL);
+	if (ly_error != LY_SUCCESS) {
+		SRPLG_LOG_ERR(PLUGIN_NAME, "lyd_new_path() failed (%d): %s", ly_error, ly_errmsg(ly_ctx));
+		return -1;
+	}
+	ly_error = lyd_new_path(component_node, ly_ctx, "bridge-vlan/max-vids", "4094", 0, NULL);
+	if (ly_error != LY_SUCCESS) {
+		SRPLG_LOG_ERR(PLUGIN_NAME, "lyd_new_path() failed (%d): %s", ly_error, ly_errmsg(ly_ctx));
+		return -1;
+	}
+	ly_error = lyd_new_path(component_node, ly_ctx, "bridge-vlan/override-default-pvid", "true", 0, NULL);
+	if (ly_error != LY_SUCCESS) {
+		SRPLG_LOG_ERR(PLUGIN_NAME, "lyd_new_path() failed (%d): %s", ly_error, ly_errmsg(ly_ctx));
+		return -1;
+	}
+	return 0;
+}
