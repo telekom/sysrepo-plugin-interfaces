@@ -3,6 +3,7 @@
 
 #include <stdbool.h>
 #include <stdint.h>
+#include <stddef.h>
 
 typedef struct bridge_vlan_info_s bridge_vlan_info_t;
 
@@ -17,6 +18,12 @@ struct bridge_vlan_info_s {
  * and save them in the provided vlan_info structure.
  */
 int bridge_get_vlan_info(struct nl_sock *socket, struct rtnl_link *bridge_link, bridge_vlan_info_t *vlan_info);
+
+/*
+ * Find all VLANs used on link (bridge master or bridge port).
+ * Save the list of VLANs in list_dest. Save number of VLANs on link in count.
+ */
+int bridge_get_vlan_list(struct nl_sock *socket, struct rtnl_link *link, struct bridge_vlan_info **list_dest, size_t *count);
 
 /**
  * Set the IFLA_BR_VLAN_FILTERING and IFLA_BR_VLAN_PROTOCOL attributes

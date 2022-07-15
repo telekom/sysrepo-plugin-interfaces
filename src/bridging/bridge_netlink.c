@@ -11,6 +11,7 @@
 
 #include "bridging/common.h"
 #include "bridge_netlink.h"
+#include "utils/memory.h"
 
 int bridge_get_vlan_info(struct nl_sock *socket, struct rtnl_link *bridge_link, bridge_vlan_info_t *vlan_info)
 {
@@ -463,5 +464,106 @@ int bridge_vlan_msg_finalize_and_send(struct nl_sock *socket, struct nl_msg *msg
 		SRPLG_LOG_ERR(PLUGIN_NAME, "send_nl_request_and_error_check() failed");
 	}
 out:
+	return error;
+}
+
+
+int bridge_get_vlan_list(struct nl_sock *socket, struct rtnl_link *link, struct bridge_vlan_info **list_dest, size_t *count)
+{
+	int error = 0;
+	int len = 0;
+	struct nl_msg *msg = NULL;
+	unsigned char *msg_buf = NULL;
+	struct sockaddr_nl nla = {0};
+	struct nlmsghdr *hdr = NULL;
+	struct nlattr *current_vlan_entry = NULL;
+	struct nlattr *entry_info = NULL;
+	int remaining = 0;
+	size_t list_size = 16; /* initial size */
+	int proto_header_len = 0;
+	int if_index = rtnl_link_get_ifindex(link);
+	struct bridge_vlan_info *port_vlan_list = NULL;
+
+	msg = nlmsg_alloc_simple(RTM_GETVLAN, NLM_F_REQUEST | NLM_F_DUMP);
+	if (msg == NULL) {
+		SRPLG_LOG_ERR(PLUGIN_NAME, "nlmsg_alloc() failed");
+		goto error_out;
+	}
+	// fill RTM_GETVLAN message header
+	struct br_vlan_msg vlan_msg = {
+		.family = AF_BRIDGE,
+		.ifindex = (unsigned) if_index,
+	};
+	error = nlmsg_append(msg, &vlan_msg, sizeof(vlan_msg), nlmsg_padlen(sizeof(vlan_msg)));
+	if (error) {
+		SRPLG_LOG_ERR(PLUGIN_NAME, "nl_append() failed (%d)", error);
+		goto error_out;
+	}
+	len = nl_send_auto(socket, msg);
+	if (len < 0) {
+		SRPLG_LOG_ERR(PLUGIN_NAME, "nl_send_auto() failed (%d)", len);
+		goto error_out;
+	}
+
+	// wait for kernel response
+	len = nl_recv(socket, &nla, &msg_buf, NULL);
+	if (len <= 0) {
+		SRPLG_LOG_ERR(PLUGIN_NAME, "nl_recv() failed (%d)", len);
+		goto error_out;
+	}
+	// validate message type
+	hdr = (struct nlmsghdr *) msg_buf;
+	if (hdr->nlmsg_type != RTM_NEWVLAN) {
+		SRPLG_LOG_ERR(PLUGIN_NAME, "unexpected message type in received response (%d)", hdr->nlmsg_type);
+		goto error_out;
+	}
+
+	// find first vlan entry
+	proto_header_len = sizeof(struct br_vlan_msg);
+	current_vlan_entry = nlmsg_find_attr(hdr, proto_header_len, BRIDGE_VLANDB_ENTRY);
+	if (current_vlan_entry == NULL) {
+		SRPLG_LOG_ERR(PLUGIN_NAME, "BRIDGE_VLANDB_ENTRY attribute not found.");
+		goto error_out;
+	}
+	remaining = nlmsg_attrlen(hdr, sizeof(struct br_vlan_msg));
+	*count = 0;
+	port_vlan_list = xcalloc(list_size, sizeof(struct bridge_vlan_info));
+	while (nla_ok(current_vlan_entry, remaining)) {
+		if (nla_type(current_vlan_entry) != BRIDGE_VLANDB_ENTRY) {
+			SRPLG_LOG_ERR(PLUGIN_NAME, "unexpected attribute type for current_vlan_entry: %d", nla_type(current_vlan_entry));
+			goto error_out;
+		}
+		entry_info = nla_data(current_vlan_entry);
+		if (nla_type(entry_info) != BRIDGE_VLANDB_ENTRY_INFO) {
+			SRPLG_LOG_ERR(PLUGIN_NAME, "unexpected attribute type for entry_info: %d", nla_type(entry_info));
+			goto error_out;
+		}
+		if (*count == list_size) {
+			// double list size
+			port_vlan_list = xrealloc(port_vlan_list, sizeof(struct bridge_vlan_info) * list_size * 2);
+		}
+		// append bridge_vlan_info struct to list (copy data from entry_info attribute)
+		len = nla_memcpy(&port_vlan_list[*count], entry_info, sizeof(struct bridge_vlan_info));
+		if (len != sizeof(struct bridge_vlan_info)) {
+			SRPLG_LOG_ERR(PLUGIN_NAME, "nla_memcpy error - unexpected number of bytes copied: %u", len);
+			goto error_out;
+		}
+		(*count)++;
+		current_vlan_entry = nla_next(current_vlan_entry, &remaining);
+	}
+	*list_dest = port_vlan_list;
+
+	goto out;
+
+error_out:
+	error = -1;
+out:
+	if (msg != NULL) {
+		nlmsg_free(msg);
+	}
+	if (msg_buf != NULL) {
+		FREE_SAFE(msg_buf);
+	}
+
 	return error;
 }
