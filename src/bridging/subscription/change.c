@@ -322,7 +322,7 @@ int modify_bridge_component(struct nl_sock *socket, char change_path[PATH_MAX], 
 			case SR_OP_MOVED:
 				break;
 		}
-	} else if (strcmp(node_name, "bridge-type") == 0) {
+	} else if (strcmp(node_name, "type") == 0) {
 		switch (operation) {
 			case SR_OP_CREATED:
 				// change type of created bridge - same as modified
