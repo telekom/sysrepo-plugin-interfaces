@@ -1,5 +1,6 @@
 #include "store.h"
 #include "plugin/common.h"
+#include "utarray.h"
 
 #include <libyang/libyang.h>
 #include <srpc.h>
@@ -12,7 +13,7 @@ int interfaces_startup_store(interfaces_ctx_t* ctx, sr_session_ctx_t* session)
     int error = 0;
     sr_data_t* subtree = NULL;
 
-    error = sr_get_subtree(session, "[ENTER_ROOT_CONFIG_PATH]", 0, &subtree);
+    error = sr_get_subtree(session, INTERFACES_INTERFACES_CONTAINER_YANG_PATH, 0, &subtree);
     if (error) {
         SRPLG_LOG_ERR(PLUGIN_NAME, "sr_get_subtree() error (%d): %s", error, sr_strerror(error));
         goto error_out;
@@ -51,5 +52,48 @@ out:
 static int interfaces_startup_store_interface(void* priv, const struct lyd_node* parent_container)
 {
     int error = 0;
+    interfaces_ctx_t *ctx = (interfaces_ctx_t *) priv;
+	srpc_check_status_t check_status = srpc_check_status_none;
+    UT_array *interface_array = NULL;
+
+    struct lyd_node *interfaces_node = srpc_ly_tree_get_child_leaf(parent_container, "interfaces");
+    if (interfaces_node == NULL) {
+            SRPLG_LOG_ERR(PLUGIN_NAME, "srpc_ly_tree_get_child_leaf returned NULL for 'interfaces'");
+            goto error_out;
+    }
+
+    SRPLG_LOG_INF(PLUGIN_NAME, "Checking interface array");
+    check_status = interfaces_check_interface(ctx, interface_array);
+
+    switch (check_status) {
+			case srpc_check_status_none:
+				SRPLG_LOG_ERR(PLUGIN_NAME, "Error loading current interface array");
+				goto error_out;
+			case srpc_check_status_error:
+				SRPLG_LOG_ERR(PLUGIN_NAME, "Error loading current interface array");
+				goto error_out;
+			case srpc_check_status_non_existant:
+				SRPLG_LOG_INF(PLUGIN_NAME, "Storing interface array");
+
+				error = interfaces_store_interface(ctx, interface_array);
+				if (error) {
+					SRPLG_LOG_ERR(PLUGIN_NAME, "interfaces_store_interface() failed (%d)", error);
+				    goto error_out;
+				}
+				break;
+			case srpc_check_status_equal:
+				SRPLG_LOG_ERR(PLUGIN_NAME, "Startup interface array is already applied on the system");
+				break;
+			case srpc_check_status_partial:
+				/* should not be returned - treat as an error */
+				SRPLG_LOG_ERR(PLUGIN_NAME, "Error loading current interface array");
+				goto error_out;
+	}
+
+    goto out;
+
+error_out:
+    error = -1;
+out:
     return error;
 }
