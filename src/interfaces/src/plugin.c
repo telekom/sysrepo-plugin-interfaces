@@ -1,4 +1,5 @@
 #include "plugin.h"
+#include "netlink/cache.h"
 #include "netlink/socket.h"
 #include "plugin/common.h"
 #include "plugin/context.h"
@@ -240,7 +241,7 @@ void sr_plugin_cleanup_cb(sr_session_ctx_t* running_session, void* private_data)
     }
 
     if (ctx->nl_ctx.link_cache) {
-        nl_cache_free(ctx->nl_ctx.link_cache);
+        nl_cache_put(ctx->nl_ctx.link_cache);
     }
 
     if (ctx->nl_ctx.socket) {

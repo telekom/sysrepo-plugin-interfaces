@@ -2,6 +2,7 @@
 #include "libyang/tree_data.h"
 #include "netlink/addr.h"
 #include "netlink/cache.h"
+#include "netlink/route/tc.h"
 #include "netlink/socket.h"
 #include "plugin/common.h"
 #include "plugin/context.h"
@@ -17,6 +18,7 @@
 
 #include <linux/netdevice.h>
 #include <netlink/route/link.h>
+#include <netlink/route/qdisc.h>
 
 static int interfaces_extract_interface_name(sr_session_ctx_t* session, const char* xpath, char* buffer, size_t buffer_size);
 
@@ -270,22 +272,63 @@ out:
 int interfaces_subscription_operational_interfaces_interface_speed(sr_session_ctx_t* session, uint32_t sub_id, const char* module_name, const char* path, const char* request_xpath, uint32_t request_id, struct lyd_node** parent, void* private_data)
 {
     int error = SR_ERR_OK;
-    const struct ly_ctx* ly_ctx = NULL;
+    // void* error_ptr = NULL;
 
-    if (*parent == NULL) {
-        ly_ctx = sr_acquire_context(sr_session_get_connection(session));
-        if (ly_ctx == NULL) {
-            SRPLG_LOG_ERR(PLUGIN_NAME, "sr_acquire_context() failed");
-            goto error_out;
-        }
+    // context
+    const struct ly_ctx* ly_ctx = NULL;
+    interfaces_ctx_t* ctx = private_data;
+    interfaces_nl_ctx_t* nl_ctx = &ctx->nl_ctx;
+
+    // buffers
+    char interface_name_buffer[100] = { 0 };
+    char speed_buffer[100] = { 0 };
+
+    // libnl
+    struct rtnl_link* link = NULL;
+    struct rtnl_qdisc* qdisc = NULL;
+    struct rtnl_tc* tc = NULL;
+
+    // there needs to be an allocated link cache in memory
+    assert(ctx->nl_ctx.link_cache != NULL);
+    assert(*parent != NULL);
+    assert(strcmp(LYD_NAME(*parent), "interface") == 0);
+
+    // extract interface name
+    SRPC_SAFE_CALL_ERR(error, interfaces_extract_interface_name(session, request_xpath, interface_name_buffer, sizeof(interface_name_buffer)), error_out);
+
+    // get link by name
+    SRPC_SAFE_CALL_PTR(link, rtnl_link_get_by_name(nl_ctx->link_cache, interface_name_buffer), error_out);
+
+    SRPLG_LOG_INF(PLUGIN_NAME, "Getting speed(%s)", interface_name_buffer);
+
+    qdisc = rtnl_qdisc_alloc();
+
+    // setup traffic control
+    tc = TC_CAST(qdisc);
+    rtnl_tc_set_link(tc, link);
+
+    // get speed
+    const uint64_t speed = rtnl_tc_get_stat(tc, RTNL_TC_RATE_BPS);
+    error = snprintf(speed_buffer, sizeof(speed_buffer), "%lu", speed);
+    if (error < 0) {
+        SRPLG_LOG_ERR(PLUGIN_NAME, "snprintf() failed (%d)", error);
+        goto error_out;
     }
 
+    SRPLG_LOG_INF(PLUGIN_NAME, "speed(%s) = %s", interface_name_buffer, speed_buffer);
+
+    // add phys-address node
+    SRPC_SAFE_CALL_ERR(error, interfaces_ly_tree_create_interfaces_interface_speed(ly_ctx, *parent, speed_buffer), error_out);
+
+    error = 0;
     goto out;
 
 error_out:
     error = SR_ERR_CALLBACK_FAILED;
 
 out:
+    rtnl_qdisc_put(qdisc);
+
     return error;
 }
 
@@ -619,11 +662,11 @@ int interfaces_subscription_operational_interfaces_interface(sr_session_ctx_t* s
 
     // cache was already allocated - free existing cache
     if (nl_ctx->link_cache) {
-        nl_cache_free(nl_ctx->link_cache);
+        nl_cache_refill(nl_ctx->socket, nl_ctx->link_cache);
+    } else {
+        // allocate new link cache
+        SRPC_SAFE_CALL_ERR(error, rtnl_link_alloc_cache(nl_ctx->socket, 0, &nl_ctx->link_cache), error_out);
     }
-
-    // allocate new link cache
-    SRPC_SAFE_CALL_ERR(error, rtnl_link_alloc_cache(nl_ctx->socket, 0, &nl_ctx->link_cache), error_out);
 
     if (*parent == NULL) {
         ly_ctx = sr_acquire_context(sr_session_get_connection(session));
