@@ -44,10 +44,16 @@ out:
 int interfaces_subscription_operational_interfaces_interface_oper_status(sr_session_ctx_t* session, uint32_t sub_id, const char* module_name, const char* path, const char* request_xpath, uint32_t request_id, struct lyd_node** parent, void* private_data)
 {
     int error = SR_ERR_OK;
+
+    // context
     const struct ly_ctx* ly_ctx = NULL;
     interfaces_ctx_t* ctx = private_data;
     interfaces_nl_ctx_t* nl_ctx = &ctx->nl_ctx;
+
+    // buffers
     char interface_name_buffer[100] = { 0 };
+
+    // libnl
     struct rtnl_link* link = NULL;
 
     const char* operstate_map[] = {
@@ -67,14 +73,17 @@ int interfaces_subscription_operational_interfaces_interface_oper_status(sr_sess
 
     // extract interface name
     SRPC_SAFE_CALL_ERR(error, interfaces_extract_interface_name(session, request_xpath, interface_name_buffer, sizeof(interface_name_buffer)), error_out);
-    SRPLG_LOG_INF(PLUGIN_NAME, "Getting oper status for interface %s", interface_name_buffer);
 
     // get link by name
     SRPC_SAFE_CALL_PTR(link, rtnl_link_get_by_name(nl_ctx->link_cache, interface_name_buffer), error_out);
 
+    SRPLG_LOG_INF(PLUGIN_NAME, "Getting oper-status(%s)", interface_name_buffer);
+
     // get oper status
     const uint8_t oper_status = rtnl_link_get_operstate(link);
     const char* oper_status_str = operstate_map[oper_status];
+
+    SRPLG_LOG_INF(PLUGIN_NAME, "oper-status(%s) = %s", interface_name_buffer, oper_status_str);
 
     // add oper-status node
     SRPC_SAFE_CALL_ERR(error, interfaces_ly_tree_create_interfaces_interface_oper_status(ly_ctx, *parent, oper_status_str), error_out);
@@ -113,16 +122,47 @@ out:
 int interfaces_subscription_operational_interfaces_interface_if_index(sr_session_ctx_t* session, uint32_t sub_id, const char* module_name, const char* path, const char* request_xpath, uint32_t request_id, struct lyd_node** parent, void* private_data)
 {
     int error = SR_ERR_OK;
-    const struct ly_ctx* ly_ctx = NULL;
 
-    if (*parent == NULL) {
-        ly_ctx = sr_acquire_context(sr_session_get_connection(session));
-        if (ly_ctx == NULL) {
-            SRPLG_LOG_ERR(PLUGIN_NAME, "sr_acquire_context() failed");
-            goto error_out;
-        }
+    // context
+    const struct ly_ctx* ly_ctx = NULL;
+    interfaces_ctx_t* ctx = private_data;
+    interfaces_nl_ctx_t* nl_ctx = &ctx->nl_ctx;
+
+    // buffers
+    char interface_name_buffer[100] = { 0 };
+    char ifindex_buffer[100] = { 0 };
+
+    // libnl
+    struct rtnl_link* link = NULL;
+
+    // there needs to be an allocated link cache in memory
+    assert(ctx->nl_ctx.link_cache != NULL);
+    assert(*parent != NULL);
+    assert(strcmp(LYD_NAME(*parent), "interface") == 0);
+
+    // extract interface name
+    SRPC_SAFE_CALL_ERR(error, interfaces_extract_interface_name(session, request_xpath, interface_name_buffer, sizeof(interface_name_buffer)), error_out);
+
+    // get link by name
+    SRPC_SAFE_CALL_PTR(link, rtnl_link_get_by_name(nl_ctx->link_cache, interface_name_buffer), error_out);
+
+    SRPLG_LOG_INF(PLUGIN_NAME, "Getting if-index(%s)", interface_name_buffer);
+
+    // get if-index
+    const int ifindex = rtnl_link_get_ifindex(link);
+
+    error = snprintf(ifindex_buffer, sizeof(ifindex_buffer), "%d", ifindex);
+    if (error < 0) {
+        SRPLG_LOG_ERR(PLUGIN_NAME, "snprintf() failed (%d)", error);
+        goto error_out;
     }
 
+    SRPLG_LOG_INF(PLUGIN_NAME, "if-index(%s) = %s", interface_name_buffer, ifindex_buffer);
+
+    // add ifindex node
+    SRPC_SAFE_CALL_ERR(error, interfaces_ly_tree_create_interfaces_interface_if_index(ly_ctx, *parent, ifindex_buffer), error_out);
+
+    error = 0;
     goto out;
 
 error_out:
