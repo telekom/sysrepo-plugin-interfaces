@@ -5,7 +5,6 @@
 #include <stdint.h>
 
 // typedefs
-typedef enum interfaces_interfaces_interface_link_up_down_trap_enable interfaces_interfaces_interface_link_up_down_trap_enable_t;
 typedef struct interfaces_interfaces_interface interfaces_interfaces_interface_t;
 typedef struct interfaces_interfaces_interface_element interfaces_interfaces_interface_element_t;
 typedef struct interfaces_interfaces interfaces_interfaces_t;
@@ -14,6 +13,8 @@ enum interfaces_interfaces_interface_link_up_down_trap_enable {
     interfaces_interfaces_interface_link_up_down_trap_enable_disabled,
     interfaces_interfaces_interface_link_up_down_trap_enable_enabled,
 };
+
+typedef enum interfaces_interfaces_interface_link_up_down_trap_enable interfaces_interfaces_interface_link_up_down_trap_enable_t;
 
 struct interfaces_interfaces_interface {
     char* name;
