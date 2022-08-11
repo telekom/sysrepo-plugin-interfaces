@@ -15,10 +15,13 @@ set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/CMakeModules")
 find_package(SYSREPO REQUIRED)
 find_package(LIBYANG REQUIRED)
 find_package(SRPC REQUIRED)
+find_package(NL REQUIRED)
 
 include_directories(
     ${SYSREPO_INCLUDE_DIRS}
     ${LIBYANG_INCLUDE_DIRS}
+    ${SRPC_INCLUDE_DIRS}
+    ${NL_INCLUDE_DIRS}
 )
 
 option(INTERFACES_PLUGIN "Enable interfaces plugin" OFF)
