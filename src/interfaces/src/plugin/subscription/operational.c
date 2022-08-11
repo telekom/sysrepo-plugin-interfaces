@@ -6,19 +6,23 @@
 #include "plugin/context.h"
 #include "plugin/ly_tree.h"
 #include "srpc/common.h"
+#include "sysrepo_types.h"
 
+#include <assert.h>
 #include <libyang/libyang.h>
 #include <srpc.h>
 #include <sysrepo.h>
+#include <sysrepo/xpath.h>
 
+#include <linux/netdevice.h>
 #include <netlink/route/link.h>
+
+static int interfaces_extract_interface_name(sr_session_ctx_t* session, const char* xpath, char* buffer, size_t buffer_size);
 
 int interfaces_subscription_operational_interfaces_interface_admin_status(sr_session_ctx_t* session, uint32_t sub_id, const char* module_name, const char* path, const char* request_xpath, uint32_t request_id, struct lyd_node** parent, void* private_data)
 {
     int error = SR_ERR_OK;
     const struct ly_ctx* ly_ctx = NULL;
-
-    SRPLG_LOG_INF(PLUGIN_NAME, "Operational XPath: %s", request_xpath);
 
     if (*parent == NULL) {
         ly_ctx = sr_acquire_context(sr_session_get_connection(session));
@@ -41,14 +45,39 @@ int interfaces_subscription_operational_interfaces_interface_oper_status(sr_sess
 {
     int error = SR_ERR_OK;
     const struct ly_ctx* ly_ctx = NULL;
+    interfaces_ctx_t* ctx = private_data;
+    interfaces_nl_ctx_t* nl_ctx = &ctx->nl_ctx;
+    char interface_name_buffer[100] = { 0 };
+    struct rtnl_link* link = NULL;
 
-    if (*parent == NULL) {
-        ly_ctx = sr_acquire_context(sr_session_get_connection(session));
-        if (ly_ctx == NULL) {
-            SRPLG_LOG_ERR(PLUGIN_NAME, "sr_acquire_context() failed");
-            goto error_out;
-        }
-    }
+    const char* operstate_map[] = {
+        [IF_OPER_UNKNOWN] = "unknown",
+        [IF_OPER_NOTPRESENT] = "not-present",
+        [IF_OPER_DOWN] = "down",
+        [IF_OPER_LOWERLAYERDOWN] = "lower-layer-down",
+        [IF_OPER_TESTING] = "testing",
+        [IF_OPER_DORMANT] = "dormant",
+        [IF_OPER_UP] = "up",
+    };
+
+    // there needs to be an allocated link cache in memory
+    assert(ctx->nl_ctx.link_cache != NULL);
+    assert(*parent != NULL);
+    assert(strcmp(LYD_NAME(*parent), "interface") == 0);
+
+    // extract interface name
+    SRPC_SAFE_CALL_ERR(error, interfaces_extract_interface_name(session, request_xpath, interface_name_buffer, sizeof(interface_name_buffer)), error_out);
+    SRPLG_LOG_INF(PLUGIN_NAME, "Getting oper status for interface %s", interface_name_buffer);
+
+    // get link by name
+    SRPC_SAFE_CALL_PTR(link, rtnl_link_get_by_name(nl_ctx->link_cache, interface_name_buffer), error_out);
+
+    // get oper status
+    const uint8_t oper_status = rtnl_link_get_operstate(link);
+    const char* oper_status_str = operstate_map[oper_status];
+
+    // add oper-status node
+    SRPC_SAFE_CALL_ERR(error, interfaces_ly_tree_create_interfaces_interface_oper_status(ly_ctx, *parent, oper_status_str), error_out);
 
     goto out;
 
@@ -510,8 +539,6 @@ int interfaces_subscription_operational_interfaces_interface(sr_session_ctx_t* s
     // libyang
     struct lyd_node* interface_list_node = NULL;
 
-    SRPLG_LOG_INF(PLUGIN_NAME, "Operational callback: %s", request_xpath);
-
     // setup nl socket
     if (!nl_ctx->socket) {
         // netlink
@@ -558,5 +585,33 @@ error_out:
 
 out:
 
+    return error;
+}
+
+static int interfaces_extract_interface_name(sr_session_ctx_t* session, const char* xpath, char* buffer, size_t buffer_size)
+{
+    int error = 0;
+
+    const char* name = NULL;
+
+    sr_xpath_ctx_t xpath_ctx = { 0 };
+
+    // extract key
+    SRPC_SAFE_CALL_PTR(name, sr_xpath_key_value((char*)xpath, "interface", "name", &xpath_ctx), error_out);
+
+    // store to buffer
+    error = snprintf(buffer, buffer_size, "%s", name);
+    if (error < 0) {
+        SRPLG_LOG_ERR(PLUGIN_NAME, "snprintf() failed");
+        goto error_out;
+    }
+
+    error = 0;
+    goto out;
+
+error_out:
+    error = -1;
+
+out:
     return error;
 }
