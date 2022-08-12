@@ -1,7 +1,6 @@
 #include "load.h"
 #include "plugin/common.h"
 #include "plugin/ly_tree.h"
-#include "utlist.h"
 
 #include <libyang/libyang.h>
 #include <srpc.h>

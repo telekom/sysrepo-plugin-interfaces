@@ -1,6 +1,5 @@
 #include "store.h"
 #include "plugin/common.h"
-#include "utlist.h"
 
 #include <libyang/libyang.h>
 #include <srpc.h>
