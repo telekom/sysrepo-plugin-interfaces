@@ -136,6 +136,34 @@ int sr_plugin_init_cb(sr_session_ctx_t* running_session, void** private_data)
             interfaces_subscription_operational_interfaces_interface_statistics_out_errors,
         },
         {
+            INTERFACES_INTERFACES_INTERFACE_STATISTICS_IN_DISCARD_UNKNOWN_ENCAPS_YANG_PATH,
+            interfaces_subscription_operational_interfaces_interface_statistics_in_discard_unknown_encaps,
+        },
+        {
+            INTERFACES_INTERFACES_INTERFACE_CARRIER_DELAY_CARRIER_TRANSITIONS_YANG_PATH,
+            interfaces_subscription_operational_interfaces_interface_carrier_delay_carrier_transitions,
+        },
+        {
+            INTERFACES_INTERFACES_INTERFACE_CARRIER_DELAY_TIMER_RUNNING_YANG_PATH,
+            interfaces_subscription_operational_interfaces_interface_carrier_delay_timer_running,
+        },
+        {
+            INTERFACES_INTERFACES_INTERFACE_DAMPENING_PENALTY_YANG_PATH,
+            interfaces_subscription_operational_interfaces_interface_dampening_penalty,
+        },
+        {
+            INTERFACES_INTERFACES_INTERFACE_DAMPENING_SUPPRESSED_YANG_PATH,
+            interfaces_subscription_operational_interfaces_interface_dampening_suppressed,
+        },
+        {
+            INTERFACES_INTERFACES_INTERFACE_DAMPENING_TIME_REMAINING_YANG_PATH,
+            interfaces_subscription_operational_interfaces_interface_dampening_time_remaining,
+        },
+        {
+            INTERFACES_INTERFACES_INTERFACE_FORWARDING_MODE_YANG_PATH,
+            interfaces_subscription_operational_interfaces_interface_forwarding_mode,
+        },
+        {
             INTERFACES_INTERFACES_INTERFACE_YANG_PATH,
             interfaces_subscription_operational_interfaces_interface,
         },

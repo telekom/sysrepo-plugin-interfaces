@@ -24,6 +24,10 @@ set(
     src/plugin/api/interfaces/store.c
     src/plugin/api/interfaces/change.c
     src/plugin/api/interfaces/interface/change.c
+    src/plugin/api/interfaces/interface/encapsulation/dot1q-vlan/second-tag/change.c
+    src/plugin/api/interfaces/interface/encapsulation/dot1q-vlan/outer-tag/change.c
+    src/plugin/api/interfaces/interface/dampening/change.c
+    src/plugin/api/interfaces/interface/carrier-delay/change.c
     src/plugin.c
 )
 
