@@ -641,6 +641,160 @@ out:
     return error;
 }
 
+int interfaces_subscription_operational_interfaces_interface_statistics_in_discard_unknown_encaps(sr_session_ctx_t* session, uint32_t sub_id, const char* module_name, const char* path, const char* request_xpath, uint32_t request_id, struct lyd_node** parent, void* private_data)
+{
+    int error = SR_ERR_OK;
+    const struct ly_ctx* ly_ctx = NULL;
+
+    if (*parent == NULL) {
+        ly_ctx = sr_acquire_context(sr_session_get_connection(session));
+        if (ly_ctx == NULL) {
+            SRPLG_LOG_ERR(PLUGIN_NAME, "sr_acquire_context() failed");
+            goto error_out;
+        }
+    }
+
+    goto out;
+
+error_out:
+    error = SR_ERR_CALLBACK_FAILED;
+
+out:
+    return error;
+}
+
+int interfaces_subscription_operational_interfaces_interface_carrier_delay_carrier_transitions(sr_session_ctx_t* session, uint32_t sub_id, const char* module_name, const char* path, const char* request_xpath, uint32_t request_id, struct lyd_node** parent, void* private_data)
+{
+    int error = SR_ERR_OK;
+    const struct ly_ctx* ly_ctx = NULL;
+
+    if (*parent == NULL) {
+        ly_ctx = sr_acquire_context(sr_session_get_connection(session));
+        if (ly_ctx == NULL) {
+            SRPLG_LOG_ERR(PLUGIN_NAME, "sr_acquire_context() failed");
+            goto error_out;
+        }
+    }
+
+    goto out;
+
+error_out:
+    error = SR_ERR_CALLBACK_FAILED;
+
+out:
+    return error;
+}
+
+int interfaces_subscription_operational_interfaces_interface_carrier_delay_timer_running(sr_session_ctx_t* session, uint32_t sub_id, const char* module_name, const char* path, const char* request_xpath, uint32_t request_id, struct lyd_node** parent, void* private_data)
+{
+    int error = SR_ERR_OK;
+    const struct ly_ctx* ly_ctx = NULL;
+
+    if (*parent == NULL) {
+        ly_ctx = sr_acquire_context(sr_session_get_connection(session));
+        if (ly_ctx == NULL) {
+            SRPLG_LOG_ERR(PLUGIN_NAME, "sr_acquire_context() failed");
+            goto error_out;
+        }
+    }
+
+    goto out;
+
+error_out:
+    error = SR_ERR_CALLBACK_FAILED;
+
+out:
+    return error;
+}
+
+int interfaces_subscription_operational_interfaces_interface_dampening_penalty(sr_session_ctx_t* session, uint32_t sub_id, const char* module_name, const char* path, const char* request_xpath, uint32_t request_id, struct lyd_node** parent, void* private_data)
+{
+    int error = SR_ERR_OK;
+    const struct ly_ctx* ly_ctx = NULL;
+
+    if (*parent == NULL) {
+        ly_ctx = sr_acquire_context(sr_session_get_connection(session));
+        if (ly_ctx == NULL) {
+            SRPLG_LOG_ERR(PLUGIN_NAME, "sr_acquire_context() failed");
+            goto error_out;
+        }
+    }
+
+    goto out;
+
+error_out:
+    error = SR_ERR_CALLBACK_FAILED;
+
+out:
+    return error;
+}
+
+int interfaces_subscription_operational_interfaces_interface_dampening_suppressed(sr_session_ctx_t* session, uint32_t sub_id, const char* module_name, const char* path, const char* request_xpath, uint32_t request_id, struct lyd_node** parent, void* private_data)
+{
+    int error = SR_ERR_OK;
+    const struct ly_ctx* ly_ctx = NULL;
+
+    if (*parent == NULL) {
+        ly_ctx = sr_acquire_context(sr_session_get_connection(session));
+        if (ly_ctx == NULL) {
+            SRPLG_LOG_ERR(PLUGIN_NAME, "sr_acquire_context() failed");
+            goto error_out;
+        }
+    }
+
+    goto out;
+
+error_out:
+    error = SR_ERR_CALLBACK_FAILED;
+
+out:
+    return error;
+}
+
+int interfaces_subscription_operational_interfaces_interface_dampening_time_remaining(sr_session_ctx_t* session, uint32_t sub_id, const char* module_name, const char* path, const char* request_xpath, uint32_t request_id, struct lyd_node** parent, void* private_data)
+{
+    int error = SR_ERR_OK;
+    const struct ly_ctx* ly_ctx = NULL;
+
+    if (*parent == NULL) {
+        ly_ctx = sr_acquire_context(sr_session_get_connection(session));
+        if (ly_ctx == NULL) {
+            SRPLG_LOG_ERR(PLUGIN_NAME, "sr_acquire_context() failed");
+            goto error_out;
+        }
+    }
+
+    goto out;
+
+error_out:
+    error = SR_ERR_CALLBACK_FAILED;
+
+out:
+    return error;
+}
+
+int interfaces_subscription_operational_interfaces_interface_forwarding_mode(sr_session_ctx_t* session, uint32_t sub_id, const char* module_name, const char* path, const char* request_xpath, uint32_t request_id, struct lyd_node** parent, void* private_data)
+{
+    int error = SR_ERR_OK;
+    const struct ly_ctx* ly_ctx = NULL;
+
+    if (*parent == NULL) {
+        ly_ctx = sr_acquire_context(sr_session_get_connection(session));
+        if (ly_ctx == NULL) {
+            SRPLG_LOG_ERR(PLUGIN_NAME, "sr_acquire_context() failed");
+            goto error_out;
+        }
+    }
+
+    goto out;
+
+error_out:
+    error = SR_ERR_CALLBACK_FAILED;
+
+out:
+    return error;
+}
+
 int interfaces_subscription_operational_interfaces_interface(sr_session_ctx_t* session, uint32_t sub_id, const char* module_name, const char* path, const char* request_xpath, uint32_t request_id, struct lyd_node** parent, void* private_data)
 {
     int error = SR_ERR_OK;

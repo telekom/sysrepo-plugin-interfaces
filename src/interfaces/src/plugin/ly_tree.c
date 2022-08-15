@@ -3,6 +3,11 @@
 
 #include <srpc.h>
 
+int interfaces_ly_tree_create_interfaces_state_interface_name(const struct ly_ctx* ly_ctx, struct lyd_node* interface_node, const char* name)
+{
+    return srpc_ly_tree_create_leaf(ly_ctx, interface_node, NULL, "name", name);
+}
+
 int interfaces_ly_tree_create_interfaces(const struct ly_ctx* ly_ctx, struct lyd_node** interfaces_node)
 {
     return srpc_ly_tree_create_container(ly_ctx, NULL, interfaces_node, "interfaces");
@@ -14,9 +19,139 @@ int interfaces_ly_tree_create_interfaces_interface(const struct ly_ctx* ly_ctx, 
     return srpc_ly_tree_create_list(ly_ctx, interfaces_node, interface_node, "interface", "name", name);
 }
 
+int interfaces_ly_tree_create_interfaces_interface_parent_interface(const struct ly_ctx* ly_ctx, struct lyd_node* interface_node, const char* parent_interface)
+{
+    return srpc_ly_tree_create_leaf(ly_ctx, interface_node, NULL, "parent-interface", parent_interface);
+}
+
+int interfaces_ly_tree_create_interfaces_interface_forwarding_mode(const struct ly_ctx* ly_ctx, struct lyd_node* interface_node, const char* forwarding_mode)
+{
+    return srpc_ly_tree_create_leaf(ly_ctx, interface_node, NULL, "forwarding-mode", forwarding_mode);
+}
+
+int interfaces_ly_tree_create_interfaces_interface_max_frame_size(const struct ly_ctx* ly_ctx, struct lyd_node* interface_node, const char* max_frame_size)
+{
+    return srpc_ly_tree_create_leaf(ly_ctx, interface_node, NULL, "max-frame-size", max_frame_size);
+}
+
+int interfaces_ly_tree_create_interfaces_interface_loopback(const struct ly_ctx* ly_ctx, struct lyd_node* interface_node, const char* loopback)
+{
+    return srpc_ly_tree_create_leaf(ly_ctx, interface_node, NULL, "loopback", loopback);
+}
+
+int interfaces_ly_tree_create_interfaces_interface_encapsulation(const struct ly_ctx* ly_ctx, struct lyd_node* interface_node, struct lyd_node** encapsulation_node)
+{
+    return srpc_ly_tree_create_container(ly_ctx, interface_node, encapsulation_node, "encapsulation");
+}
+
+int interfaces_ly_tree_create_interfaces_interface_encapsulation_dot1q_vlan(const struct ly_ctx* ly_ctx, struct lyd_node* encapsulation_node, struct lyd_node** dot1q_vlan_node)
+{
+    return srpc_ly_tree_create_container(ly_ctx, encapsulation_node, dot1q_vlan_node, "dot1q-vlan");
+}
+
+int interfaces_ly_tree_create_interfaces_interface_encapsulation_dot1q_vlan_second_tag(const struct ly_ctx* ly_ctx, struct lyd_node* dot1q_vlan_node, struct lyd_node** second_tag_node)
+{
+    return srpc_ly_tree_create_container(ly_ctx, dot1q_vlan_node, second_tag_node, "second-tag");
+}
+
+int interfaces_ly_tree_create_interfaces_interface_encapsulation_dot1q_vlan_second_tag_vlan_id(const struct ly_ctx* ly_ctx, struct lyd_node* second_tag_node, const char* vlan_id)
+{
+    return srpc_ly_tree_create_leaf(ly_ctx, second_tag_node, NULL, "vlan-id", vlan_id);
+}
+
+int interfaces_ly_tree_create_interfaces_interface_encapsulation_dot1q_vlan_second_tag_tag_type(const struct ly_ctx* ly_ctx, struct lyd_node* second_tag_node, const char* tag_type)
+{
+    return srpc_ly_tree_create_leaf(ly_ctx, second_tag_node, NULL, "tag-type", tag_type);
+}
+
+int interfaces_ly_tree_create_interfaces_interface_encapsulation_dot1q_vlan_outer_tag(const struct ly_ctx* ly_ctx, struct lyd_node* dot1q_vlan_node, struct lyd_node** outer_tag_node)
+{
+    return srpc_ly_tree_create_container(ly_ctx, dot1q_vlan_node, outer_tag_node, "outer-tag");
+}
+
+int interfaces_ly_tree_create_interfaces_interface_encapsulation_dot1q_vlan_outer_tag_vlan_id(const struct ly_ctx* ly_ctx, struct lyd_node* outer_tag_node, const char* vlan_id)
+{
+    return srpc_ly_tree_create_leaf(ly_ctx, outer_tag_node, NULL, "vlan-id", vlan_id);
+}
+
+int interfaces_ly_tree_create_interfaces_interface_encapsulation_dot1q_vlan_outer_tag_tag_type(const struct ly_ctx* ly_ctx, struct lyd_node* outer_tag_node, const char* tag_type)
+{
+    return srpc_ly_tree_create_leaf(ly_ctx, outer_tag_node, NULL, "tag-type", tag_type);
+}
+
+int interfaces_ly_tree_create_interfaces_interface_dampening(const struct ly_ctx* ly_ctx, struct lyd_node* interface_node, struct lyd_node** dampening_node)
+{
+    return srpc_ly_tree_create_container(ly_ctx, interface_node, dampening_node, "dampening");
+}
+
+int interfaces_ly_tree_create_interfaces_interface_dampening_time_remaining(const struct ly_ctx* ly_ctx, struct lyd_node* dampening_node, const char* time_remaining)
+{
+    return srpc_ly_tree_create_leaf(ly_ctx, dampening_node, NULL, "time-remaining", time_remaining);
+}
+
+int interfaces_ly_tree_create_interfaces_interface_dampening_suppressed(const struct ly_ctx* ly_ctx, struct lyd_node* dampening_node, const char* suppressed)
+{
+    return srpc_ly_tree_create_leaf(ly_ctx, dampening_node, NULL, "suppressed", suppressed);
+}
+
+int interfaces_ly_tree_create_interfaces_interface_dampening_penalty(const struct ly_ctx* ly_ctx, struct lyd_node* dampening_node, const char* penalty)
+{
+    return srpc_ly_tree_create_leaf(ly_ctx, dampening_node, NULL, "penalty", penalty);
+}
+
+int interfaces_ly_tree_create_interfaces_interface_dampening_max_suppress_time(const struct ly_ctx* ly_ctx, struct lyd_node* dampening_node, const char* max_suppress_time)
+{
+    return srpc_ly_tree_create_leaf(ly_ctx, dampening_node, NULL, "max-suppress-time", max_suppress_time);
+}
+
+int interfaces_ly_tree_create_interfaces_interface_dampening_suppress(const struct ly_ctx* ly_ctx, struct lyd_node* dampening_node, const char* suppress)
+{
+    return srpc_ly_tree_create_leaf(ly_ctx, dampening_node, NULL, "suppress", suppress);
+}
+
+int interfaces_ly_tree_create_interfaces_interface_dampening_reuse(const struct ly_ctx* ly_ctx, struct lyd_node* dampening_node, const char* reuse)
+{
+    return srpc_ly_tree_create_leaf(ly_ctx, dampening_node, NULL, "reuse", reuse);
+}
+
+int interfaces_ly_tree_create_interfaces_interface_dampening_half_life(const struct ly_ctx* ly_ctx, struct lyd_node* dampening_node, const char* half_life)
+{
+    return srpc_ly_tree_create_leaf(ly_ctx, dampening_node, NULL, "half-life", half_life);
+}
+
+int interfaces_ly_tree_create_interfaces_interface_carrier_delay(const struct ly_ctx* ly_ctx, struct lyd_node* interface_node, struct lyd_node** carrier_delay_node)
+{
+    return srpc_ly_tree_create_container(ly_ctx, interface_node, carrier_delay_node, "carrier-delay");
+}
+
+int interfaces_ly_tree_create_interfaces_interface_carrier_delay_timer_running(const struct ly_ctx* ly_ctx, struct lyd_node* carrier_delay_node, const char* timer_running)
+{
+    return srpc_ly_tree_create_leaf(ly_ctx, carrier_delay_node, NULL, "timer-running", timer_running);
+}
+
+int interfaces_ly_tree_create_interfaces_interface_carrier_delay_carrier_transitions(const struct ly_ctx* ly_ctx, struct lyd_node* carrier_delay_node, const char* carrier_transitions)
+{
+    return srpc_ly_tree_create_leaf(ly_ctx, carrier_delay_node, NULL, "carrier-transitions", carrier_transitions);
+}
+
+int interfaces_ly_tree_create_interfaces_interface_carrier_delay_up(const struct ly_ctx* ly_ctx, struct lyd_node* carrier_delay_node, const char* up)
+{
+    return srpc_ly_tree_create_leaf(ly_ctx, carrier_delay_node, NULL, "up", up);
+}
+
+int interfaces_ly_tree_create_interfaces_interface_carrier_delay_down(const struct ly_ctx* ly_ctx, struct lyd_node* carrier_delay_node, const char* down)
+{
+    return srpc_ly_tree_create_leaf(ly_ctx, carrier_delay_node, NULL, "down", down);
+}
+
 int interfaces_ly_tree_create_interfaces_interface_statistics(const struct ly_ctx* ly_ctx, struct lyd_node* interface_node, struct lyd_node** statistics_node)
 {
     return srpc_ly_tree_create_container(ly_ctx, interface_node, statistics_node, "statistics");
+}
+
+int interfaces_ly_tree_create_interfaces_interface_statistics_in_discard_unknown_encaps(const struct ly_ctx* ly_ctx, struct lyd_node* statistics_node, const char* in_discard_unknown_encaps)
+{
+    return srpc_ly_tree_create_leaf(ly_ctx, statistics_node, NULL, "in-discard-unknown-encaps", in_discard_unknown_encaps);
 }
 
 int interfaces_ly_tree_create_interfaces_interface_statistics_out_errors(const struct ly_ctx* ly_ctx, struct lyd_node* statistics_node, const char* out_errors)
