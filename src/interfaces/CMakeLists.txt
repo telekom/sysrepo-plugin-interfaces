@@ -24,6 +24,10 @@ set(
     src/plugin/api/interfaces/store.c
     src/plugin/api/interfaces/change.c
     src/plugin/api/interfaces/interface/change.c
+    src/plugin/api/interfaces/interface/encapsulation/dot1q-vlan/second-tag/change.c
+    src/plugin/api/interfaces/interface/encapsulation/dot1q-vlan/outer-tag/change.c
+    src/plugin/api/interfaces/interface/dampening/change.c
+    src/plugin/api/interfaces/interface/carrier-delay/change.c
     src/plugin.c
 )
 
@@ -41,6 +45,7 @@ target_link_libraries(
     ${SYSREPO_LIBRARIES}
     ${LIBYANG_LIBRARIES}
     ${SRPC_LIBRARIES}
+    ${NL_LIBRARIES}
 )
 
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/CMakeModules")
@@ -57,6 +62,7 @@ if(PLUGIN)
         ${SYSREPO_LIBRARIES}
         ${LIBYANG_LIBRARIES}
         ${SRPC_LIBRARIES}
+        ${NL_LIBRARIES}
     )
 else()
     add_executable(
@@ -72,6 +78,7 @@ else()
         ${SYSREPO_LIBRARIES}
         ${LIBYANG_LIBRARIES}
         ${SRPC_LIBRARIES}
+        ${NL_LIBRARIES}
     )
 endif()
 
@@ -79,6 +86,7 @@ include_directories(
     ${SYSREPO_INCLUDE_DIRS}
     ${LIBYANG_INCLUDE_DIRS}
     ${SRPC_INCLUDE_DIRS}
+    ${NL_INCLUDE_DIRS}
 )
 
 # augyang support

@@ -4,6 +4,9 @@
 #include <srpc.h>
 #include <utarray.h>
 
+int interfaces_interface_change_parent_interface(void* priv, sr_session_ctx_t* session, const srpc_change_ctx_t* change_ctx);
+int interfaces_interface_change_max_frame_size(void* priv, sr_session_ctx_t* session, const srpc_change_ctx_t* change_ctx);
+int interfaces_interface_change_loopback(void* priv, sr_session_ctx_t* session, const srpc_change_ctx_t* change_ctx);
 int interfaces_interface_change_link_up_down_trap_enable(void* priv, sr_session_ctx_t* session, const srpc_change_ctx_t* change_ctx);
 int interfaces_interface_change_enabled(void* priv, sr_session_ctx_t* session, const srpc_change_ctx_t* change_ctx);
 int interfaces_interface_change_type(void* priv, sr_session_ctx_t* session, const srpc_change_ctx_t* change_ctx);

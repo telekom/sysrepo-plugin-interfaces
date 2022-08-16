@@ -1,4 +1,6 @@
 #include "plugin.h"
+#include "netlink/cache.h"
+#include "netlink/socket.h"
 #include "plugin/common.h"
 #include "plugin/context.h"
 
@@ -133,6 +135,34 @@ int sr_plugin_init_cb(sr_session_ctx_t* running_session, void** private_data)
             INTERFACES_INTERFACES_INTERFACE_STATISTICS_OUT_ERRORS_YANG_PATH,
             interfaces_subscription_operational_interfaces_interface_statistics_out_errors,
         },
+        // {
+        //     INTERFACES_INTERFACES_INTERFACE_STATISTICS_IN_DISCARD_UNKNOWN_ENCAPS_YANG_PATH,
+        //     interfaces_subscription_operational_interfaces_interface_statistics_in_discard_unknown_encaps,
+        // },
+        // {
+        //     INTERFACES_INTERFACES_INTERFACE_CARRIER_DELAY_CARRIER_TRANSITIONS_YANG_PATH,
+        //     interfaces_subscription_operational_interfaces_interface_carrier_delay_carrier_transitions,
+        // },
+        // {
+        //     INTERFACES_INTERFACES_INTERFACE_CARRIER_DELAY_TIMER_RUNNING_YANG_PATH,
+        //     interfaces_subscription_operational_interfaces_interface_carrier_delay_timer_running,
+        // },
+        // {
+        //     INTERFACES_INTERFACES_INTERFACE_DAMPENING_PENALTY_YANG_PATH,
+        //     interfaces_subscription_operational_interfaces_interface_dampening_penalty,
+        // },
+        // {
+        //     INTERFACES_INTERFACES_INTERFACE_DAMPENING_SUPPRESSED_YANG_PATH,
+        //     interfaces_subscription_operational_interfaces_interface_dampening_suppressed,
+        // },
+        // {
+        //     INTERFACES_INTERFACES_INTERFACE_DAMPENING_TIME_REMAINING_YANG_PATH,
+        //     interfaces_subscription_operational_interfaces_interface_dampening_time_remaining,
+        // },
+        // {
+        //     INTERFACES_INTERFACES_INTERFACE_FORWARDING_MODE_YANG_PATH,
+        //     interfaces_subscription_operational_interfaces_interface_forwarding_mode,
+        // },
         {
             INTERFACES_INTERFACES_INTERFACE_YANG_PATH,
             interfaces_subscription_operational_interfaces_interface,
@@ -208,7 +238,7 @@ int sr_plugin_init_cb(sr_session_ctx_t* running_session, void** private_data)
 
         // in case of work on a specific callback set it to NULL
         if (op->cb) {
-            error = sr_oper_get_subscribe(running_session, BASE_YANG_MODEL, op->path, op->cb, NULL, SR_SUBSCR_DEFAULT, &subscription);
+            error = sr_oper_get_subscribe(running_session, BASE_YANG_MODEL, op->path, op->cb, *private_data, SR_SUBSCR_DEFAULT, &subscription);
             if (error) {
                 SRPLG_LOG_ERR(PLUGIN_NAME, "sr_oper_get_subscribe() error (%d): %s", error, sr_strerror(error));
                 goto error_out;
@@ -236,6 +266,14 @@ void sr_plugin_cleanup_cb(sr_session_ctx_t* running_session, void* private_data)
     error = sr_copy_config(ctx->startup_session, BASE_YANG_MODEL, SR_DS_RUNNING, 0);
     if (error) {
         SRPLG_LOG_ERR(PLUGIN_NAME, "sr_copy_config() error (%d): %s", error, sr_strerror(error));
+    }
+
+    if (ctx->nl_ctx.link_cache) {
+        nl_cache_put(ctx->nl_ctx.link_cache);
+    }
+
+    if (ctx->nl_ctx.socket) {
+        nl_socket_free(ctx->nl_ctx.socket);
     }
 
     free(ctx);
