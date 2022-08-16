@@ -20,6 +20,7 @@
 #include <netlink/route/link.h>
 #include <netlink/route/qdisc.h>
 
+static struct rtnl_link* interfaces_get_current_link(interfaces_ctx_t* ctx, sr_session_ctx_t* session, const char* xpath);
 static int interfaces_extract_interface_name(sr_session_ctx_t* session, const char* xpath, char* buffer, size_t buffer_size);
 
 int interfaces_subscription_operational_interfaces_interface_admin_status(sr_session_ctx_t* session, uint32_t sub_id, const char* module_name, const char* path, const char* request_xpath, uint32_t request_id, struct lyd_node** parent, void* private_data)
@@ -640,6 +641,160 @@ out:
     return error;
 }
 
+int interfaces_subscription_operational_interfaces_interface_statistics_in_discard_unknown_encaps(sr_session_ctx_t* session, uint32_t sub_id, const char* module_name, const char* path, const char* request_xpath, uint32_t request_id, struct lyd_node** parent, void* private_data)
+{
+    int error = SR_ERR_OK;
+    const struct ly_ctx* ly_ctx = NULL;
+
+    if (*parent == NULL) {
+        ly_ctx = sr_acquire_context(sr_session_get_connection(session));
+        if (ly_ctx == NULL) {
+            SRPLG_LOG_ERR(PLUGIN_NAME, "sr_acquire_context() failed");
+            goto error_out;
+        }
+    }
+
+    goto out;
+
+error_out:
+    error = SR_ERR_CALLBACK_FAILED;
+
+out:
+    return error;
+}
+
+int interfaces_subscription_operational_interfaces_interface_carrier_delay_carrier_transitions(sr_session_ctx_t* session, uint32_t sub_id, const char* module_name, const char* path, const char* request_xpath, uint32_t request_id, struct lyd_node** parent, void* private_data)
+{
+    int error = SR_ERR_OK;
+    const struct ly_ctx* ly_ctx = NULL;
+
+    if (*parent == NULL) {
+        ly_ctx = sr_acquire_context(sr_session_get_connection(session));
+        if (ly_ctx == NULL) {
+            SRPLG_LOG_ERR(PLUGIN_NAME, "sr_acquire_context() failed");
+            goto error_out;
+        }
+    }
+
+    goto out;
+
+error_out:
+    error = SR_ERR_CALLBACK_FAILED;
+
+out:
+    return error;
+}
+
+int interfaces_subscription_operational_interfaces_interface_carrier_delay_timer_running(sr_session_ctx_t* session, uint32_t sub_id, const char* module_name, const char* path, const char* request_xpath, uint32_t request_id, struct lyd_node** parent, void* private_data)
+{
+    int error = SR_ERR_OK;
+    const struct ly_ctx* ly_ctx = NULL;
+
+    if (*parent == NULL) {
+        ly_ctx = sr_acquire_context(sr_session_get_connection(session));
+        if (ly_ctx == NULL) {
+            SRPLG_LOG_ERR(PLUGIN_NAME, "sr_acquire_context() failed");
+            goto error_out;
+        }
+    }
+
+    goto out;
+
+error_out:
+    error = SR_ERR_CALLBACK_FAILED;
+
+out:
+    return error;
+}
+
+int interfaces_subscription_operational_interfaces_interface_dampening_penalty(sr_session_ctx_t* session, uint32_t sub_id, const char* module_name, const char* path, const char* request_xpath, uint32_t request_id, struct lyd_node** parent, void* private_data)
+{
+    int error = SR_ERR_OK;
+    const struct ly_ctx* ly_ctx = NULL;
+
+    if (*parent == NULL) {
+        ly_ctx = sr_acquire_context(sr_session_get_connection(session));
+        if (ly_ctx == NULL) {
+            SRPLG_LOG_ERR(PLUGIN_NAME, "sr_acquire_context() failed");
+            goto error_out;
+        }
+    }
+
+    goto out;
+
+error_out:
+    error = SR_ERR_CALLBACK_FAILED;
+
+out:
+    return error;
+}
+
+int interfaces_subscription_operational_interfaces_interface_dampening_suppressed(sr_session_ctx_t* session, uint32_t sub_id, const char* module_name, const char* path, const char* request_xpath, uint32_t request_id, struct lyd_node** parent, void* private_data)
+{
+    int error = SR_ERR_OK;
+    const struct ly_ctx* ly_ctx = NULL;
+
+    if (*parent == NULL) {
+        ly_ctx = sr_acquire_context(sr_session_get_connection(session));
+        if (ly_ctx == NULL) {
+            SRPLG_LOG_ERR(PLUGIN_NAME, "sr_acquire_context() failed");
+            goto error_out;
+        }
+    }
+
+    goto out;
+
+error_out:
+    error = SR_ERR_CALLBACK_FAILED;
+
+out:
+    return error;
+}
+
+int interfaces_subscription_operational_interfaces_interface_dampening_time_remaining(sr_session_ctx_t* session, uint32_t sub_id, const char* module_name, const char* path, const char* request_xpath, uint32_t request_id, struct lyd_node** parent, void* private_data)
+{
+    int error = SR_ERR_OK;
+    const struct ly_ctx* ly_ctx = NULL;
+
+    if (*parent == NULL) {
+        ly_ctx = sr_acquire_context(sr_session_get_connection(session));
+        if (ly_ctx == NULL) {
+            SRPLG_LOG_ERR(PLUGIN_NAME, "sr_acquire_context() failed");
+            goto error_out;
+        }
+    }
+
+    goto out;
+
+error_out:
+    error = SR_ERR_CALLBACK_FAILED;
+
+out:
+    return error;
+}
+
+int interfaces_subscription_operational_interfaces_interface_forwarding_mode(sr_session_ctx_t* session, uint32_t sub_id, const char* module_name, const char* path, const char* request_xpath, uint32_t request_id, struct lyd_node** parent, void* private_data)
+{
+    int error = SR_ERR_OK;
+    const struct ly_ctx* ly_ctx = NULL;
+
+    if (*parent == NULL) {
+        ly_ctx = sr_acquire_context(sr_session_get_connection(session));
+        if (ly_ctx == NULL) {
+            SRPLG_LOG_ERR(PLUGIN_NAME, "sr_acquire_context() failed");
+            goto error_out;
+        }
+    }
+
+    goto out;
+
+error_out:
+    error = SR_ERR_CALLBACK_FAILED;
+
+out:
+    return error;
+}
+
 int interfaces_subscription_operational_interfaces_interface(sr_session_ctx_t* session, uint32_t sub_id, const char* module_name, const char* path, const char* request_xpath, uint32_t request_id, struct lyd_node** parent, void* private_data)
 {
     int error = SR_ERR_OK;
@@ -698,6 +853,33 @@ error_out:
 out:
 
     return error;
+}
+
+static struct rtnl_link* interfaces_get_current_link(interfaces_ctx_t* ctx, sr_session_ctx_t* session, const char* xpath)
+{
+    int error = 0;
+
+    const interfaces_nl_ctx_t* nl_ctx = &ctx->nl_ctx;
+
+    // buffers
+    char interface_name_buffer[100] = { 0 };
+
+    // libnl
+    struct rtnl_link* link = NULL;
+
+    // there needs to be an allocated link cache in memory
+    assert(ctx->nl_ctx.link_cache != NULL);
+
+    // extract interface name
+    SRPC_SAFE_CALL_ERR(error, interfaces_extract_interface_name(session, xpath, interface_name_buffer, sizeof(interface_name_buffer)), error_out);
+
+    // get link by name
+    SRPC_SAFE_CALL_PTR(link, rtnl_link_get_by_name(nl_ctx->link_cache, interface_name_buffer), error_out);
+
+    return link;
+
+error_out:
+    return NULL;
 }
 
 static int interfaces_extract_interface_name(sr_session_ctx_t* session, const char* xpath, char* buffer, size_t buffer_size)
