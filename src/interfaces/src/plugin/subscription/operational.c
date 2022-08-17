@@ -509,6 +509,50 @@ int interfaces_subscription_operational_interfaces_interface_statistics_in_disca
     interfaces_ctx_t* ctx = private_data;
 
     // buffers
+    char in_discards_buffer[100] = { 0 };
+
+    // libnl
+    struct rtnl_link* link = NULL;
+
+    // there needs to be an allocated link cache in memory
+    assert(*parent != NULL);
+    assert(strcmp(LYD_NAME(*parent), "statistics") == 0);
+
+    // get link
+    SRPC_SAFE_CALL_PTR(link, interfaces_get_current_link(ctx, session, request_xpath), error_out);
+
+    // get in-octets
+    const uint64_t in_discards = rtnl_link_get_stat(link, RTNL_LINK_RX_DROPPED);
+
+    error = snprintf(in_discards_buffer, sizeof(in_discards_buffer), "%lu", in_discards);
+    if (error < 0) {
+        SRPLG_LOG_ERR(PLUGIN_NAME, "snprintf() failed (%d)", error);
+        goto error_out;
+    }
+
+    SRPLG_LOG_INF(PLUGIN_NAME, "in-octets(%s) = %s", rtnl_link_get_name(link), in_discards_buffer);
+
+    SRPC_SAFE_CALL_ERR(error, interfaces_ly_tree_create_interfaces_interface_statistics_in_multicast_pkts(ly_ctx, *parent, in_discards_buffer), error_out);
+
+    error = 0;
+    goto out;
+
+error_out:
+    error = SR_ERR_CALLBACK_FAILED;
+
+out:
+    return error;
+}
+
+int interfaces_subscription_operational_interfaces_interface_statistics_in_errors(sr_session_ctx_t* session, uint32_t sub_id, const char* module_name, const char* path, const char* request_xpath, uint32_t request_id, struct lyd_node** parent, void* private_data)
+{
+    int error = SR_ERR_OK;
+
+    // context
+    const struct ly_ctx* ly_ctx = NULL;
+    interfaces_ctx_t* ctx = private_data;
+
+    // buffers
     char in_multicast_pkts_buffer[100] = { 0 };
 
     // libnl
@@ -535,28 +579,6 @@ int interfaces_subscription_operational_interfaces_interface_statistics_in_disca
     SRPC_SAFE_CALL_ERR(error, interfaces_ly_tree_create_interfaces_interface_statistics_in_multicast_pkts(ly_ctx, *parent, in_multicast_pkts_buffer), error_out);
 
     error = 0;
-    goto out;
-
-error_out:
-    error = SR_ERR_CALLBACK_FAILED;
-
-out:
-    return error;
-}
-
-int interfaces_subscription_operational_interfaces_interface_statistics_in_errors(sr_session_ctx_t* session, uint32_t sub_id, const char* module_name, const char* path, const char* request_xpath, uint32_t request_id, struct lyd_node** parent, void* private_data)
-{
-    int error = SR_ERR_OK;
-    const struct ly_ctx* ly_ctx = NULL;
-
-    if (*parent == NULL) {
-        ly_ctx = sr_acquire_context(sr_session_get_connection(session));
-        if (ly_ctx == NULL) {
-            SRPLG_LOG_ERR(PLUGIN_NAME, "sr_acquire_context() failed");
-            goto error_out;
-        }
-    }
-
     goto out;
 
 error_out:
