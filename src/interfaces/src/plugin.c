@@ -37,6 +37,21 @@ int sr_plugin_init_cb(sr_session_ctx_t* running_session, void** private_data)
 
     *private_data = ctx;
 
+    // log status of features
+    const char* ietf_interfaces_features[] = {
+        "arbitrary-names",
+        "pre-provisioning",
+        "if-mib",
+    };
+
+    const char* ietf_if_extensions_features[] = {
+        "carrier-delay",
+        "dampening",
+        "loopback",
+        "max-frame-size",
+        "sub-interfaces",
+    };
+
     // module changes
     srpc_module_change_t module_changes[] = {
         {
@@ -168,6 +183,28 @@ int sr_plugin_init_cb(sr_session_ctx_t* running_session, void** private_data)
             interfaces_subscription_operational_interfaces_interface,
         },
     };
+
+    SRPLG_LOG_INF(PLUGIN_NAME, "Checking ietf-interfaces YANG module used features:");
+
+    for (size_t i = 0; i < ARRAY_SIZE(ietf_interfaces_features); i++) {
+        const char* feature = ietf_interfaces_features[i];
+        bool enabled = false;
+
+        SRPC_SAFE_CALL_ERR(error, srpc_check_feature_status(running_session, "ietf-interfaces", feature, &enabled), error_out);
+
+        SRPLG_LOG_INF(PLUGIN_NAME, "ietf-interfaces feature \"%s\" status = %s", feature, enabled ? "enabled" : "disabled");
+    }
+
+    SRPLG_LOG_INF(PLUGIN_NAME, "Checking ietf-if-extensions YANG module used features:");
+
+    for (size_t i = 0; i < ARRAY_SIZE(ietf_if_extensions_features); i++) {
+        const char* feature = ietf_if_extensions_features[i];
+        bool enabled = false;
+
+        SRPC_SAFE_CALL_ERR(error, srpc_check_feature_status(running_session, "ietf-if-extensions", feature, &enabled), error_out);
+
+        SRPLG_LOG_INF(PLUGIN_NAME, "ietf-if-extensions feature \"%s\" status = %s", feature, enabled ? "enabled" : "disabled");
+    }
 
     connection = sr_session_get_connection(running_session);
     error = sr_session_start(connection, SR_DS_STARTUP, &startup_session);
