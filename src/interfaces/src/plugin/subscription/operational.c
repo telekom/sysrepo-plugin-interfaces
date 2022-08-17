@@ -342,7 +342,6 @@ int interfaces_subscription_operational_interfaces_interface_statistics_in_octet
     // get link
     SRPC_SAFE_CALL_PTR(link, interfaces_get_current_link(ctx, session, request_xpath), error_out);
 
-    // get in-octets
     const uint64_t in_octets = rtnl_link_get_stat(link, RTNL_LINK_RX_BYTES);
 
     error = snprintf(in_octets_buffer, sizeof(in_octets_buffer), "%lu", in_octets);
@@ -386,7 +385,6 @@ int interfaces_subscription_operational_interfaces_interface_statistics_in_unica
     // get link
     SRPC_SAFE_CALL_PTR(link, interfaces_get_current_link(ctx, session, request_xpath), error_out);
 
-    // get in-octets
     const uint64_t in_pkts = rtnl_link_get_stat(link, RTNL_LINK_RX_PACKETS);
     const uint64_t in_broadcast_pkts = rtnl_link_get_stat(link, RTNL_LINK_IP6_INBCASTPKTS);
     const uint64_t in_multicast_pkts = rtnl_link_get_stat(link, RTNL_LINK_IP6_INMCASTPKTS);
@@ -433,7 +431,6 @@ int interfaces_subscription_operational_interfaces_interface_statistics_in_broad
     // get link
     SRPC_SAFE_CALL_PTR(link, interfaces_get_current_link(ctx, session, request_xpath), error_out);
 
-    // get in-octets
     const uint64_t in_broadcast_pkts = rtnl_link_get_stat(link, RTNL_LINK_IP6_INBCASTPKTS);
 
     error = snprintf(in_broadcast_pkts_buffer, sizeof(in_broadcast_pkts_buffer), "%lu", in_broadcast_pkts);
@@ -477,7 +474,6 @@ int interfaces_subscription_operational_interfaces_interface_statistics_in_multi
     // get link
     SRPC_SAFE_CALL_PTR(link, interfaces_get_current_link(ctx, session, request_xpath), error_out);
 
-    // get in-octets
     const uint64_t in_multicast_pkts = rtnl_link_get_stat(link, RTNL_LINK_IP6_INMCASTPKTS);
 
     error = snprintf(in_multicast_pkts_buffer, sizeof(in_multicast_pkts_buffer), "%lu", in_multicast_pkts);
@@ -521,7 +517,6 @@ int interfaces_subscription_operational_interfaces_interface_statistics_in_disca
     // get link
     SRPC_SAFE_CALL_PTR(link, interfaces_get_current_link(ctx, session, request_xpath), error_out);
 
-    // get in-octets
     const uint32_t in_discards = (uint32_t)rtnl_link_get_stat(link, RTNL_LINK_RX_DROPPED);
 
     error = snprintf(in_discards_buffer, sizeof(in_discards_buffer), "%u", in_discards);
@@ -565,7 +560,6 @@ int interfaces_subscription_operational_interfaces_interface_statistics_in_error
     // get link
     SRPC_SAFE_CALL_PTR(link, interfaces_get_current_link(ctx, session, request_xpath), error_out);
 
-    // get in-octets
     const uint32_t in_errors = (uint32_t)rtnl_link_get_stat(link, RTNL_LINK_RX_ERRORS);
 
     error = snprintf(in_errors_buffer, sizeof(in_errors_buffer), "%u", in_errors);
@@ -609,7 +603,6 @@ int interfaces_subscription_operational_interfaces_interface_statistics_in_unkno
     // get link
     SRPC_SAFE_CALL_PTR(link, interfaces_get_current_link(ctx, session, request_xpath), error_out);
 
-    // get in-octets
     const uint32_t in_unknown_protos = (uint32_t)rtnl_link_get_stat(link, RTNL_LINK_IP6_INUNKNOWNPROTOS);
 
     error = snprintf(in_unknown_protos_buffer, sizeof(in_unknown_protos_buffer), "%u", in_unknown_protos);
@@ -653,7 +646,6 @@ int interfaces_subscription_operational_interfaces_interface_statistics_out_octe
     // get link
     SRPC_SAFE_CALL_PTR(link, interfaces_get_current_link(ctx, session, request_xpath), error_out);
 
-    // get in-octets
     const uint64_t out_octets = rtnl_link_get_stat(link, RTNL_LINK_TX_BYTES);
 
     error = snprintf(out_octets_buffer, sizeof(out_octets_buffer), "%lu", out_octets);
@@ -679,16 +671,40 @@ out:
 int interfaces_subscription_operational_interfaces_interface_statistics_out_unicast_pkts(sr_session_ctx_t* session, uint32_t sub_id, const char* module_name, const char* path, const char* request_xpath, uint32_t request_id, struct lyd_node** parent, void* private_data)
 {
     int error = SR_ERR_OK;
-    const struct ly_ctx* ly_ctx = NULL;
 
-    if (*parent == NULL) {
-        ly_ctx = sr_acquire_context(sr_session_get_connection(session));
-        if (ly_ctx == NULL) {
-            SRPLG_LOG_ERR(PLUGIN_NAME, "sr_acquire_context() failed");
-            goto error_out;
-        }
+    // context
+    const struct ly_ctx* ly_ctx = NULL;
+    interfaces_ctx_t* ctx = private_data;
+
+    // buffers
+    char out_unicast_pkts_buffer[100] = { 0 };
+
+    // libnl
+    struct rtnl_link* link = NULL;
+
+    // there needs to be an allocated link cache in memory
+    assert(*parent != NULL);
+    assert(strcmp(LYD_NAME(*parent), "statistics") == 0);
+
+    // get link
+    SRPC_SAFE_CALL_PTR(link, interfaces_get_current_link(ctx, session, request_xpath), error_out);
+
+    const uint64_t out_pkts = rtnl_link_get_stat(link, RTNL_LINK_TX_PACKETS);
+    const uint64_t out_broadcast_pkts = rtnl_link_get_stat(link, RTNL_LINK_IP6_OUTBCASTPKTS);
+    const uint64_t out_multicast_pkts = rtnl_link_get_stat(link, RTNL_LINK_IP6_OUTMCASTPKTS);
+    const uint64_t out_unicast_pkts = out_pkts - out_broadcast_pkts - out_multicast_pkts;
+
+    error = snprintf(out_unicast_pkts_buffer, sizeof(out_unicast_pkts_buffer), "%lu", out_unicast_pkts);
+    if (error < 0) {
+        SRPLG_LOG_ERR(PLUGIN_NAME, "snprintf() failed (%d)", error);
+        goto error_out;
     }
 
+    SRPLG_LOG_INF(PLUGIN_NAME, "out-unicast-pkts(%s) = %s", rtnl_link_get_name(link), out_unicast_pkts_buffer);
+
+    SRPC_SAFE_CALL_ERR(error, interfaces_ly_tree_create_interfaces_interface_statistics_out_unicast_pkts(ly_ctx, *parent, out_unicast_pkts_buffer), error_out);
+
+    error = 0;
     goto out;
 
 error_out:
@@ -701,16 +717,37 @@ out:
 int interfaces_subscription_operational_interfaces_interface_statistics_out_broadcast_pkts(sr_session_ctx_t* session, uint32_t sub_id, const char* module_name, const char* path, const char* request_xpath, uint32_t request_id, struct lyd_node** parent, void* private_data)
 {
     int error = SR_ERR_OK;
-    const struct ly_ctx* ly_ctx = NULL;
 
-    if (*parent == NULL) {
-        ly_ctx = sr_acquire_context(sr_session_get_connection(session));
-        if (ly_ctx == NULL) {
-            SRPLG_LOG_ERR(PLUGIN_NAME, "sr_acquire_context() failed");
-            goto error_out;
-        }
+    // context
+    const struct ly_ctx* ly_ctx = NULL;
+    interfaces_ctx_t* ctx = private_data;
+
+    // buffers
+    char out_broadcast_pkts_buffer[100] = { 0 };
+
+    // libnl
+    struct rtnl_link* link = NULL;
+
+    // there needs to be an allocated link cache in memory
+    assert(*parent != NULL);
+    assert(strcmp(LYD_NAME(*parent), "statistics") == 0);
+
+    // get link
+    SRPC_SAFE_CALL_PTR(link, interfaces_get_current_link(ctx, session, request_xpath), error_out);
+
+    const uint64_t out_broadcast_pkts = rtnl_link_get_stat(link, RTNL_LINK_IP6_OUTBCASTPKTS);
+
+    error = snprintf(out_broadcast_pkts_buffer, sizeof(out_broadcast_pkts_buffer), "%lu", out_broadcast_pkts);
+    if (error < 0) {
+        SRPLG_LOG_ERR(PLUGIN_NAME, "snprintf() failed (%d)", error);
+        goto error_out;
     }
 
+    SRPLG_LOG_INF(PLUGIN_NAME, "out-broadcast-pkts(%s) = %s", rtnl_link_get_name(link), out_broadcast_pkts_buffer);
+
+    SRPC_SAFE_CALL_ERR(error, interfaces_ly_tree_create_interfaces_interface_statistics_out_broadcast_pkts(ly_ctx, *parent, out_broadcast_pkts_buffer), error_out);
+
+    error = 0;
     goto out;
 
 error_out:
@@ -723,16 +760,37 @@ out:
 int interfaces_subscription_operational_interfaces_interface_statistics_out_multicast_pkts(sr_session_ctx_t* session, uint32_t sub_id, const char* module_name, const char* path, const char* request_xpath, uint32_t request_id, struct lyd_node** parent, void* private_data)
 {
     int error = SR_ERR_OK;
-    const struct ly_ctx* ly_ctx = NULL;
 
-    if (*parent == NULL) {
-        ly_ctx = sr_acquire_context(sr_session_get_connection(session));
-        if (ly_ctx == NULL) {
-            SRPLG_LOG_ERR(PLUGIN_NAME, "sr_acquire_context() failed");
-            goto error_out;
-        }
+    // context
+    const struct ly_ctx* ly_ctx = NULL;
+    interfaces_ctx_t* ctx = private_data;
+
+    // buffers
+    char out_multicast_pkts_buffer[100] = { 0 };
+
+    // libnl
+    struct rtnl_link* link = NULL;
+
+    // there needs to be an allocated link cache in memory
+    assert(*parent != NULL);
+    assert(strcmp(LYD_NAME(*parent), "statistics") == 0);
+
+    // get link
+    SRPC_SAFE_CALL_PTR(link, interfaces_get_current_link(ctx, session, request_xpath), error_out);
+
+    const uint64_t out_multicast_pkts = rtnl_link_get_stat(link, RTNL_LINK_IP6_OUTMCASTPKTS);
+
+    error = snprintf(out_multicast_pkts_buffer, sizeof(out_multicast_pkts_buffer), "%lu", out_multicast_pkts);
+    if (error < 0) {
+        SRPLG_LOG_ERR(PLUGIN_NAME, "snprintf() failed (%d)", error);
+        goto error_out;
     }
 
+    SRPLG_LOG_INF(PLUGIN_NAME, "out-multicast-pkts(%s) = %s", rtnl_link_get_name(link), out_multicast_pkts_buffer);
+
+    SRPC_SAFE_CALL_ERR(error, interfaces_ly_tree_create_interfaces_interface_statistics_out_multicast_pkts(ly_ctx, *parent, out_multicast_pkts_buffer), error_out);
+
+    error = 0;
     goto out;
 
 error_out:
