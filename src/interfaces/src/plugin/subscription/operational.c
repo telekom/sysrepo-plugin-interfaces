@@ -52,10 +52,6 @@ int interfaces_subscription_operational_interfaces_interface_oper_status(sr_sess
     // context
     const struct ly_ctx* ly_ctx = NULL;
     interfaces_ctx_t* ctx = private_data;
-    interfaces_nl_ctx_t* nl_ctx = &ctx->nl_ctx;
-
-    // buffers
-    char interface_name_buffer[100] = { 0 };
 
     // libnl
     struct rtnl_link* link = NULL;
@@ -71,23 +67,17 @@ int interfaces_subscription_operational_interfaces_interface_oper_status(sr_sess
     };
 
     // there needs to be an allocated link cache in memory
-    assert(ctx->nl_ctx.link_cache != NULL);
     assert(*parent != NULL);
     assert(strcmp(LYD_NAME(*parent), "interface") == 0);
 
-    // extract interface name
-    SRPC_SAFE_CALL_ERR(error, interfaces_extract_interface_name(session, request_xpath, interface_name_buffer, sizeof(interface_name_buffer)), error_out);
-
-    // get link by name
-    SRPC_SAFE_CALL_PTR(link, rtnl_link_get_by_name(nl_ctx->link_cache, interface_name_buffer), error_out);
-
-    SRPLG_LOG_INF(PLUGIN_NAME, "Getting oper-status(%s)", interface_name_buffer);
+    // get link
+    SRPC_SAFE_CALL_PTR(link, interfaces_get_current_link(ctx, session, request_xpath), error_out);
 
     // get oper status
     const uint8_t oper_status = rtnl_link_get_operstate(link);
     const char* oper_status_str = operstate_map[oper_status];
 
-    SRPLG_LOG_INF(PLUGIN_NAME, "oper-status(%s) = %s", interface_name_buffer, oper_status_str);
+    SRPLG_LOG_INF(PLUGIN_NAME, "oper-status(%s) = %s", rtnl_link_get_name(link), oper_status_str);
 
     // add oper-status node
     SRPC_SAFE_CALL_ERR(error, interfaces_ly_tree_create_interfaces_interface_oper_status(ly_ctx, *parent, oper_status_str), error_out);
@@ -130,27 +120,19 @@ int interfaces_subscription_operational_interfaces_interface_if_index(sr_session
     // context
     const struct ly_ctx* ly_ctx = NULL;
     interfaces_ctx_t* ctx = private_data;
-    interfaces_nl_ctx_t* nl_ctx = &ctx->nl_ctx;
 
     // buffers
-    char interface_name_buffer[100] = { 0 };
     char ifindex_buffer[100] = { 0 };
 
     // libnl
     struct rtnl_link* link = NULL;
 
     // there needs to be an allocated link cache in memory
-    assert(ctx->nl_ctx.link_cache != NULL);
     assert(*parent != NULL);
     assert(strcmp(LYD_NAME(*parent), "interface") == 0);
 
-    // extract interface name
-    SRPC_SAFE_CALL_ERR(error, interfaces_extract_interface_name(session, request_xpath, interface_name_buffer, sizeof(interface_name_buffer)), error_out);
-
-    // get link by name
-    SRPC_SAFE_CALL_PTR(link, rtnl_link_get_by_name(nl_ctx->link_cache, interface_name_buffer), error_out);
-
-    SRPLG_LOG_INF(PLUGIN_NAME, "Getting if-index(%s)", interface_name_buffer);
+    // get link
+    SRPC_SAFE_CALL_PTR(link, interfaces_get_current_link(ctx, session, request_xpath), error_out);
 
     // get if-index
     const int ifindex = rtnl_link_get_ifindex(link);
@@ -161,7 +143,7 @@ int interfaces_subscription_operational_interfaces_interface_if_index(sr_session
         goto error_out;
     }
 
-    SRPLG_LOG_INF(PLUGIN_NAME, "if-index(%s) = %s", interface_name_buffer, ifindex_buffer);
+    SRPLG_LOG_INF(PLUGIN_NAME, "if-index(%s) = %s", rtnl_link_get_name(link), ifindex_buffer);
 
     // add ifindex node
     SRPC_SAFE_CALL_ERR(error, interfaces_ly_tree_create_interfaces_interface_if_index(ly_ctx, *parent, ifindex_buffer), error_out);
@@ -184,10 +166,8 @@ int interfaces_subscription_operational_interfaces_interface_phys_address(sr_ses
     // context
     const struct ly_ctx* ly_ctx = NULL;
     interfaces_ctx_t* ctx = private_data;
-    interfaces_nl_ctx_t* nl_ctx = &ctx->nl_ctx;
 
     // buffers
-    char interface_name_buffer[100] = { 0 };
     char phys_address_buffer[100] = { 0 };
 
     // libnl
@@ -195,23 +175,17 @@ int interfaces_subscription_operational_interfaces_interface_phys_address(sr_ses
     struct nl_addr* addr = NULL;
 
     // there needs to be an allocated link cache in memory
-    assert(ctx->nl_ctx.link_cache != NULL);
     assert(*parent != NULL);
     assert(strcmp(LYD_NAME(*parent), "interface") == 0);
 
-    // extract interface name
-    SRPC_SAFE_CALL_ERR(error, interfaces_extract_interface_name(session, request_xpath, interface_name_buffer, sizeof(interface_name_buffer)), error_out);
-
-    // get link by name
-    SRPC_SAFE_CALL_PTR(link, rtnl_link_get_by_name(nl_ctx->link_cache, interface_name_buffer), error_out);
-
-    SRPLG_LOG_INF(PLUGIN_NAME, "Getting phys-address(%s)", interface_name_buffer);
+    // get link
+    SRPC_SAFE_CALL_PTR(link, interfaces_get_current_link(ctx, session, request_xpath), error_out);
 
     // get phys-address
     SRPC_SAFE_CALL_PTR(addr, rtnl_link_get_addr(link), error_out);
     SRPC_SAFE_CALL_PTR(error_ptr, nl_addr2str(addr, phys_address_buffer, sizeof(phys_address_buffer)), error_out);
 
-    SRPLG_LOG_INF(PLUGIN_NAME, "phys-address(%s) = %s", interface_name_buffer, phys_address_buffer);
+    SRPLG_LOG_INF(PLUGIN_NAME, "phys-address(%s) = %s", rtnl_link_get_name(link), phys_address_buffer);
 
     // add phys-address node
     SRPC_SAFE_CALL_ERR(error, interfaces_ly_tree_create_interfaces_interface_phys_address(ly_ctx, *parent, phys_address_buffer), error_out);
@@ -278,10 +252,8 @@ int interfaces_subscription_operational_interfaces_interface_speed(sr_session_ct
     // context
     const struct ly_ctx* ly_ctx = NULL;
     interfaces_ctx_t* ctx = private_data;
-    interfaces_nl_ctx_t* nl_ctx = &ctx->nl_ctx;
 
     // buffers
-    char interface_name_buffer[100] = { 0 };
     char speed_buffer[100] = { 0 };
 
     // libnl
@@ -290,17 +262,11 @@ int interfaces_subscription_operational_interfaces_interface_speed(sr_session_ct
     struct rtnl_tc* tc = NULL;
 
     // there needs to be an allocated link cache in memory
-    assert(ctx->nl_ctx.link_cache != NULL);
     assert(*parent != NULL);
     assert(strcmp(LYD_NAME(*parent), "interface") == 0);
 
-    // extract interface name
-    SRPC_SAFE_CALL_ERR(error, interfaces_extract_interface_name(session, request_xpath, interface_name_buffer, sizeof(interface_name_buffer)), error_out);
-
-    // get link by name
-    SRPC_SAFE_CALL_PTR(link, rtnl_link_get_by_name(nl_ctx->link_cache, interface_name_buffer), error_out);
-
-    SRPLG_LOG_INF(PLUGIN_NAME, "Getting speed(%s)", interface_name_buffer);
+    // get link
+    SRPC_SAFE_CALL_PTR(link, interfaces_get_current_link(ctx, session, request_xpath), error_out);
 
     qdisc = rtnl_qdisc_alloc();
 
@@ -316,7 +282,7 @@ int interfaces_subscription_operational_interfaces_interface_speed(sr_session_ct
         goto error_out;
     }
 
-    SRPLG_LOG_INF(PLUGIN_NAME, "speed(%s) = %s", interface_name_buffer, speed_buffer);
+    SRPLG_LOG_INF(PLUGIN_NAME, "speed(%s) = %s", rtnl_link_get_name(link), speed_buffer);
 
     // add phys-address node
     SRPC_SAFE_CALL_ERR(error, interfaces_ly_tree_create_interfaces_interface_speed(ly_ctx, *parent, speed_buffer), error_out);
@@ -868,7 +834,7 @@ static struct rtnl_link* interfaces_get_current_link(interfaces_ctx_t* ctx, sr_s
     struct rtnl_link* link = NULL;
 
     // there needs to be an allocated link cache in memory
-    assert(ctx->nl_ctx.link_cache != NULL);
+    assert(nl_ctx->link_cache != NULL);
 
     // extract interface name
     SRPC_SAFE_CALL_ERR(error, interfaces_extract_interface_name(session, xpath, interface_name_buffer, sizeof(interface_name_buffer)), error_out);
