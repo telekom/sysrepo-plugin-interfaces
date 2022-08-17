@@ -635,16 +635,38 @@ out:
 int interfaces_subscription_operational_interfaces_interface_statistics_out_octets(sr_session_ctx_t* session, uint32_t sub_id, const char* module_name, const char* path, const char* request_xpath, uint32_t request_id, struct lyd_node** parent, void* private_data)
 {
     int error = SR_ERR_OK;
-    const struct ly_ctx* ly_ctx = NULL;
 
-    if (*parent == NULL) {
-        ly_ctx = sr_acquire_context(sr_session_get_connection(session));
-        if (ly_ctx == NULL) {
-            SRPLG_LOG_ERR(PLUGIN_NAME, "sr_acquire_context() failed");
-            goto error_out;
-        }
+    // context
+    const struct ly_ctx* ly_ctx = NULL;
+    interfaces_ctx_t* ctx = private_data;
+
+    // buffers
+    char out_octets_buffer[100] = { 0 };
+
+    // libnl
+    struct rtnl_link* link = NULL;
+
+    // there needs to be an allocated link cache in memory
+    assert(*parent != NULL);
+    assert(strcmp(LYD_NAME(*parent), "statistics") == 0);
+
+    // get link
+    SRPC_SAFE_CALL_PTR(link, interfaces_get_current_link(ctx, session, request_xpath), error_out);
+
+    // get in-octets
+    const uint64_t out_octets = rtnl_link_get_stat(link, RTNL_LINK_TX_BYTES);
+
+    error = snprintf(out_octets_buffer, sizeof(out_octets_buffer), "%lu", out_octets);
+    if (error < 0) {
+        SRPLG_LOG_ERR(PLUGIN_NAME, "snprintf() failed (%d)", error);
+        goto error_out;
     }
 
+    SRPLG_LOG_INF(PLUGIN_NAME, "out-octets(%s) = %s", rtnl_link_get_name(link), out_octets_buffer);
+
+    SRPC_SAFE_CALL_ERR(error, interfaces_ly_tree_create_interfaces_interface_statistics_out_octets(ly_ctx, *parent, out_octets_buffer), error_out);
+
+    error = 0;
     goto out;
 
 error_out:
