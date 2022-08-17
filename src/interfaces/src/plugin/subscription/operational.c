@@ -398,7 +398,7 @@ int interfaces_subscription_operational_interfaces_interface_statistics_in_unica
         goto error_out;
     }
 
-    SRPLG_LOG_INF(PLUGIN_NAME, "in-octets(%s) = %s", rtnl_link_get_name(link), in_unicast_pkts_buffer);
+    SRPLG_LOG_INF(PLUGIN_NAME, "in-unicast-pkts(%s) = %s", rtnl_link_get_name(link), in_unicast_pkts_buffer);
 
     SRPC_SAFE_CALL_ERR(error, interfaces_ly_tree_create_interfaces_interface_statistics_in_unicast_pkts(ly_ctx, *parent, in_unicast_pkts_buffer), error_out);
 
@@ -442,7 +442,7 @@ int interfaces_subscription_operational_interfaces_interface_statistics_in_broad
         goto error_out;
     }
 
-    SRPLG_LOG_INF(PLUGIN_NAME, "in-octets(%s) = %s", rtnl_link_get_name(link), in_broadcast_pkts_buffer);
+    SRPLG_LOG_INF(PLUGIN_NAME, "in-broadcast-pkts(%s) = %s", rtnl_link_get_name(link), in_broadcast_pkts_buffer);
 
     SRPC_SAFE_CALL_ERR(error, interfaces_ly_tree_create_interfaces_interface_statistics_in_broadcast_pkts(ly_ctx, *parent, in_broadcast_pkts_buffer), error_out);
 
@@ -486,7 +486,7 @@ int interfaces_subscription_operational_interfaces_interface_statistics_in_multi
         goto error_out;
     }
 
-    SRPLG_LOG_INF(PLUGIN_NAME, "in-octets(%s) = %s", rtnl_link_get_name(link), in_multicast_pkts_buffer);
+    SRPLG_LOG_INF(PLUGIN_NAME, "in-multicast-pkts(%s) = %s", rtnl_link_get_name(link), in_multicast_pkts_buffer);
 
     SRPC_SAFE_CALL_ERR(error, interfaces_ly_tree_create_interfaces_interface_statistics_in_multicast_pkts(ly_ctx, *parent, in_multicast_pkts_buffer), error_out);
 
@@ -530,7 +530,7 @@ int interfaces_subscription_operational_interfaces_interface_statistics_in_disca
         goto error_out;
     }
 
-    SRPLG_LOG_INF(PLUGIN_NAME, "in-octets(%s) = %s", rtnl_link_get_name(link), in_discards_buffer);
+    SRPLG_LOG_INF(PLUGIN_NAME, "in-discards(%s) = %s", rtnl_link_get_name(link), in_discards_buffer);
 
     SRPC_SAFE_CALL_ERR(error, interfaces_ly_tree_create_interfaces_interface_statistics_in_multicast_pkts(ly_ctx, *parent, in_discards_buffer), error_out);
 
@@ -553,7 +553,7 @@ int interfaces_subscription_operational_interfaces_interface_statistics_in_error
     interfaces_ctx_t* ctx = private_data;
 
     // buffers
-    char in_multicast_pkts_buffer[100] = { 0 };
+    char in_errors_buffer[100] = { 0 };
 
     // libnl
     struct rtnl_link* link = NULL;
@@ -566,17 +566,17 @@ int interfaces_subscription_operational_interfaces_interface_statistics_in_error
     SRPC_SAFE_CALL_PTR(link, interfaces_get_current_link(ctx, session, request_xpath), error_out);
 
     // get in-octets
-    const uint64_t in_multicast_pkts = rtnl_link_get_stat(link, RTNL_LINK_IP6_INMCASTPKTS);
+    const uint64_t in_errors = rtnl_link_get_stat(link, RTNL_LINK_RX_ERRORS);
 
-    error = snprintf(in_multicast_pkts_buffer, sizeof(in_multicast_pkts_buffer), "%lu", in_multicast_pkts);
+    error = snprintf(in_errors_buffer, sizeof(in_errors_buffer), "%lu", in_errors);
     if (error < 0) {
         SRPLG_LOG_ERR(PLUGIN_NAME, "snprintf() failed (%d)", error);
         goto error_out;
     }
 
-    SRPLG_LOG_INF(PLUGIN_NAME, "in-octets(%s) = %s", rtnl_link_get_name(link), in_multicast_pkts_buffer);
+    SRPLG_LOG_INF(PLUGIN_NAME, "in-errors(%s) = %s", rtnl_link_get_name(link), in_errors_buffer);
 
-    SRPC_SAFE_CALL_ERR(error, interfaces_ly_tree_create_interfaces_interface_statistics_in_multicast_pkts(ly_ctx, *parent, in_multicast_pkts_buffer), error_out);
+    SRPC_SAFE_CALL_ERR(error, interfaces_ly_tree_create_interfaces_interface_statistics_in_multicast_pkts(ly_ctx, *parent, in_errors_buffer), error_out);
 
     error = 0;
     goto out;
