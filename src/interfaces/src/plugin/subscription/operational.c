@@ -228,6 +228,8 @@ int interfaces_subscription_operational_interfaces_interface_higher_layer_if(sr_
         master_link = rtnl_link_get(nl_ctx->link_cache, master_if_index);
         const char* master_name = rtnl_link_get_name(master_link);
 
+        SRPLG_LOG_INF(PLUGIN_NAME, "higher-layer-if(%s) = %s", rtnl_link_get_name(link), master_name);
+
         // add higher-layer-if
         SRPC_SAFE_CALL_ERR(error, interfaces_ly_tree_create_interfaces_interface_higher_layer_if(ly_ctx, *parent, master_name), error_out);
 
