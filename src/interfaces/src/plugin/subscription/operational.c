@@ -203,16 +203,39 @@ out:
 int interfaces_subscription_operational_interfaces_interface_higher_layer_if(sr_session_ctx_t* session, uint32_t sub_id, const char* module_name, const char* path, const char* request_xpath, uint32_t request_id, struct lyd_node** parent, void* private_data)
 {
     int error = SR_ERR_OK;
-    const struct ly_ctx* ly_ctx = NULL;
 
-    if (*parent == NULL) {
-        ly_ctx = sr_acquire_context(sr_session_get_connection(session));
-        if (ly_ctx == NULL) {
-            SRPLG_LOG_ERR(PLUGIN_NAME, "sr_acquire_context() failed");
-            goto error_out;
-        }
+    // context
+    const struct ly_ctx* ly_ctx = NULL;
+    interfaces_ctx_t* ctx = private_data;
+    interfaces_nl_ctx_t* nl_ctx = &ctx->nl_ctx;
+
+    // libnl
+    struct rtnl_link* link = NULL;
+    struct rtnl_link* master_link = NULL;
+    struct nl_addr* addr = NULL;
+
+    assert(*parent != NULL);
+    assert(strcmp(LYD_NAME(*parent), "interface") == 0);
+
+    // get link
+    SRPC_SAFE_CALL_PTR(link, interfaces_get_current_link(ctx, session, request_xpath), error_out);
+
+    // get phys-address
+    SRPC_SAFE_CALL_PTR(addr, rtnl_link_get_addr(link), error_out);
+
+    int master_if_index = rtnl_link_get_master(link);
+    while (master_if_index) {
+        master_link = rtnl_link_get(nl_ctx->link_cache, master_if_index);
+        const char* master_name = rtnl_link_get_name(master_link);
+
+        // add higher-layer-if
+        SRPC_SAFE_CALL_ERR(error, interfaces_ly_tree_create_interfaces_interface_higher_layer_if(ly_ctx, *parent, master_name), error_out);
+
+        // go one layer higher
+        master_if_index = rtnl_link_get_master(master_link);
     }
 
+    error = 0;
     goto out;
 
 error_out:
