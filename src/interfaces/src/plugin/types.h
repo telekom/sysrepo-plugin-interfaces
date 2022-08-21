@@ -4,6 +4,8 @@
 #include <stdbool.h>
 #include <stdint.h>
 
+#include <uthash.h>
+
 // typedefs
 typedef struct interfaces_interfaces_interface_carrier_delay interfaces_interfaces_interface_carrier_delay_t;
 typedef struct interfaces_interfaces_interface_dampening interfaces_interfaces_interface_dampening_t;
@@ -14,6 +16,7 @@ typedef struct interfaces_interfaces_interface_encapsulation interfaces_interfac
 typedef struct interfaces_interfaces_interface interfaces_interfaces_interface_t;
 typedef struct interfaces_interfaces_interface_element interfaces_interfaces_interface_element_t;
 typedef struct interfaces_interfaces interfaces_interfaces_t;
+typedef struct interface_ht_element interface_ht_element_t;
 
 enum interfaces_interfaces_interface_link_up_down_trap_enable {
     interfaces_interfaces_interface_link_up_down_trap_enable_disabled,
@@ -70,6 +73,16 @@ struct interfaces_interfaces_interface {
 struct interfaces_interfaces_interface_element {
     interfaces_interfaces_interface_element_t* next;
     interfaces_interfaces_interface_t interface;
+};
+
+/* 
+ *  - interface hash table element
+ *  - used due to interface name indexing 
+ */
+struct interface_ht_element {
+    interfaces_interfaces_interface_t interface;
+    /* makes the structure hashable */
+    UT_hash_handle hh;
 };
 
 struct interfaces_interfaces {
