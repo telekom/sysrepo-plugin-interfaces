@@ -42,6 +42,10 @@ int sr_plugin_init_cb(sr_session_ctx_t* running_session, void** private_data)
 
     *private_data = ctx;
 
+    // initialize feature status hashes
+    ietf_interfaces_features = srpc_feature_status_hash_new();
+    ietf_if_extensions_features = srpc_feature_status_hash_new();
+
     // load enabled features from modules in sysrepo
     SRPC_SAFE_CALL_ERR(error, srpc_feature_status_hash_load(&ietf_interfaces_features, running_session, "ietf-interfaces"), error_out);
     SRPC_SAFE_CALL_ERR(error, srpc_feature_status_hash_load(&ietf_if_extensions_features, running_session, "ietf-if-extensions"), error_out);
