@@ -2,6 +2,7 @@
 #include "libyang/tree_data.h"
 #include "netlink/addr.h"
 #include "netlink/cache.h"
+#include "netlink/object.h"
 #include "netlink/route/tc.h"
 #include "netlink/socket.h"
 #include "plugin/common.h"
@@ -246,16 +247,51 @@ out:
 int interfaces_subscription_operational_interfaces_interface_lower_layer_if(sr_session_ctx_t* session, uint32_t sub_id, const char* module_name, const char* path, const char* request_xpath, uint32_t request_id, struct lyd_node** parent, void* private_data)
 {
     int error = SR_ERR_OK;
-    const struct ly_ctx* ly_ctx = NULL;
 
-    if (*parent == NULL) {
-        ly_ctx = sr_acquire_context(sr_session_get_connection(session));
-        if (ly_ctx == NULL) {
-            SRPLG_LOG_ERR(PLUGIN_NAME, "sr_acquire_context() failed");
-            goto error_out;
+    // context
+    const struct ly_ctx* ly_ctx = NULL;
+    interfaces_ctx_t* ctx = private_data;
+    interfaces_nl_ctx_t* nl_ctx = &ctx->nl_ctx;
+
+    // libnl
+    struct rtnl_link* link = NULL;
+    struct rtnl_link* master_link = NULL;
+
+    assert(*parent != NULL);
+    assert(strcmp(LYD_NAME(*parent), "interface") == 0);
+
+    // get link
+    SRPC_SAFE_CALL_PTR(link, interfaces_get_current_link(ctx, session, request_xpath), error_out);
+
+    // iterate over all links and check for ones which have a master equal to the current link
+    struct nl_cache* link_cache = nl_ctx->link_cache;
+    struct rtnl_link* link_iter = (struct rtnl_link*)nl_cache_get_first(link_cache);
+
+    while (link_iter) {
+        int master_if_index = rtnl_link_get_master(link);
+        while (master_if_index) {
+            master_link = rtnl_link_get(nl_ctx->link_cache, master_if_index);
+            const char* master_name = rtnl_link_get_name(master_link);
+
+            if (!strcmp(master_name, rtnl_link_get_name(link))) {
+                // current link is the higher layer interface of the iterated link
+                SRPLG_LOG_INF(PLUGIN_NAME, "lower-layer-if(%s) = %s", rtnl_link_get_name(link), rtnl_link_get_name(link_iter));
+
+                // add lower-layer-if
+                SRPC_SAFE_CALL_ERR(error, interfaces_ly_tree_create_interfaces_interface_lower_layer_if(ly_ctx, *parent, rtnl_link_get_name(link_iter)), error_out);
+
+                // found in the master list - continue checking other interfaces
+                break;
+            }
+
+            // go one layer higher
+            master_if_index = rtnl_link_get_master(master_link);
         }
+
+        link_iter = (struct rtnl_link*)nl_cache_get_next((struct nl_object*)link_iter);
     }
 
+    error = 0;
     goto out;
 
 error_out:
