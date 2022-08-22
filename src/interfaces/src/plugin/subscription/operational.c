@@ -212,16 +212,12 @@ int interfaces_subscription_operational_interfaces_interface_higher_layer_if(sr_
     // libnl
     struct rtnl_link* link = NULL;
     struct rtnl_link* master_link = NULL;
-    struct nl_addr* addr = NULL;
 
     assert(*parent != NULL);
     assert(strcmp(LYD_NAME(*parent), "interface") == 0);
 
     // get link
     SRPC_SAFE_CALL_PTR(link, interfaces_get_current_link(ctx, session, request_xpath), error_out);
-
-    // get phys-address
-    SRPC_SAFE_CALL_PTR(addr, rtnl_link_get_addr(link), error_out);
 
     int master_if_index = rtnl_link_get_master(link);
     while (master_if_index) {
