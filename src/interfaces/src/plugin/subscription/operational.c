@@ -20,9 +20,11 @@
 #include <linux/netdevice.h>
 #include <netlink/route/link.h>
 #include <netlink/route/qdisc.h>
+#include <sys/sysinfo.h>
 
 static struct rtnl_link* interfaces_get_current_link(interfaces_ctx_t* ctx, sr_session_ctx_t* session, const char* xpath);
 static int interfaces_extract_interface_name(sr_session_ctx_t* session, const char* xpath, char* buffer, size_t buffer_size);
+static int interfaces_get_system_boot_time(char* buffer, size_t buffer_size);
 
 int interfaces_subscription_operational_interfaces_interface_admin_status(sr_session_ctx_t* session, uint32_t sub_id, const char* module_name, const char* path, const char* request_xpath, uint32_t request_id, struct lyd_node** parent, void* private_data)
 {
@@ -359,16 +361,32 @@ out:
 int interfaces_subscription_operational_interfaces_interface_statistics_discontinuity_time(sr_session_ctx_t* session, uint32_t sub_id, const char* module_name, const char* path, const char* request_xpath, uint32_t request_id, struct lyd_node** parent, void* private_data)
 {
     int error = SR_ERR_OK;
+
+    // context
     const struct ly_ctx* ly_ctx = NULL;
+    interfaces_ctx_t* ctx = private_data;
 
-    if (*parent == NULL) {
-        ly_ctx = sr_acquire_context(sr_session_get_connection(session));
-        if (ly_ctx == NULL) {
-            SRPLG_LOG_ERR(PLUGIN_NAME, "sr_acquire_context() failed");
-            goto error_out;
-        }
-    }
+    // buffers
+    char discontinuity_time_buffer[100] = { 0 };
 
+    // libnl
+    struct rtnl_link* link = NULL;
+
+    // there needs to be an allocated link cache in memory
+    assert(*parent != NULL);
+    assert(strcmp(LYD_NAME(*parent), "statistics") == 0);
+
+    // get link
+    SRPC_SAFE_CALL_PTR(link, interfaces_get_current_link(ctx, session, request_xpath), error_out);
+
+    // get boot time as discontinuity time
+    SRPC_SAFE_CALL_ERR(error, interfaces_get_system_boot_time(discontinuity_time_buffer, sizeof(discontinuity_time_buffer)), error_out);
+
+    SRPLG_LOG_INF(PLUGIN_NAME, "discontinuity-time(%s) = %s", rtnl_link_get_name(link), discontinuity_time_buffer);
+
+    SRPC_SAFE_CALL_ERR(error, interfaces_ly_tree_create_interfaces_interface_statistics_discontinuity_time(ly_ctx, *parent, discontinuity_time_buffer), error_out);
+
+    error = 0;
     goto out;
 
 error_out:
@@ -1210,4 +1228,33 @@ error_out:
 
 out:
     return error;
+}
+
+static int interfaces_get_system_boot_time(char* buffer, size_t buffer_size)
+{
+    time_t now = 0;
+    struct tm* ts = { 0 };
+    struct sysinfo s_info = { 0 };
+    time_t uptime_seconds = 0;
+
+    now = time(NULL);
+
+    ts = localtime(&now);
+    if (ts == NULL)
+        return -1;
+
+    if (sysinfo(&s_info) != 0)
+        return -1;
+
+    uptime_seconds = s_info.uptime;
+
+    time_t diff = now - uptime_seconds;
+
+    ts = localtime(&diff);
+    if (ts == NULL)
+        return -1;
+
+    strftime(buffer, buffer_size, "%FT%TZ", ts);
+
+    return 0;
 }
