@@ -302,9 +302,7 @@ void sr_plugin_cleanup_cb(sr_session_ctx_t* running_session, void* private_data)
         nl_socket_free(ctx->nl_ctx.socket);
     }
 
-    if (ctx->state_ctx.link_cache) {
-        nl_cache_put(ctx->state_ctx.link_cache);
-    }
+    pthread_mutex_lock(&ctx->state_ctx.state_hash_mutex);
 
     if (ctx->state_ctx.socket) {
         nl_socket_free(ctx->state_ctx.socket);
@@ -318,6 +316,8 @@ void sr_plugin_cleanup_cb(sr_session_ctx_t* running_session, void* private_data)
         interfaces_interface_state_hash_free(&ctx->state_ctx.state_hash);
     }
 
+    pthread_mutex_unlock(&ctx->state_ctx.state_hash_mutex);
+
     free(ctx);
 }
 
@@ -327,13 +327,18 @@ static int interfaces_init_state_changes_tracking(interfaces_state_changes_ctx_t
     struct rtnl_link* link = NULL;
     pthread_attr_t attr;
 
+    // init hash
     ctx->state_hash = interfaces_interface_state_hash_new();
 
+    // init libnl data
     SRPC_SAFE_CALL_PTR(ctx->socket, nl_socket_alloc(), error_out);
 
     // connect and get all links
     SRPC_SAFE_CALL_ERR(error, nl_connect(ctx->socket, NETLINK_ROUTE), error_out);
     SRPC_SAFE_CALL_ERR(error, rtnl_link_alloc_cache(ctx->socket, AF_UNSPEC, &ctx->link_cache), error_out);
+
+    // init hash mutex
+    SRPC_SAFE_CALL_ERR(error, pthread_mutex_init(&ctx->state_hash_mutex, NULL), error_out);
 
     link = (struct rtnl_link*)nl_cache_get_first(ctx->link_cache);
 
@@ -372,6 +377,10 @@ static void interfaces_link_cache_change_cb(struct nl_cache* cache, struct nl_ob
 {
     interfaces_state_changes_ctx_t* ctx = arg;
 
+    // block further access using mutex
+
+    pthread_mutex_lock(&ctx->state_hash_mutex);
+
     struct rtnl_link* link = NULL;
 
     SRPLG_LOG_INF(PLUGIN_NAME, "Entered callback function for handling link cache changes");
@@ -393,6 +402,9 @@ static void interfaces_link_cache_change_cb(struct nl_cache* cache, struct nl_ob
 
         link = (struct rtnl_link*)nl_cache_get_next((struct nl_object*)link);
     }
+
+    // unlock further access to the state hash
+    pthread_mutex_unlock(&ctx->state_hash_mutex);
 }
 
 static void* interfaces_link_manager_thread_cb(void* data)
