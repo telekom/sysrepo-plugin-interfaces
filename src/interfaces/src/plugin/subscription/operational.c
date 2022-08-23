@@ -7,12 +7,15 @@
 #include "netlink/socket.h"
 #include "plugin/common.h"
 #include "plugin/context.h"
+#include "plugin/data/interfaces/interface/state.h"
 #include "plugin/ly_tree.h"
+#include "plugin/types.h"
 #include "srpc/common.h"
 #include "sysrepo_types.h"
 
 #include <assert.h>
 #include <libyang/libyang.h>
+#include <pthread.h>
 #include <srpc.h>
 #include <sysrepo.h>
 #include <sysrepo/xpath.h>
@@ -97,15 +100,47 @@ out:
 int interfaces_subscription_operational_interfaces_interface_last_change(sr_session_ctx_t* session, uint32_t sub_id, const char* module_name, const char* path, const char* request_xpath, uint32_t request_id, struct lyd_node** parent, void* private_data)
 {
     int error = SR_ERR_OK;
-    const struct ly_ctx* ly_ctx = NULL;
 
-    if (*parent == NULL) {
-        ly_ctx = sr_acquire_context(sr_session_get_connection(session));
-        if (ly_ctx == NULL) {
-            SRPLG_LOG_ERR(PLUGIN_NAME, "sr_acquire_context() failed");
-            goto error_out;
-        }
+    // context
+    const struct ly_ctx* ly_ctx = NULL;
+    interfaces_ctx_t* ctx = private_data;
+    interfaces_state_changes_ctx_t* state_ctx = &ctx->state_ctx;
+    interfaces_interface_state_t* state = NULL;
+
+    // libnl
+    struct rtnl_link* link = NULL;
+
+    // buffers
+    char last_change_buffer[100] = { 0 };
+
+    // there needs to be an allocated link cache in memory
+    assert(*parent != NULL);
+    assert(strcmp(LYD_NAME(*parent), "interface") == 0);
+
+    // get link
+    SRPC_SAFE_CALL_PTR(link, interfaces_get_current_link(ctx, session, request_xpath), error_out);
+
+    // synchronization
+    pthread_mutex_lock(&state_ctx->state_hash_mutex);
+
+    // get last change
+    SRPC_SAFE_CALL_PTR(state, interfaces_interface_state_hash_get(state_ctx->state_hash, rtnl_link_get_name(link)), error_out);
+
+    const time_t last_change = state->last_change;
+    struct tm* last_change_tm = localtime(&last_change);
+
+    size_t written = strftime(last_change_buffer, sizeof(last_change_buffer), "%FT%TZ", last_change_tm);
+    if (written == 0) {
+        SRPLG_LOG_ERR(PLUGIN_NAME, "strftime() failed");
+        goto error_out;
     }
+
+    SRPLG_LOG_INF(PLUGIN_NAME, "last-change(%s) = %s", rtnl_link_get_name(link), last_change_buffer);
+
+    // add oper-status node
+    SRPC_SAFE_CALL_ERR(error, interfaces_ly_tree_create_interfaces_interface_last_change(ly_ctx, *parent, last_change_buffer), error_out);
+
+    pthread_mutex_unlock(&state_ctx->state_hash_mutex);
 
     goto out;
 

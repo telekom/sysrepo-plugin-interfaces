@@ -376,6 +376,8 @@ out:
 static void interfaces_link_cache_change_cb(struct nl_cache* cache, struct nl_object* obj, int val, void* arg)
 {
     interfaces_state_changes_ctx_t* ctx = arg;
+    char time_buffer[100] = { 0 };
+    struct tm* last_change = NULL;
 
     // block further access using mutex
 
@@ -394,7 +396,11 @@ static void interfaces_link_cache_change_cb(struct nl_cache* cache, struct nl_ob
 
         if (state) {
             if (oper_state != state->state) {
-                SRPLG_LOG_INF(PLUGIN_NAME, "Interface %s changed oper-state from %d to %d", link_name, state->state, oper_state);
+                const time_t current = time(NULL);
+                last_change = localtime(&current);
+                strftime(time_buffer, sizeof(time_buffer), "%FT%TZ", last_change);
+
+                SRPLG_LOG_INF(PLUGIN_NAME, "Interface %s changed oper-state from %d to %d at %s", link_name, state->state, oper_state, time_buffer);
                 state->state = oper_state;
                 state->last_change = time(NULL);
             }
