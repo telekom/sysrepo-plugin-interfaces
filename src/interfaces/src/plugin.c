@@ -20,6 +20,8 @@
 #include <srpc.h>
 #include <sysrepo.h>
 
+static int interfaces_init_state_changes_tracking(interfaces_state_changes_ctx_t* ctx);
+
 int sr_plugin_init_cb(sr_session_ctx_t* running_session, void** private_data)
 {
     int error = 0;
@@ -259,6 +261,9 @@ int sr_plugin_init_cb(sr_session_ctx_t* running_session, void** private_data)
         }
     }
 
+    // tracking oper-status changes for interfaces
+    SRPC_SAFE_CALL_ERR(error, interfaces_init_state_changes_tracking(&ctx->state_ctx), error_out);
+
     goto out;
 
 error_out:
@@ -293,4 +298,11 @@ void sr_plugin_cleanup_cb(sr_session_ctx_t* running_session, void* private_data)
     }
 
     free(ctx);
+}
+
+static int interfaces_init_state_changes_tracking(interfaces_state_changes_ctx_t* ctx)
+{
+    // setup threads to check every link state and write timestamps of changes
+    int error = 0;
+    return error;
 }
