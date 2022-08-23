@@ -3,6 +3,8 @@
 
 #include <stdbool.h>
 #include <stdint.h>
+#include <time.h>
+#include <uthash.h>
 
 // typedefs
 typedef struct interfaces_interfaces_interface_carrier_delay interfaces_interfaces_interface_carrier_delay_t;
@@ -14,6 +16,7 @@ typedef struct interfaces_interfaces_interface_encapsulation interfaces_interfac
 typedef struct interfaces_interfaces_interface interfaces_interfaces_interface_t;
 typedef struct interfaces_interfaces_interface_element interfaces_interfaces_interface_element_t;
 typedef struct interfaces_interfaces interfaces_interfaces_t;
+typedef struct interfaces_interface_state_s interfaces_interface_state_t;
 
 enum interfaces_interfaces_interface_link_up_down_trap_enable {
     interfaces_interfaces_interface_link_up_down_trap_enable_disabled,
@@ -74,6 +77,13 @@ struct interfaces_interfaces_interface_element {
 
 struct interfaces_interfaces {
     interfaces_interfaces_interface_element_t* interface;
+};
+
+struct interfaces_interface_state_s {
+    char* name; // key
+    uint8_t state;
+    time_t last_change;
+    UT_hash_handle hh;
 };
 
 #endif // INTERFACES_PLUGIN_TYPES_H

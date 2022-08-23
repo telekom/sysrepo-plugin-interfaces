@@ -28,6 +28,7 @@ set(
     src/plugin/api/interfaces/interface/encapsulation/dot1q-vlan/outer-tag/change.c
     src/plugin/api/interfaces/interface/dampening/change.c
     src/plugin/api/interfaces/interface/carrier-delay/change.c
+    src/plugin/data/interfaces/interface/state.c
     src/plugin.c
 )
 
