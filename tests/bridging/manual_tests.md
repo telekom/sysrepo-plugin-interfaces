@@ -5,6 +5,63 @@ This document contains a list of commands that can be used to test currently
 implemented bridging-plugin functionality. All commands should be executed while the plugin is
 running. Running the interfaces plugin is not necessary for testing.
 
+This is a tree view of `ieee802-dot1q-bridge` YANG module nodes currently implemented in the plugin:
+```
+module: ieee802-dot1q-bridge
+  +--rw bridges
+     +--rw bridge* [name]
+        +--rw name           dot1qtypes:name-type
+        +--rw address        ieee:mac-address
+        +--rw bridge-type    identityref (partial - only the customer-vlan-bridge type)
+        +--ro ports?         uint16
+        +--rw component* [name]
+           +--rw name                     string
+           +--rw id?                      uint32
+           +--rw type                     identityref (partial - d-bridge-component and edge-relay-component missing)
+           +--rw address?                 ieee:mac-address (note: used as
+           +--ro ports?                   uint16
+           +--ro bridge-port*             if:interface-ref
+           +--rw filtering-database
+           |  +--rw aging-time?                          uint32
+           |  +--rw filtering-entry* [database-id vids address]
+           |  |  +--rw database-id    uint32 (value ignored)
+           |  |  +--rw address        ieee:mac-address
+           |  |  +--rw vids           dot1qtypes:vid-range-type
+           |  |  +--rw entry-type?    enumeration (partial - static entries only)
+           |  |  +--rw port-map* [port-ref]
+           |  |  |  +--rw port-ref                                   port-number-type
+           |  |  |  +--rw (map-type)?
+           |  |  |     +--:(static-filtering-entries)
+           |  |  |     |  +--rw static-filtering-entries
+           |  |  |     |     +--rw control-element?         enumeration (partial - 'forward' only)
+           |  +--rw vlan-registration-entry* [database-id vids]
+           |     +--rw database-id    uint32 (value ignored)
+           |     +--rw vids           dot1qtypes:vid-range-type
+           |     +--rw entry-type?    enumeration (partial - 'static' only)
+           |     +--rw port-map* [port-ref]
+           |        +--rw port-ref                                   port-number-type
+           |        +--rw (map-type)?
+           |           +--:(static-vlan-registration-entries)
+           |           |  +--rw static-vlan-registration-entries
+           |           |     +--rw vlan-transmitted?          enumeration
+           +--rw bridge-vlan
+           |  +--ro version?                   uint16
+           |  +--ro max-vids?                  uint16
+           |  +--ro override-default-pvid?     boolean
+           |  +--rw vlan* [vid]
+           |  |  +--rw vid               dot1qtypes:vlan-index-type
+           |  |  +--rw name?             dot1qtypes:name-type
+           |  |  +--ro untagged-ports*   if:interface-ref
+           |  |  +--ro egress-ports*     if:interface-ref
+
+  augment /if:interfaces/if:interface:
+    +--rw bridge-port
+       +--rw component-name?                        string
+       +--rw port-type?                             identityref
+       +--rw pvid?                                  dot1qtypes:vlan-index-type
+       +--ro port-number?                           dot1qtypes:port-number-type (currently set to the interface index)
+```
+
 ## Create bridge & bridge component
 
 First, create a 802.1Q VLAN aware bridge (type: customer-vlan-bridge) and component.
@@ -45,7 +102,7 @@ $ ip link show br0
 To test bridging functionality (frame filtering and forwarding based on MAC address and VLAN ID),
 we need to add ports to the bridge. Testing without physical interfaces can be done
 by using veth interfaces on Linux. veth interfaces are always created in pairs, and when
-a frame is transmitted on a veth interfaces it will always be received on its veth peer, similar
+a frame is transmitted on a veth interface it will always be received on its veth peer, similar
 to a physical connection between two devices. For testing purposes, one veth interface
 can represent a VM or a host in a local network and its veth peer can be used as a bridge port
 to which this 'host' is connected to. By creating two veth pairs, we can test the functionality
@@ -178,6 +235,11 @@ with the correct ifindex values:
 $ VETH1_BPORT=$(cat /sys/class/net/veth1_bport/ifindex) VETH2_BPORT=$(cat /sys/class/net/veth2_bport/ifindex) envsubst < br-vlan.xml.in > br-vlan.xml
 ```
 
+Then run the command:
+```bash
+$ sysrepocfg --edit=br-vlan.xml
+```
+
 The `bridge vlan show` command output should now contain the port-VLAN combinations
 which were added to the datastore. By default, Linux bridges with VLAN filtering enabled
 use VID 1 as the primary VLAN ID (PVID) on all ports:
@@ -237,7 +299,7 @@ $ VETH1_BPORT=$(cat /sys/class/net/veth1_bport/ifindex) envsubst < br-filtering.
 
 Then add the filtering configuration to the datastore:
 ```bash
-sysrepocfg --edit=br-filtering.xml
+$ sysrepocfg --edit=br-filtering.xml
 ```
 
 The bridge filtering database should now contain the added entry:
@@ -256,7 +318,7 @@ ageing_time 10000
 
 To test VLAN and MAC address filtering on the bridge, we can bind a raw socket on an interface, construct an ethernet
 frame with an appropriate source/destionation MAC addresses and VLAN ID (VID), and send it to a bridge port.
-The `send_frame.py` script (adapted from [this blog post](https://iximiuz.com/en/posts/networking-lab-simple-vlan/))
+The [send_frame.py](send_frame.py) script (adapted from [this blog post](https://iximiuz.com/en/posts/networking-lab-simple-vlan/))
 sends a frame with a VID 20 802.1Q tag from a chosen interface to a chosen destination
 MAC address.
 
