@@ -1,10 +1,12 @@
 #include "plugin.h"
 #include "netlink/cache.h"
+#include "netlink/route/link.h"
 #include "netlink/socket.h"
 #include "plugin/common.h"
 #include "plugin/context.h"
 
 // startup
+#include "plugin/data/interfaces/interface/state.h"
 #include "plugin/startup/load.h"
 #include "plugin/startup/store.h"
 
@@ -17,10 +19,13 @@
 #include "srpc/types.h"
 
 #include <libyang/libyang.h>
+#include <pthread.h>
 #include <srpc.h>
 #include <sysrepo.h>
 
 static int interfaces_init_state_changes_tracking(interfaces_state_changes_ctx_t* ctx);
+static void interfaces_link_cache_change_cb(struct nl_cache* cache, struct nl_object* obj, int val, void* arg);
+static void* interfaces_link_manager_thread_cb(void* data);
 
 int sr_plugin_init_cb(sr_session_ctx_t* running_session, void** private_data)
 {
@@ -302,7 +307,86 @@ void sr_plugin_cleanup_cb(sr_session_ctx_t* running_session, void* private_data)
 
 static int interfaces_init_state_changes_tracking(interfaces_state_changes_ctx_t* ctx)
 {
-    // setup threads to check every link state and write timestamps of changes
     int error = 0;
+    struct rtnl_link* link = NULL;
+    pthread_attr_t attr;
+
+    ctx->state_hash = interfaces_interface_state_hash_new();
+
+    SRPC_SAFE_CALL_PTR(ctx->socket, nl_socket_alloc(), error_out);
+
+    // connect and get all links
+    SRPC_SAFE_CALL_ERR(error, nl_connect(ctx->socket, NETLINK_ROUTE), error_out);
+    SRPC_SAFE_CALL_ERR(error, rtnl_link_alloc_cache(ctx->socket, AF_UNSPEC, &ctx->link_cache), error_out);
+
+    link = (struct rtnl_link*)nl_cache_get_first(ctx->link_cache);
+
+    while (link != NULL) {
+        // create hash entries
+        const uint8_t oper_state = rtnl_link_get_operstate(link);
+        const time_t current_time = time(NULL);
+        const char* link_name = rtnl_link_get_name(link);
+
+        // add entry to the hash table
+        SRPC_SAFE_CALL_ERR(error, interfaces_interface_state_hash_add(&ctx->state_hash, link_name, oper_state, current_time), error_out);
+
+        link = (struct rtnl_link*)nl_cache_get_next((struct nl_object*)link);
+    }
+
+    // setup cache manager
+    SRPC_SAFE_CALL_ERR(error, nl_cache_mngr_alloc(NULL, NETLINK_ROUTE, 0, &ctx->link_cache_manager), error_out);
+    SRPC_SAFE_CALL_ERR(error, nl_cache_mngr_add(ctx->link_cache_manager, "route/link", interfaces_link_cache_change_cb, ctx, &ctx->link_cache), error_out);
+
+    // setup detatched thread for sending change signals to the cache manager
+    SRPC_SAFE_CALL_ERR(error, pthread_attr_init(&attr), error_out);
+    SRPC_SAFE_CALL_ERR(error, pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED), error_out);
+    SRPC_SAFE_CALL_ERR(error, pthread_create(&ctx->manager_thread, &attr, interfaces_link_manager_thread_cb, ctx), error_out);
+
+    goto out;
+
+error_out:
+    error = -1;
+
+out:
+
     return error;
+}
+
+static void interfaces_link_cache_change_cb(struct nl_cache* cache, struct nl_object* obj, int val, void* arg)
+{
+    interfaces_state_changes_ctx_t* ctx = arg;
+
+    struct rtnl_link* link = NULL;
+
+    SRPLG_LOG_INF(PLUGIN_NAME, "Entered callback function for handling link cache changes");
+
+    link = (struct rtnl_link*)nl_cache_get_first(cache);
+
+    while (link != NULL) {
+        const char* link_name = rtnl_link_get_name(link);
+        interfaces_interface_state_t* state = interfaces_interface_state_hash_get(ctx->state_hash, link_name);
+        const uint8_t oper_state = rtnl_link_get_operstate(link);
+
+        if (state) {
+            if (oper_state != state->state) {
+                SRPLG_LOG_INF(PLUGIN_NAME, "Interface %s changed oper-state from %d to %d", link_name, state->state, oper_state);
+                state->state = oper_state;
+                state->last_change = time(NULL);
+            }
+        }
+
+        link = (struct rtnl_link*)nl_cache_get_next((struct nl_object*)link);
+    }
+}
+
+static void* interfaces_link_manager_thread_cb(void* data)
+{
+    interfaces_state_changes_ctx_t* ctx = data;
+
+    do {
+        nl_cache_mngr_data_ready(ctx->link_cache_manager);
+        sleep(1);
+    } while (1);
+
+    return NULL;
 }

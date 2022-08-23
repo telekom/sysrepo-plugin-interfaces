@@ -13,9 +13,14 @@ typedef struct interfaces_ctx_s interfaces_ctx_t;
 typedef struct interfaces_state_changes_ctx_s interfaces_state_changes_ctx_t;
 
 struct interfaces_state_changes_ctx_s {
+    // libnl data
     struct nl_sock* socket;
     struct nl_cache* link_cache;
     struct nl_cache_mngr* link_cache_manager;
+    pthread_t manager_thread;
+
+    // main hash DS for storing state info
+    interfaces_interface_state_t* state_hash;
 };
 
 struct interfaces_nl_ctx_s {

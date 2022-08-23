@@ -9,6 +9,7 @@ include_directories(
 )
 
 set(PLUGIN 0 CACHE BOOL "Build a plugin")
+set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/CMakeModules")
 
 set(
     SOURCES
@@ -32,6 +33,14 @@ set(
     src/plugin.c
 )
 
+# packages
+find_package(AUGYANG)
+find_package(PTHREAD REQUIRED)
+find_package(LIBYANG REQUIRED)
+find_package(SYSREPO REQUIRED)
+find_package(SRPC REQUIRED)
+find_package(NL REQUIRED)
+
 # plugin library
 add_library(
     ${PLUGIN_LIBRARY_NAME}
@@ -47,10 +56,8 @@ target_link_libraries(
     ${LIBYANG_LIBRARIES}
     ${SRPC_LIBRARIES}
     ${NL_LIBRARIES}
+    ${PTHREAD_LIBRARIES}
 )
-
-set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/CMakeModules")
-find_package(AUGYANG)
 
 if(PLUGIN)
     # ignore plugin library and compile PROJECT_NAME as a module
@@ -64,6 +71,7 @@ if(PLUGIN)
         ${LIBYANG_LIBRARIES}
         ${SRPC_LIBRARIES}
         ${NL_LIBRARIES}
+        ${PTHREAD_LIBRARIES}
     )
 else()
     add_executable(
@@ -80,6 +88,7 @@ else()
         ${LIBYANG_LIBRARIES}
         ${SRPC_LIBRARIES}
         ${NL_LIBRARIES}
+        ${PTHREAD_LIBRARIES}
     )
 endif()
 
@@ -88,6 +97,7 @@ include_directories(
     ${LIBYANG_INCLUDE_DIRS}
     ${SRPC_INCLUDE_DIRS}
     ${NL_INCLUDE_DIRS}
+    ${PTHREAD_INCLUDE_DIRS}
 )
 
 # augyang support
