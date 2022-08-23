@@ -2,43 +2,43 @@
   <bridge>
     <name>br0</name>
     <bridge-type xmlns:dot1q="urn:ieee:std:802.1Q:yang:ieee802-dot1q-bridge">dot1q:customer-vlan-bridge</bridge-type>
-  <component>
-    <name>br0</name>
-    <type xmlns:dot1q="urn:ieee:std:802.1Q:yang:ieee802-dot1q-bridge">dot1q:c-vlan-component</type>
-    <filtering-database>
-      <vlan-registration-entry>
-        <database-id>0</database-id>
-        <vids>20</vids>
-        <port-map xmlns:dot1qtypes="urn:ieee:std:802.1Q:yang:ieee802-dot1q-types">
-          <port-ref>${VETH1_BPORT}</port-ref>
-          <static-vlan-registration-entries>
-            <vlan-transmitted>untagged</vlan-transmitted>
-          </static-vlan-registration-entries>
-        </port-map>
-        <port-map xmlns:dot1qtypes="urn:ieee:std:802.1Q:yang:ieee802-dot1q-types">
-          <port-ref>${VETH2_BPORT}</port-ref>
-          <static-vlan-registration-entries>
-            <vlan-transmitted>tagged</vlan-transmitted>
-          </static-vlan-registration-entries>
-        </port-map>
-      </vlan-registration-entry>
-      <vlan-registration-entry>
-        <database-id>0</database-id>
-        <vids>8-10</vids>
-        <port-map xmlns:dot1qtypes="urn:ieee:std:802.1Q:yang:ieee802-dot1q-types">
-          <port-ref>${VETH2_BPORT}</port-ref>
-          <static-vlan-registration-entries>
-            <vlan-transmitted>tagged</vlan-transmitted>
-          </static-vlan-registration-entries>
-        </port-map>
-      </vlan-registration-entry>
-    </filtering-database>
-    <bridge-vlan>
-      <vlan>
-        <vid>20</vid>
-        <name>veth-test-vlan</name>
-      </vlan>
-    </bridge-vlan>
-  </component>
+    <component>
+      <name>br0</name>
+      <type xmlns:dot1q="urn:ieee:std:802.1Q:yang:ieee802-dot1q-bridge">dot1q:c-vlan-component</type>
+      <filtering-database>
+        <vlan-registration-entry>
+          <database-id>0</database-id>
+          <vids>20</vids>
+          <port-map xmlns:dot1qtypes="urn:ieee:std:802.1Q:yang:ieee802-dot1q-types">
+            <port-ref>${VETH1_BPORT}</port-ref>
+            <static-vlan-registration-entries>
+              <vlan-transmitted>untagged</vlan-transmitted>
+            </static-vlan-registration-entries>
+          </port-map>
+          <port-map xmlns:dot1qtypes="urn:ieee:std:802.1Q:yang:ieee802-dot1q-types">
+            <port-ref>${VETH2_BPORT}</port-ref>
+            <static-vlan-registration-entries>
+              <vlan-transmitted>tagged</vlan-transmitted>
+            </static-vlan-registration-entries>
+          </port-map>
+        </vlan-registration-entry>
+        <vlan-registration-entry>
+          <database-id>0</database-id>
+          <vids>8-10</vids>
+          <port-map xmlns:dot1qtypes="urn:ieee:std:802.1Q:yang:ieee802-dot1q-types">
+            <port-ref>${VETH2_BPORT}</port-ref>
+            <static-vlan-registration-entries>
+              <vlan-transmitted>tagged</vlan-transmitted>
+            </static-vlan-registration-entries>
+          </port-map>
+        </vlan-registration-entry>
+      </filtering-database>
+      <bridge-vlan>
+        <vlan>
+          <vid>20</vid>
+          <name>veth-test-vlan</name>
+        </vlan>
+      </bridge-vlan>
+    </component>
   </bridge>
 </bridges>
