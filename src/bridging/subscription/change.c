@@ -609,8 +609,8 @@ int modify_filtering_entries(struct nl_sock *socket, char change_path[PATH_MAX],
 		}
 		rtnl_neigh_set_lladdr(fdb_entry, lladdr);
 
-		// assume state and flags for now (TODO: don't assume)
-		rtnl_neigh_set_state(fdb_entry, NUD_PERMANENT);
+		// TODO: research possible state flags
+		rtnl_neigh_set_state(fdb_entry, NUD_NOARP);
 		rtnl_neigh_set_flags(fdb_entry, NTF_MASTER); // add neigh to bridge master FDB
 
 		// add or delete a filtering entry for each VLAN ID in vids_str
