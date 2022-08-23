@@ -302,6 +302,22 @@ void sr_plugin_cleanup_cb(sr_session_ctx_t* running_session, void* private_data)
         nl_socket_free(ctx->nl_ctx.socket);
     }
 
+    if (ctx->state_ctx.link_cache) {
+        nl_cache_put(ctx->state_ctx.link_cache);
+    }
+
+    if (ctx->state_ctx.socket) {
+        nl_socket_free(ctx->state_ctx.socket);
+    }
+
+    if (ctx->state_ctx.link_cache_manager) {
+        nl_cache_mngr_free(ctx->state_ctx.link_cache_manager);
+    }
+
+    if (ctx->state_ctx.state_hash) {
+        interfaces_interface_state_hash_free(&ctx->state_ctx.state_hash);
+    }
+
     free(ctx);
 }
 
