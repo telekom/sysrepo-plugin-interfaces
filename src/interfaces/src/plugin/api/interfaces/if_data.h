@@ -9,27 +9,27 @@ void
 if_data_init(interfaces_interfaces_interface_element_t* interface);
 
 void 
-if_data_ht_root_init(interface_ht_element_t **if_root);
+interfaces_data_ht_root_init(interface_ht_element_t **if_root);
 
 interface_ht_element_t *
-if_data_ht_get_by_name(interface_ht_element_t *if_root, char *name);
+interfaces_data_ht_get_by_name(interface_ht_element_t *if_root, char *name);
 
 void
-if_data_ht_set_name(interfaces_interfaces_interface_element_t *interface, char *name);
+interfaces_data_ht_set_name(interfaces_interfaces_interface_element_t *interface, char *name);
 
 int
-if_data_ht_add(interface_ht_element_t *if_root, char *name);
+interfaces_data_ht_add(interface_ht_element_t *if_root, char *name);
 
 int
-if_data_ht_set_description(interface_ht_element_t *if_root, char *name, char *description);
+interfaces_data_ht_set_description(interface_ht_element_t *if_root, char *name, char *description);
 
 int
-if_data_ht_set_type(interface_ht_element_t *if_root, char *name, char *type);
+interfaces_data_ht_set_type(interface_ht_element_t *if_root, char *name, char *type);
 
 void
-if_data_ht_if_free(interfaces_interfaces_interface_element_t *interface);
+interfaces_data_ht_if_free(interfaces_interfaces_interface_element_t *interface);
 
 void
-if_data_ht_free(interface_ht_element_t *if_root);
+interfaces_data_ht_free(interface_ht_element_t *if_root);
 
 #endif /* IF_DATA_H */

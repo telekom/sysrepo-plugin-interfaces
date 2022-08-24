@@ -12,14 +12,14 @@ if_data_init(interfaces_interfaces_interface_element_t* interface)
 }
 
 void 
-if_data_ht_root_init(interface_ht_element_t **if_root) 
+interfaces_data_ht_root_init(interface_ht_element_t **if_root) 
 {
     /* uthash root node has to be initialized to NULL */
     *root = NULL;
 }
 
 interface_ht_element_t *
-if_data_ht_get_by_name(interface_ht_element_t *if_root, char *name)
+interfaces_data_ht_get_by_name(interface_ht_element_t *if_root, char *name)
 {
     interface_ht_element_t *elem = NULL;
     HASH_FIND_STR(if_root, name, elem);
@@ -27,13 +27,13 @@ if_data_ht_get_by_name(interface_ht_element_t *if_root, char *name)
 }
 
 void
-if_data_ht_set_name(interfaces_interfaces_interface_element_t *interface, char *name)
+interfaces_data_ht_set_name(interfaces_interfaces_interface_element_t *interface, char *name)
 {
 	interface->name = xstrdup(name);
 }
 
 int
-if_data_ht_add(interface_ht_element_t *if_root, char *name) 
+interfaces_data_ht_add(interface_ht_element_t *if_root, char *name) 
 {
     interface_ht_element_t *tmp = NULL, *elem = NULL;
     int rc = 0;
@@ -46,7 +46,7 @@ if_data_ht_add(interface_ht_element_t *if_root, char *name)
 
     elem = (interface_ht_element_t *) xmalloc(sizeof elem);
     if_data_init(&elem->interface);
-    if_data_ht_set_name(&elem->interface)
+    interfaces_data_ht_set_name(&elem->interface)
 
     /* since name is char *, *_KEYPTR has to be used instead of *_STR */
     HASH_ADD_KEYPTR(hh, if_root, elem->interface.name, sizeof(elem->interface.name), elem);
@@ -59,12 +59,12 @@ out:
 }
 
 int
-if_data_ht_set_description(interface_ht_element_t *if_root, char *name, char *description) 
+interfaces_data_ht_set_description(interface_ht_element_t *if_root, char *name, char *description) 
 {
     interface_ht_element_t *elem = NULL;
     int rc = 0;
 
-    elem = if_data_ht_get_by_name(if_root, name);
+    elem = interfaces_data_ht_get_by_name(if_root, name);
     if (elem == NULL) {
         SRPLG_LOG_ERR(PLUGIN_NAME, "interface with name key: %s non-existant in hash table", name);
         goto error_out;
@@ -87,12 +87,12 @@ out:
 }
 
 int
-if_data_ht_set_type(interface_ht_element_t *if_root, char *name, char *type) 
+interfaces_data_ht_set_type(interface_ht_element_t *if_root, char *name, char *type) 
 {
     interface_ht_element_t *elem = NULL;
     int rc = 0;
 
-    elem = if_data_ht_get_by_name(if_root, name);
+    elem = interfaces_data_ht_get_by_name(if_root, name);
     if (elem == NULL) {
         SRPLG_LOG_ERR(PLUGIN_NAME, "interface with name key: %s non-existant in hash table", name);
         goto error_out;
@@ -115,7 +115,7 @@ out:
 }
 
 void
-if_data_ht_if_free(interfaces_interfaces_interface_element_t *interface)
+interfaces_data_ht_if_free(interfaces_interfaces_interface_element_t *interface)
 {
     /* TODO: free other struct members as needed */
     if (interface->name) {
@@ -130,13 +130,13 @@ if_data_ht_if_free(interfaces_interfaces_interface_element_t *interface)
 }
 
 void
-if_data_ht_free(interface_ht_element_t *if_root)
+interfaces_data_ht_free(interface_ht_element_t *if_root)
 {
     interface_ht_element_t tmp = NULL, elem = NULL;
     
     HASH_ITER(hh, if_root, elem, tmp) {
         HASH_DEL(if_root, elem);
-        if_data_ht_if_free(&elem->interface);
+        interfaces_data_ht_if_free(&elem->interface);
         FREE_SAFE(elem);
     }
 }
