@@ -19,6 +19,7 @@ set(
     src/plugin/subscription/operational.c
     src/plugin/subscription/rpc.c
     src/plugin/ly_tree.c
+    src/plugin/data/interface.c
     src/plugin/api/interfaces/check.c
     src/plugin/api/interfaces/load.c
     src/plugin/api/interfaces/store.c
@@ -29,6 +30,7 @@ set(
     src/plugin/api/interfaces/interface/dampening/change.c
     src/plugin/api/interfaces/interface/carrier-delay/change.c
     src/plugin.c
+    ${CMAKE_SOURCE_DIR}/src/utils/memory.c
 )
 
 # plugin library
