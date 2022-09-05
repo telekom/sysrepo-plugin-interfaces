@@ -1,21 +1,26 @@
-#include "if_data.h"
+#include "interface.h"
+#include "plugin/common.h"
 #include "utils/memory.h"
 
+#include <sysrepo.h>
+
 void 
-if_data_init(interfaces_interfaces_interface_element_t* interface)
+interfaces_data_ht_root_init(interface_ht_element_t **if_root) 
+{
+    /* uthash root node has to be initialized to NULL */
+    *if_root = NULL;
+}
+
+static void 
+interfaces_data_init(interfaces_interfaces_interface_t* interface)
 {
     /* TODO: init all struct members */
 	interface->name = NULL;
 	interface->description = NULL;
 	interface->type = NULL;
 	interface->enabled = 0;
-}
-
-void 
-interfaces_data_ht_root_init(interface_ht_element_t **if_root) 
-{
-    /* uthash root node has to be initialized to NULL */
-    *root = NULL;
+	interface->loopback = NULL;
+	interface->parent_interface = NULL;
 }
 
 interface_ht_element_t *
@@ -27,7 +32,7 @@ interfaces_data_ht_get_by_name(interface_ht_element_t *if_root, char *name)
 }
 
 void
-interfaces_data_ht_set_name(interfaces_interfaces_interface_element_t *interface, char *name)
+interfaces_data_ht_set_name(interfaces_interfaces_interface_t *interface, char *name)
 {
 	interface->name = xstrdup(name);
 }
@@ -45,8 +50,8 @@ interfaces_data_ht_add(interface_ht_element_t *if_root, char *name)
     }
 
     elem = (interface_ht_element_t *) xmalloc(sizeof elem);
-    if_data_init(&elem->interface);
-    interfaces_data_ht_set_name(&elem->interface)
+    interfaces_data_init(&elem->interface);
+    interfaces_data_ht_set_name(&elem->interface, name);
 
     /* since name is char *, *_KEYPTR has to be used instead of *_STR */
     HASH_ADD_KEYPTR(hh, if_root, elem->interface.name, sizeof(elem->interface.name), elem);
@@ -114,8 +119,64 @@ out:
     return rc;
 }
 
+int
+interfaces_data_ht_set_loopback(interface_ht_element_t *if_root, char *name, char *loopback) 
+{
+    interface_ht_element_t *elem = NULL;
+    int rc = 0;
+
+    elem = interfaces_data_ht_get_by_name(if_root, name);
+    if (elem == NULL) {
+        SRPLG_LOG_ERR(PLUGIN_NAME, "interface with name key: %s non-existant in hash table", name);
+        goto error_out;
+    }
+    
+    if (elem->interface.loopback != NULL) {
+        FREE_SAFE(elem->interface.loopback);
+    }
+    elem->interface.loopback = xstrdup(loopback);
+    if (elem->interface.loopback == NULL) {
+        SRPLG_LOG_ERR(PLUGIN_NAME, "couldn't copy loopback: %s", loopback);
+        goto error_out;
+    }
+
+    goto out;
+error_out:
+    rc = -1;
+out:
+    return rc;
+}
+
+int
+interfaces_data_ht_set_parent_interface(interface_ht_element_t *if_root, char *name, char *parent_interface) 
+{
+    interface_ht_element_t *elem = NULL;
+    int rc = 0;
+
+    elem = interfaces_data_ht_get_by_name(if_root, name);
+    if (elem == NULL) {
+        SRPLG_LOG_ERR(PLUGIN_NAME, "interface with name key: %s non-existant in hash table", name);
+        goto error_out;
+    }
+    
+    if (elem->interface.parent_interface != NULL) {
+        FREE_SAFE(elem->interface.parent_interface);
+    }
+    elem->interface.parent_interface = xstrdup(parent_interface);
+    if (elem->interface.parent_interface == NULL) {
+        SRPLG_LOG_ERR(PLUGIN_NAME, "couldn't copy parent interface: %s", parent_interface);
+        goto error_out;
+    }
+
+    goto out;
+error_out:
+    rc = -1;
+out:
+    return rc;
+}
+
 void
-interfaces_data_ht_if_free(interfaces_interfaces_interface_element_t *interface)
+interfaces_data_ht_if_free(interfaces_interfaces_interface_t *interface)
 {
     /* TODO: free other struct members as needed */
     if (interface->name) {
@@ -127,12 +188,18 @@ interfaces_data_ht_if_free(interfaces_interfaces_interface_element_t *interface)
     if (interface->type) {
         FREE_SAFE(interface->type);
     }
+    if (interface->loopback) {
+        FREE_SAFE(interface->loopback);
+    }
+    if (interface->parent_interface) {
+        FREE_SAFE(interface->parent_interface);
+    }
 }
 
 void
 interfaces_data_ht_free(interface_ht_element_t *if_root)
 {
-    interface_ht_element_t tmp = NULL, elem = NULL;
+    interface_ht_element_t *tmp = NULL, *elem = NULL;
     
     HASH_ITER(hh, if_root, elem, tmp) {
         HASH_DEL(if_root, elem);
