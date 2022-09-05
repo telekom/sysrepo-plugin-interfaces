@@ -2,16 +2,20 @@
 #include "libyang/tree_data.h"
 #include "netlink/addr.h"
 #include "netlink/cache.h"
+#include "netlink/object.h"
 #include "netlink/route/tc.h"
 #include "netlink/socket.h"
 #include "plugin/common.h"
 #include "plugin/context.h"
+#include "plugin/data/interfaces/interface/state.h"
 #include "plugin/ly_tree.h"
+#include "plugin/types.h"
 #include "srpc/common.h"
 #include "sysrepo_types.h"
 
 #include <assert.h>
 #include <libyang/libyang.h>
+#include <pthread.h>
 #include <srpc.h>
 #include <sysrepo.h>
 #include <sysrepo/xpath.h>
@@ -19,9 +23,11 @@
 #include <linux/netdevice.h>
 #include <netlink/route/link.h>
 #include <netlink/route/qdisc.h>
+#include <sys/sysinfo.h>
 
 static struct rtnl_link* interfaces_get_current_link(interfaces_ctx_t* ctx, sr_session_ctx_t* session, const char* xpath);
 static int interfaces_extract_interface_name(sr_session_ctx_t* session, const char* xpath, char* buffer, size_t buffer_size);
+static int interfaces_get_system_boot_time(char* buffer, size_t buffer_size);
 
 int interfaces_subscription_operational_interfaces_interface_admin_status(sr_session_ctx_t* session, uint32_t sub_id, const char* module_name, const char* path, const char* request_xpath, uint32_t request_id, struct lyd_node** parent, void* private_data)
 {
@@ -94,15 +100,47 @@ out:
 int interfaces_subscription_operational_interfaces_interface_last_change(sr_session_ctx_t* session, uint32_t sub_id, const char* module_name, const char* path, const char* request_xpath, uint32_t request_id, struct lyd_node** parent, void* private_data)
 {
     int error = SR_ERR_OK;
-    const struct ly_ctx* ly_ctx = NULL;
 
-    if (*parent == NULL) {
-        ly_ctx = sr_acquire_context(sr_session_get_connection(session));
-        if (ly_ctx == NULL) {
-            SRPLG_LOG_ERR(PLUGIN_NAME, "sr_acquire_context() failed");
-            goto error_out;
-        }
+    // context
+    const struct ly_ctx* ly_ctx = NULL;
+    interfaces_ctx_t* ctx = private_data;
+    interfaces_state_changes_ctx_t* state_ctx = &ctx->state_ctx;
+    interfaces_interface_state_t* state = NULL;
+
+    // libnl
+    struct rtnl_link* link = NULL;
+
+    // buffers
+    char last_change_buffer[100] = { 0 };
+
+    // there needs to be an allocated link cache in memory
+    assert(*parent != NULL);
+    assert(strcmp(LYD_NAME(*parent), "interface") == 0);
+
+    // get link
+    SRPC_SAFE_CALL_PTR(link, interfaces_get_current_link(ctx, session, request_xpath), error_out);
+
+    // synchronization
+    pthread_mutex_lock(&state_ctx->state_hash_mutex);
+
+    // get last change
+    SRPC_SAFE_CALL_PTR(state, interfaces_interface_state_hash_get(state_ctx->state_hash, rtnl_link_get_name(link)), error_out);
+
+    const time_t last_change = state->last_change;
+    struct tm* last_change_tm = localtime(&last_change);
+
+    size_t written = strftime(last_change_buffer, sizeof(last_change_buffer), "%FT%TZ", last_change_tm);
+    if (written == 0) {
+        SRPLG_LOG_ERR(PLUGIN_NAME, "strftime() failed");
+        goto error_out;
     }
+
+    SRPLG_LOG_INF(PLUGIN_NAME, "last-change(%s) = %s", rtnl_link_get_name(link), last_change_buffer);
+
+    // add oper-status node
+    SRPC_SAFE_CALL_ERR(error, interfaces_ly_tree_create_interfaces_interface_last_change(ly_ctx, *parent, last_change_buffer), error_out);
+
+    pthread_mutex_unlock(&state_ctx->state_hash_mutex);
 
     goto out;
 
@@ -203,16 +241,37 @@ out:
 int interfaces_subscription_operational_interfaces_interface_higher_layer_if(sr_session_ctx_t* session, uint32_t sub_id, const char* module_name, const char* path, const char* request_xpath, uint32_t request_id, struct lyd_node** parent, void* private_data)
 {
     int error = SR_ERR_OK;
-    const struct ly_ctx* ly_ctx = NULL;
 
-    if (*parent == NULL) {
-        ly_ctx = sr_acquire_context(sr_session_get_connection(session));
-        if (ly_ctx == NULL) {
-            SRPLG_LOG_ERR(PLUGIN_NAME, "sr_acquire_context() failed");
-            goto error_out;
-        }
+    // context
+    const struct ly_ctx* ly_ctx = NULL;
+    interfaces_ctx_t* ctx = private_data;
+    interfaces_nl_ctx_t* nl_ctx = &ctx->nl_ctx;
+
+    // libnl
+    struct rtnl_link* link = NULL;
+    struct rtnl_link* master_link = NULL;
+
+    assert(*parent != NULL);
+    assert(strcmp(LYD_NAME(*parent), "interface") == 0);
+
+    // get link
+    SRPC_SAFE_CALL_PTR(link, interfaces_get_current_link(ctx, session, request_xpath), error_out);
+
+    int master_if_index = rtnl_link_get_master(link);
+    while (master_if_index) {
+        master_link = rtnl_link_get(nl_ctx->link_cache, master_if_index);
+        const char* master_name = rtnl_link_get_name(master_link);
+
+        SRPLG_LOG_INF(PLUGIN_NAME, "higher-layer-if(%s) = %s", rtnl_link_get_name(link), master_name);
+
+        // add higher-layer-if
+        SRPC_SAFE_CALL_ERR(error, interfaces_ly_tree_create_interfaces_interface_higher_layer_if(ly_ctx, *parent, master_name), error_out);
+
+        // go one layer higher
+        master_if_index = rtnl_link_get_master(master_link);
     }
 
+    error = 0;
     goto out;
 
 error_out:
@@ -225,16 +284,51 @@ out:
 int interfaces_subscription_operational_interfaces_interface_lower_layer_if(sr_session_ctx_t* session, uint32_t sub_id, const char* module_name, const char* path, const char* request_xpath, uint32_t request_id, struct lyd_node** parent, void* private_data)
 {
     int error = SR_ERR_OK;
-    const struct ly_ctx* ly_ctx = NULL;
 
-    if (*parent == NULL) {
-        ly_ctx = sr_acquire_context(sr_session_get_connection(session));
-        if (ly_ctx == NULL) {
-            SRPLG_LOG_ERR(PLUGIN_NAME, "sr_acquire_context() failed");
-            goto error_out;
+    // context
+    const struct ly_ctx* ly_ctx = NULL;
+    interfaces_ctx_t* ctx = private_data;
+    interfaces_nl_ctx_t* nl_ctx = &ctx->nl_ctx;
+
+    // libnl
+    struct rtnl_link* link = NULL;
+    struct rtnl_link* master_link = NULL;
+
+    assert(*parent != NULL);
+    assert(strcmp(LYD_NAME(*parent), "interface") == 0);
+
+    // get link
+    SRPC_SAFE_CALL_PTR(link, interfaces_get_current_link(ctx, session, request_xpath), error_out);
+
+    // iterate over all links and check for ones which have a master equal to the current link
+    struct nl_cache* link_cache = nl_ctx->link_cache;
+    struct rtnl_link* link_iter = (struct rtnl_link*)nl_cache_get_first(link_cache);
+
+    while (link_iter) {
+        int master_if_index = rtnl_link_get_master(link);
+        while (master_if_index) {
+            master_link = rtnl_link_get(nl_ctx->link_cache, master_if_index);
+            const char* master_name = rtnl_link_get_name(master_link);
+
+            if (!strcmp(master_name, rtnl_link_get_name(link))) {
+                // current link is the higher layer interface of the iterated link
+                SRPLG_LOG_INF(PLUGIN_NAME, "lower-layer-if(%s) = %s", rtnl_link_get_name(link), rtnl_link_get_name(link_iter));
+
+                // add lower-layer-if
+                SRPC_SAFE_CALL_ERR(error, interfaces_ly_tree_create_interfaces_interface_lower_layer_if(ly_ctx, *parent, rtnl_link_get_name(link_iter)), error_out);
+
+                // found in the master list - continue checking other interfaces
+                break;
+            }
+
+            // go one layer higher
+            master_if_index = rtnl_link_get_master(master_link);
         }
+
+        link_iter = (struct rtnl_link*)nl_cache_get_next((struct nl_object*)link_iter);
     }
 
+    error = 0;
     goto out;
 
 error_out:
@@ -302,16 +396,32 @@ out:
 int interfaces_subscription_operational_interfaces_interface_statistics_discontinuity_time(sr_session_ctx_t* session, uint32_t sub_id, const char* module_name, const char* path, const char* request_xpath, uint32_t request_id, struct lyd_node** parent, void* private_data)
 {
     int error = SR_ERR_OK;
+
+    // context
     const struct ly_ctx* ly_ctx = NULL;
+    interfaces_ctx_t* ctx = private_data;
 
-    if (*parent == NULL) {
-        ly_ctx = sr_acquire_context(sr_session_get_connection(session));
-        if (ly_ctx == NULL) {
-            SRPLG_LOG_ERR(PLUGIN_NAME, "sr_acquire_context() failed");
-            goto error_out;
-        }
-    }
+    // buffers
+    char discontinuity_time_buffer[100] = { 0 };
 
+    // libnl
+    struct rtnl_link* link = NULL;
+
+    // there needs to be an allocated link cache in memory
+    assert(*parent != NULL);
+    assert(strcmp(LYD_NAME(*parent), "statistics") == 0);
+
+    // get link
+    SRPC_SAFE_CALL_PTR(link, interfaces_get_current_link(ctx, session, request_xpath), error_out);
+
+    // get boot time as discontinuity time
+    SRPC_SAFE_CALL_ERR(error, interfaces_get_system_boot_time(discontinuity_time_buffer, sizeof(discontinuity_time_buffer)), error_out);
+
+    SRPLG_LOG_INF(PLUGIN_NAME, "discontinuity-time(%s) = %s", rtnl_link_get_name(link), discontinuity_time_buffer);
+
+    SRPC_SAFE_CALL_ERR(error, interfaces_ly_tree_create_interfaces_interface_statistics_discontinuity_time(ly_ctx, *parent, discontinuity_time_buffer), error_out);
+
+    error = 0;
     goto out;
 
 error_out:
@@ -1153,4 +1263,33 @@ error_out:
 
 out:
     return error;
+}
+
+static int interfaces_get_system_boot_time(char* buffer, size_t buffer_size)
+{
+    time_t now = 0;
+    struct tm* ts = { 0 };
+    struct sysinfo s_info = { 0 };
+    time_t uptime_seconds = 0;
+
+    now = time(NULL);
+
+    ts = localtime(&now);
+    if (ts == NULL)
+        return -1;
+
+    if (sysinfo(&s_info) != 0)
+        return -1;
+
+    uptime_seconds = s_info.uptime;
+
+    time_t diff = now - uptime_seconds;
+
+    ts = localtime(&diff);
+    if (ts == NULL)
+        return -1;
+
+    strftime(buffer, buffer_size, "%FT%TZ", ts);
+
+    return 0;
 }
