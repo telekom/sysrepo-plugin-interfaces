@@ -9,7 +9,7 @@ int interfaces_interface_change_parent_interface(void* priv, sr_session_ctx_t* s
     const char* node_name = LYD_NAME(change_ctx->node);
     const char* node_value = lyd_get_value(change_ctx->node);
 
-    SRPLG_LOG_DBG(PLUGIN_NAME, "Node Name: %s; Previous Value: %s, Value: %s; Operation: %d", node_name, change_ctx->previous_value, node_value, change_ctx->operation);
+    SRPLG_LOG_INF(PLUGIN_NAME, "Node Name: %s; Previous Value: %s, Value: %s; Operation: %d", node_name, change_ctx->previous_value, node_value, change_ctx->operation);
 
     switch (change_ctx->operation) {
     case SR_OP_CREATED:
@@ -31,7 +31,7 @@ int interfaces_interface_change_max_frame_size(void* priv, sr_session_ctx_t* ses
     const char* node_name = LYD_NAME(change_ctx->node);
     const char* node_value = lyd_get_value(change_ctx->node);
 
-    SRPLG_LOG_DBG(PLUGIN_NAME, "Node Name: %s; Previous Value: %s, Value: %s; Operation: %d", node_name, change_ctx->previous_value, node_value, change_ctx->operation);
+    SRPLG_LOG_INF(PLUGIN_NAME, "Node Name: %s; Previous Value: %s, Value: %s; Operation: %d", node_name, change_ctx->previous_value, node_value, change_ctx->operation);
 
     switch (change_ctx->operation) {
     case SR_OP_CREATED:
@@ -53,7 +53,7 @@ int interfaces_interface_change_loopback(void* priv, sr_session_ctx_t* session, 
     const char* node_name = LYD_NAME(change_ctx->node);
     const char* node_value = lyd_get_value(change_ctx->node);
 
-    SRPLG_LOG_DBG(PLUGIN_NAME, "Node Name: %s; Previous Value: %s, Value: %s; Operation: %d", node_name, change_ctx->previous_value, node_value, change_ctx->operation);
+    SRPLG_LOG_INF(PLUGIN_NAME, "Node Name: %s; Previous Value: %s, Value: %s; Operation: %d", node_name, change_ctx->previous_value, node_value, change_ctx->operation);
 
     switch (change_ctx->operation) {
     case SR_OP_CREATED:
@@ -75,7 +75,7 @@ int interfaces_interface_change_link_up_down_trap_enable(void* priv, sr_session_
     const char* node_name = LYD_NAME(change_ctx->node);
     const char* node_value = lyd_get_value(change_ctx->node);
 
-    SRPLG_LOG_DBG(PLUGIN_NAME, "Node Name: %s; Previous Value: %s, Value: %s; Operation: %d", node_name, change_ctx->previous_value, node_value, change_ctx->operation);
+    SRPLG_LOG_INF(PLUGIN_NAME, "Node Name: %s; Previous Value: %s, Value: %s; Operation: %d", node_name, change_ctx->previous_value, node_value, change_ctx->operation);
 
     switch (change_ctx->operation) {
     case SR_OP_CREATED:
@@ -97,7 +97,7 @@ int interfaces_interface_change_enabled(void* priv, sr_session_ctx_t* session, c
     const char* node_name = LYD_NAME(change_ctx->node);
     const char* node_value = lyd_get_value(change_ctx->node);
 
-    SRPLG_LOG_DBG(PLUGIN_NAME, "Node Name: %s; Previous Value: %s, Value: %s; Operation: %d", node_name, change_ctx->previous_value, node_value, change_ctx->operation);
+    SRPLG_LOG_INF(PLUGIN_NAME, "Node Name: %s; Previous Value: %s, Value: %s; Operation: %d", node_name, change_ctx->previous_value, node_value, change_ctx->operation);
 
     switch (change_ctx->operation) {
     case SR_OP_CREATED:
@@ -119,7 +119,7 @@ int interfaces_interface_change_type(void* priv, sr_session_ctx_t* session, cons
     const char* node_name = LYD_NAME(change_ctx->node);
     const char* node_value = lyd_get_value(change_ctx->node);
 
-    SRPLG_LOG_DBG(PLUGIN_NAME, "Node Name: %s; Previous Value: %s, Value: %s; Operation: %d", node_name, change_ctx->previous_value, node_value, change_ctx->operation);
+    SRPLG_LOG_INF(PLUGIN_NAME, "Node Name: %s; Previous Value: %s, Value: %s; Operation: %d", node_name, change_ctx->previous_value, node_value, change_ctx->operation);
 
     switch (change_ctx->operation) {
     case SR_OP_CREATED:
@@ -141,7 +141,7 @@ int interfaces_interface_change_description(void* priv, sr_session_ctx_t* sessio
     const char* node_name = LYD_NAME(change_ctx->node);
     const char* node_value = lyd_get_value(change_ctx->node);
 
-    SRPLG_LOG_DBG(PLUGIN_NAME, "Node Name: %s; Previous Value: %s, Value: %s; Operation: %d", node_name, change_ctx->previous_value, node_value, change_ctx->operation);
+    SRPLG_LOG_INF(PLUGIN_NAME, "Node Name: %s; Previous Value: %s, Value: %s; Operation: %d", node_name, change_ctx->previous_value, node_value, change_ctx->operation);
 
     switch (change_ctx->operation) {
     case SR_OP_CREATED:
@@ -163,7 +163,7 @@ int interfaces_interface_change_name(void* priv, sr_session_ctx_t* session, cons
     const char* node_name = LYD_NAME(change_ctx->node);
     const char* node_value = lyd_get_value(change_ctx->node);
 
-    SRPLG_LOG_DBG(PLUGIN_NAME, "Node Name: %s; Previous Value: %s, Value: %s; Operation: %d", node_name, change_ctx->previous_value, node_value, change_ctx->operation);
+    SRPLG_LOG_INF(PLUGIN_NAME, "Node Name: %s; Previous Value: %s, Value: %s; Operation: %d", node_name, change_ctx->previous_value, node_value, change_ctx->operation);
 
     switch (change_ctx->operation) {
     case SR_OP_CREATED:

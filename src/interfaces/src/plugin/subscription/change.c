@@ -15,18 +15,6 @@ int interfaces_subscription_change_interfaces_interface(sr_session_ctx_t* sessio
     int error = SR_ERR_OK;
     interfaces_ctx_t* ctx = (interfaces_ctx_t*)private_data;
 
-    // sysrepo
-    sr_change_iter_t* changes_iterator = NULL;
-    sr_change_oper_t operation = SR_OP_CREATED;
-    const char *prev_value = NULL, *prev_list = NULL;
-    int prev_default;
-
-    const char* node_name = NULL;
-    const char* node_value = NULL;
-
-    // libyang
-    const struct lyd_node* node = NULL;
-
     if (event == SR_EV_ABORT) {
         SRPLG_LOG_ERR(PLUGIN_NAME, "Aborting changes for %s", xpath);
         goto error_out;
@@ -38,7 +26,7 @@ int interfaces_subscription_change_interfaces_interface(sr_session_ctx_t* sessio
         }
     } else if (event == SR_EV_CHANGE) {
         // connect change API
-        error = srpc_iterate_changes(ctx, session, xpath, interfaces_change_interface);
+        error = srpc_iterate_changes(ctx, session, xpath, interfaces_change_interface, interfaces_change_interface_init, interfaces_change_interface_free);
         if (error) {
             SRPLG_LOG_ERR(PLUGIN_NAME, "srpc_iterate_changes() for interfaces_change_interface failed: %d", error);
             goto error_out;
@@ -51,5 +39,5 @@ error_out:
     error = SR_ERR_CALLBACK_FAILED;
 
 out:
-    return error;
+    return SR_ERR_CALLBACK_FAILED;
 }
