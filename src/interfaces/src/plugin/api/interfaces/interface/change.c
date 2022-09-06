@@ -4,6 +4,7 @@
 #include "plugin/context.h"
 #include "sysrepo/xpath.h"
 
+#include <linux/if.h>
 #include <sysrepo.h>
 
 static int interfacecs_interface_extract_name(sr_session_ctx_t* session, const struct lyd_node* node, char* name_buffer, size_t buffer_size);
@@ -99,22 +100,57 @@ int interfaces_interface_change_link_up_down_trap_enable(void* priv, sr_session_
 int interfaces_interface_change_enabled(void* priv, sr_session_ctx_t* session, const srpc_change_ctx_t* change_ctx)
 {
     int error = 0;
+
+    char interface_name_buffer[256] = { 0 };
+
+    interfaces_ctx_t* ctx = (interfaces_ctx_t*)priv;
+    interfaces_mod_changes_ctx_t* mod_ctx = &ctx->mod_ctx;
+    struct rtnl_link* current_link = NULL;
+    struct rtnl_link* request_link = NULL;
+
     const char* node_name = LYD_NAME(change_ctx->node);
     const char* node_value = lyd_get_value(change_ctx->node);
 
     SRPLG_LOG_INF(PLUGIN_NAME, "Node Name: %s; Previous Value: %s, Value: %s; Operation: %d", node_name, change_ctx->previous_value, node_value, change_ctx->operation);
 
+    // get interface name
+    SRPC_SAFE_CALL_ERR(error, interfacecs_interface_extract_name(session, change_ctx->node, interface_name_buffer, sizeof(interface_name_buffer)), error_out);
+
+    // get link by name
+    SRPC_SAFE_CALL_PTR(current_link, rtnl_link_get_by_name(mod_ctx->link_cache, interface_name_buffer), error_out);
+
+    // create request link
+    SRPC_SAFE_CALL_PTR(request_link, rtnl_link_alloc(), error_out);
+
+    // set name
+    rtnl_link_set_name(request_link, interface_name_buffer);
+
     switch (change_ctx->operation) {
     case SR_OP_CREATED:
-        break;
     case SR_OP_MODIFIED:
+        // set operstate
+        rtnl_link_set_operstate(request_link, (strcmp(node_value, "true") == 0) ? IF_OPER_UP : IF_OPER_DOWN);
         break;
     case SR_OP_DELETED:
+        // treat as set to up - default value
+        rtnl_link_set_operstate(request_link, IF_OPER_UP);
         break;
     case SR_OP_MOVED:
         break;
     }
 
+    // apply changes
+    SRPC_SAFE_CALL_ERR(error, rtnl_link_change(mod_ctx->socket, current_link, request_link, 0), error_out);
+
+    // if all succeeded - refresh link cache for changes
+    SRPC_SAFE_CALL_ERR(error, rtnl_link_alloc_cache(mod_ctx->socket, AF_UNSPEC, &mod_ctx->link_cache), error_out);
+
+    goto out;
+
+error_out:
+    error = -1;
+
+out:
     return error;
 }
 
@@ -163,14 +199,15 @@ int interfaces_interface_change_type(void* priv, sr_session_ctx_t* session, cons
     // get link by name
     SRPC_SAFE_CALL_PTR(current_link, rtnl_link_get_by_name(mod_ctx->link_cache, interface_name_buffer), error_out);
 
+    // create request link
+    SRPC_SAFE_CALL_PTR(request_link, rtnl_link_alloc(), error_out);
+
+    // set name
+    rtnl_link_set_name(request_link, interface_name_buffer);
+
     switch (change_ctx->operation) {
     case SR_OP_CREATED:
     case SR_OP_MODIFIED:
-        request_link = rtnl_link_alloc();
-
-        // set name
-        rtnl_link_set_name(request_link, interface_name_buffer);
-
         // set type
         for (size_t i = 0; i < ARRAY_SIZE(type_pairs); i++) {
             if (!strcmp(node_value, type_pairs[i].yang_type)) {
