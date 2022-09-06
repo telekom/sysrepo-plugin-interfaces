@@ -11,9 +11,25 @@ int interfaces_change_interface_init(void* priv)
 {
     int error = 0;
     interfaces_ctx_t* ctx = (interfaces_ctx_t*)priv;
-    (void)ctx;
+    interfaces_mod_changes_ctx_t* mod_ctx = &ctx->mod_ctx;
 
     SRPLG_LOG_INF(PLUGIN_NAME, "Initializing context data for interface changes");
+
+    // allocate socket
+    SRPC_SAFE_CALL_PTR(mod_ctx->socket, nl_socket_alloc(), error_out);
+
+    // connect
+    SRPC_SAFE_CALL_ERR(error, nl_connect(mod_ctx->socket, NETLINK_ROUTE), error_out);
+
+    // allocate link cache
+    SRPC_SAFE_CALL_ERR(error, rtnl_link_alloc_cache(mod_ctx->socket, 0, &mod_ctx->link_cache), error_out);
+
+    goto out;
+
+error_out:
+    error = -1;
+
+out:
 
     return error;
 }
@@ -66,5 +82,18 @@ out:
 
 void interfaces_change_interface_free(void* priv)
 {
+    interfaces_ctx_t* ctx = (interfaces_ctx_t*)priv;
+    interfaces_mod_changes_ctx_t* mod_ctx = &ctx->mod_ctx;
+
     SRPLG_LOG_INF(PLUGIN_NAME, "Freeing context data for interface changes");
+
+    if (mod_ctx->link_cache) {
+        nl_cache_put(ctx->nl_ctx.link_cache);
+    }
+    if (mod_ctx->socket) {
+        nl_socket_free(ctx->nl_ctx.socket);
+    }
+
+    // set to NULL
+    ctx->mod_ctx = (interfaces_mod_changes_ctx_t) { 0 };
 }
