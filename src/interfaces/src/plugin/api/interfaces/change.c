@@ -22,7 +22,7 @@ int interfaces_change_interface_init(void* priv)
     SRPC_SAFE_CALL_ERR(error, nl_connect(mod_ctx->socket, NETLINK_ROUTE), error_out);
 
     // allocate link cache
-    SRPC_SAFE_CALL_ERR(error, rtnl_link_alloc_cache(mod_ctx->socket, 0, &mod_ctx->link_cache), error_out);
+    SRPC_SAFE_CALL_ERR(error, rtnl_link_alloc_cache(mod_ctx->socket, AF_UNSPEC, &mod_ctx->link_cache), error_out);
 
     goto out;
 

@@ -1175,7 +1175,7 @@ int interfaces_subscription_operational_interfaces_interface(sr_session_ctx_t* s
         nl_cache_refill(nl_ctx->socket, nl_ctx->link_cache);
     } else {
         // allocate new link cache
-        SRPC_SAFE_CALL_ERR(error, rtnl_link_alloc_cache(nl_ctx->socket, 0, &nl_ctx->link_cache), error_out);
+        SRPC_SAFE_CALL_ERR(error, rtnl_link_alloc_cache(nl_ctx->socket, AF_UNSPEC, &nl_ctx->link_cache), error_out);
     }
 
     if (*parent == NULL) {
