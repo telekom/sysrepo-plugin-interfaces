@@ -39,5 +39,5 @@ error_out:
     error = SR_ERR_CALLBACK_FAILED;
 
 out:
-    return SR_ERR_CALLBACK_FAILED;
+    return error;
 }
