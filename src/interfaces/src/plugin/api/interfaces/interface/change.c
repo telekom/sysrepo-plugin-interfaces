@@ -1,11 +1,15 @@
 #include "change.h"
+#include "netlink/errno.h"
 #include "netlink/route/link.h"
 #include "plugin/common.h"
 #include "plugin/context.h"
 #include "sysrepo/xpath.h"
 
 #include <linux/if.h>
+#include <string.h>
 #include <sysrepo.h>
+
+#include <errno.h>
 
 static int interfacecs_interface_extract_name(sr_session_ctx_t* session, const struct lyd_node* node, char* name_buffer, size_t buffer_size);
 
@@ -172,7 +176,7 @@ int interfaces_interface_change_type(void* priv, sr_session_ctx_t* session, cons
     } type_pairs[] = {
         {
             "iana-if-type:ethernetCsmacd",
-            "eth",
+            "veth",
         },
         {
             "iana-if-type:softwareLoopback",
@@ -292,7 +296,10 @@ int interfaces_interface_change_name(void* priv, sr_session_ctx_t* session, cons
             // setup link and add it to the system
             rtnl_link_set_name(new_link, node_value);
 
-            SRPC_SAFE_CALL_ERR(error, rtnl_link_add(mod_ctx->socket, new_link, 0), error_out);
+            // set temp as initial type
+            SRPC_SAFE_CALL_ERR(error, rtnl_link_set_type(new_link, "dummy"), error_out);
+
+            SRPC_SAFE_CALL_ERR(error, rtnl_link_add(mod_ctx->socket, new_link, NLM_F_CREATE), error_out);
         }
         break;
     case SR_OP_MODIFIED:
@@ -314,6 +321,9 @@ int interfaces_interface_change_name(void* priv, sr_session_ctx_t* session, cons
     goto out;
 
 error_out:
+    if (error < 0) {
+        SRPLG_LOG_ERR(PLUGIN_NAME, "nl_geterror(): %d = %s", error, nl_geterror(error));
+    }
     error = -1;
 
 out:

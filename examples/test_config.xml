@@ -5,7 +5,7 @@
     xmlns:if-ext="urn:ietf:params:xml:ns:yang:ietf-if-extensions">
 
     <interface>
-        <name>if0</name>
+        <name>test_if</name>
         <description>Test Interface</description>
         <type>ianaift:other</type>
         <enabled>true</enabled>
