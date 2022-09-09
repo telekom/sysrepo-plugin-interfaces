@@ -2,6 +2,8 @@
 #include "plugin/common.h"
 #include "plugin/ly_tree.h"
 
+#include "plugin/api/interfaces/load.h"
+
 #include <libyang/libyang.h>
 #include <srpc.h>
 #include <sysrepo.h>
@@ -49,8 +51,8 @@ int interfaces_startup_load(interfaces_ctx_t* ctx, sr_session_ctx_t* session)
 /* enable or disable storing into startup, use for testing */
 #define INTERFACES_PLUGIN_LOAD_STARTUP
 /* disable for now */
-#undef  INTERFACES_PLUGIN_LOAD_STARTUP
-#ifdef  INTERFACES_PLUGIN_LOAD_STARTUP
+#undef INTERFACES_PLUGIN_LOAD_STARTUP
+#ifdef INTERFACES_PLUGIN_LOAD_STARTUP
     error = sr_edit_batch(session, root_node, "merge");
     if (error != SR_ERR_OK) {
         SRPLG_LOG_ERR(PLUGIN_NAME, "sr_edit_batch() error (%d): %s", error, sr_strerror(error));
@@ -80,10 +82,10 @@ out:
 static int interfaces_startup_load_interface(void* priv, sr_session_ctx_t* session, const struct ly_ctx* ly_ctx, struct lyd_node* parent_node)
 {
     int error = 0;
-    interfaces_ctx_t *ctx = (interfaces_ctx_t *) priv;
-    interfaces_interfaces_interface_element_t *interface_head = NULL;
+    interfaces_ctx_t* ctx = (interfaces_ctx_t*)priv;
+    interfaces_interfaces_interface_element_t* interface_head = NULL;
 
-    error = interfaces_load_interface(ly_ctx, &interface_head);
+    error = interfaces_load_interface(ctx, &interface_head);
     if (error) {
         SRPLG_LOG_ERR(PLUGIN_NAME, "interfaces_load_interface() error (%d)", error);
         goto error_out;
