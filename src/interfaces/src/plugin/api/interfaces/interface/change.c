@@ -138,6 +138,7 @@ int interfaces_interface_change_enabled(void* priv, sr_session_ctx_t* session, c
     case SR_OP_MODIFIED:
         // set operstate
         rtnl_link_set_flags(request_link, (strcmp(node_value, "true") == 0) ? (unsigned int)rtnl_link_str2flags("up") : (unsigned int)rtnl_link_str2flags("down"));
+        rtnl_link_unset_flags(request_link, (strcmp(node_value, "true") == 0) ? (unsigned int)rtnl_link_str2flags("down") : (unsigned int)rtnl_link_str2flags("up"));
         rtnl_link_set_operstate(request_link, (strcmp(node_value, "true") == 0) ? IF_OPER_UP : IF_OPER_DOWN);
         break;
     case SR_OP_DELETED:
