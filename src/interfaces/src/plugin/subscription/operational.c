@@ -100,6 +100,7 @@ out:
 int interfaces_subscription_operational_interfaces_interface_last_change(sr_session_ctx_t* session, uint32_t sub_id, const char* module_name, const char* path, const char* request_xpath, uint32_t request_id, struct lyd_node** parent, void* private_data)
 {
     int error = SR_ERR_OK;
+    void* error_ptr = NULL;
 
     // context
     const struct ly_ctx* ly_ctx = NULL;
@@ -112,13 +113,17 @@ int interfaces_subscription_operational_interfaces_interface_last_change(sr_sess
 
     // buffers
     char last_change_buffer[100] = { 0 };
+    char xpath_buffer[PATH_MAX] = { 0 };
 
     // there needs to be an allocated link cache in memory
     assert(*parent != NULL);
     assert(strcmp(LYD_NAME(*parent), "interface") == 0);
 
+    // get node xpath
+    SRPC_SAFE_CALL_PTR(error_ptr, lyd_path(*parent, LYD_PATH_STD, xpath_buffer, sizeof(xpath_buffer)), error_out);
+
     // get link
-    SRPC_SAFE_CALL_PTR(link, interfaces_get_current_link(ctx, session, request_xpath), error_out);
+    SRPC_SAFE_CALL_PTR(link, interfaces_get_current_link(ctx, session, xpath_buffer), error_out);
 
     // synchronization
     pthread_mutex_lock(&state_ctx->state_hash_mutex);
@@ -212,6 +217,7 @@ int interfaces_subscription_operational_interfaces_interface_phys_address(sr_ses
 
     // buffers
     char phys_address_buffer[100] = { 0 };
+    char xpath_buffer[PATH_MAX] = { 0 };
 
     // libnl
     struct rtnl_link* link = NULL;
@@ -221,8 +227,11 @@ int interfaces_subscription_operational_interfaces_interface_phys_address(sr_ses
     assert(*parent != NULL);
     assert(strcmp(LYD_NAME(*parent), "interface") == 0);
 
+    // get node xpath
+    SRPC_SAFE_CALL_PTR(error_ptr, lyd_path(*parent, LYD_PATH_STD, xpath_buffer, sizeof(xpath_buffer)), error_out);
+
     // get link
-    SRPC_SAFE_CALL_PTR(link, interfaces_get_current_link(ctx, session, request_xpath), error_out);
+    SRPC_SAFE_CALL_PTR(link, interfaces_get_current_link(ctx, session, xpath_buffer), error_out);
 
     // get phys-address
     SRPC_SAFE_CALL_PTR(addr, rtnl_link_get_addr(link), error_out);
