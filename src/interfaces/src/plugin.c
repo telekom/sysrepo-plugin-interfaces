@@ -378,6 +378,7 @@ static void interfaces_link_cache_change_cb(struct nl_cache* cache, struct nl_ob
     interfaces_state_changes_ctx_t* ctx = arg;
     char time_buffer[100] = { 0 };
     struct tm* last_change = NULL;
+    time_t current = 0;
 
     // block further access using mutex
 
@@ -395,8 +396,9 @@ static void interfaces_link_cache_change_cb(struct nl_cache* cache, struct nl_ob
         const uint8_t oper_state = rtnl_link_get_operstate(link);
 
         if (state) {
+            SRPLG_LOG_INF(PLUGIN_NAME, "State for interface %s already exists - updating last change", link_name);
             if (oper_state != state->state) {
-                const time_t current = time(NULL);
+                current = time(NULL);
                 last_change = localtime(&current);
                 strftime(time_buffer, sizeof(time_buffer), "%FT%TZ", last_change);
 
@@ -405,14 +407,19 @@ static void interfaces_link_cache_change_cb(struct nl_cache* cache, struct nl_ob
                 state->last_change = time(NULL);
             }
         } else {
+            SRPLG_LOG_INF(PLUGIN_NAME, "State for interface %s doesn\'t exist - creating a new entry in the state data hash table", link_name);
             // new link has been added - add new data to the hash
-            const time_t current_time = time(NULL);
+            current = time(NULL);
+            last_change = localtime(&current);
 
             // add entry to the hash table
-            int rc = interfaces_interface_state_hash_add(&ctx->state_hash, link_name, oper_state, current_time);
+            int rc = interfaces_interface_state_hash_add(&ctx->state_hash, link_name, oper_state, current);
             if (rc) {
                 SRPLG_LOG_ERR(PLUGIN_NAME, "Unable to add new interface %s to the interface hash");
             }
+
+            strftime(time_buffer, sizeof(time_buffer), "%FT%TZ", last_change);
+            SRPLG_LOG_INF(PLUGIN_NAME, "Interface %s added to the state data hash: state = %d, time = %s", link_name, oper_state, time_buffer);
         }
 
         link = (struct rtnl_link*)nl_cache_get_next((struct nl_object*)link);
