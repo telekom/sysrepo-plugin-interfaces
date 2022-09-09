@@ -154,6 +154,7 @@ out:
 int interfaces_subscription_operational_interfaces_interface_if_index(sr_session_ctx_t* session, uint32_t sub_id, const char* module_name, const char* path, const char* request_xpath, uint32_t request_id, struct lyd_node** parent, void* private_data)
 {
     int error = SR_ERR_OK;
+    void* error_ptr = NULL;
 
     // context
     const struct ly_ctx* ly_ctx = NULL;
@@ -161,6 +162,7 @@ int interfaces_subscription_operational_interfaces_interface_if_index(sr_session
 
     // buffers
     char ifindex_buffer[100] = { 0 };
+    char xpath_buffer[PATH_MAX] = { 0 };
 
     // libnl
     struct rtnl_link* link = NULL;
@@ -168,6 +170,9 @@ int interfaces_subscription_operational_interfaces_interface_if_index(sr_session
     // there needs to be an allocated link cache in memory
     assert(*parent != NULL);
     assert(strcmp(LYD_NAME(*parent), "interface") == 0);
+
+    // get node xpath
+    SRPC_SAFE_CALL_PTR(error_ptr, lyd_path(*parent, LYD_PATH_STD, xpath_buffer, sizeof(xpath_buffer)), error_out);
 
     // get link
     SRPC_SAFE_CALL_PTR(link, interfaces_get_current_link(ctx, session, request_xpath), error_out);
@@ -341,7 +346,7 @@ out:
 int interfaces_subscription_operational_interfaces_interface_speed(sr_session_ctx_t* session, uint32_t sub_id, const char* module_name, const char* path, const char* request_xpath, uint32_t request_id, struct lyd_node** parent, void* private_data)
 {
     int error = SR_ERR_OK;
-    // void* error_ptr = NULL;
+    void* error_ptr = NULL;
 
     // context
     const struct ly_ctx* ly_ctx = NULL;
@@ -349,6 +354,7 @@ int interfaces_subscription_operational_interfaces_interface_speed(sr_session_ct
 
     // buffers
     char speed_buffer[100] = { 0 };
+    char xpath_buffer[PATH_MAX] = { 0 };
 
     // libnl
     struct rtnl_link* link = NULL;
@@ -359,8 +365,11 @@ int interfaces_subscription_operational_interfaces_interface_speed(sr_session_ct
     assert(*parent != NULL);
     assert(strcmp(LYD_NAME(*parent), "interface") == 0);
 
+    // get node xpath
+    SRPC_SAFE_CALL_PTR(error_ptr, lyd_path(*parent, LYD_PATH_STD, xpath_buffer, sizeof(xpath_buffer)), error_out);
+
     // get link
-    SRPC_SAFE_CALL_PTR(link, interfaces_get_current_link(ctx, session, request_xpath), error_out);
+    SRPC_SAFE_CALL_PTR(link, interfaces_get_current_link(ctx, session, xpath_buffer), error_out);
 
     qdisc = rtnl_qdisc_alloc();
 
