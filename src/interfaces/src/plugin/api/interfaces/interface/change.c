@@ -153,12 +153,6 @@ int interfaces_interface_change_enabled(void* priv, sr_session_ctx_t* session, c
     SRPLG_LOG_INF(PLUGIN_NAME, "Current link status: %d", rtnl_link_get_operstate(current_link));
     SRPLG_LOG_INF(PLUGIN_NAME, "Changed link status: %d", rtnl_link_get_operstate(request_link));
 
-    // error = rtnl_link_change(mod_ctx->socket, current_link, request_link, NLM_F_REPLACE);
-    // if (error) {
-    //     SRPLG_LOG_ERR(PLUGIN_NAME, "rtnl_link_change() error (%d) : %s", error, nl_geterror(error));
-    //     goto error_out;
-    // }
-
     // apply changes
     SRPC_SAFE_CALL_ERR(error, rtnl_link_change(mod_ctx->socket, current_link, request_link, NLM_F_REPLACE), error_out);
 
@@ -241,7 +235,7 @@ int interfaces_interface_change_type(void* priv, sr_session_ctx_t* session, cons
         }
 
         if (!type_set) {
-            SRPLG_LOG_ERR(PLUGIN_NAME, "Unsupported interface type (%s)", node_value);
+            SRPLG_LOG_ERR(PLUGIN_NAME, "Unsupported interface type %s", node_value);
             goto error_out;
         }
 
