@@ -1,5 +1,6 @@
 #include "load.h"
 #include "plugin/common.h"
+#include "plugin/ly_tree.h"
 
 #include <libyang/libyang.h>
 #include <srpc.h>
@@ -29,9 +30,12 @@ int interfaces_startup_load(interfaces_ctx_t* ctx, sr_session_ctx_t* session)
         goto error_out;
     }
 
-    // load system container info
-    // [LOAD ROOT NODE HERE]
-    goto out;
+    error = interfaces_ly_tree_create_interfaces(ly_ctx, &root_node);
+    if (error != 0) {
+        SRPLG_LOG_ERR(PLUGIN_NAME, "Unable to create ly root tree container");
+        goto error_out;
+    }
+
     for (size_t i = 0; i < ARRAY_SIZE(load_values); i++) {
         const srpc_startup_load_t* load = &load_values[i];
 
@@ -42,6 +46,11 @@ int interfaces_startup_load(interfaces_ctx_t* ctx, sr_session_ctx_t* session)
         }
     }
 
+/* enable or disable storing into startup, use for testing */
+#define INTERFACES_PLUGIN_LOAD_STARTUP
+/* disable for now */
+#undef  INTERFACES_PLUGIN_LOAD_STARTUP
+#ifdef  INTERFACES_PLUGIN_LOAD_STARTUP
     error = sr_edit_batch(session, root_node, "merge");
     if (error != SR_ERR_OK) {
         SRPLG_LOG_ERR(PLUGIN_NAME, "sr_edit_batch() error (%d): %s", error, sr_strerror(error));
@@ -53,6 +62,7 @@ int interfaces_startup_load(interfaces_ctx_t* ctx, sr_session_ctx_t* session)
         SRPLG_LOG_ERR(PLUGIN_NAME, "sr_apply_changes() error (%d): %s", error, sr_strerror(error));
         goto error_out;
     }
+#endif
 
     goto out;
 
@@ -70,5 +80,25 @@ out:
 static int interfaces_startup_load_interface(void* priv, sr_session_ctx_t* session, const struct ly_ctx* ly_ctx, struct lyd_node* parent_node)
 {
     int error = 0;
+    interfaces_ctx_t *ctx = (interfaces_ctx_t *) priv;
+    interfaces_interfaces_interface_element_t *interface_head = NULL;
+
+    error = interfaces_load_interface(ly_ctx, &interface_head);
+    if (error) {
+        SRPLG_LOG_ERR(PLUGIN_NAME, "interfaces_load_interface() error (%d)", error);
+        goto error_out;
+    }
+
+    error = interfaces_ly_tree_create_interfaces(ly_ctx, &parent_node);
+    if (error) {
+        SRPLG_LOG_ERR(PLUGIN_NAME, "interfaces_ly_tree_create_interfaces() error (%d)", error);
+        goto error_out;
+    }
+
+    goto out;
+
+error_out:
+    error = -1;
+out:
     return error;
 }
