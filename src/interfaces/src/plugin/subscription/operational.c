@@ -246,11 +246,14 @@ out:
 int interfaces_subscription_operational_interfaces_interface_higher_layer_if(sr_session_ctx_t* session, uint32_t sub_id, const char* module_name, const char* path, const char* request_xpath, uint32_t request_id, struct lyd_node** parent, void* private_data)
 {
     int error = SR_ERR_OK;
+    void* error_ptr = NULL;
 
     // context
     const struct ly_ctx* ly_ctx = NULL;
     interfaces_ctx_t* ctx = private_data;
     interfaces_nl_ctx_t* nl_ctx = &ctx->nl_ctx;
+
+    char xpath_buffer[PATH_MAX] = { 0 };
 
     // libnl
     struct rtnl_link* link = NULL;
@@ -259,8 +262,11 @@ int interfaces_subscription_operational_interfaces_interface_higher_layer_if(sr_
     assert(*parent != NULL);
     assert(strcmp(LYD_NAME(*parent), "interface") == 0);
 
+    // get node xpath
+    SRPC_SAFE_CALL_PTR(error_ptr, lyd_path(*parent, LYD_PATH_STD, xpath_buffer, sizeof(xpath_buffer)), error_out);
+
     // get link
-    SRPC_SAFE_CALL_PTR(link, interfaces_get_current_link(ctx, session, request_xpath), error_out);
+    SRPC_SAFE_CALL_PTR(link, interfaces_get_current_link(ctx, session, xpath_buffer), error_out);
 
     int master_if_index = rtnl_link_get_master(link);
     while (master_if_index) {
