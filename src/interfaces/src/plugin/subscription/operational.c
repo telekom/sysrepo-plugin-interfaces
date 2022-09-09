@@ -140,14 +140,14 @@ int interfaces_subscription_operational_interfaces_interface_last_change(sr_sess
     // add oper-status node
     SRPC_SAFE_CALL_ERR(error, interfaces_ly_tree_create_interfaces_interface_last_change(ly_ctx, *parent, last_change_buffer), error_out);
 
-    pthread_mutex_unlock(&state_ctx->state_hash_mutex);
-
     goto out;
 
 error_out:
     error = SR_ERR_CALLBACK_FAILED;
 
 out:
+    pthread_mutex_unlock(&state_ctx->state_hash_mutex);
+
     return error;
 }
 

@@ -8,6 +8,13 @@
         <name>test_if</name>
         <description>Test Interface</description>
         <type>ianaift:other</type>
-        <enabled>true</enabled>
+        <enabled>false</enabled>
+    </interface>
+
+    <interface>
+        <name>if0</name>
+        <description>Test Interface</description>
+        <type>ianaift:other</type>
+        <enabled>false</enabled>
     </interface>
 </interfaces>
