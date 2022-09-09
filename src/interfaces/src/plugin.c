@@ -404,6 +404,15 @@ static void interfaces_link_cache_change_cb(struct nl_cache* cache, struct nl_ob
                 state->state = oper_state;
                 state->last_change = time(NULL);
             }
+        } else {
+            // new link has been added - add new data to the hash
+            const time_t current_time = time(NULL);
+
+            // add entry to the hash table
+            int rc = interfaces_interface_state_hash_add(&ctx->state_hash, link_name, oper_state, current_time);
+            if (rc) {
+                SRPLG_LOG_ERR(PLUGIN_NAME, "Unable to add new interface %s to the interface hash");
+            }
         }
 
         link = (struct rtnl_link*)nl_cache_get_next((struct nl_object*)link);
