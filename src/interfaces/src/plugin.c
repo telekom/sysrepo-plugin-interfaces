@@ -224,11 +224,11 @@ int sr_plugin_init_cb(sr_session_ctx_t* running_session, void** private_data)
         SRPLG_LOG_INF(PLUGIN_NAME, "Startup datastore contains data");
         SRPLG_LOG_INF(PLUGIN_NAME, "Storing startup datastore data in the system");
 
-        error = interfaces_startup_store(ctx, startup_session);
-        if (error) {
-            SRPLG_LOG_ERR(PLUGIN_NAME, "Error applying initial data from startup datastore to the system... exiting");
-            goto error_out;
-        }
+        // error = interfaces_startup_store(ctx, startup_session);
+        // if (error) {
+        //     SRPLG_LOG_ERR(PLUGIN_NAME, "Error applying initial data from startup datastore to the system... exiting");
+        //     goto error_out;
+        // }
 
         // copy contents of the startup session to the current running session
         error = sr_copy_config(running_session, BASE_YANG_MODEL, SR_DS_STARTUP, 0);
