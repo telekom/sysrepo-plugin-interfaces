@@ -14,12 +14,19 @@ set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/CMakeModules")
 set(
     SOURCES
 
+    # startup
     src/plugin/startup/load.c
     src/plugin/startup/store.c
+
+    # subscription
     src/plugin/subscription/change.c
     src/plugin/subscription/operational.c
     src/plugin/subscription/rpc.c
+
+    # ly_tree
     src/plugin/ly_tree.c
+
+    # API
     src/plugin/api/interfaces/check.c
     src/plugin/api/interfaces/load.c
     src/plugin/api/interfaces/store.c
@@ -29,8 +36,12 @@ set(
     src/plugin/api/interfaces/interface/encapsulation/dot1q-vlan/outer-tag/change.c
     src/plugin/api/interfaces/interface/dampening/change.c
     src/plugin/api/interfaces/interface/carrier-delay/change.c
+
+    # data
     src/plugin/data/interfaces/interface/state.c
     src/plugin/data/interfaces/interface/hash.c
+
+    # main files
     src/plugin.c
     ${CMAKE_SOURCE_DIR}/src/utils/memory.c
 )
