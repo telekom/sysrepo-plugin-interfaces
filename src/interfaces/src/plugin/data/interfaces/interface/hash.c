@@ -17,7 +17,7 @@ int interfaces_interface_hash_add_element(interfaces_interface_hash_element_t** 
     }
 
     // element not found - add new element to the hash
-    HASH_ADD_KEYPTR(hh, *hash, new_element->interface.name, sizeof(new_element->interface.name), new_element);
+    HASH_ADD_KEYPTR(hh, *hash, new_element->interface.name, strlen(new_element->interface.name), new_element);
 
     return 0;
 }
