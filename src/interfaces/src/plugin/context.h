@@ -22,7 +22,7 @@ struct interfaces_state_changes_ctx_s {
     pthread_t manager_thread;
 
     // main hash DS for storing state info
-    interfaces_interface_state_t* state_hash;
+    interfaces_interface_state_hash_element_t* state_hash;
 
     // mutex for accessing state hash data
     pthread_mutex_t state_hash_mutex;

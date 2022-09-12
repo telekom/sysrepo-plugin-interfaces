@@ -7,7 +7,7 @@
 #include "netlink/socket.h"
 #include "plugin/common.h"
 #include "plugin/context.h"
-#include "plugin/data/interfaces/interface/state.h"
+#include "plugin/data/interfaces/interface/state_hash.h"
 #include "plugin/ly_tree.h"
 #include "plugin/types.h"
 #include "srpc/common.h"
@@ -113,7 +113,7 @@ int interfaces_subscription_operational_interfaces_interface_last_change(sr_sess
     const struct ly_ctx* ly_ctx = NULL;
     interfaces_ctx_t* ctx = private_data;
     interfaces_state_changes_ctx_t* state_ctx = &ctx->state_ctx;
-    interfaces_interface_state_t* state = NULL;
+    interfaces_interface_state_hash_element_t* state_element = NULL;
 
     // libnl
     struct rtnl_link* link = NULL;
@@ -136,9 +136,9 @@ int interfaces_subscription_operational_interfaces_interface_last_change(sr_sess
     pthread_mutex_lock(&state_ctx->state_hash_mutex);
 
     // get last change
-    SRPC_SAFE_CALL_PTR(state, interfaces_interface_state_hash_get(state_ctx->state_hash, rtnl_link_get_name(link)), error_out);
+    SRPC_SAFE_CALL_PTR(state_element, interfaces_interface_state_hash_get(state_ctx->state_hash, rtnl_link_get_name(link)), error_out);
 
-    const time_t last_change = state->last_change;
+    const time_t last_change = state_element->state.last_change;
     struct tm* last_change_tm = localtime(&last_change);
 
     size_t written = strftime(last_change_buffer, sizeof(last_change_buffer), "%FT%TZ", last_change_tm);

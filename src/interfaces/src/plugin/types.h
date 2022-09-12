@@ -20,6 +20,7 @@ typedef struct interfaces_interfaces_interface_element interfaces_interfaces_int
 typedef struct interfaces_interfaces interfaces_interfaces_t;
 typedef struct interface_ht_element interface_ht_element_t;
 typedef struct interfaces_interface_state interfaces_interface_state_t;
+typedef struct interfaces_interface_state_hash_element interfaces_interface_state_hash_element_t;
 typedef struct interfaces_interface_hash_element interfaces_interface_hash_element_t;
 
 enum interfaces_interfaces_interface_link_up_down_trap_enable {
@@ -97,6 +98,10 @@ struct interfaces_interface_state {
     char* name; // key
     uint8_t state;
     time_t last_change;
+};
+
+struct interfaces_interface_state_hash_element {
+    interfaces_interface_state_t state;
     UT_hash_handle hh;
 };
 

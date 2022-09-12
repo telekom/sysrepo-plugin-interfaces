@@ -38,7 +38,7 @@ set(
     src/plugin/api/interfaces/interface/carrier-delay/change.c
 
     # data
-    src/plugin/data/interfaces/interface/state.c
+    src/plugin/data/interfaces/interface/state_hash.c
     src/plugin/data/interfaces/interface/hash.c
 
     # main files
