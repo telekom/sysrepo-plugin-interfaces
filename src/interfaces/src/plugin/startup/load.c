@@ -83,7 +83,7 @@ static int interfaces_startup_load_interface(void* priv, sr_session_ctx_t* sessi
 {
     int error = 0;
     interfaces_ctx_t* ctx = (interfaces_ctx_t*)priv;
-    interfaces_interfaces_interface_element_t* interface_head = NULL;
+    interfaces_interface_hash_element_t* interface_head = NULL;
 
     error = interfaces_load_interface(ctx, &interface_head);
     if (error) {

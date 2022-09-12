@@ -56,7 +56,7 @@ static int interfaces_startup_store_interface(void* priv, const struct lyd_node*
     int error = 0;
     interfaces_ctx_t* ctx = (interfaces_ctx_t*)priv;
     srpc_check_status_t check_status = srpc_check_status_none;
-    interfaces_interfaces_interface_element_t* interface_head = NULL;
+    interfaces_interface_hash_element_t* interface_head = NULL;
 
     struct lyd_node* interfaces_node = srpc_ly_tree_get_child_leaf(parent_container, "interfaces");
     if (interfaces_node == NULL) {
@@ -65,7 +65,7 @@ static int interfaces_startup_store_interface(void* priv, const struct lyd_node*
     }
 
     SRPLG_LOG_INF(PLUGIN_NAME, "Checking interface list");
-    // check_status = interfaces_check_interface(ctx, interface_head);
+    check_status = interfaces_check_interface(ctx, interface_head);
 
     switch (check_status) {
     case srpc_check_status_none:
