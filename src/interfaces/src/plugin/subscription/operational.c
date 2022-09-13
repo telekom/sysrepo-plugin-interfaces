@@ -7,7 +7,7 @@
 #include "netlink/socket.h"
 #include "plugin/common.h"
 #include "plugin/context.h"
-#include "plugin/data/interfaces/interface/state.h"
+#include "plugin/data/interfaces/interface/state_hash.h"
 #include "plugin/ly_tree.h"
 #include "plugin/types.h"
 #include "srpc/common.h"
@@ -32,6 +32,7 @@ static int interfaces_get_system_boot_time(char* buffer, size_t buffer_size);
 int interfaces_subscription_operational_interfaces_interface_admin_status(sr_session_ctx_t* session, uint32_t sub_id, const char* module_name, const char* path, const char* request_xpath, uint32_t request_id, struct lyd_node** parent, void* private_data)
 {
     int error = SR_ERR_OK;
+    void* error_ptr = NULL;
     const struct ly_ctx* ly_ctx = NULL;
 
     if (*parent == NULL) {
@@ -54,6 +55,7 @@ out:
 int interfaces_subscription_operational_interfaces_interface_oper_status(sr_session_ctx_t* session, uint32_t sub_id, const char* module_name, const char* path, const char* request_xpath, uint32_t request_id, struct lyd_node** parent, void* private_data)
 {
     int error = SR_ERR_OK;
+    void* error_ptr = NULL;
 
     // context
     const struct ly_ctx* ly_ctx = NULL;
@@ -61,6 +63,8 @@ int interfaces_subscription_operational_interfaces_interface_oper_status(sr_sess
 
     // libnl
     struct rtnl_link* link = NULL;
+
+    char xpath_buffer[PATH_MAX] = { 0 };
 
     const char* operstate_map[] = {
         [IF_OPER_UNKNOWN] = "unknown",
@@ -76,8 +80,11 @@ int interfaces_subscription_operational_interfaces_interface_oper_status(sr_sess
     assert(*parent != NULL);
     assert(strcmp(LYD_NAME(*parent), "interface") == 0);
 
+    // get node xpath
+    SRPC_SAFE_CALL_PTR(error_ptr, lyd_path(*parent, LYD_PATH_STD, xpath_buffer, sizeof(xpath_buffer)), error_out);
+
     // get link
-    SRPC_SAFE_CALL_PTR(link, interfaces_get_current_link(ctx, session, request_xpath), error_out);
+    SRPC_SAFE_CALL_PTR(link, interfaces_get_current_link(ctx, session, xpath_buffer), error_out);
 
     // get oper status
     const uint8_t oper_status = rtnl_link_get_operstate(link);
@@ -100,33 +107,38 @@ out:
 int interfaces_subscription_operational_interfaces_interface_last_change(sr_session_ctx_t* session, uint32_t sub_id, const char* module_name, const char* path, const char* request_xpath, uint32_t request_id, struct lyd_node** parent, void* private_data)
 {
     int error = SR_ERR_OK;
+    void* error_ptr = NULL;
 
     // context
     const struct ly_ctx* ly_ctx = NULL;
     interfaces_ctx_t* ctx = private_data;
     interfaces_state_changes_ctx_t* state_ctx = &ctx->state_ctx;
-    interfaces_interface_state_t* state = NULL;
+    interfaces_interface_state_hash_element_t* state_element = NULL;
 
     // libnl
     struct rtnl_link* link = NULL;
 
     // buffers
     char last_change_buffer[100] = { 0 };
+    char xpath_buffer[PATH_MAX] = { 0 };
 
     // there needs to be an allocated link cache in memory
     assert(*parent != NULL);
     assert(strcmp(LYD_NAME(*parent), "interface") == 0);
 
+    // get node xpath
+    SRPC_SAFE_CALL_PTR(error_ptr, lyd_path(*parent, LYD_PATH_STD, xpath_buffer, sizeof(xpath_buffer)), error_out);
+
     // get link
-    SRPC_SAFE_CALL_PTR(link, interfaces_get_current_link(ctx, session, request_xpath), error_out);
+    SRPC_SAFE_CALL_PTR(link, interfaces_get_current_link(ctx, session, xpath_buffer), error_out);
 
     // synchronization
     pthread_mutex_lock(&state_ctx->state_hash_mutex);
 
     // get last change
-    SRPC_SAFE_CALL_PTR(state, interfaces_interface_state_hash_get(state_ctx->state_hash, rtnl_link_get_name(link)), error_out);
+    SRPC_SAFE_CALL_PTR(state_element, interfaces_interface_state_hash_get(state_ctx->state_hash, rtnl_link_get_name(link)), error_out);
 
-    const time_t last_change = state->last_change;
+    const time_t last_change = state_element->state.last_change;
     struct tm* last_change_tm = localtime(&last_change);
 
     size_t written = strftime(last_change_buffer, sizeof(last_change_buffer), "%FT%TZ", last_change_tm);
@@ -140,20 +152,21 @@ int interfaces_subscription_operational_interfaces_interface_last_change(sr_sess
     // add oper-status node
     SRPC_SAFE_CALL_ERR(error, interfaces_ly_tree_create_interfaces_interface_last_change(ly_ctx, *parent, last_change_buffer), error_out);
 
-    pthread_mutex_unlock(&state_ctx->state_hash_mutex);
-
     goto out;
 
 error_out:
     error = SR_ERR_CALLBACK_FAILED;
 
 out:
+    pthread_mutex_unlock(&state_ctx->state_hash_mutex);
+
     return error;
 }
 
 int interfaces_subscription_operational_interfaces_interface_if_index(sr_session_ctx_t* session, uint32_t sub_id, const char* module_name, const char* path, const char* request_xpath, uint32_t request_id, struct lyd_node** parent, void* private_data)
 {
     int error = SR_ERR_OK;
+    void* error_ptr = NULL;
 
     // context
     const struct ly_ctx* ly_ctx = NULL;
@@ -161,6 +174,7 @@ int interfaces_subscription_operational_interfaces_interface_if_index(sr_session
 
     // buffers
     char ifindex_buffer[100] = { 0 };
+    char xpath_buffer[PATH_MAX] = { 0 };
 
     // libnl
     struct rtnl_link* link = NULL;
@@ -169,8 +183,11 @@ int interfaces_subscription_operational_interfaces_interface_if_index(sr_session
     assert(*parent != NULL);
     assert(strcmp(LYD_NAME(*parent), "interface") == 0);
 
+    // get node xpath
+    SRPC_SAFE_CALL_PTR(error_ptr, lyd_path(*parent, LYD_PATH_STD, xpath_buffer, sizeof(xpath_buffer)), error_out);
+
     // get link
-    SRPC_SAFE_CALL_PTR(link, interfaces_get_current_link(ctx, session, request_xpath), error_out);
+    SRPC_SAFE_CALL_PTR(link, interfaces_get_current_link(ctx, session, xpath_buffer), error_out);
 
     // get if-index
     const int ifindex = rtnl_link_get_ifindex(link);
@@ -207,6 +224,7 @@ int interfaces_subscription_operational_interfaces_interface_phys_address(sr_ses
 
     // buffers
     char phys_address_buffer[100] = { 0 };
+    char xpath_buffer[PATH_MAX] = { 0 };
 
     // libnl
     struct rtnl_link* link = NULL;
@@ -216,8 +234,11 @@ int interfaces_subscription_operational_interfaces_interface_phys_address(sr_ses
     assert(*parent != NULL);
     assert(strcmp(LYD_NAME(*parent), "interface") == 0);
 
+    // get node xpath
+    SRPC_SAFE_CALL_PTR(error_ptr, lyd_path(*parent, LYD_PATH_STD, xpath_buffer, sizeof(xpath_buffer)), error_out);
+
     // get link
-    SRPC_SAFE_CALL_PTR(link, interfaces_get_current_link(ctx, session, request_xpath), error_out);
+    SRPC_SAFE_CALL_PTR(link, interfaces_get_current_link(ctx, session, xpath_buffer), error_out);
 
     // get phys-address
     SRPC_SAFE_CALL_PTR(addr, rtnl_link_get_addr(link), error_out);
@@ -241,11 +262,14 @@ out:
 int interfaces_subscription_operational_interfaces_interface_higher_layer_if(sr_session_ctx_t* session, uint32_t sub_id, const char* module_name, const char* path, const char* request_xpath, uint32_t request_id, struct lyd_node** parent, void* private_data)
 {
     int error = SR_ERR_OK;
+    void* error_ptr = NULL;
 
     // context
     const struct ly_ctx* ly_ctx = NULL;
     interfaces_ctx_t* ctx = private_data;
     interfaces_nl_ctx_t* nl_ctx = &ctx->nl_ctx;
+
+    char xpath_buffer[PATH_MAX] = { 0 };
 
     // libnl
     struct rtnl_link* link = NULL;
@@ -254,8 +278,11 @@ int interfaces_subscription_operational_interfaces_interface_higher_layer_if(sr_
     assert(*parent != NULL);
     assert(strcmp(LYD_NAME(*parent), "interface") == 0);
 
+    // get node xpath
+    SRPC_SAFE_CALL_PTR(error_ptr, lyd_path(*parent, LYD_PATH_STD, xpath_buffer, sizeof(xpath_buffer)), error_out);
+
     // get link
-    SRPC_SAFE_CALL_PTR(link, interfaces_get_current_link(ctx, session, request_xpath), error_out);
+    SRPC_SAFE_CALL_PTR(link, interfaces_get_current_link(ctx, session, xpath_buffer), error_out);
 
     int master_if_index = rtnl_link_get_master(link);
     while (master_if_index) {
@@ -284,11 +311,14 @@ out:
 int interfaces_subscription_operational_interfaces_interface_lower_layer_if(sr_session_ctx_t* session, uint32_t sub_id, const char* module_name, const char* path, const char* request_xpath, uint32_t request_id, struct lyd_node** parent, void* private_data)
 {
     int error = SR_ERR_OK;
+    void* error_ptr = NULL;
 
     // context
     const struct ly_ctx* ly_ctx = NULL;
     interfaces_ctx_t* ctx = private_data;
     interfaces_nl_ctx_t* nl_ctx = &ctx->nl_ctx;
+
+    char xpath_buffer[PATH_MAX] = { 0 };
 
     // libnl
     struct rtnl_link* link = NULL;
@@ -297,8 +327,11 @@ int interfaces_subscription_operational_interfaces_interface_lower_layer_if(sr_s
     assert(*parent != NULL);
     assert(strcmp(LYD_NAME(*parent), "interface") == 0);
 
+    // get node xpath
+    SRPC_SAFE_CALL_PTR(error_ptr, lyd_path(*parent, LYD_PATH_STD, xpath_buffer, sizeof(xpath_buffer)), error_out);
+
     // get link
-    SRPC_SAFE_CALL_PTR(link, interfaces_get_current_link(ctx, session, request_xpath), error_out);
+    SRPC_SAFE_CALL_PTR(link, interfaces_get_current_link(ctx, session, xpath_buffer), error_out);
 
     // iterate over all links and check for ones which have a master equal to the current link
     struct nl_cache* link_cache = nl_ctx->link_cache;
@@ -341,7 +374,7 @@ out:
 int interfaces_subscription_operational_interfaces_interface_speed(sr_session_ctx_t* session, uint32_t sub_id, const char* module_name, const char* path, const char* request_xpath, uint32_t request_id, struct lyd_node** parent, void* private_data)
 {
     int error = SR_ERR_OK;
-    // void* error_ptr = NULL;
+    void* error_ptr = NULL;
 
     // context
     const struct ly_ctx* ly_ctx = NULL;
@@ -349,6 +382,7 @@ int interfaces_subscription_operational_interfaces_interface_speed(sr_session_ct
 
     // buffers
     char speed_buffer[100] = { 0 };
+    char xpath_buffer[PATH_MAX] = { 0 };
 
     // libnl
     struct rtnl_link* link = NULL;
@@ -359,8 +393,11 @@ int interfaces_subscription_operational_interfaces_interface_speed(sr_session_ct
     assert(*parent != NULL);
     assert(strcmp(LYD_NAME(*parent), "interface") == 0);
 
+    // get node xpath
+    SRPC_SAFE_CALL_PTR(error_ptr, lyd_path(*parent, LYD_PATH_STD, xpath_buffer, sizeof(xpath_buffer)), error_out);
+
     // get link
-    SRPC_SAFE_CALL_PTR(link, interfaces_get_current_link(ctx, session, request_xpath), error_out);
+    SRPC_SAFE_CALL_PTR(link, interfaces_get_current_link(ctx, session, xpath_buffer), error_out);
 
     qdisc = rtnl_qdisc_alloc();
 
@@ -396,6 +433,7 @@ out:
 int interfaces_subscription_operational_interfaces_interface_statistics_discontinuity_time(sr_session_ctx_t* session, uint32_t sub_id, const char* module_name, const char* path, const char* request_xpath, uint32_t request_id, struct lyd_node** parent, void* private_data)
 {
     int error = SR_ERR_OK;
+    void* error_ptr = NULL;
 
     // context
     const struct ly_ctx* ly_ctx = NULL;
@@ -403,6 +441,7 @@ int interfaces_subscription_operational_interfaces_interface_statistics_disconti
 
     // buffers
     char discontinuity_time_buffer[100] = { 0 };
+    char xpath_buffer[PATH_MAX] = { 0 };
 
     // libnl
     struct rtnl_link* link = NULL;
@@ -411,8 +450,11 @@ int interfaces_subscription_operational_interfaces_interface_statistics_disconti
     assert(*parent != NULL);
     assert(strcmp(LYD_NAME(*parent), "statistics") == 0);
 
+    // get node xpath
+    SRPC_SAFE_CALL_PTR(error_ptr, lyd_path(*parent, LYD_PATH_STD, xpath_buffer, sizeof(xpath_buffer)), error_out);
+
     // get link
-    SRPC_SAFE_CALL_PTR(link, interfaces_get_current_link(ctx, session, request_xpath), error_out);
+    SRPC_SAFE_CALL_PTR(link, interfaces_get_current_link(ctx, session, xpath_buffer), error_out);
 
     // get boot time as discontinuity time
     SRPC_SAFE_CALL_ERR(error, interfaces_get_system_boot_time(discontinuity_time_buffer, sizeof(discontinuity_time_buffer)), error_out);
@@ -434,6 +476,7 @@ out:
 int interfaces_subscription_operational_interfaces_interface_statistics_in_octets(sr_session_ctx_t* session, uint32_t sub_id, const char* module_name, const char* path, const char* request_xpath, uint32_t request_id, struct lyd_node** parent, void* private_data)
 {
     int error = SR_ERR_OK;
+    void* error_ptr = NULL;
 
     // context
     const struct ly_ctx* ly_ctx = NULL;
@@ -441,6 +484,7 @@ int interfaces_subscription_operational_interfaces_interface_statistics_in_octet
 
     // buffers
     char in_octets_buffer[100] = { 0 };
+    char xpath_buffer[PATH_MAX] = { 0 };
 
     // libnl
     struct rtnl_link* link = NULL;
@@ -449,8 +493,11 @@ int interfaces_subscription_operational_interfaces_interface_statistics_in_octet
     assert(*parent != NULL);
     assert(strcmp(LYD_NAME(*parent), "statistics") == 0);
 
+    // get node xpath
+    SRPC_SAFE_CALL_PTR(error_ptr, lyd_path(*parent, LYD_PATH_STD, xpath_buffer, sizeof(xpath_buffer)), error_out);
+
     // get link
-    SRPC_SAFE_CALL_PTR(link, interfaces_get_current_link(ctx, session, request_xpath), error_out);
+    SRPC_SAFE_CALL_PTR(link, interfaces_get_current_link(ctx, session, xpath_buffer), error_out);
 
     const uint64_t in_octets = rtnl_link_get_stat(link, RTNL_LINK_RX_BYTES);
 
@@ -477,6 +524,7 @@ out:
 int interfaces_subscription_operational_interfaces_interface_statistics_in_unicast_pkts(sr_session_ctx_t* session, uint32_t sub_id, const char* module_name, const char* path, const char* request_xpath, uint32_t request_id, struct lyd_node** parent, void* private_data)
 {
     int error = SR_ERR_OK;
+    void* error_ptr = NULL;
 
     // context
     const struct ly_ctx* ly_ctx = NULL;
@@ -484,6 +532,7 @@ int interfaces_subscription_operational_interfaces_interface_statistics_in_unica
 
     // buffers
     char in_unicast_pkts_buffer[100] = { 0 };
+    char xpath_buffer[PATH_MAX] = { 0 };
 
     // libnl
     struct rtnl_link* link = NULL;
@@ -492,8 +541,11 @@ int interfaces_subscription_operational_interfaces_interface_statistics_in_unica
     assert(*parent != NULL);
     assert(strcmp(LYD_NAME(*parent), "statistics") == 0);
 
+    // get node xpath
+    SRPC_SAFE_CALL_PTR(error_ptr, lyd_path(*parent, LYD_PATH_STD, xpath_buffer, sizeof(xpath_buffer)), error_out);
+
     // get link
-    SRPC_SAFE_CALL_PTR(link, interfaces_get_current_link(ctx, session, request_xpath), error_out);
+    SRPC_SAFE_CALL_PTR(link, interfaces_get_current_link(ctx, session, xpath_buffer), error_out);
 
     const uint64_t in_pkts = rtnl_link_get_stat(link, RTNL_LINK_RX_PACKETS);
     const uint64_t in_broadcast_pkts = rtnl_link_get_stat(link, RTNL_LINK_IP6_INBCASTPKTS);
@@ -523,6 +575,7 @@ out:
 int interfaces_subscription_operational_interfaces_interface_statistics_in_broadcast_pkts(sr_session_ctx_t* session, uint32_t sub_id, const char* module_name, const char* path, const char* request_xpath, uint32_t request_id, struct lyd_node** parent, void* private_data)
 {
     int error = SR_ERR_OK;
+    void* error_ptr = NULL;
 
     // context
     const struct ly_ctx* ly_ctx = NULL;
@@ -530,6 +583,7 @@ int interfaces_subscription_operational_interfaces_interface_statistics_in_broad
 
     // buffers
     char in_broadcast_pkts_buffer[100] = { 0 };
+    char xpath_buffer[PATH_MAX] = { 0 };
 
     // libnl
     struct rtnl_link* link = NULL;
@@ -538,8 +592,11 @@ int interfaces_subscription_operational_interfaces_interface_statistics_in_broad
     assert(*parent != NULL);
     assert(strcmp(LYD_NAME(*parent), "statistics") == 0);
 
+    // get node xpath
+    SRPC_SAFE_CALL_PTR(error_ptr, lyd_path(*parent, LYD_PATH_STD, xpath_buffer, sizeof(xpath_buffer)), error_out);
+
     // get link
-    SRPC_SAFE_CALL_PTR(link, interfaces_get_current_link(ctx, session, request_xpath), error_out);
+    SRPC_SAFE_CALL_PTR(link, interfaces_get_current_link(ctx, session, xpath_buffer), error_out);
 
     const uint64_t in_broadcast_pkts = rtnl_link_get_stat(link, RTNL_LINK_IP6_INBCASTPKTS);
 
@@ -566,6 +623,7 @@ out:
 int interfaces_subscription_operational_interfaces_interface_statistics_in_multicast_pkts(sr_session_ctx_t* session, uint32_t sub_id, const char* module_name, const char* path, const char* request_xpath, uint32_t request_id, struct lyd_node** parent, void* private_data)
 {
     int error = SR_ERR_OK;
+    void* error_ptr = NULL;
 
     // context
     const struct ly_ctx* ly_ctx = NULL;
@@ -573,6 +631,7 @@ int interfaces_subscription_operational_interfaces_interface_statistics_in_multi
 
     // buffers
     char in_multicast_pkts_buffer[100] = { 0 };
+    char xpath_buffer[PATH_MAX] = { 0 };
 
     // libnl
     struct rtnl_link* link = NULL;
@@ -581,8 +640,11 @@ int interfaces_subscription_operational_interfaces_interface_statistics_in_multi
     assert(*parent != NULL);
     assert(strcmp(LYD_NAME(*parent), "statistics") == 0);
 
+    // get node xpath
+    SRPC_SAFE_CALL_PTR(error_ptr, lyd_path(*parent, LYD_PATH_STD, xpath_buffer, sizeof(xpath_buffer)), error_out);
+
     // get link
-    SRPC_SAFE_CALL_PTR(link, interfaces_get_current_link(ctx, session, request_xpath), error_out);
+    SRPC_SAFE_CALL_PTR(link, interfaces_get_current_link(ctx, session, xpath_buffer), error_out);
 
     const uint64_t in_multicast_pkts = rtnl_link_get_stat(link, RTNL_LINK_IP6_INMCASTPKTS);
 
@@ -609,6 +671,7 @@ out:
 int interfaces_subscription_operational_interfaces_interface_statistics_in_discards(sr_session_ctx_t* session, uint32_t sub_id, const char* module_name, const char* path, const char* request_xpath, uint32_t request_id, struct lyd_node** parent, void* private_data)
 {
     int error = SR_ERR_OK;
+    void* error_ptr = NULL;
 
     // context
     const struct ly_ctx* ly_ctx = NULL;
@@ -616,6 +679,7 @@ int interfaces_subscription_operational_interfaces_interface_statistics_in_disca
 
     // buffers
     char in_discards_buffer[100] = { 0 };
+    char xpath_buffer[PATH_MAX] = { 0 };
 
     // libnl
     struct rtnl_link* link = NULL;
@@ -624,8 +688,11 @@ int interfaces_subscription_operational_interfaces_interface_statistics_in_disca
     assert(*parent != NULL);
     assert(strcmp(LYD_NAME(*parent), "statistics") == 0);
 
+    // get node xpath
+    SRPC_SAFE_CALL_PTR(error_ptr, lyd_path(*parent, LYD_PATH_STD, xpath_buffer, sizeof(xpath_buffer)), error_out);
+
     // get link
-    SRPC_SAFE_CALL_PTR(link, interfaces_get_current_link(ctx, session, request_xpath), error_out);
+    SRPC_SAFE_CALL_PTR(link, interfaces_get_current_link(ctx, session, xpath_buffer), error_out);
 
     const uint32_t in_discards = (uint32_t)rtnl_link_get_stat(link, RTNL_LINK_RX_DROPPED);
 
@@ -652,6 +719,7 @@ out:
 int interfaces_subscription_operational_interfaces_interface_statistics_in_errors(sr_session_ctx_t* session, uint32_t sub_id, const char* module_name, const char* path, const char* request_xpath, uint32_t request_id, struct lyd_node** parent, void* private_data)
 {
     int error = SR_ERR_OK;
+    void* error_ptr = NULL;
 
     // context
     const struct ly_ctx* ly_ctx = NULL;
@@ -659,6 +727,7 @@ int interfaces_subscription_operational_interfaces_interface_statistics_in_error
 
     // buffers
     char in_errors_buffer[100] = { 0 };
+    char xpath_buffer[PATH_MAX] = { 0 };
 
     // libnl
     struct rtnl_link* link = NULL;
@@ -667,8 +736,11 @@ int interfaces_subscription_operational_interfaces_interface_statistics_in_error
     assert(*parent != NULL);
     assert(strcmp(LYD_NAME(*parent), "statistics") == 0);
 
+    // get node xpath
+    SRPC_SAFE_CALL_PTR(error_ptr, lyd_path(*parent, LYD_PATH_STD, xpath_buffer, sizeof(xpath_buffer)), error_out);
+
     // get link
-    SRPC_SAFE_CALL_PTR(link, interfaces_get_current_link(ctx, session, request_xpath), error_out);
+    SRPC_SAFE_CALL_PTR(link, interfaces_get_current_link(ctx, session, xpath_buffer), error_out);
 
     const uint32_t in_errors = (uint32_t)rtnl_link_get_stat(link, RTNL_LINK_RX_ERRORS);
 
@@ -695,6 +767,7 @@ out:
 int interfaces_subscription_operational_interfaces_interface_statistics_in_unknown_protos(sr_session_ctx_t* session, uint32_t sub_id, const char* module_name, const char* path, const char* request_xpath, uint32_t request_id, struct lyd_node** parent, void* private_data)
 {
     int error = SR_ERR_OK;
+    void* error_ptr = NULL;
 
     // context
     const struct ly_ctx* ly_ctx = NULL;
@@ -702,6 +775,7 @@ int interfaces_subscription_operational_interfaces_interface_statistics_in_unkno
 
     // buffers
     char in_unknown_protos_buffer[100] = { 0 };
+    char xpath_buffer[PATH_MAX] = { 0 };
 
     // libnl
     struct rtnl_link* link = NULL;
@@ -710,8 +784,11 @@ int interfaces_subscription_operational_interfaces_interface_statistics_in_unkno
     assert(*parent != NULL);
     assert(strcmp(LYD_NAME(*parent), "statistics") == 0);
 
+    // get node xpath
+    SRPC_SAFE_CALL_PTR(error_ptr, lyd_path(*parent, LYD_PATH_STD, xpath_buffer, sizeof(xpath_buffer)), error_out);
+
     // get link
-    SRPC_SAFE_CALL_PTR(link, interfaces_get_current_link(ctx, session, request_xpath), error_out);
+    SRPC_SAFE_CALL_PTR(link, interfaces_get_current_link(ctx, session, xpath_buffer), error_out);
 
     const uint32_t in_unknown_protos = (uint32_t)rtnl_link_get_stat(link, RTNL_LINK_IP6_INUNKNOWNPROTOS);
 
@@ -738,6 +815,7 @@ out:
 int interfaces_subscription_operational_interfaces_interface_statistics_out_octets(sr_session_ctx_t* session, uint32_t sub_id, const char* module_name, const char* path, const char* request_xpath, uint32_t request_id, struct lyd_node** parent, void* private_data)
 {
     int error = SR_ERR_OK;
+    void* error_ptr = NULL;
 
     // context
     const struct ly_ctx* ly_ctx = NULL;
@@ -745,6 +823,7 @@ int interfaces_subscription_operational_interfaces_interface_statistics_out_octe
 
     // buffers
     char out_octets_buffer[100] = { 0 };
+    char xpath_buffer[PATH_MAX] = { 0 };
 
     // libnl
     struct rtnl_link* link = NULL;
@@ -753,8 +832,11 @@ int interfaces_subscription_operational_interfaces_interface_statistics_out_octe
     assert(*parent != NULL);
     assert(strcmp(LYD_NAME(*parent), "statistics") == 0);
 
+    // get node xpath
+    SRPC_SAFE_CALL_PTR(error_ptr, lyd_path(*parent, LYD_PATH_STD, xpath_buffer, sizeof(xpath_buffer)), error_out);
+
     // get link
-    SRPC_SAFE_CALL_PTR(link, interfaces_get_current_link(ctx, session, request_xpath), error_out);
+    SRPC_SAFE_CALL_PTR(link, interfaces_get_current_link(ctx, session, xpath_buffer), error_out);
 
     const uint64_t out_octets = rtnl_link_get_stat(link, RTNL_LINK_TX_BYTES);
 
@@ -781,6 +863,7 @@ out:
 int interfaces_subscription_operational_interfaces_interface_statistics_out_unicast_pkts(sr_session_ctx_t* session, uint32_t sub_id, const char* module_name, const char* path, const char* request_xpath, uint32_t request_id, struct lyd_node** parent, void* private_data)
 {
     int error = SR_ERR_OK;
+    void* error_ptr = NULL;
 
     // context
     const struct ly_ctx* ly_ctx = NULL;
@@ -788,6 +871,7 @@ int interfaces_subscription_operational_interfaces_interface_statistics_out_unic
 
     // buffers
     char out_unicast_pkts_buffer[100] = { 0 };
+    char xpath_buffer[PATH_MAX] = { 0 };
 
     // libnl
     struct rtnl_link* link = NULL;
@@ -796,8 +880,11 @@ int interfaces_subscription_operational_interfaces_interface_statistics_out_unic
     assert(*parent != NULL);
     assert(strcmp(LYD_NAME(*parent), "statistics") == 0);
 
+    // get node xpath
+    SRPC_SAFE_CALL_PTR(error_ptr, lyd_path(*parent, LYD_PATH_STD, xpath_buffer, sizeof(xpath_buffer)), error_out);
+
     // get link
-    SRPC_SAFE_CALL_PTR(link, interfaces_get_current_link(ctx, session, request_xpath), error_out);
+    SRPC_SAFE_CALL_PTR(link, interfaces_get_current_link(ctx, session, xpath_buffer), error_out);
 
     const uint64_t out_pkts = rtnl_link_get_stat(link, RTNL_LINK_TX_PACKETS);
     const uint64_t out_broadcast_pkts = rtnl_link_get_stat(link, RTNL_LINK_IP6_OUTBCASTPKTS);
@@ -827,6 +914,7 @@ out:
 int interfaces_subscription_operational_interfaces_interface_statistics_out_broadcast_pkts(sr_session_ctx_t* session, uint32_t sub_id, const char* module_name, const char* path, const char* request_xpath, uint32_t request_id, struct lyd_node** parent, void* private_data)
 {
     int error = SR_ERR_OK;
+    void* error_ptr = NULL;
 
     // context
     const struct ly_ctx* ly_ctx = NULL;
@@ -834,6 +922,7 @@ int interfaces_subscription_operational_interfaces_interface_statistics_out_broa
 
     // buffers
     char out_broadcast_pkts_buffer[100] = { 0 };
+    char xpath_buffer[PATH_MAX] = { 0 };
 
     // libnl
     struct rtnl_link* link = NULL;
@@ -842,8 +931,11 @@ int interfaces_subscription_operational_interfaces_interface_statistics_out_broa
     assert(*parent != NULL);
     assert(strcmp(LYD_NAME(*parent), "statistics") == 0);
 
+    // get node xpath
+    SRPC_SAFE_CALL_PTR(error_ptr, lyd_path(*parent, LYD_PATH_STD, xpath_buffer, sizeof(xpath_buffer)), error_out);
+
     // get link
-    SRPC_SAFE_CALL_PTR(link, interfaces_get_current_link(ctx, session, request_xpath), error_out);
+    SRPC_SAFE_CALL_PTR(link, interfaces_get_current_link(ctx, session, xpath_buffer), error_out);
 
     const uint64_t out_broadcast_pkts = rtnl_link_get_stat(link, RTNL_LINK_IP6_OUTBCASTPKTS);
 
@@ -870,6 +962,7 @@ out:
 int interfaces_subscription_operational_interfaces_interface_statistics_out_multicast_pkts(sr_session_ctx_t* session, uint32_t sub_id, const char* module_name, const char* path, const char* request_xpath, uint32_t request_id, struct lyd_node** parent, void* private_data)
 {
     int error = SR_ERR_OK;
+    void* error_ptr = NULL;
 
     // context
     const struct ly_ctx* ly_ctx = NULL;
@@ -877,6 +970,7 @@ int interfaces_subscription_operational_interfaces_interface_statistics_out_mult
 
     // buffers
     char out_multicast_pkts_buffer[100] = { 0 };
+    char xpath_buffer[PATH_MAX] = { 0 };
 
     // libnl
     struct rtnl_link* link = NULL;
@@ -885,8 +979,11 @@ int interfaces_subscription_operational_interfaces_interface_statistics_out_mult
     assert(*parent != NULL);
     assert(strcmp(LYD_NAME(*parent), "statistics") == 0);
 
+    // get node xpath
+    SRPC_SAFE_CALL_PTR(error_ptr, lyd_path(*parent, LYD_PATH_STD, xpath_buffer, sizeof(xpath_buffer)), error_out);
+
     // get link
-    SRPC_SAFE_CALL_PTR(link, interfaces_get_current_link(ctx, session, request_xpath), error_out);
+    SRPC_SAFE_CALL_PTR(link, interfaces_get_current_link(ctx, session, xpath_buffer), error_out);
 
     const uint64_t out_multicast_pkts = rtnl_link_get_stat(link, RTNL_LINK_IP6_OUTMCASTPKTS);
 
@@ -913,6 +1010,7 @@ out:
 int interfaces_subscription_operational_interfaces_interface_statistics_out_discards(sr_session_ctx_t* session, uint32_t sub_id, const char* module_name, const char* path, const char* request_xpath, uint32_t request_id, struct lyd_node** parent, void* private_data)
 {
     int error = SR_ERR_OK;
+    void* error_ptr = NULL;
 
     // context
     const struct ly_ctx* ly_ctx = NULL;
@@ -920,6 +1018,7 @@ int interfaces_subscription_operational_interfaces_interface_statistics_out_disc
 
     // buffers
     char out_discards_buffer[100] = { 0 };
+    char xpath_buffer[PATH_MAX] = { 0 };
 
     // libnl
     struct rtnl_link* link = NULL;
@@ -928,8 +1027,11 @@ int interfaces_subscription_operational_interfaces_interface_statistics_out_disc
     assert(*parent != NULL);
     assert(strcmp(LYD_NAME(*parent), "statistics") == 0);
 
+    // get node xpath
+    SRPC_SAFE_CALL_PTR(error_ptr, lyd_path(*parent, LYD_PATH_STD, xpath_buffer, sizeof(xpath_buffer)), error_out);
+
     // get link
-    SRPC_SAFE_CALL_PTR(link, interfaces_get_current_link(ctx, session, request_xpath), error_out);
+    SRPC_SAFE_CALL_PTR(link, interfaces_get_current_link(ctx, session, xpath_buffer), error_out);
 
     const uint64_t out_discards = rtnl_link_get_stat(link, RTNL_LINK_TX_DROPPED);
 
@@ -956,6 +1058,7 @@ out:
 int interfaces_subscription_operational_interfaces_interface_statistics_out_errors(sr_session_ctx_t* session, uint32_t sub_id, const char* module_name, const char* path, const char* request_xpath, uint32_t request_id, struct lyd_node** parent, void* private_data)
 {
     int error = SR_ERR_OK;
+    void* error_ptr = NULL;
 
     // context
     const struct ly_ctx* ly_ctx = NULL;
@@ -963,6 +1066,7 @@ int interfaces_subscription_operational_interfaces_interface_statistics_out_erro
 
     // buffers
     char out_errors_buffer[100] = { 0 };
+    char xpath_buffer[PATH_MAX] = { 0 };
 
     // libnl
     struct rtnl_link* link = NULL;
@@ -971,8 +1075,11 @@ int interfaces_subscription_operational_interfaces_interface_statistics_out_erro
     assert(*parent != NULL);
     assert(strcmp(LYD_NAME(*parent), "statistics") == 0);
 
+    // get node xpath
+    SRPC_SAFE_CALL_PTR(error_ptr, lyd_path(*parent, LYD_PATH_STD, xpath_buffer, sizeof(xpath_buffer)), error_out);
+
     // get link
-    SRPC_SAFE_CALL_PTR(link, interfaces_get_current_link(ctx, session, request_xpath), error_out);
+    SRPC_SAFE_CALL_PTR(link, interfaces_get_current_link(ctx, session, xpath_buffer), error_out);
 
     const uint64_t out_errors = rtnl_link_get_stat(link, RTNL_LINK_TX_DROPPED);
 
@@ -999,6 +1106,7 @@ out:
 int interfaces_subscription_operational_interfaces_interface_statistics_in_discard_unknown_encaps(sr_session_ctx_t* session, uint32_t sub_id, const char* module_name, const char* path, const char* request_xpath, uint32_t request_id, struct lyd_node** parent, void* private_data)
 {
     int error = SR_ERR_OK;
+    void* error_ptr = NULL;
     const struct ly_ctx* ly_ctx = NULL;
 
     if (*parent == NULL) {
@@ -1021,6 +1129,7 @@ out:
 int interfaces_subscription_operational_interfaces_interface_carrier_delay_carrier_transitions(sr_session_ctx_t* session, uint32_t sub_id, const char* module_name, const char* path, const char* request_xpath, uint32_t request_id, struct lyd_node** parent, void* private_data)
 {
     int error = SR_ERR_OK;
+    void* error_ptr = NULL;
     const struct ly_ctx* ly_ctx = NULL;
 
     if (*parent == NULL) {
@@ -1043,6 +1152,7 @@ out:
 int interfaces_subscription_operational_interfaces_interface_carrier_delay_timer_running(sr_session_ctx_t* session, uint32_t sub_id, const char* module_name, const char* path, const char* request_xpath, uint32_t request_id, struct lyd_node** parent, void* private_data)
 {
     int error = SR_ERR_OK;
+    void* error_ptr = NULL;
     const struct ly_ctx* ly_ctx = NULL;
 
     if (*parent == NULL) {
@@ -1065,6 +1175,7 @@ out:
 int interfaces_subscription_operational_interfaces_interface_dampening_penalty(sr_session_ctx_t* session, uint32_t sub_id, const char* module_name, const char* path, const char* request_xpath, uint32_t request_id, struct lyd_node** parent, void* private_data)
 {
     int error = SR_ERR_OK;
+    void* error_ptr = NULL;
     const struct ly_ctx* ly_ctx = NULL;
 
     if (*parent == NULL) {
@@ -1087,6 +1198,7 @@ out:
 int interfaces_subscription_operational_interfaces_interface_dampening_suppressed(sr_session_ctx_t* session, uint32_t sub_id, const char* module_name, const char* path, const char* request_xpath, uint32_t request_id, struct lyd_node** parent, void* private_data)
 {
     int error = SR_ERR_OK;
+    void* error_ptr = NULL;
     const struct ly_ctx* ly_ctx = NULL;
 
     if (*parent == NULL) {
@@ -1109,6 +1221,7 @@ out:
 int interfaces_subscription_operational_interfaces_interface_dampening_time_remaining(sr_session_ctx_t* session, uint32_t sub_id, const char* module_name, const char* path, const char* request_xpath, uint32_t request_id, struct lyd_node** parent, void* private_data)
 {
     int error = SR_ERR_OK;
+    void* error_ptr = NULL;
     const struct ly_ctx* ly_ctx = NULL;
 
     if (*parent == NULL) {
@@ -1131,6 +1244,7 @@ out:
 int interfaces_subscription_operational_interfaces_interface_forwarding_mode(sr_session_ctx_t* session, uint32_t sub_id, const char* module_name, const char* path, const char* request_xpath, uint32_t request_id, struct lyd_node** parent, void* private_data)
 {
     int error = SR_ERR_OK;
+    void* error_ptr = NULL;
     const struct ly_ctx* ly_ctx = NULL;
 
     if (*parent == NULL) {
@@ -1153,6 +1267,7 @@ out:
 int interfaces_subscription_operational_interfaces_interface(sr_session_ctx_t* session, uint32_t sub_id, const char* module_name, const char* path, const char* request_xpath, uint32_t request_id, struct lyd_node** parent, void* private_data)
 {
     int error = SR_ERR_OK;
+    void* error_ptr = NULL;
     const struct ly_ctx* ly_ctx = NULL;
     interfaces_ctx_t* ctx = private_data;
     interfaces_nl_ctx_t* nl_ctx = &ctx->nl_ctx;
@@ -1175,7 +1290,7 @@ int interfaces_subscription_operational_interfaces_interface(sr_session_ctx_t* s
         nl_cache_refill(nl_ctx->socket, nl_ctx->link_cache);
     } else {
         // allocate new link cache
-        SRPC_SAFE_CALL_ERR(error, rtnl_link_alloc_cache(nl_ctx->socket, 0, &nl_ctx->link_cache), error_out);
+        SRPC_SAFE_CALL_ERR(error, rtnl_link_alloc_cache(nl_ctx->socket, AF_UNSPEC, &nl_ctx->link_cache), error_out);
     }
 
     if (*parent == NULL) {
