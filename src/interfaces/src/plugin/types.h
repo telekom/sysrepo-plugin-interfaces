@@ -21,6 +21,11 @@ typedef struct interfaces_interfaces interfaces_interfaces_t;
 typedef struct interface_ht_element interface_ht_element_t;
 typedef struct interfaces_interface_state_s interfaces_interface_state_t;
 
+enum interfaces_interfaces_interface_enable {
+    interfaces_interfaces_interface_enable_disabled,
+    interfaces_interfaces_interface_enable_enabled,
+};
+
 enum interfaces_interfaces_interface_link_up_down_trap_enable {
     interfaces_interfaces_interface_link_up_down_trap_enable_disabled,
     interfaces_interfaces_interface_link_up_down_trap_enable_enabled,
