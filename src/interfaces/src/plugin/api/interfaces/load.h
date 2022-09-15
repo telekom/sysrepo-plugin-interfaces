@@ -1,6 +1,7 @@
 #ifndef INTERFACES_PLUGIN_API_INTERFACES_LOAD_H
 #define INTERFACES_PLUGIN_API_INTERFACES_LOAD_H
 
+#include "plugin/data/interfaces/interface/hash.h"
 #include "plugin/context.h"
 #include <utarray.h>
 
@@ -24,12 +25,12 @@ static int interfaces_parse_link(interfaces_ctx_t *ctx, struct nl_sock *socket, 
 
 static char *interfaces_get_interface_parent_interface(struct nl_cache *cache, struct rtnl_link *link);
 
-static int interfaces_add_link(interface_ht_element_t **if_root, interfaces_interfaces_interface_t *interface);
+static int interfaces_add_link(interfaces_interface_hash_element_t **if_hash, interfaces_interfaces_interface_t *interface);
 
 static struct rtnl_link *interfaces_get_next_link(struct rtnl_link *link);
 
-static int interfaces_interfaces_worker(interfaces_ctx_t *ctx, struct nl_sock *socket, struct nl_cache *cache, interface_ht_element_t **if_root);
+static int interfaces_interfaces_worker(interfaces_ctx_t *ctx, struct nl_sock *socket, struct nl_cache *cache, interfaces_interface_hash_element_t **if_hash);
 
-int interfaces_load_interface(interfaces_ctx_t* ctx, interfaces_interface_hash_element_t **if_hash);
+int interfaces_load_interface(interfaces_ctx_t* ctx, interfaces_interface_hash_element_t **if_hash;
 
 #endif // INTERFACES_PLUGIN_API_INTERFACES_LOAD_H

@@ -1,7 +1,6 @@
 #include "load.h"
 #include "utlist.h"
 #include "plugin/common.h"
-#include "plugin/data/interface.h"
 #include "utils/memory.h"
 
 #include <errno.h>
@@ -232,18 +231,21 @@ out:
     return error;
 }
 
-static int interfaces_add_link(interface_ht_element_t **if_root, interfaces_interfaces_interface_t *interface)
+static int interfaces_add_link(interfaces_interface_hash_element_t **if_hash, interfaces_interfaces_interface_t *interface)
 {
     int error = 0;
+    
+    interfaces_interface_hash_element_t *new_if_hash_elem = interfaces_interface_hash_element_new();
+    interfaces_interface_hash_element_set_name(&new_if_hash_elem, interface->name);
 
-    error = interfaces_data_ht_add(*if_root, interface->name);
+    error = interfaces_interface_hash_add_element(if_hash, new_if_hash_elem);
     if (error != 0) {
         SRPLG_LOG_ERR(PLUGIN_NAME, "%s: error adding link (%d)", __func__, error);
         goto error_out;
     }
 
     if (interface->description != NULL) {
-        error = interfaces_data_ht_set_description(*if_root, interface->name, interface->description);
+        error = interfaces_interface_hash_element_set_description(&new_if_hash_elem, interface->description);
         if (error != 0) {
             SRPLG_LOG_ERR(PLUGIN_NAME, "%s: error setting description (%d)", __func__, error);
             goto error_out;
@@ -251,12 +253,22 @@ static int interfaces_add_link(interface_ht_element_t **if_root, interfaces_inte
     }
 
     if (interface->type != NULL) {
-        error = interfaces_data_ht_set_type(*if_root, interface->name, interface->type);
+        error = interfaces_interface_hash_element_set_type(&new_if_hash_elem, interface->type);
         if (error != 0) {
             SRPLG_LOG_ERR(PLUGIN_NAME, "%s: error setting type (%d)", __func__, error);
             goto error_out;
         }
     }
+
+    if (interface->parent_interface != NULL) {
+        error = interfaces_interface_hash_element_set_parent_interface(&new_if_hash_elem, interface->parent_interface);
+        if (error != 0) {
+            SRPLG_LOG_ERR(PLUGIN_NAME, "%s: error setting type (%d)", __func__, error);
+            goto error_out;
+        }
+    }
+
+    interfaces_interface_hash_element_set_enabled(&new_if_hash_elem, interface->enabled);
 
     goto out;
 error_out:
@@ -314,7 +326,7 @@ int interfaces_load_interface(interfaces_ctx_t* ctx, interfaces_interface_hash_e
     struct nl_sock *socket = NULL;
 	struct nl_cache *cache = NULL;
 
-    interfaces_data_ht_root_init(if_hash); 
+    *if_hash = interfaces_interface_hash_new();
 
 	socket = nl_socket_alloc();
 	if (socket == NULL) {
