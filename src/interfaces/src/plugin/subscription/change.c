@@ -14,18 +14,8 @@ int interfaces_subscription_change_interfaces_interface(sr_session_ctx_t* sessio
 {
     int error = SR_ERR_OK;
     interfaces_ctx_t* ctx = (interfaces_ctx_t*)private_data;
-
-    // sysrepo
-    sr_change_iter_t* changes_iterator = NULL;
-    sr_change_oper_t operation = SR_OP_CREATED;
-    const char *prev_value = NULL, *prev_list = NULL;
-    int prev_default;
-
-    const char* node_name = NULL;
-    const char* node_value = NULL;
-
-    // libyang
-    const struct lyd_node* node = NULL;
+    char change_xpath_buffer[PATH_MAX] = { 0 };
+    int rc = 0;
 
     if (event == SR_EV_ABORT) {
         SRPLG_LOG_ERR(PLUGIN_NAME, "Aborting changes for %s", xpath);
@@ -37,12 +27,25 @@ int interfaces_subscription_change_interfaces_interface(sr_session_ctx_t* sessio
             goto error_out;
         }
     } else if (event == SR_EV_CHANGE) {
-        // connect change API
-        error = srpc_iterate_changes(ctx, session, xpath, interfaces_change_interface);
-        if (error) {
-            SRPLG_LOG_ERR(PLUGIN_NAME, "srpc_iterate_changes() for interfaces_change_interface failed: %d", error);
-            goto error_out;
-        }
+        // name
+        SRPC_SAFE_CALL_ERR_COND(rc, rc < 0, snprintf(change_xpath_buffer, sizeof(change_xpath_buffer), "%s/name", xpath), error_out);
+        SRPC_SAFE_CALL_ERR(rc, srpc_iterate_changes(ctx, session, change_xpath_buffer, interfaces_interface_change_name, interfaces_change_interface_init, interfaces_change_interface_free), error_out);
+
+        // description
+        SRPC_SAFE_CALL_ERR_COND(rc, rc < 0, snprintf(change_xpath_buffer, sizeof(change_xpath_buffer), "%s/description", xpath), error_out);
+        SRPC_SAFE_CALL_ERR(rc, srpc_iterate_changes(ctx, session, change_xpath_buffer, interfaces_interface_change_description, interfaces_change_interface_init, interfaces_change_interface_free), error_out);
+
+        // type
+        SRPC_SAFE_CALL_ERR_COND(rc, rc < 0, snprintf(change_xpath_buffer, sizeof(change_xpath_buffer), "%s/type", xpath), error_out);
+        SRPC_SAFE_CALL_ERR(rc, srpc_iterate_changes(ctx, session, change_xpath_buffer, interfaces_interface_change_type, interfaces_change_interface_init, interfaces_change_interface_free), error_out);
+
+        // enabled
+        SRPC_SAFE_CALL_ERR_COND(rc, rc < 0, snprintf(change_xpath_buffer, sizeof(change_xpath_buffer), "%s/enabled", xpath), error_out);
+        SRPC_SAFE_CALL_ERR(rc, srpc_iterate_changes(ctx, session, change_xpath_buffer, interfaces_interface_change_enabled, interfaces_change_interface_init, interfaces_change_interface_free), error_out);
+
+        // link-up-down-trap-enable
+        SRPC_SAFE_CALL_ERR_COND(rc, rc < 0, snprintf(change_xpath_buffer, sizeof(change_xpath_buffer), "%s/link-up-down-trap-enable", xpath), error_out);
+        SRPC_SAFE_CALL_ERR(rc, srpc_iterate_changes(ctx, session, change_xpath_buffer, interfaces_interface_change_link_up_down_trap_enable, interfaces_change_interface_init, interfaces_change_interface_free), error_out);
     }
 
     goto out;

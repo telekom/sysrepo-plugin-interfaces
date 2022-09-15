@@ -12,6 +12,7 @@
 typedef struct interfaces_nl_ctx_s interfaces_nl_ctx_t;
 typedef struct interfaces_ctx_s interfaces_ctx_t;
 typedef struct interfaces_state_changes_ctx_s interfaces_state_changes_ctx_t;
+typedef struct interfaces_mod_changes_ctx_s interfaces_mod_changes_ctx_t;
 
 struct interfaces_state_changes_ctx_s {
     // libnl data
@@ -21,10 +22,15 @@ struct interfaces_state_changes_ctx_s {
     pthread_t manager_thread;
 
     // main hash DS for storing state info
-    interfaces_interface_state_t* state_hash;
+    interfaces_interface_state_hash_element_t* state_hash;
 
     // mutex for accessing state hash data
     pthread_mutex_t state_hash_mutex;
+};
+
+struct interfaces_mod_changes_ctx_s {
+    struct nl_sock* socket;
+    struct nl_cache* link_cache;
 };
 
 struct interfaces_nl_ctx_s {
@@ -36,6 +42,7 @@ struct interfaces_ctx_s {
     sr_session_ctx_t* startup_session;
     interfaces_nl_ctx_t nl_ctx;
     interfaces_state_changes_ctx_t state_ctx;
+    interfaces_mod_changes_ctx_t mod_ctx;
 };
 
 #endif // INTERFACES_PLUGIN_CONTEXT_H

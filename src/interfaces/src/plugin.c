@@ -6,7 +6,7 @@
 #include "plugin/context.h"
 
 // startup
-#include "plugin/data/interfaces/interface/state.h"
+#include "plugin/data/interfaces/interface/state_hash.h"
 #include "plugin/startup/load.h"
 #include "plugin/startup/store.h"
 
@@ -224,11 +224,11 @@ int sr_plugin_init_cb(sr_session_ctx_t* running_session, void** private_data)
         SRPLG_LOG_INF(PLUGIN_NAME, "Startup datastore contains data");
         SRPLG_LOG_INF(PLUGIN_NAME, "Storing startup datastore data in the system");
 
-        error = interfaces_startup_store(ctx, startup_session);
-        if (error) {
-            SRPLG_LOG_ERR(PLUGIN_NAME, "Error applying initial data from startup datastore to the system... exiting");
-            goto error_out;
-        }
+        // error = interfaces_startup_store(ctx, startup_session);
+        // if (error) {
+        //     SRPLG_LOG_ERR(PLUGIN_NAME, "Error applying initial data from startup datastore to the system... exiting");
+        //     goto error_out;
+        // }
 
         // copy contents of the startup session to the current running session
         error = sr_copy_config(running_session, BASE_YANG_MODEL, SR_DS_STARTUP, 0);
@@ -326,6 +326,7 @@ static int interfaces_init_state_changes_tracking(interfaces_state_changes_ctx_t
     int error = 0;
     struct rtnl_link* link = NULL;
     pthread_attr_t attr;
+    interfaces_interface_state_hash_element_t* new_element = NULL;
 
     // init hash
     ctx->state_hash = interfaces_interface_state_hash_new();
@@ -348,8 +349,16 @@ static int interfaces_init_state_changes_tracking(interfaces_state_changes_ctx_t
         const time_t current_time = time(NULL);
         const char* link_name = rtnl_link_get_name(link);
 
+        // create new state element
+        SRPC_SAFE_CALL_PTR(new_element, interfaces_interface_state_hash_element_new(), error_out);
+
+        // set element data
+        SRPC_SAFE_CALL_ERR(error, interfaces_interface_state_hash_element_set_name(&new_element, link_name), error_out);
+        interfaces_interface_state_hash_element_set_state(&new_element, oper_state);
+        interfaces_interface_state_hash_element_set_last_change(&new_element, current_time);
+
         // add entry to the hash table
-        SRPC_SAFE_CALL_ERR(error, interfaces_interface_state_hash_add(&ctx->state_hash, link_name, oper_state, current_time), error_out);
+        SRPC_SAFE_CALL_ERR(error, interfaces_interface_state_hash_add(&ctx->state_hash, new_element), error_out);
 
         link = (struct rtnl_link*)nl_cache_get_next((struct nl_object*)link);
     }
@@ -378,6 +387,9 @@ static void interfaces_link_cache_change_cb(struct nl_cache* cache, struct nl_ob
     interfaces_state_changes_ctx_t* ctx = arg;
     char time_buffer[100] = { 0 };
     struct tm* last_change = NULL;
+    time_t current = 0;
+    interfaces_interface_state_hash_element_t* new_element = NULL;
+    int rc = 0;
 
     // block further access using mutex
 
@@ -391,18 +403,47 @@ static void interfaces_link_cache_change_cb(struct nl_cache* cache, struct nl_ob
 
     while (link != NULL) {
         const char* link_name = rtnl_link_get_name(link);
-        interfaces_interface_state_t* state = interfaces_interface_state_hash_get(ctx->state_hash, link_name);
+        interfaces_interface_state_hash_element_t* state_element = interfaces_interface_state_hash_get(ctx->state_hash, link_name);
         const uint8_t oper_state = rtnl_link_get_operstate(link);
 
-        if (state) {
-            if (oper_state != state->state) {
-                const time_t current = time(NULL);
+        if (state_element) {
+            SRPLG_LOG_INF(PLUGIN_NAME, "State for interface %s already exists - updating last change", link_name);
+            if (oper_state != state_element->state.state) {
+                current = time(NULL);
                 last_change = localtime(&current);
                 strftime(time_buffer, sizeof(time_buffer), "%FT%TZ", last_change);
 
-                SRPLG_LOG_INF(PLUGIN_NAME, "Interface %s changed oper-state from %d to %d at %s", link_name, state->state, oper_state, time_buffer);
-                state->state = oper_state;
-                state->last_change = time(NULL);
+                SRPLG_LOG_INF(PLUGIN_NAME, "Interface %s changed oper-state from %d to %d at %s", link_name, state_element->state.state, oper_state, time_buffer);
+
+                // update state info
+                interfaces_interface_state_hash_element_set_state(&state_element, oper_state);
+                interfaces_interface_state_hash_element_set_last_change(&state_element, time(NULL));
+            }
+        } else {
+            SRPLG_LOG_INF(PLUGIN_NAME, "State for interface %s doesn\'t exist - creating a new entry in the state data hash table", link_name);
+            // new link has been added - add new data to the hash
+            current = time(NULL);
+            last_change = localtime(&current);
+
+            // create new state element
+            new_element = interfaces_interface_state_hash_element_new();
+            if (!new_element) {
+                SRPLG_LOG_ERR(PLUGIN_NAME, "Unable to create new hash element for interface %s", link_name);
+            } else {
+                rc = interfaces_interface_state_hash_element_set_name(&new_element, link_name);
+                if (rc) {
+                    SRPLG_LOG_ERR(PLUGIN_NAME, "Error setting interface name for a newly created hash element for interface %s", link_name);
+                } else {
+                    interfaces_interface_state_hash_element_set_state(&new_element, oper_state);
+                    interfaces_interface_state_hash_element_set_last_change(&new_element, current);
+                    rc = interfaces_interface_state_hash_add(&ctx->state_hash, new_element);
+                    if (rc) {
+                        SRPLG_LOG_ERR(PLUGIN_NAME, "Unable to add new interface %s to the interface hash");
+                    } else {
+                        strftime(time_buffer, sizeof(time_buffer), "%FT%TZ", last_change);
+                        SRPLG_LOG_INF(PLUGIN_NAME, "Interface %s added to the state data hash: state = %d, time = %s", link_name, oper_state, time_buffer);
+                    }
+                }
             }
         }
 

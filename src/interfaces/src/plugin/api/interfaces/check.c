@@ -1,7 +1,7 @@
 #include "check.h"
 
-int interfaces_check_interface(interfaces_ctx_t* ctx, const UT_array* interface)
+srpc_check_status_t interfaces_check_interface(interfaces_ctx_t* ctx, const interfaces_interface_hash_element_t* if_hash)
 {
-    int error = 0;
-    return error;
+    srpc_check_status_t status = srpc_check_status_none;
+    return status;
 }

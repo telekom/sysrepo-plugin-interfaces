@@ -19,7 +19,9 @@ typedef struct interfaces_interfaces_interface interfaces_interfaces_interface_t
 typedef struct interfaces_interfaces_interface_element interfaces_interfaces_interface_element_t;
 typedef struct interfaces_interfaces interfaces_interfaces_t;
 typedef struct interface_ht_element interface_ht_element_t;
-typedef struct interfaces_interface_state_s interfaces_interface_state_t;
+typedef struct interfaces_interface_state interfaces_interface_state_t;
+typedef struct interfaces_interface_state_hash_element interfaces_interface_state_hash_element_t;
+typedef struct interfaces_interface_hash_element interfaces_interface_hash_element_t;
 
 enum interfaces_interfaces_interface_enable {
     interfaces_interfaces_interface_enable_disabled,
@@ -97,10 +99,19 @@ struct interfaces_interfaces {
     interfaces_interfaces_interface_element_t* interface;
 };
 
-struct interfaces_interface_state_s {
+struct interfaces_interface_state {
     char* name; // key
     uint8_t state;
     time_t last_change;
+};
+
+struct interfaces_interface_state_hash_element {
+    interfaces_interface_state_t state;
+    UT_hash_handle hh;
+};
+
+struct interfaces_interface_hash_element {
+    interfaces_interfaces_interface_t interface;
     UT_hash_handle hh;
 };
 

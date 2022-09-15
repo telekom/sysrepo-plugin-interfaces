@@ -269,7 +269,7 @@ static struct rtnl_link *interfaces_get_next_link(struct rtnl_link *link)
     return (struct rtnl_link *) nl_cache_get_next((struct nl_object *) link);
 }
 
-static int interfaces_interfaces_worker(interfaces_ctx_t *ctx, struct nl_sock *socket, struct nl_cache *cache, interface_ht_element_t **if_root)
+static int interfaces_interfaces_worker(interfaces_ctx_t *ctx, struct nl_sock *socket, struct nl_cache *cache, interfaces_interface_hash_element_t **if_hash)
 {
     int error = 0;
 	struct rtnl_link *link = NULL;
@@ -281,7 +281,7 @@ static int interfaces_interfaces_worker(interfaces_ctx_t *ctx, struct nl_sock *s
         error = interfaces_parse_link(ctx, socket, cache, link, &interface);
         switch (error) {
             case interfaces_load_success:
-                error = interfaces_add_link(if_root, &interface);
+                error = interfaces_add_link(if_hash, &interface);
                 if (error != 0) {
                     SRPLG_LOG_ERR(PLUGIN_NAME, "%s: error adding link (%d)", __func__, error);
                     goto error_out;
@@ -308,13 +308,13 @@ out:
     return error;
 }
 
-int interfaces_load_interface(interfaces_ctx_t* ctx, interface_ht_element_t **if_root)
+int interfaces_load_interface(interfaces_ctx_t* ctx, interfaces_interface_hash_element_t **if_hash)
 {
     int error = 0;
     struct nl_sock *socket = NULL;
 	struct nl_cache *cache = NULL;
 
-    interfaces_data_ht_root_init(if_root); 
+    interfaces_data_ht_root_init(if_hash); 
 
 	socket = nl_socket_alloc();
 	if (socket == NULL) {
@@ -334,7 +334,7 @@ int interfaces_load_interface(interfaces_ctx_t* ctx, interface_ht_element_t **if
 		goto error_out;
 	}
 
-    error = interfaces_interfaces_worker(ctx, socket, cache, if_root);
+    error = interfaces_interfaces_worker(ctx, socket, cache, if_hash);
     if (error != 0) {
 		SRPLG_LOG_ERR(PLUGIN_NAME, "interfaces_parse_links: error parsing links (%d)", error);
 		goto error_out;
