@@ -3072,7 +3072,13 @@ static void cache_change_cb(struct nl_cache *cache, struct nl_object *obj, int v
 
 	while (link != NULL) {
 		name = rtnl_link_get_name(link);
+
 		tmp_st = if_state_list_get_by_if_name(&if_state_changes, name);
+		if (!tmp_st) {
+			link = (struct rtnl_link *) nl_cache_get_next((struct nl_object *) link);
+			continue;
+		}
+
 		tmp_state = rtnl_link_get_operstate(link);
 
 		if (tmp_state != tmp_st->state) {
