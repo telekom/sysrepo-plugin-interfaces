@@ -184,6 +184,50 @@ int sr_plugin_init_cb(sr_session_ctx_t* running_session, void** private_data)
             interfaces_subscription_operational_interfaces_interface_forwarding_mode,
         },
         {
+            INTERFACES_INTERFACES_INTERFACE_IPV4_ADDRESS_ORIGIN_YANG_PATH,
+            interfaces_subscription_operational_interfaces_interface_ipv4_address_origin,
+        },
+        {
+            INTERFACES_INTERFACES_INTERFACE_IPV4_ADDRESS_YANG_PATH,
+            interfaces_subscription_operational_interfaces_interface_ipv4_address,
+        },
+        {
+            INTERFACES_INTERFACES_INTERFACE_IPV4_NEIGHBOR_ORIGIN_YANG_PATH,
+            interfaces_subscription_operational_interfaces_interface_ipv4_neighbor_origin,
+        },
+        {
+            INTERFACES_INTERFACES_INTERFACE_IPV4_NEIGHBOR_YANG_PATH,
+            interfaces_subscription_operational_interfaces_interface_ipv4_neighbor,
+        },
+        {
+            INTERFACES_INTERFACES_INTERFACE_IPV6_ADDRESS_ORIGIN_YANG_PATH,
+            interfaces_subscription_operational_interfaces_interface_ipv6_address_origin,
+        },
+        {
+            INTERFACES_INTERFACES_INTERFACE_IPV6_ADDRESS_STATUS_YANG_PATH,
+            interfaces_subscription_operational_interfaces_interface_ipv6_address_status,
+        },
+        {
+            INTERFACES_INTERFACES_INTERFACE_IPV6_ADDRESS_YANG_PATH,
+            interfaces_subscription_operational_interfaces_interface_ipv6_address,
+        },
+        {
+            INTERFACES_INTERFACES_INTERFACE_IPV6_NEIGHBOR_ORIGIN_YANG_PATH,
+            interfaces_subscription_operational_interfaces_interface_ipv6_neighbor_origin,
+        },
+        {
+            INTERFACES_INTERFACES_INTERFACE_IPV6_NEIGHBOR_IS_ROUTER_YANG_PATH,
+            interfaces_subscription_operational_interfaces_interface_ipv6_neighbor_is_router,
+        },
+        {
+            INTERFACES_INTERFACES_INTERFACE_IPV6_NEIGHBOR_STATE_YANG_PATH,
+            interfaces_subscription_operational_interfaces_interface_ipv6_neighbor_state,
+        },
+        {
+            INTERFACES_INTERFACES_INTERFACE_IPV6_NEIGHBOR_YANG_PATH,
+            interfaces_subscription_operational_interfaces_interface_ipv6_neighbor,
+        },
+        {
             INTERFACES_INTERFACES_INTERFACE_YANG_PATH,
             interfaces_subscription_operational_interfaces_interface,
         },
