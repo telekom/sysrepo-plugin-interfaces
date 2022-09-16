@@ -41,9 +41,9 @@ void ip_data_set_mtu(ip_data_t *ip, char *mtu)
 	ip->mtu = (uint16_t) atoi(mtu);
 }
 
-void ip_data_add_address(ip_data_t *ip, char *addr, char *subnet, ip_subnet_type_t st)
+void ip_data_add_address(ip_data_t *ip, char *addr, char *subnet, ip_subnet_type_t st, ip_address_origin_t origin)
 {
-	ip_address_list_add(&ip->addr_list, addr, subnet, st);
+	ip_address_list_add(&ip->addr_list, addr, subnet, st, origin);
 }
 
 void ip_data_add_neighbor(ip_data_t *ip, char *addr, char *phys_addr)
@@ -95,34 +95,33 @@ void ip_address_set_delete(ip_address_list_t *addr_ls, char *ip)
  */
 uint8_t netmask_to_prefix_len(char *nm)
 {
-        int ret;
-        struct sockaddr_in sa;
-        struct sockaddr_in6 sa6;
+	int ret;
+	struct sockaddr_in sa;
+	struct sockaddr_in6 sa6;
 
-        // IPv6 if a ':' is found
-        if (strchr(nm, ':')) {
-                ret = inet_pton(AF_INET6, nm, &(sa6.sin6_addr));
-                // invalid network address mask
-                if (!ret) {
-                        // TODO: error handling on refactor
-                }
+	// IPv6 if a ':' is found
+	if (strchr(nm, ':')) {
+		ret = inet_pton(AF_INET6, nm, &(sa6.sin6_addr));
+		// invalid network address mask
+		if (!ret) {
+			// TODO: error handling on refactor
+		}
 
-                // s6_addr is a uint8_t array of length 16, all the byte popcounts need to be summarized
-                // avoid branching, use popcountll's 64 bits minimum
-                uint64_t *s6_addr64 = (uint64_t *) sa6.sin6_addr.s6_addr;
+		// s6_addr is a uint8_t array of length 16, all the byte popcounts need to be summarized
+		// avoid branching, use popcountll's 64 bits minimum
+		uint64_t *s6_addr64 = (uint64_t *) sa6.sin6_addr.s6_addr;
 
-                return __builtin_popcountll(s6_addr64[0]) + __builtin_popcountll(s6_addr64[1]);
+		return __builtin_popcountll(s6_addr64[0]) + __builtin_popcountll(s6_addr64[1]);
+	}
 
-        }
+	// IPv4 otherwise
+	ret = inet_pton(AF_INET, nm, &(sa.sin_addr));
+	// invalid network address mask
+	if (!ret) {
+		// TODO: error handling on refactor
+	}
 
-        // IPv4 otherwise
-        ret = inet_pton(AF_INET, nm, &(sa.sin_addr));
-        // invalid network address mask
-        if (!ret) {
-                // TODO: error handling on refactor
-        }
-
-        return __builtin_popcountl(sa.sin_addr.s_addr);
+	return __builtin_popcountl(sa.sin_addr.s_addr);
 }
 
 void ip_address_set_subnet(ip_address_t *addr, char *subnet, ip_subnet_type_t st)
@@ -149,7 +148,7 @@ void ip_address_list_init(ip_address_list_t *addr_ls)
 	addr_ls->count = 0;
 }
 
-void ip_address_list_add(ip_address_list_t *addr_ls, char *ip, char *subnet, ip_subnet_type_t st)
+void ip_address_list_add(ip_address_list_t *addr_ls, char *ip, char *subnet, ip_subnet_type_t st, ip_address_origin_t origin)
 {
 	ip_address_t *addr = NULL;
 
@@ -181,6 +180,7 @@ void ip_address_list_add(ip_address_list_t *addr_ls, char *ip, char *subnet, ip_
 	ip_address_init(addr);
 	ip_address_set_ip(addr, ip);
 	ip_address_set_subnet(addr, subnet, st);
+	addr->origin = origin;
 }
 
 void ip_address_list_free(ip_address_list_t *addr_ls)

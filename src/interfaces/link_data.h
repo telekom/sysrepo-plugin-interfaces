@@ -45,7 +45,7 @@ struct link_data_s {
 		} encapsulation;
 
 		char *parent_interface;
-	// TOOD: cover more yang nodes from extensions
+		// TOOD: cover more yang nodes from extensions
 	} extensions;
 };
 
@@ -74,7 +74,7 @@ int link_data_list_set_delete(link_data_list_t *ld, char *name, bool delete);
 int link_data_list_set_ipv4_forwarding(link_data_list_t *ld, char *name, char *forwarding);
 int link_data_list_set_ipv4_enabled(link_data_list_t *ld, char *name, char *enabled);
 int link_data_list_set_ipv4_mtu(link_data_list_t *ld, char *name, char *mtu);
-int link_data_list_add_ipv4_address(link_data_list_t *ld, char *name, char *ip, char *subnet, ip_subnet_type_t st);
+int link_data_list_add_ipv4_address(link_data_list_t *ld, char *name, char *ip, char *subnet, ip_subnet_type_t st, int flags);
 int link_data_list_set_delete_ipv4_address(link_data_list_t *ld, char *name, char *ip);
 int link_data_list_add_ipv4_neighbor(link_data_list_t *ld, char *name, char *ip, char *phys_addr);
 int link_data_list_set_delete_ipv4_neighbor(link_data_list_t *ld, char *name, char *ip);
@@ -83,7 +83,7 @@ int link_data_list_set_delete_ipv4_neighbor(link_data_list_t *ld, char *name, ch
 int link_data_list_set_ipv6_forwarding(link_data_list_t *ld, char *name, char *forwarding);
 int link_data_list_set_ipv6_enabled(link_data_list_t *ld, char *name, char *enabled);
 int link_data_list_set_ipv6_mtu(link_data_list_t *ld, char *name, char *mtu);
-int link_data_list_add_ipv6_address(link_data_list_t *ld, char *name, char *ip, char *subnet);
+int link_data_list_add_ipv6_address(link_data_list_t *ld, char *name, char *ip, char *subnet, int flags);
 int link_data_list_set_delete_ipv6_address(link_data_list_t *ld, char *name, char *ip);
 int link_data_list_add_ipv6_neighbor(link_data_list_t *ld, char *name, char *ip, char *phys_addr);
 int link_data_list_set_delete_ipv6_neighbor(link_data_list_t *ld, char *name, char *ip);

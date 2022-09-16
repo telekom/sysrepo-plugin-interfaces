@@ -19,6 +19,7 @@
 #include "utils/memory.h"
 #include <string.h>
 #include <errno.h>
+#include <linux/if_addr.h>
 
 void link_data_init(link_data_t *l)
 {
@@ -135,7 +136,7 @@ int link_data_list_set_ipv4_mtu(link_data_list_t *ld, char *name, char *mtu)
 	return error;
 }
 
-int link_data_list_add_ipv4_address(link_data_list_t *ld, char *name, char *ip, char *subnet, ip_subnet_type_t st)
+int link_data_list_add_ipv4_address(link_data_list_t *ld, char *name, char *ip, char *subnet, ip_subnet_type_t st, int flags)
 {
 	int error = 0;
 	link_data_t *l = NULL;
@@ -143,7 +144,7 @@ int link_data_list_add_ipv4_address(link_data_list_t *ld, char *name, char *ip, 
 	l = data_list_get_by_name(ld, name);
 
 	if (l != NULL) {
-		ip_data_add_address(&l->ipv4, ip, subnet, st);
+		ip_data_add_address(&l->ipv4, ip, subnet, st, (flags & IFA_F_PERMANENT) > 0 ? ip_address_origin_static : ip_address_origin_dhcp);
 	} else {
 		error = EINVAL;
 	}
@@ -243,7 +244,7 @@ int link_data_list_set_ipv6_mtu(link_data_list_t *ld, char *name, char *mtu)
 	return error;
 }
 
-int link_data_list_add_ipv6_address(link_data_list_t *ld, char *name, char *ip, char *subnet)
+int link_data_list_add_ipv6_address(link_data_list_t *ld, char *name, char *ip, char *subnet, int flags)
 {
 	int error = 0;
 	link_data_t *l = NULL;
@@ -251,7 +252,7 @@ int link_data_list_add_ipv6_address(link_data_list_t *ld, char *name, char *ip, 
 	l = data_list_get_by_name(ld, name);
 
 	if (l != NULL) {
-		ip_data_add_address(&l->ipv6.ip_data, ip, subnet, ip_subnet_type_prefix_length);
+		ip_data_add_address(&l->ipv6.ip_data, ip, subnet, ip_subnet_type_prefix_length, (flags & IFA_F_PERMANENT) > 0 ? ip_address_origin_static : ip_address_origin_dhcp);
 	} else {
 		error = EINVAL;
 	}
@@ -471,7 +472,7 @@ int link_data_list_set_parent(link_data_list_t *ld, char *name, char *parent)
 			if (strcmp(ld->links[i].name, name) == 0) {
 				name_found = 1;
 
-				if (ld->links[i].extensions.parent_interface  != NULL) {
+				if (ld->links[i].extensions.parent_interface != NULL) {
 					FREE_SAFE(ld->links[i].extensions.parent_interface);
 				}
 
@@ -523,7 +524,7 @@ int link_data_list_set_outer_tag_type(link_data_list_t *ld, char *name, char *ou
 			if (strcmp(ld->links[i].name, name) == 0) {
 				name_found = 1;
 
-				if (ld->links[i].extensions.encapsulation.dot1q_vlan.outer_tag_type  != NULL) {
+				if (ld->links[i].extensions.encapsulation.dot1q_vlan.outer_tag_type != NULL) {
 					FREE_SAFE(ld->links[i].extensions.encapsulation.dot1q_vlan.outer_tag_type);
 				}
 
@@ -575,7 +576,7 @@ int link_data_list_set_second_tag_type(link_data_list_t *ld, char *name, char *s
 			if (strcmp(ld->links[i].name, name) == 0) {
 				name_found = 1;
 
-				if (ld->links[i].extensions.encapsulation.dot1q_vlan.second_tag_type  != NULL) {
+				if (ld->links[i].extensions.encapsulation.dot1q_vlan.second_tag_type != NULL) {
 					FREE_SAFE(ld->links[i].extensions.encapsulation.dot1q_vlan.second_tag_type);
 				}
 

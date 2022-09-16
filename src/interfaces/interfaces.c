@@ -57,13 +57,12 @@
 #include "utils/memory.h"
 #include "datastore.h"
 
-
 // other #defines
 #define MAC_ADDR_MAX_LENGTH 18
 #define MAX_DESCR_LEN 100
 #define DATETIME_BUF_SIZE 30
 #define CLASS_NET_LINE_LEN 1024
-#define ADDR_STR_BUF_SIZE 45 // max ip string length (15 for ipv4 and 45 for ipv6)
+#define ADDR_STR_BUF_SIZE 45	 // max ip string length (15 for ipv4 and 45 for ipv6)
 #define MAX_IF_NAME_LEN IFNAMSIZ // 16 bytes
 
 // callbacks
@@ -255,7 +254,7 @@ static int fill_datastore_interface_list(sr_session_ctx_t *session, link_data_li
 			interface_leaf_values[IF_TYPE] = "iana-if-type:ethernetCsmacd";
 		} else if (strcmp(type, "vlan") == 0) {
 			interface_leaf_values[IF_TYPE] = "iana-if-type:l2vlan";
-		}  else if (strcmp(type, "bridge") == 0) {
+		} else if (strcmp(type, "bridge") == 0) {
 			interface_leaf_values[IF_TYPE] = "iana-if-type:bridge";
 		} else if (strcmp(type, "dummy") == 0) {
 			interface_leaf_values[IF_TYPE] = "iana-if-type:other"; // since dummy is not a real type
@@ -456,8 +455,37 @@ void sr_plugin_cleanup_cb(sr_session_ctx_t *session, void *private_data)
 {
 	sr_session_ctx_t *startup_session = (sr_session_ctx_t *) private_data;
 
+	char path_buffer[PATH_MAX] = {0};
+
 	// copy the running datastore to startup one, in case we reboot
 	sr_copy_config(startup_session, BASE_YANG_MODEL, SR_DS_RUNNING, 0);
+
+	for (int i = 0; i < link_data_list.count; i++) {
+		const link_data_t *link = &link_data_list.links[i];
+		for (size_t j = 0; j < link->ipv4.addr_list.count; j++) {
+			const ip_address_t *addr = &link->ipv4.addr_list.addr[j];
+
+			SRPLG_LOG_DBG(PLUGIN_NAME, "Address = %s, origin = %d", addr->ip, addr->origin);
+			if (addr->origin == ip_address_origin_dhcp) {
+				// delete from startup
+				SRPLG_LOG_DBG(PLUGIN_NAME, "Deleting %s from startup", addr->ip);
+				snprintf(path_buffer, sizeof(path_buffer), "/" BASE_YANG_MODEL ":interfaces/interface[name=\"%s\"]/ietf-ip:ipv4/address[ip=\"%s\"]", link->name, addr->ip);
+				SRPLG_LOG_DBG(PLUGIN_NAME, "Path = %s", path_buffer);
+				sr_delete_item(startup_session, path_buffer, 0);
+			}
+		}
+		for (size_t j = 0; j < link->ipv6.ip_data.addr_list.count; j++) {
+			const ip_address_t *addr = &link->ipv6.ip_data.addr_list.addr[j];
+
+			SRPLG_LOG_DBG(PLUGIN_NAME, "Address = %s, origin = %d", addr->ip, addr->origin);
+			if (addr->origin == ip_address_origin_dhcp) {
+				snprintf(path_buffer, sizeof(path_buffer), "/" BASE_YANG_MODEL ":interfaces/interface[name=\"%s\"]/ipv6/address[ip=\"%s\"]/*", link->name, addr->ip);
+				sr_delete_item(startup_session, path_buffer, 0);
+			}
+		}
+	}
+
+	sr_apply_changes(startup_session, 0);
 
 	exit_application = 1;
 
@@ -644,8 +672,7 @@ int set_config_value(const char *xpath, const char *value)
 			error = SR_ERR_CALLBACK_FAILED;
 			goto out;
 		}
-	}
-	else if (strstr(xpath_cpy, "ietf-ip:ipv4") != 0) {
+	} else if (strstr(xpath_cpy, "ietf-ip:ipv4") != 0) {
 		SRPLG_LOG_DBG(PLUGIN_NAME, "ietf-ip:ipv4 change: '%s' on interface '%s'", interface_node, interface_node_name);
 		memset(&state, 0, sizeof(sr_xpath_ctx_t));
 		// check if an ip address has been added
@@ -657,14 +684,14 @@ int set_config_value(const char *xpath, const char *value)
 		if (address_node_ip != NULL) {
 			// address has been added -> check for interface node (last node of the path) -> (prefix-length || netmask)
 			if (strcmp(interface_node, "prefix-length") == 0) {
-				error = link_data_list_add_ipv4_address(&link_data_list, interface_node_name, address_node_ip, (char *) value, ip_subnet_type_prefix_length);
+				error = link_data_list_add_ipv4_address(&link_data_list, interface_node_name, address_node_ip, (char *) value, ip_subnet_type_prefix_length, IFA_F_PERMANENT);
 				if (error != 0) {
 					SRPLG_LOG_ERR(PLUGIN_NAME, "link_data_list_add_ipv4_address error (%d) : %s", error, strerror(error));
 					error = SR_ERR_CALLBACK_FAILED;
 					goto out;
 				}
 			} else if (strcmp(interface_node, "netmask") == 0) {
-				error = link_data_list_add_ipv4_address(&link_data_list, interface_node_name, address_node_ip, (char *) value, ip_subnet_type_netmask);
+				error = link_data_list_add_ipv4_address(&link_data_list, interface_node_name, address_node_ip, (char *) value, ip_subnet_type_netmask, IFA_F_PERMANENT);
 				if (error != 0) {
 					SRPLG_LOG_ERR(PLUGIN_NAME, "link_data_list_add_ipv4_address error (%d) : %s", error, strerror(error));
 					error = SR_ERR_CALLBACK_FAILED;
@@ -712,14 +739,14 @@ int set_config_value(const char *xpath, const char *value)
 		if (address_node_ip != NULL) {
 			// address has been added -> check for interface node (last node of the path) -> (prefix-length || netmask)
 			if (strcmp(interface_node, "prefix-length") == 0) {
-				error = link_data_list_add_ipv6_address(&link_data_list, interface_node_name, address_node_ip, (char *) value);
+				error = link_data_list_add_ipv6_address(&link_data_list, interface_node_name, address_node_ip, (char *) value, IFA_F_PERMANENT);
 				if (error != 0) {
 					SRPLG_LOG_ERR(PLUGIN_NAME, "link_data_list_add_ipv4_address error (%d) : %s", error, strerror(error));
 					error = SR_ERR_CALLBACK_FAILED;
 					goto out;
 				}
 			} else if (strcmp(interface_node, "netmask") == 0) {
-				error = link_data_list_add_ipv6_address(&link_data_list, interface_node_name, address_node_ip, (char *) value);
+				error = link_data_list_add_ipv6_address(&link_data_list, interface_node_name, address_node_ip, (char *) value, IFA_F_PERMANENT);
 				if (error != 0) {
 					SRPLG_LOG_ERR(PLUGIN_NAME, "link_data_list_add_ipv4_address error (%d) : %s", error, strerror(error));
 					error = SR_ERR_CALLBACK_FAILED;
@@ -766,7 +793,7 @@ int set_config_value(const char *xpath, const char *value)
 			goto out;
 		}
 	} else if (strstr(xpath_cpy, "ietf-if-extensions:encapsulation/ietf-if-vlan-encapsulation:dot1q-vlan/outer-tag/tag-type") != 0) {
-		error = link_data_list_set_outer_tag_type(&link_data_list, interface_node_name, (char *)value);
+		error = link_data_list_set_outer_tag_type(&link_data_list, interface_node_name, (char *) value);
 		if (error != 0) {
 			SRPLG_LOG_ERR(PLUGIN_NAME, "link_data_list_set_parent error");
 			error = SR_ERR_CALLBACK_FAILED;
@@ -780,7 +807,7 @@ int set_config_value(const char *xpath, const char *value)
 			goto out;
 		}
 	} else if (strstr(xpath_cpy, "ietf-if-extensions:encapsulation/ietf-if-vlan-encapsulation:dot1q-vlan/second-tag/tag-type") != 0) {
-		error = link_data_list_set_second_tag_type(&link_data_list, interface_node_name, (char *)value);
+		error = link_data_list_set_second_tag_type(&link_data_list, interface_node_name, (char *) value);
 		if (error != 0) {
 			SRPLG_LOG_ERR(PLUGIN_NAME, "link_data_list_set_parent error");
 			error = SR_ERR_CALLBACK_FAILED;
@@ -968,12 +995,12 @@ int update_link_info(link_data_list_t *ld, sr_change_oper_t operation)
 		char *type = ld->links[i].type;
 		char *enabled = ld->links[i].enabled;
 		char *parent_interface = ld->links[i].extensions.parent_interface;
-		uint16_t outer_vlan_id =  ld->links[i].extensions.encapsulation.dot1q_vlan.outer_vlan_id;
-		uint16_t second_vlan_id =  ld->links[i].extensions.encapsulation.dot1q_vlan.second_vlan_id;
+		uint16_t outer_vlan_id = ld->links[i].extensions.encapsulation.dot1q_vlan.outer_vlan_id;
+		uint16_t second_vlan_id = ld->links[i].extensions.encapsulation.dot1q_vlan.second_vlan_id;
 		char second_vlan_name[MAX_IF_NAME_LEN] = {0};
 		bool delete = ld->links[i].delete;
 
-		if (name == NULL ){//|| type == 0) {
+		if (name == NULL) { //|| type == 0) {
 			continue;
 		}
 
@@ -1626,9 +1653,9 @@ int add_interface_ipv6(link_data_t *ld, struct rtnl_link *old, struct rtnl_link 
 		nl_addr_put(local_addr);
 		rtnl_neigh_put(neigh);
 
-	if (error != 0) {
-		break;
-	}
+		if (error != 0) {
+			break;
+		}
 	}
 out:
 	nl_socket_free(socket);
@@ -1888,7 +1915,6 @@ out:
 	return error;
 }
 
-
 static int read_from_proc_file(const char *dir_path, char *interface, const char *fn, int *val)
 {
 	int error = 0;
@@ -2011,6 +2037,7 @@ int add_existing_links(sr_session_ctx_t *session, link_data_list_t *ld)
 	char addr_str[ADDR_STR_BUF_SIZE];
 	char dst_addr_str[ADDR_STR_BUF_SIZE];
 	char ll_addr_str[ADDR_STR_BUF_SIZE];
+	char command_buffer[100] = {0};
 
 	socket = nl_socket_alloc();
 	if (socket == NULL) {
@@ -2048,6 +2075,9 @@ int add_existing_links(sr_session_ctx_t *session, link_data_list_t *ld)
 			goto error_out;
 		}
 
+		// address origin
+		snprintf(command_buffer, sizeof(command_buffer), "ip a show %s", name);
+
 		type = rtnl_link_get_type(link);
 		if (type == NULL) {
 			/* rtnl_link_get_type() will return NULL for interfaces that were not
@@ -2080,7 +2110,7 @@ int add_existing_links(sr_session_ctx_t *session, link_data_list_t *ld)
 		// otherwise it will be set to down, and dns resolution won't work
 		if (IF_OPER_UP == tmp_enabled || IF_OPER_UNKNOWN == tmp_enabled) {
 			enabled = "true";
-		} else if (IF_OPER_DOWN == tmp_enabled ) {
+		} else if (IF_OPER_DOWN == tmp_enabled) {
 			enabled = "false";
 		}
 
@@ -2091,7 +2121,7 @@ int add_existing_links(sr_session_ctx_t *session, link_data_list_t *ld)
 			parent_interface = rtnl_link_i2name(cache, parent_index, parent_buffer, MAX_IF_NAME_LEN);
 
 			// outer vlan id
-			vlan_id = (uint16_t)rtnl_link_vlan_get_id(link);
+			vlan_id = (uint16_t) rtnl_link_vlan_get_id(link);
 			if (vlan_id <= 0) {
 				SRPLG_LOG_ERR(PLUGIN_NAME, "couldn't get vlan ID");
 				goto error_out;
@@ -2102,7 +2132,7 @@ int add_existing_links(sr_session_ctx_t *session, link_data_list_t *ld)
 			char *second = NULL;
 
 			first = strchr(name, '.');
-			second = strchr(first+1, '.');
+			second = strchr(first + 1, '.');
 
 			if (second != 0) {
 				link = (struct rtnl_link *) nl_cache_get_next((struct nl_object *) link);
@@ -2201,7 +2231,7 @@ int add_existing_links(sr_session_ctx_t *session, link_data_list_t *ld)
 		struct nl_object *nl_neigh_object;
 		nl_neigh_object = nl_cache_get_first(neigh_cache);
 
-		for (int i=0; i < neigh_count; i++) {
+		for (int i = 0; i < neigh_count; i++) {
 			struct nl_addr *nl_dst_addr = rtnl_neigh_get_dst((struct rtnl_neigh *) nl_neigh_object);
 
 			char *dst_addr = nl_addr2str(nl_dst_addr, dst_addr_str, sizeof(dst_addr_str));
@@ -2280,7 +2310,7 @@ int add_existing_links(sr_session_ctx_t *session, link_data_list_t *ld)
 
 		addr = (struct rtnl_addr *) nl_object;
 
-		for (int i=0; i < addr_count; i++) {
+		for (int i = 0; i < addr_count; i++) {
 			struct nl_addr *nl_addr_local = rtnl_addr_get_local(addr);
 			if (nl_addr_local == NULL) {
 				SRPLG_LOG_ERR(PLUGIN_NAME, "rtnl_addr_get_local error");
@@ -2295,7 +2325,7 @@ int add_existing_links(sr_session_ctx_t *session, link_data_list_t *ld)
 				continue;
 			}
 
-			const char*addr_s = nl_addr2str(nl_addr_local, addr_str, sizeof(addr_str));
+			const char *addr_s = nl_addr2str(nl_addr_local, addr_str, sizeof(addr_str));
 			if (NULL == addr_s) {
 				SRPLG_LOG_ERR(PLUGIN_NAME, "nl_addr2str error");
 				goto error_out;
@@ -2313,6 +2343,11 @@ int add_existing_links(sr_session_ctx_t *session, link_data_list_t *ld)
 			}
 
 			char *address = xstrdup(token);
+
+			char flags_buffer[100] = {0};
+			rtnl_addr_flags2str((int) rtnl_addr_get_flags(addr), flags_buffer, sizeof(flags_buffer));
+
+			SRPLG_LOG_DBG(PLUGIN_NAME, "Address = %s, Scope = %d, Flags = %s", address, rtnl_addr_get_flags(addr) & IFA_F_HOMEADDRESS, flags_buffer);
 
 			// get subnet
 			token = strtok(NULL, "/");
@@ -2333,7 +2368,7 @@ int add_existing_links(sr_session_ctx_t *session, link_data_list_t *ld)
 
 			if (addr_family == AF_INET) {
 				// ipv4
-				error = link_data_list_add_ipv4_address(&link_data_list, name, address, subnet, ip_subnet_type_prefix_length);
+				error = link_data_list_add_ipv4_address(&link_data_list, name, address, subnet, ip_subnet_type_prefix_length, (int) rtnl_addr_get_flags(addr));
 				if (error != 0) {
 					SRPLG_LOG_ERR(PLUGIN_NAME, "link_data_list_add_ipv4_address error (%d) : %s", error, strerror(error));
 
@@ -2371,7 +2406,7 @@ int add_existing_links(sr_session_ctx_t *session, link_data_list_t *ld)
 
 			} else if (addr_family == AF_INET6) {
 				// ipv6
-				error = link_data_list_add_ipv6_address(&link_data_list, name, address, subnet);
+				error = link_data_list_add_ipv6_address(&link_data_list, name, address, subnet, (int) rtnl_addr_get_flags(addr));
 				if (error != 0) {
 					SRPLG_LOG_ERR(PLUGIN_NAME, "link_data_list_add_ipv6_address error (%d) : %s", error, strerror(error));
 
@@ -2520,7 +2555,7 @@ error_out:
  *      0 on successful neighbor-origin node creation, -1 on error
  */
 int create_node_neighbor_origin(struct lyd_node **parent, const struct ly_ctx *ly_ctx, char *interface_name,
-				struct nl_sock *socket, int32_t if_index, char *ip_addr, int family)
+								struct nl_sock *socket, int32_t if_index, char *ip_addr, int family)
 {
 	struct nl_cache *cache = NULL;
 	struct nl_addr *dst_addr = NULL;
@@ -2538,7 +2573,7 @@ int create_node_neighbor_origin(struct lyd_node **parent, const struct ly_ctx *l
 		goto error;
 	}
 
-	error =  nl_addr_parse(ip_addr, family, &dst_addr);
+	error = nl_addr_parse(ip_addr, family, &dst_addr);
 	if (error != 0) {
 		goto error;
 	}
@@ -2558,8 +2593,8 @@ int create_node_neighbor_origin(struct lyd_node **parent, const struct ly_ctx *l
 	// NUD_PERMANENT signifies a static entry
 	origin = state & NUD_PERMANENT ? "static" : "dynamic";
 
-	error = snprintf(xpath_buffer, PATH_MAX, "%s[name=\"%s\"]/ietf-ip:ipv%u/neighbor[ip='%s']/origin", 
-			 INTERFACE_LIST_YANG_PATH, interface_name, family == AF_INET6 ? 6 : 4, ip_addr);
+	error = snprintf(xpath_buffer, PATH_MAX, "%s[name=\"%s\"]/ietf-ip:ipv%u/neighbor[ip='%s']/origin",
+					 INTERFACE_LIST_YANG_PATH, interface_name, family == AF_INET6 ? 6 : 4, ip_addr);
 	// null character not counted in written chars, therefore greater or equal than
 	if (error < 0 || error >= PATH_MAX) {
 		goto error;
@@ -2628,25 +2663,25 @@ static int interfaces_state_data_cb(sr_session_ctx_t *session, uint32_t subscrip
 	// (merge it with the data tree which will be filled in the rest of this callback)
 	error = sr_session_switch_ds(session, SR_DS_RUNNING);
 	if (error) {
-	        SRPLG_LOG_ERR(PLUGIN_NAME, "sr_session_switch_ds error (%d): %s", error, sr_strerror(error));
-	        goto error_out;
+		SRPLG_LOG_ERR(PLUGIN_NAME, "sr_session_switch_ds error (%d): %s", error, sr_strerror(error));
+		goto error_out;
 	}
 	sr_data_t *running_ds_data = NULL;
 	error = sr_get_subtree(session, request_xpath, 0, &running_ds_data);
 	if (error) {
-	        SRPLG_LOG_ERR(PLUGIN_NAME, "sr_get_subtree error (%d): %s", error, sr_strerror(error));
-	        goto error_out;
+		SRPLG_LOG_ERR(PLUGIN_NAME, "sr_get_subtree error (%d): %s", error, sr_strerror(error));
+		goto error_out;
 	}
 	error = lyd_merge_tree(parent, running_ds_data->tree, 0);
 	if (error) {
-	        SRPLG_LOG_ERR(PLUGIN_NAME, "lyd_merge_tree error");
-	        goto error_out;
+		SRPLG_LOG_ERR(PLUGIN_NAME, "lyd_merge_tree error");
+		goto error_out;
 	}
 	sr_release_data(running_ds_data);
 	error = sr_session_switch_ds(session, SR_DS_OPERATIONAL); // switch back
 	if (error) {
-	        SRPLG_LOG_ERR(PLUGIN_NAME, "sr_session_switch_ds error (%d): %s", error, sr_strerror(error));
-	        goto error_out;
+		SRPLG_LOG_ERR(PLUGIN_NAME, "sr_session_switch_ds error (%d): %s", error, sr_strerror(error));
+		goto error_out;
 	}
 
 	socket = nl_socket_alloc();
@@ -2778,7 +2813,7 @@ static int interfaces_state_data_cb(sr_session_ctx_t *session, uint32_t subscrip
 		// Tx
 		// out-octets
 		char out_octets[32] = {0};
-		snprintf(out_octets, sizeof(out_octets), "%lu",rtnl_link_get_stat(link, RTNL_LINK_TX_BYTES));
+		snprintf(out_octets, sizeof(out_octets), "%lu", rtnl_link_get_stat(link, RTNL_LINK_TX_BYTES));
 		statistics[IF_STATS_OUT_OCTETS] = out_octets;
 		// out-unicast-pkts
 		char out_unicast_pkts[32] = {0};
