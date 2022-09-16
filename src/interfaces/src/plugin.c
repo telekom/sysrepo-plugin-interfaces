@@ -68,8 +68,9 @@ int sr_plugin_init_cb(sr_session_ctx_t* running_session, void** private_data)
     // operational getters
     srpc_operational_t oper[] = {
         {
+            //depends on if-mib feature
             INTERFACES_INTERFACES_INTERFACE_ADMIN_STATUS_YANG_PATH,
-            interfaces_subscription_operational_interfaces_interface_admin_status,
+            srpc_feature_status_hash_check(ietf_interfaces_features, "if-mib")? interfaces_subscription_operational_interfaces_interface_admin_status: NULL,
         },
         {
             INTERFACES_INTERFACES_INTERFACE_OPER_STATUS_YANG_PATH,
@@ -80,8 +81,9 @@ int sr_plugin_init_cb(sr_session_ctx_t* running_session, void** private_data)
             interfaces_subscription_operational_interfaces_interface_last_change,
         },
         {
+            //depends on if-mib feature
             INTERFACES_INTERFACES_INTERFACE_IF_INDEX_YANG_PATH,
-            interfaces_subscription_operational_interfaces_interface_if_index,
+            srpc_feature_status_hash_check(ietf_interfaces_features, "if-mib")? interfaces_subscription_operational_interfaces_interface_if_index: NULL,
         },
         {
             INTERFACES_INTERFACES_INTERFACE_PHYS_ADDRESS_YANG_PATH,
@@ -160,24 +162,29 @@ int sr_plugin_init_cb(sr_session_ctx_t* running_session, void** private_data)
             interfaces_subscription_operational_interfaces_interface_statistics_in_discard_unknown_encaps,
         },
         {
+            //depends on carrier-delay feature
             INTERFACES_INTERFACES_INTERFACE_CARRIER_DELAY_CARRIER_TRANSITIONS_YANG_PATH,
-            interfaces_subscription_operational_interfaces_interface_carrier_delay_carrier_transitions,
+            srpc_feature_status_hash_check(ietf_if_extensions_features, "carrier-delay")? interfaces_subscription_operational_interfaces_interface_carrier_delay_carrier_transitions: NULL,
         },
         {
+            //depends on carrier-delay feature
             INTERFACES_INTERFACES_INTERFACE_CARRIER_DELAY_TIMER_RUNNING_YANG_PATH,
-            interfaces_subscription_operational_interfaces_interface_carrier_delay_timer_running,
+            srpc_feature_status_hash_check(ietf_if_extensions_features, "carrier-delay")? interfaces_subscription_operational_interfaces_interface_carrier_delay_timer_running: NULL,
         },
         {
+            //depends on dampening feature
             INTERFACES_INTERFACES_INTERFACE_DAMPENING_PENALTY_YANG_PATH,
-            interfaces_subscription_operational_interfaces_interface_dampening_penalty,
+            srpc_feature_status_hash_check(ietf_if_extensions_features, "dampening")? interfaces_subscription_operational_interfaces_interface_dampening_penalty: NULL,
         },
         {
+            //depends on dampening feature
             INTERFACES_INTERFACES_INTERFACE_DAMPENING_SUPPRESSED_YANG_PATH,
-            interfaces_subscription_operational_interfaces_interface_dampening_suppressed,
+            srpc_feature_status_hash_check(ietf_if_extensions_features, "dampening")? interfaces_subscription_operational_interfaces_interface_dampening_suppressed: NULL,
         },
         {
+            //depends on dampening feature
             INTERFACES_INTERFACES_INTERFACE_DAMPENING_TIME_REMAINING_YANG_PATH,
-            interfaces_subscription_operational_interfaces_interface_dampening_time_remaining,
+            srpc_feature_status_hash_check(ietf_if_extensions_features, "dampening")? interfaces_subscription_operational_interfaces_interface_dampening_time_remaining: NULL,
         },
         {
             INTERFACES_INTERFACES_INTERFACE_FORWARDING_MODE_YANG_PATH,
