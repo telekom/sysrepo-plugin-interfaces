@@ -5,7 +5,7 @@
 
 int interfaces_ly_tree_create_interfaces(const struct ly_ctx* ly_ctx, struct lyd_node** interfaces_node)
 {
-    return srpc_ly_tree_create_container(ly_ctx, NULL, interfaces_node, "interfaces");
+    return srpc_ly_tree_create_container(ly_ctx, NULL, interfaces_node, "/ietf-interfaces:interfaces");
 }
 
 int interfaces_ly_tree_create_interfaces_interface(const struct ly_ctx* ly_ctx, struct lyd_node* interfaces_node, struct lyd_node** interface_node, const char* name)

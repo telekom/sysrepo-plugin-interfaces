@@ -3,6 +3,7 @@
 #include "plugin/ly_tree.h"
 
 #include "plugin/api/interfaces/load.h"
+#include "srpc/common.h"
 
 #include <libyang/libyang.h>
 #include <srpc.h>
@@ -32,11 +33,7 @@ int interfaces_startup_load(interfaces_ctx_t* ctx, sr_session_ctx_t* session)
         goto error_out;
     }
 
-    error = interfaces_ly_tree_create_interfaces(ly_ctx, &root_node);
-    if (error != 0) {
-        SRPLG_LOG_ERR(PLUGIN_NAME, "Unable to create ly root tree container");
-        goto error_out;
-    }
+    SRPC_SAFE_CALL_ERR(error, interfaces_ly_tree_create_interfaces(ly_ctx, &root_node), error_out);
 
     for (size_t i = 0; i < ARRAY_SIZE(load_values); i++) {
         const srpc_startup_load_t* load = &load_values[i];
@@ -88,12 +85,6 @@ static int interfaces_startup_load_interface(void* priv, sr_session_ctx_t* sessi
     error = interfaces_load_interface(ctx, &interface_head);
     if (error) {
         SRPLG_LOG_ERR(PLUGIN_NAME, "interfaces_load_interface() error (%d)", error);
-        goto error_out;
-    }
-
-    error = interfaces_ly_tree_create_interfaces(ly_ctx, &parent_node);
-    if (error) {
-        SRPLG_LOG_ERR(PLUGIN_NAME, "interfaces_ly_tree_create_interfaces() error (%d)", error);
         goto error_out;
     }
 
