@@ -28,6 +28,8 @@ int interfaces_interface_hash_element_set_encapsulation(interfaces_interface_has
 int interfaces_interface_hash_element_set_loopback(interfaces_interface_hash_element_t** el, const char* loopback);
 int interfaces_interface_hash_element_set_max_frame_size(interfaces_interface_hash_element_t** el, uint32_t max_frame_size);
 int interfaces_interface_hash_element_set_parent_interface(interfaces_interface_hash_element_t** el, const char* parent_interface);
+int interfaces_interface_hash_element_set_ipv4(interfaces_interface_hash_element_t** el, interfaces_interfaces_interface_ipv4_t ipv4);
+int interfaces_interface_hash_element_set_ipv6(interfaces_interface_hash_element_t** el, interfaces_interfaces_interface_ipv6_t ipv6);
 void interfaces_interface_hash_element_free(interfaces_interface_hash_element_t** el);
 
 #endif // INTERFACES_PLUGIN_DATA_INTERFACES_INTERFACE_HASH_H
