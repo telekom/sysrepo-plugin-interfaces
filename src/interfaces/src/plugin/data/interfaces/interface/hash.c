@@ -166,6 +166,20 @@ int interfaces_interface_hash_element_set_parent_interface(interfaces_interface_
     return 0;
 }
 
+int interfaces_interface_hash_element_set_ipv4(interfaces_interface_hash_element_t** el, interfaces_interfaces_interface_ipv4_t ipv4)
+{
+    (*el)->interface.ipv4 = ipv4;
+
+    return 0;
+}
+
+int interfaces_interface_hash_element_set_ipv6(interfaces_interface_hash_element_t** el, interfaces_interfaces_interface_ipv6_t ipv6)
+{
+    (*el)->interface.ipv6 = ipv6;
+
+    return 0;
+}
+
 void interfaces_interface_hash_element_free(interfaces_interface_hash_element_t** el)
 {
     if (*el) {

@@ -15,6 +15,17 @@ typedef struct interfaces_interfaces_interface_encapsulation_dot1q_vlan_outer_ta
 typedef struct interfaces_interfaces_interface_encapsulation_dot1q_vlan_second_tag interfaces_interfaces_interface_encapsulation_dot1q_vlan_second_tag_t;
 typedef struct interfaces_interfaces_interface_encapsulation_dot1q_vlan interfaces_interfaces_interface_encapsulation_dot1q_vlan_t;
 typedef struct interfaces_interfaces_interface_encapsulation interfaces_interfaces_interface_encapsulation_t;
+typedef struct interfaces_interfaces_interface_ipv4_address interfaces_interfaces_interface_ipv4_address_t;
+typedef struct interfaces_interfaces_interface_ipv4_address_element interfaces_interfaces_interface_ipv4_address_element_t;
+typedef struct interfaces_interfaces_interface_ipv4_neighbor interfaces_interfaces_interface_ipv4_neighbor_t;
+typedef struct interfaces_interfaces_interface_ipv4_neighbor_element interfaces_interfaces_interface_ipv4_neighbor_element_t;
+typedef struct interfaces_interfaces_interface_ipv4 interfaces_interfaces_interface_ipv4_t;
+typedef struct interfaces_interfaces_interface_ipv6_address interfaces_interfaces_interface_ipv6_address_t;
+typedef struct interfaces_interfaces_interface_ipv6_address_element interfaces_interfaces_interface_ipv6_address_element_t;
+typedef struct interfaces_interfaces_interface_ipv6_neighbor interfaces_interfaces_interface_ipv6_neighbor_t;
+typedef struct interfaces_interfaces_interface_ipv6_neighbor_element interfaces_interfaces_interface_ipv6_neighbor_element_t;
+typedef struct interfaces_interfaces_interface_ipv6_autoconf interfaces_interfaces_interface_ipv6_autoconf_t;
+typedef struct interfaces_interfaces_interface_ipv6 interfaces_interfaces_interface_ipv6_t;
 typedef struct interfaces_interfaces_interface interfaces_interfaces_interface_t;
 typedef struct interfaces_interfaces_interface_element interfaces_interfaces_interface_element_t;
 typedef struct interfaces_interfaces interfaces_interfaces_t;
@@ -66,6 +77,74 @@ struct interfaces_interfaces_interface_encapsulation {
     interfaces_interfaces_interface_encapsulation_dot1q_vlan_t dot1q_vlan;
 };
 
+struct interfaces_interfaces_interface_ipv4_address {
+    char* ip;
+    union {
+        uint8_t prefix_length;
+        char* netmask;
+    } subnet;
+};
+
+struct interfaces_interfaces_interface_ipv4_address_element {
+    interfaces_interfaces_interface_ipv4_address_element_t* next;
+    interfaces_interfaces_interface_ipv4_address_t address;
+};
+
+struct interfaces_interfaces_interface_ipv4_neighbor {
+    char* ip;
+    char* link_layer_address;
+};
+
+struct interfaces_interfaces_interface_ipv4_neighbor_element {
+    interfaces_interfaces_interface_ipv4_neighbor_element_t* next;
+    interfaces_interfaces_interface_ipv4_neighbor_t neighbor;
+};
+
+struct interfaces_interfaces_interface_ipv4 {
+    uint8_t enabled;
+    uint8_t forwarding;
+    uint16_t mtu;
+    interfaces_interfaces_interface_ipv4_address_element_t* address;
+    interfaces_interfaces_interface_ipv4_neighbor_element_t* neighbor;
+};
+
+struct interfaces_interfaces_interface_ipv6_address {
+    char* ip;
+    uint8_t prefix_length;
+};
+
+struct interfaces_interfaces_interface_ipv6_address_element {
+    interfaces_interfaces_interface_ipv6_address_element_t* next;
+    interfaces_interfaces_interface_ipv6_address_t address;
+};
+
+struct interfaces_interfaces_interface_ipv6_neighbor {
+    char* ip;
+    char* link_layer_address;
+};
+
+struct interfaces_interfaces_interface_ipv6_neighbor_element {
+    interfaces_interfaces_interface_ipv6_neighbor_element_t* next;
+    interfaces_interfaces_interface_ipv6_neighbor_t neighbor;
+};
+
+struct interfaces_interfaces_interface_ipv6_autoconf {
+    uint8_t create_global_addresses;
+    uint8_t create_temporary_addresses;
+    uint32_t temporary_valid_lifetime;
+    uint32_t temporary_preferred_lifetime;
+};
+
+struct interfaces_interfaces_interface_ipv6 {
+    uint8_t enabled;
+    uint8_t forwarding;
+    uint32_t mtu;
+    interfaces_interfaces_interface_ipv6_address_element_t* address;
+    interfaces_interfaces_interface_ipv6_neighbor_element_t* neighbor;
+    uint32_t dup_addr_detect_transmits;
+    interfaces_interfaces_interface_ipv6_autoconf_t autoconf;
+};
+
 struct interfaces_interfaces_interface {
     char* name;
     char* description;
@@ -78,6 +157,8 @@ struct interfaces_interfaces_interface {
     char* loopback;
     uint32_t max_frame_size;
     char* parent_interface;
+    interfaces_interfaces_interface_ipv4_t ipv4;
+    interfaces_interfaces_interface_ipv6_t ipv6;
 };
 
 struct interfaces_interfaces_interface_element {
