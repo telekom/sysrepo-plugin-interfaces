@@ -24,6 +24,8 @@ static int interfaces_parse_link(interfaces_ctx_t *ctx, struct nl_sock *socket, 
 
 static char *interfaces_get_interface_parent_interface(struct nl_cache *cache, struct rtnl_link *link);
 
+static int interfaces_get_interface_vlan_id(struct rtnl_link *link, interfaces_interfaces_interface_t *interface);
+
 static int interfaces_add_link(interfaces_interface_hash_element_t **if_hash, interfaces_interfaces_interface_t *interface);
 
 static struct rtnl_link *interfaces_get_next_link(struct rtnl_link *link);

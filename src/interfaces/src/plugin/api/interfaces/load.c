@@ -21,7 +21,7 @@ static char *interfaces_get_interface_name(struct rtnl_link *link)
 			SRPLG_LOG_ERR(PLUGIN_NAME, "rtnl_link_get_name error");
 		}
 
-        return name;
+        return xstrdup(name);
 }
 
 static char *interfaces_get_interface_description(interfaces_ctx_t *ctx, char *name)
@@ -46,7 +46,7 @@ static char *interfaces_get_interface_description(interfaces_ctx_t *ctx, char *n
 	}
 
 	if (strlen(val->data.string_val) > 0) {
-	    description = val->data.string_val;
+	    description = xstrdup(val->data.string_val);
 	}
     
 error_out:
@@ -122,7 +122,7 @@ static char *interfaces_get_interface_type(struct rtnl_link *link, char *name)
     }
     
 error_out:
-	return type;
+	return xstrdup(type);
 }
 
 static uint8_t interfaces_get_interface_enabled(struct rtnl_link *link)
@@ -153,7 +153,7 @@ static char *interfaces_get_interface_parent_interface(struct nl_cache *cache, s
         parent_interface = rtnl_link_i2name(cache, parent_index, parent_buffer, MAX_IF_NAME_LEN);
     }
 
-    return parent_interface;
+    return xstrdup(parent_interface);
 }
 
 /* TODO: outer tag, second id, tag - maybe refactor all to pass by reference, return error */
@@ -223,9 +223,17 @@ static int interfaces_parse_link(interfaces_ctx_t *ctx, struct nl_sock *socket, 
 error_out:
     error = interfaces_load_failure;
 out:
-    /* allocated in interfaces_get_interface_description */
+    if (interface->name != NULL) {
+        FREE_SAFE(interface->name);
+    }
     if (interface->description != NULL) {
         FREE_SAFE(interface->description);
+    }
+    if (interface->type != NULL) {
+        FREE_SAFE(interface->type);
+    }
+    if (interface->parent_interface != NULL) {
+        FREE_SAFE(interface->parent_interface);
     }
 
     return error;
