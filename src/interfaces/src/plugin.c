@@ -63,173 +63,214 @@ int sr_plugin_init_cb(sr_session_ctx_t* running_session, void** private_data)
     // operational getters
     srpc_operational_t oper[] = {
         {
-            //depends on if-mib feature
+            // depends on if-mib feature
+            IETF_INTERFACES_YANG_MODULE,
             INTERFACES_INTERFACES_INTERFACE_ADMIN_STATUS_YANG_PATH,
             srpc_feature_status_hash_check(ctx->features.ietf_interfaces_features, "if-mib") ? interfaces_subscription_operational_interfaces_interface_admin_status : NULL,
         },
         {
+            IETF_INTERFACES_YANG_MODULE,
             INTERFACES_INTERFACES_INTERFACE_OPER_STATUS_YANG_PATH,
             interfaces_subscription_operational_interfaces_interface_oper_status,
         },
         {
+            IETF_INTERFACES_YANG_MODULE,
             INTERFACES_INTERFACES_INTERFACE_LAST_CHANGE_YANG_PATH,
             interfaces_subscription_operational_interfaces_interface_last_change,
         },
         {
+            IETF_INTERFACES_YANG_MODULE,
             //depends on if-mib feature
             INTERFACES_INTERFACES_INTERFACE_IF_INDEX_YANG_PATH,
             srpc_feature_status_hash_check(ctx->features.ietf_interfaces_features, "if-mib") ? interfaces_subscription_operational_interfaces_interface_if_index : NULL,
         },
         {
+            IETF_INTERFACES_YANG_MODULE,
             INTERFACES_INTERFACES_INTERFACE_PHYS_ADDRESS_YANG_PATH,
             interfaces_subscription_operational_interfaces_interface_phys_address,
         },
         {
+            IETF_INTERFACES_YANG_MODULE,
             INTERFACES_INTERFACES_INTERFACE_HIGHER_LAYER_IF_YANG_PATH,
             interfaces_subscription_operational_interfaces_interface_higher_layer_if,
         },
         {
+            IETF_INTERFACES_YANG_MODULE,
             INTERFACES_INTERFACES_INTERFACE_LOWER_LAYER_IF_YANG_PATH,
             interfaces_subscription_operational_interfaces_interface_lower_layer_if,
         },
         {
+            IETF_INTERFACES_YANG_MODULE,
             INTERFACES_INTERFACES_INTERFACE_SPEED_YANG_PATH,
             interfaces_subscription_operational_interfaces_interface_speed,
         },
         {
+            IETF_INTERFACES_YANG_MODULE,
             INTERFACES_INTERFACES_INTERFACE_STATISTICS_DISCONTINUITY_TIME_YANG_PATH,
             interfaces_subscription_operational_interfaces_interface_statistics_discontinuity_time,
         },
         {
+            IETF_INTERFACES_YANG_MODULE,
             INTERFACES_INTERFACES_INTERFACE_STATISTICS_IN_OCTETS_YANG_PATH,
             interfaces_subscription_operational_interfaces_interface_statistics_in_octets,
         },
         {
+            IETF_INTERFACES_YANG_MODULE,
             INTERFACES_INTERFACES_INTERFACE_STATISTICS_IN_UNICAST_PKTS_YANG_PATH,
             interfaces_subscription_operational_interfaces_interface_statistics_in_unicast_pkts,
         },
         {
+            IETF_INTERFACES_YANG_MODULE,
             INTERFACES_INTERFACES_INTERFACE_STATISTICS_IN_BROADCAST_PKTS_YANG_PATH,
             interfaces_subscription_operational_interfaces_interface_statistics_in_broadcast_pkts,
         },
         {
+            IETF_INTERFACES_YANG_MODULE,
             INTERFACES_INTERFACES_INTERFACE_STATISTICS_IN_MULTICAST_PKTS_YANG_PATH,
             interfaces_subscription_operational_interfaces_interface_statistics_in_multicast_pkts,
         },
         {
+            IETF_INTERFACES_YANG_MODULE,
             INTERFACES_INTERFACES_INTERFACE_STATISTICS_IN_DISCARDS_YANG_PATH,
             interfaces_subscription_operational_interfaces_interface_statistics_in_discards,
         },
         {
+            IETF_INTERFACES_YANG_MODULE,
             INTERFACES_INTERFACES_INTERFACE_STATISTICS_IN_ERRORS_YANG_PATH,
             interfaces_subscription_operational_interfaces_interface_statistics_in_errors,
         },
         {
+            IETF_INTERFACES_YANG_MODULE,
             INTERFACES_INTERFACES_INTERFACE_STATISTICS_IN_UNKNOWN_PROTOS_YANG_PATH,
             interfaces_subscription_operational_interfaces_interface_statistics_in_unknown_protos,
         },
         {
+            IETF_INTERFACES_YANG_MODULE,
             INTERFACES_INTERFACES_INTERFACE_STATISTICS_OUT_OCTETS_YANG_PATH,
             interfaces_subscription_operational_interfaces_interface_statistics_out_octets,
         },
         {
+            IETF_INTERFACES_YANG_MODULE,
             INTERFACES_INTERFACES_INTERFACE_STATISTICS_OUT_UNICAST_PKTS_YANG_PATH,
             interfaces_subscription_operational_interfaces_interface_statistics_out_unicast_pkts,
         },
         {
+            IETF_INTERFACES_YANG_MODULE,
             INTERFACES_INTERFACES_INTERFACE_STATISTICS_OUT_BROADCAST_PKTS_YANG_PATH,
             interfaces_subscription_operational_interfaces_interface_statistics_out_broadcast_pkts,
         },
         {
+            IETF_INTERFACES_YANG_MODULE,
             INTERFACES_INTERFACES_INTERFACE_STATISTICS_OUT_MULTICAST_PKTS_YANG_PATH,
             interfaces_subscription_operational_interfaces_interface_statistics_out_multicast_pkts,
         },
         {
+            IETF_INTERFACES_YANG_MODULE,
             INTERFACES_INTERFACES_INTERFACE_STATISTICS_OUT_DISCARDS_YANG_PATH,
             interfaces_subscription_operational_interfaces_interface_statistics_out_discards,
         },
         {
+            IETF_INTERFACES_YANG_MODULE,
             INTERFACES_INTERFACES_INTERFACE_STATISTICS_OUT_ERRORS_YANG_PATH,
             interfaces_subscription_operational_interfaces_interface_statistics_out_errors,
         },
         {
+            IETF_INTERFACES_YANG_MODULE,
             INTERFACES_INTERFACES_INTERFACE_STATISTICS_IN_DISCARD_UNKNOWN_ENCAPS_YANG_PATH,
             interfaces_subscription_operational_interfaces_interface_statistics_in_discard_unknown_encaps,
         },
         {
+            IETF_INTERFACES_YANG_MODULE,
             //depends on carrier-delay feature
             INTERFACES_INTERFACES_INTERFACE_CARRIER_DELAY_CARRIER_TRANSITIONS_YANG_PATH,
             srpc_feature_status_hash_check(ctx->features.ietf_if_extensions_features, "carrier-delay") ? interfaces_subscription_operational_interfaces_interface_carrier_delay_carrier_transitions : NULL,
         },
         {
+            IETF_INTERFACES_YANG_MODULE,
             //depends on carrier-delay feature
             INTERFACES_INTERFACES_INTERFACE_CARRIER_DELAY_TIMER_RUNNING_YANG_PATH,
             srpc_feature_status_hash_check(ctx->features.ietf_if_extensions_features, "carrier-delay") ? interfaces_subscription_operational_interfaces_interface_carrier_delay_timer_running : NULL,
         },
         {
+            IETF_INTERFACES_YANG_MODULE,
             //depends on dampening feature
             INTERFACES_INTERFACES_INTERFACE_DAMPENING_PENALTY_YANG_PATH,
             srpc_feature_status_hash_check(ctx->features.ietf_if_extensions_features, "dampening") ? interfaces_subscription_operational_interfaces_interface_dampening_penalty : NULL,
         },
         {
+            IETF_INTERFACES_YANG_MODULE,
             //depends on dampening feature
             INTERFACES_INTERFACES_INTERFACE_DAMPENING_SUPPRESSED_YANG_PATH,
             srpc_feature_status_hash_check(ctx->features.ietf_if_extensions_features, "dampening") ? interfaces_subscription_operational_interfaces_interface_dampening_suppressed : NULL,
         },
         {
+            IETF_INTERFACES_YANG_MODULE,
             //depends on dampening feature
             INTERFACES_INTERFACES_INTERFACE_DAMPENING_TIME_REMAINING_YANG_PATH,
             srpc_feature_status_hash_check(ctx->features.ietf_if_extensions_features, "dampening") ? interfaces_subscription_operational_interfaces_interface_dampening_time_remaining : NULL,
         },
         {
+            IETF_INTERFACES_YANG_MODULE,
             INTERFACES_INTERFACES_INTERFACE_FORWARDING_MODE_YANG_PATH,
             interfaces_subscription_operational_interfaces_interface_forwarding_mode,
         },
         {
+            IETF_INTERFACES_YANG_MODULE,
             INTERFACES_INTERFACES_INTERFACE_IPV4_ADDRESS_ORIGIN_YANG_PATH,
             interfaces_subscription_operational_interfaces_interface_ipv4_address_origin,
         },
         {
+            IETF_INTERFACES_YANG_MODULE,
             INTERFACES_INTERFACES_INTERFACE_IPV4_ADDRESS_YANG_PATH,
             interfaces_subscription_operational_interfaces_interface_ipv4_address,
         },
         {
+            IETF_INTERFACES_YANG_MODULE,
             INTERFACES_INTERFACES_INTERFACE_IPV4_NEIGHBOR_ORIGIN_YANG_PATH,
             interfaces_subscription_operational_interfaces_interface_ipv4_neighbor_origin,
         },
         {
+            IETF_INTERFACES_YANG_MODULE,
             INTERFACES_INTERFACES_INTERFACE_IPV4_NEIGHBOR_YANG_PATH,
             interfaces_subscription_operational_interfaces_interface_ipv4_neighbor,
         },
         {
+            IETF_INTERFACES_YANG_MODULE,
             INTERFACES_INTERFACES_INTERFACE_IPV6_ADDRESS_ORIGIN_YANG_PATH,
             interfaces_subscription_operational_interfaces_interface_ipv6_address_origin,
         },
         {
+            IETF_INTERFACES_YANG_MODULE,
             INTERFACES_INTERFACES_INTERFACE_IPV6_ADDRESS_STATUS_YANG_PATH,
             interfaces_subscription_operational_interfaces_interface_ipv6_address_status,
         },
         {
+            IETF_INTERFACES_YANG_MODULE,
             INTERFACES_INTERFACES_INTERFACE_IPV6_ADDRESS_YANG_PATH,
             interfaces_subscription_operational_interfaces_interface_ipv6_address,
         },
         {
+            IETF_INTERFACES_YANG_MODULE,
             INTERFACES_INTERFACES_INTERFACE_IPV6_NEIGHBOR_ORIGIN_YANG_PATH,
             interfaces_subscription_operational_interfaces_interface_ipv6_neighbor_origin,
         },
         {
+            IETF_INTERFACES_YANG_MODULE,
             INTERFACES_INTERFACES_INTERFACE_IPV6_NEIGHBOR_IS_ROUTER_YANG_PATH,
             interfaces_subscription_operational_interfaces_interface_ipv6_neighbor_is_router,
         },
         {
+            IETF_INTERFACES_YANG_MODULE,
             INTERFACES_INTERFACES_INTERFACE_IPV6_NEIGHBOR_STATE_YANG_PATH,
             interfaces_subscription_operational_interfaces_interface_ipv6_neighbor_state,
         },
         {
+            IETF_INTERFACES_YANG_MODULE,
             INTERFACES_INTERFACES_INTERFACE_IPV6_NEIGHBOR_YANG_PATH,
             interfaces_subscription_operational_interfaces_interface_ipv6_neighbor,
         },
         {
+            IETF_INTERFACES_YANG_MODULE,
             INTERFACES_INTERFACES_INTERFACE_YANG_PATH,
             interfaces_subscription_operational_interfaces_interface,
         },
@@ -260,7 +301,7 @@ int sr_plugin_init_cb(sr_session_ctx_t* running_session, void** private_data)
         }
 
         // copy contents of the startup session to the current running session
-        error = sr_copy_config(running_session, BASE_YANG_MODEL, SR_DS_STARTUP, 0);
+        error = sr_copy_config(running_session, IETF_INTERFACES_YANG_MODULE, SR_DS_STARTUP, 0);
         if (error) {
             SRPLG_LOG_ERR(PLUGIN_NAME, "sr_copy_config() error (%d): %s", error, sr_strerror(error));
             goto error_out;
@@ -277,7 +318,7 @@ int sr_plugin_init_cb(sr_session_ctx_t* running_session, void** private_data)
         // }
 
         // copy contents of the startup session to the current running session
-        error = sr_copy_config(running_session, BASE_YANG_MODEL, SR_DS_STARTUP, 0);
+        error = sr_copy_config(running_session, IETF_INTERFACES_YANG_MODULE, SR_DS_STARTUP, 0);
         if (error) {
             SRPLG_LOG_ERR(PLUGIN_NAME, "sr_copy_config() error (%d): %s", error, sr_strerror(error));
             goto error_out;
@@ -290,7 +331,7 @@ int sr_plugin_init_cb(sr_session_ctx_t* running_session, void** private_data)
 
         // in case of work on a specific callback set it to NULL
         if (change->cb) {
-            error = sr_module_change_subscribe(running_session, BASE_YANG_MODEL, change->path, change->cb, *private_data, 0, SR_SUBSCR_DEFAULT, &subscription);
+            error = sr_module_change_subscribe(running_session, IETF_INTERFACES_YANG_MODULE, change->path, change->cb, *private_data, 0, SR_SUBSCR_DEFAULT, &subscription);
             if (error) {
                 SRPLG_LOG_ERR(PLUGIN_NAME, "sr_module_change_subscribe() error for \"%s\" (%d): %s", change->path, error, sr_strerror(error));
                 goto error_out;
@@ -304,7 +345,7 @@ int sr_plugin_init_cb(sr_session_ctx_t* running_session, void** private_data)
 
         // in case of work on a specific callback set it to NULL
         if (op->cb) {
-            error = sr_oper_get_subscribe(running_session, BASE_YANG_MODEL, op->path, op->cb, *private_data, SR_SUBSCR_DEFAULT, &subscription);
+            error = sr_oper_get_subscribe(running_session, IETF_INTERFACES_YANG_MODULE, op->path, op->cb, *private_data, SR_SUBSCR_DEFAULT, &subscription);
             if (error) {
                 SRPLG_LOG_ERR(PLUGIN_NAME, "sr_oper_get_subscribe() error (%d): %s", error, sr_strerror(error));
                 goto error_out;
@@ -333,7 +374,7 @@ void sr_plugin_cleanup_cb(sr_session_ctx_t* running_session, void* private_data)
     interfaces_ctx_t* ctx = (interfaces_ctx_t*)private_data;
 
     // save current running configuration into startup for next time when the plugin starts
-    error = sr_copy_config(ctx->startup_session, BASE_YANG_MODEL, SR_DS_RUNNING, 0);
+    error = sr_copy_config(ctx->startup_session, IETF_INTERFACES_YANG_MODULE, SR_DS_RUNNING, 0);
     if (error) {
         SRPLG_LOG_ERR(PLUGIN_NAME, "sr_copy_config() error (%d): %s", error, sr_strerror(error));
     }

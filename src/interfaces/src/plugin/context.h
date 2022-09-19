@@ -27,6 +27,7 @@ struct interfaces_features_ctx_s {
 struct interfaces_nl_ctx_s {
     struct nl_sock* socket;
     struct nl_cache* link_cache;
+    struct nl_cache* addr_cache;
     struct nl_cache_mngr* link_cache_manager;
 };
 
