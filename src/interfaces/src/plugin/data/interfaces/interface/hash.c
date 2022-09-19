@@ -127,6 +127,8 @@ int interfaces_interface_hash_element_set_dampening(interfaces_interface_hash_el
 int interfaces_interface_hash_element_set_encapsulation(interfaces_interface_hash_element_t** el, interfaces_interfaces_interface_encapsulation_t encapsulation)
 {
     (*el)->interface.encapsulation = encapsulation;
+    (*el)->interface.encapsulation.dot1q_vlan.outer_tag.tag_type = xstrdup(encapsulation.dot1q_vlan.outer_tag.tag_type);
+    (*el)->interface.encapsulation.dot1q_vlan.second_tag.tag_type = xstrdup(encapsulation.dot1q_vlan.second_tag.tag_type);
     return 0;
 }
 
