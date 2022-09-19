@@ -16,7 +16,7 @@ int interfaces_ly_tree_create_interfaces_interface(const struct ly_ctx* ly_ctx, 
 
 int interfaces_ly_tree_create_interfaces_interface_ipv6(const struct ly_ctx* ly_ctx, struct lyd_node* interface_node, struct lyd_node** ipv6_node)
 {
-    return srpc_ly_tree_create_container(ly_ctx, interface_node, ipv6_node, "ipv6");
+    return srpc_ly_tree_create_container(ly_ctx, interface_node, ipv6_node, "ietf-ip:ipv6");
 }
 
 int interfaces_ly_tree_create_interfaces_interface_ipv6_autoconf(const struct ly_ctx* ly_ctx, struct lyd_node* ipv6_node, struct lyd_node** autoconf_node)
@@ -123,7 +123,7 @@ int interfaces_ly_tree_create_interfaces_interface_ipv6_enabled(const struct ly_
 
 int interfaces_ly_tree_create_interfaces_interface_ipv4(const struct ly_ctx* ly_ctx, struct lyd_node* interface_node, struct lyd_node** ipv4_node)
 {
-    return srpc_ly_tree_create_container(ly_ctx, interface_node, ipv4_node, "ipv4");
+    return srpc_ly_tree_create_container(ly_ctx, interface_node, ipv4_node, "ietf-ip:ipv4");
 }
 
 int interfaces_ly_tree_create_interfaces_interface_ipv4_neighbor(const struct ly_ctx* ly_ctx, struct lyd_node* ipv4_node, struct lyd_node** neighbor_node, const char* ip)

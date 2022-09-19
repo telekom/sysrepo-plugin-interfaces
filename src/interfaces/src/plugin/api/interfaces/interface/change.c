@@ -125,7 +125,7 @@ int interfaces_interface_change_enabled(void* priv, sr_session_ctx_t* session, c
     case SR_OP_CREATED:
     case SR_OP_MODIFIED:
         // get link by name
-        SRPC_SAFE_CALL_PTR(current_link, rtnl_link_get_by_name(mod_ctx->link_cache, interface_name_buffer), error_out);
+        SRPC_SAFE_CALL_PTR(current_link, rtnl_link_get_by_name(mod_ctx->nl_ctx.link_cache, interface_name_buffer), error_out);
 
         // create request link
         SRPC_SAFE_CALL_PTR(request_link, rtnl_link_alloc(), error_out);
@@ -142,12 +142,12 @@ int interfaces_interface_change_enabled(void* priv, sr_session_ctx_t* session, c
         SRPLG_LOG_INF(PLUGIN_NAME, "Changed link status: %d", rtnl_link_get_operstate(request_link));
 
         // apply changes
-        SRPC_SAFE_CALL_ERR(error, rtnl_link_change(mod_ctx->socket, current_link, request_link, NLM_F_REPLACE), error_out);
+        SRPC_SAFE_CALL_ERR(error, rtnl_link_change(mod_ctx->nl_ctx.socket, current_link, request_link, NLM_F_REPLACE), error_out);
         break;
     case SR_OP_DELETED:
         // get link by name
         // goto out if this function fails - if the link has completely been deleted, no need to delete enabled leaf
-        SRPC_SAFE_CALL_PTR(current_link, rtnl_link_get_by_name(mod_ctx->link_cache, interface_name_buffer), out);
+        SRPC_SAFE_CALL_PTR(current_link, rtnl_link_get_by_name(mod_ctx->nl_ctx.link_cache, interface_name_buffer), out);
 
         // create request link
         SRPC_SAFE_CALL_PTR(request_link, rtnl_link_alloc(), error_out);
@@ -164,7 +164,7 @@ int interfaces_interface_change_enabled(void* priv, sr_session_ctx_t* session, c
         SRPLG_LOG_INF(PLUGIN_NAME, "Changed link status: %d", rtnl_link_get_operstate(request_link));
 
         // apply changes
-        SRPC_SAFE_CALL_ERR(error, rtnl_link_change(mod_ctx->socket, current_link, request_link, NLM_F_REPLACE), error_out);
+        SRPC_SAFE_CALL_ERR(error, rtnl_link_change(mod_ctx->nl_ctx.socket, current_link, request_link, NLM_F_REPLACE), error_out);
         break;
     case SR_OP_MOVED:
         break;
@@ -232,7 +232,7 @@ int interfaces_interface_change_type(void* priv, sr_session_ctx_t* session, cons
         SRPC_SAFE_CALL_ERR(error, interfacecs_interface_extract_name(session, change_ctx->node, interface_name_buffer, sizeof(interface_name_buffer)), error_out);
 
         // get link by name
-        SRPC_SAFE_CALL_PTR(current_link, rtnl_link_get_by_name(mod_ctx->link_cache, interface_name_buffer), error_out);
+        SRPC_SAFE_CALL_PTR(current_link, rtnl_link_get_by_name(mod_ctx->nl_ctx.link_cache, interface_name_buffer), error_out);
 
         // create request link
         SRPC_SAFE_CALL_PTR(request_link, rtnl_link_alloc(), error_out);
@@ -255,7 +255,7 @@ int interfaces_interface_change_type(void* priv, sr_session_ctx_t* session, cons
         }
 
         // apply changes
-        SRPC_SAFE_CALL_ERR(error, rtnl_link_change(mod_ctx->socket, current_link, request_link, 0), error_out);
+        SRPC_SAFE_CALL_ERR(error, rtnl_link_change(mod_ctx->nl_ctx.socket, current_link, request_link, 0), error_out);
         break;
     case SR_OP_DELETED:
         // unsupported - type is necessarry
@@ -311,7 +311,7 @@ int interfaces_interface_change_name(void* priv, sr_session_ctx_t* session, cons
 
     switch (change_ctx->operation) {
     case SR_OP_CREATED:
-        old_link = rtnl_link_get_by_name(mod_ctx->link_cache, node_value);
+        old_link = rtnl_link_get_by_name(mod_ctx->nl_ctx.link_cache, node_value);
 
         // add a new link if such a link doesn't exist
         if (!old_link) {
@@ -324,7 +324,7 @@ int interfaces_interface_change_name(void* priv, sr_session_ctx_t* session, cons
             // set temp as initial type
             SRPC_SAFE_CALL_ERR(error, rtnl_link_set_type(new_link, "dummy"), error_out);
 
-            SRPC_SAFE_CALL_ERR(error, rtnl_link_add(mod_ctx->socket, new_link, NLM_F_CREATE), error_out);
+            SRPC_SAFE_CALL_ERR(error, rtnl_link_add(mod_ctx->nl_ctx.socket, new_link, NLM_F_CREATE), error_out);
         }
         break;
     case SR_OP_MODIFIED:
@@ -332,9 +332,9 @@ int interfaces_interface_change_name(void* priv, sr_session_ctx_t* session, cons
         goto error_out;
     case SR_OP_DELETED:
         // get link and delete it
-        SRPC_SAFE_CALL_PTR(old_link, rtnl_link_get_by_name(mod_ctx->link_cache, node_value), error_out);
+        SRPC_SAFE_CALL_PTR(old_link, rtnl_link_get_by_name(mod_ctx->nl_ctx.link_cache, node_value), error_out);
 
-        SRPC_SAFE_CALL_ERR(error, rtnl_link_delete(mod_ctx->socket, old_link), error_out);
+        SRPC_SAFE_CALL_ERR(error, rtnl_link_delete(mod_ctx->nl_ctx.socket, old_link), error_out);
         break;
     case SR_OP_MOVED:
         break;
