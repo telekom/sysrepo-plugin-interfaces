@@ -313,7 +313,7 @@ int sr_plugin_init_cb(sr_session_ctx_t* running_session, void** private_data)
     }
 
     // tracking oper-status changes for interfaces
-    SRPC_SAFE_CALL_ERR(error, interfaces_init_state_changes_tracking(&ctx->state_ctx), error_out);
+    SRPC_SAFE_CALL_ERR(error, interfaces_init_state_changes_tracking(&ctx->oper_ctx.state_changes_ctx), error_out);
 
     goto out;
 
@@ -338,29 +338,29 @@ void sr_plugin_cleanup_cb(sr_session_ctx_t* running_session, void* private_data)
         SRPLG_LOG_ERR(PLUGIN_NAME, "sr_copy_config() error (%d): %s", error, sr_strerror(error));
     }
 
-    if (ctx->nl_ctx.link_cache) {
-        nl_cache_put(ctx->nl_ctx.link_cache);
+    if (ctx->oper_ctx.nl_ctx.link_cache) {
+        nl_cache_put(ctx->oper_ctx.nl_ctx.link_cache);
     }
 
-    if (ctx->nl_ctx.socket) {
-        nl_socket_free(ctx->nl_ctx.socket);
+    if (ctx->oper_ctx.nl_ctx.socket) {
+        nl_socket_free(ctx->oper_ctx.nl_ctx.socket);
     }
 
-    pthread_mutex_lock(&ctx->state_ctx.state_hash_mutex);
+    pthread_mutex_lock(&ctx->oper_ctx.state_changes_ctx.state_hash_mutex);
 
-    if (ctx->state_ctx.socket) {
-        nl_socket_free(ctx->state_ctx.socket);
+    if (ctx->oper_ctx.state_changes_ctx.nl_ctx.socket) {
+        nl_socket_free(ctx->oper_ctx.state_changes_ctx.nl_ctx.socket);
     }
 
-    if (ctx->state_ctx.link_cache_manager) {
-        nl_cache_mngr_free(ctx->state_ctx.link_cache_manager);
+    if (ctx->oper_ctx.state_changes_ctx.nl_ctx.link_cache_manager) {
+        nl_cache_mngr_free(ctx->oper_ctx.state_changes_ctx.nl_ctx.link_cache_manager);
     }
 
-    if (ctx->state_ctx.state_hash) {
-        interfaces_interface_state_hash_free(&ctx->state_ctx.state_hash);
+    if (ctx->oper_ctx.state_changes_ctx.state_hash) {
+        interfaces_interface_state_hash_free(&ctx->oper_ctx.state_changes_ctx.state_hash);
     }
 
-    pthread_mutex_unlock(&ctx->state_ctx.state_hash_mutex);
+    pthread_mutex_unlock(&ctx->oper_ctx.state_changes_ctx.state_hash_mutex);
 
     // free feature status hashes
     srpc_feature_status_hash_free(&ctx->features.ietf_interfaces_features);
@@ -381,16 +381,16 @@ static int interfaces_init_state_changes_tracking(interfaces_state_changes_ctx_t
     ctx->state_hash = interfaces_interface_state_hash_new();
 
     // init libnl data
-    SRPC_SAFE_CALL_PTR(ctx->socket, nl_socket_alloc(), error_out);
+    SRPC_SAFE_CALL_PTR(ctx->nl_ctx.socket, nl_socket_alloc(), error_out);
 
     // connect and get all links
-    SRPC_SAFE_CALL_ERR(error, nl_connect(ctx->socket, NETLINK_ROUTE), error_out);
-    SRPC_SAFE_CALL_ERR(error, rtnl_link_alloc_cache(ctx->socket, AF_UNSPEC, &ctx->link_cache), error_out);
+    SRPC_SAFE_CALL_ERR(error, nl_connect(ctx->nl_ctx.socket, NETLINK_ROUTE), error_out);
+    SRPC_SAFE_CALL_ERR(error, rtnl_link_alloc_cache(ctx->nl_ctx.socket, AF_UNSPEC, &ctx->nl_ctx.link_cache), error_out);
 
     // init hash mutex
     SRPC_SAFE_CALL_ERR(error, pthread_mutex_init(&ctx->state_hash_mutex, NULL), error_out);
 
-    link = (struct rtnl_link*)nl_cache_get_first(ctx->link_cache);
+    link = (struct rtnl_link*)nl_cache_get_first(ctx->nl_ctx.link_cache);
 
     while (link != NULL) {
         // create hash entries
@@ -413,8 +413,8 @@ static int interfaces_init_state_changes_tracking(interfaces_state_changes_ctx_t
     }
 
     // setup cache manager
-    SRPC_SAFE_CALL_ERR(error, nl_cache_mngr_alloc(NULL, NETLINK_ROUTE, 0, &ctx->link_cache_manager), error_out);
-    SRPC_SAFE_CALL_ERR(error, nl_cache_mngr_add(ctx->link_cache_manager, "route/link", interfaces_link_cache_change_cb, ctx, &ctx->link_cache), error_out);
+    SRPC_SAFE_CALL_ERR(error, nl_cache_mngr_alloc(NULL, NETLINK_ROUTE, 0, &ctx->nl_ctx.link_cache_manager), error_out);
+    SRPC_SAFE_CALL_ERR(error, nl_cache_mngr_add(ctx->nl_ctx.link_cache_manager, "route/link", interfaces_link_cache_change_cb, ctx, &ctx->nl_ctx.link_cache), error_out);
 
     // setup detatched thread for sending change signals to the cache manager
     SRPC_SAFE_CALL_ERR(error, pthread_attr_init(&attr), error_out);
@@ -508,7 +508,7 @@ static void* interfaces_link_manager_thread_cb(void* data)
     interfaces_state_changes_ctx_t* ctx = data;
 
     do {
-        nl_cache_mngr_data_ready(ctx->link_cache_manager);
+        nl_cache_mngr_data_ready(ctx->nl_ctx.link_cache_manager);
         sleep(1);
     } while (1);
 

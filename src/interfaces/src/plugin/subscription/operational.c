@@ -112,7 +112,7 @@ int interfaces_subscription_operational_interfaces_interface_last_change(sr_sess
     // context
     const struct ly_ctx* ly_ctx = NULL;
     interfaces_ctx_t* ctx = private_data;
-    interfaces_state_changes_ctx_t* state_ctx = &ctx->state_ctx;
+    interfaces_state_changes_ctx_t* state_ctx = &ctx->oper_ctx.state_changes_ctx;
     interfaces_interface_state_hash_element_t* state_element = NULL;
 
     // libnl
@@ -267,7 +267,7 @@ int interfaces_subscription_operational_interfaces_interface_higher_layer_if(sr_
     // context
     const struct ly_ctx* ly_ctx = NULL;
     interfaces_ctx_t* ctx = private_data;
-    interfaces_nl_ctx_t* nl_ctx = &ctx->nl_ctx;
+    interfaces_nl_ctx_t* nl_ctx = &ctx->oper_ctx.nl_ctx;
 
     char xpath_buffer[PATH_MAX] = { 0 };
 
@@ -316,7 +316,7 @@ int interfaces_subscription_operational_interfaces_interface_lower_layer_if(sr_s
     // context
     const struct ly_ctx* ly_ctx = NULL;
     interfaces_ctx_t* ctx = private_data;
-    interfaces_nl_ctx_t* nl_ctx = &ctx->nl_ctx;
+    interfaces_nl_ctx_t* nl_ctx = &ctx->oper_ctx.nl_ctx;
 
     char xpath_buffer[PATH_MAX] = { 0 };
 
@@ -1512,7 +1512,7 @@ int interfaces_subscription_operational_interfaces_interface(sr_session_ctx_t* s
     void* error_ptr = NULL;
     const struct ly_ctx* ly_ctx = NULL;
     interfaces_ctx_t* ctx = private_data;
-    interfaces_nl_ctx_t* nl_ctx = &ctx->nl_ctx;
+    interfaces_nl_ctx_t* nl_ctx = &ctx->oper_ctx.nl_ctx;
     struct rtnl_link* link_iter = NULL;
 
     // libyang
@@ -1571,7 +1571,7 @@ static struct rtnl_link* interfaces_get_current_link(interfaces_ctx_t* ctx, sr_s
 {
     int error = 0;
 
-    const interfaces_nl_ctx_t* nl_ctx = &ctx->nl_ctx;
+    const interfaces_nl_ctx_t* nl_ctx = &ctx->oper_ctx.nl_ctx;
 
     // buffers
     char interface_name_buffer[100] = { 0 };
