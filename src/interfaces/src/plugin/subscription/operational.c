@@ -18,6 +18,7 @@
 #include <libyang/libyang.h>
 #include <pthread.h>
 #include <srpc.h>
+#include <string.h>
 #include <sysrepo.h>
 #include <sysrepo/xpath.h>
 
@@ -1301,9 +1302,8 @@ int interfaces_subscription_operational_interfaces_interface_ipv4_address(sr_ses
     char ip_buffer[20] = { 0 };
     char prefix_buffer[20] = { 0 };
 
-    SRPLG_LOG_INF(PLUGIN_NAME, "ADDRESS CALLBACK");
-
     const struct ly_ctx* ly_ctx = NULL;
+    struct lyd_node* address_node = NULL;
     struct lys_module* ietf_ip_module = NULL;
 
     struct rtnl_link* link = NULL;
@@ -1333,22 +1333,29 @@ int interfaces_subscription_operational_interfaces_interface_ipv4_address(sr_ses
     addr_iter = (struct rtnl_addr*)nl_cache_get_first(oper_ctx->nl_ctx.addr_cache);
 
     while (addr_iter) {
-        if (rtnl_addr_get_ifindex(addr_iter) == rtnl_link_get_ifindex(link)) {
+        if (rtnl_addr_get_ifindex(addr_iter) == rtnl_link_get_ifindex(link) && rtnl_addr_get_family(addr_iter) == AF_INET) {
+            SRPLG_LOG_INF(PLUGIN_NAME, "Found address for %s", rtnl_link_get_name(link));
+
             const struct nl_addr* local = rtnl_addr_get_local(addr_iter);
 
             // IP
             SRPC_SAFE_CALL_PTR(error_ptr, nl_addr2str(local, ip_buffer, sizeof(ip_buffer)), error_out);
 
+            // remove prefix from IP
+            char* prefix = strchr(ip_buffer, '/');
+            *prefix = 0;
+            ++prefix;
+
             // prefix
             SRPC_SAFE_CALL_ERR_COND(rc, rc < 0, snprintf(prefix_buffer, sizeof(prefix_buffer), "%d", rtnl_addr_get_prefixlen(addr_iter)), error_out);
 
-            SRPLG_LOG_INF(PLUGIN_NAME, "ipv4:address(%s) = %s", rtnl_link_get_name(link), ip_buffer);
+            SRPLG_LOG_INF(PLUGIN_NAME, "ipv4:address(%s) = %s/%s", rtnl_link_get_name(link), ip_buffer, prefix);
 
-            // // address from the current link - add to the list
-            // SRPC_SAFE_CALL_ERR(error, interfaces_ly_tree_create_interfaces_interface_ipv4_address(ly_ctx, *parent, NULL, ip_buffer), error_out);
+            // address from the current link - add to the list
+            SRPC_SAFE_CALL_ERR(error, interfaces_ly_tree_create_interfaces_interface_ipv4_address(ly_ctx, *parent, &address_node, ip_buffer), error_out);
 
-            // // prefix
-            // SRPC_SAFE_CALL_ERR(error, interfaces_ly_tree_create_interfaces_interface_ipv4_address_prefix_length(ly_ctx, *parent, prefix_buffer), error_out);
+            // prefix
+            SRPC_SAFE_CALL_ERR(error, interfaces_ly_tree_create_interfaces_interface_ipv4_address_prefix_length(ly_ctx, address_node, prefix_buffer), error_out);
         }
 
         addr_iter = (struct rtnl_addr*)nl_cache_get_next((struct nl_object*)addr_iter);
@@ -1612,6 +1619,9 @@ int interfaces_subscription_operational_interfaces_interface(sr_session_ctx_t* s
 
         // add interface
         SRPC_SAFE_CALL_ERR(error, interfaces_ly_tree_create_interfaces_interface(ly_ctx, *parent, &interface_list_node, rtnl_link_get_name(link_iter)), error_out);
+
+        // create needed containers for the interface
+        SRPC_SAFE_CALL_ERR(error, interfaces_ly_tree_create_interfaces_interface_ipv4(ly_ctx, interface_list_node, NULL), error_out);
 
         link_iter = (struct rtnl_link*)nl_cache_get_next((struct nl_object*)link_iter);
     }

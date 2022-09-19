@@ -329,6 +329,8 @@ int sr_plugin_init_cb(sr_session_ctx_t* running_session, void** private_data)
     for (size_t i = 0; i < ARRAY_SIZE(module_changes); i++) {
         const srpc_module_change_t* change = &module_changes[i];
 
+        SRPLG_LOG_INF(PLUGIN_NAME, "Subscribing module change callback %s", change->path);
+
         // in case of work on a specific callback set it to NULL
         if (change->cb) {
             error = sr_module_change_subscribe(running_session, IETF_INTERFACES_YANG_MODULE, change->path, change->cb, *private_data, 0, SR_SUBSCR_DEFAULT, &subscription);
@@ -343,9 +345,11 @@ int sr_plugin_init_cb(sr_session_ctx_t* running_session, void** private_data)
     for (size_t i = 0; i < ARRAY_SIZE(oper); i++) {
         const srpc_operational_t* op = &oper[i];
 
+        SRPLG_LOG_INF(PLUGIN_NAME, "Subscribing operational callback %s:%s", op->module, op->path);
+
         // in case of work on a specific callback set it to NULL
         if (op->cb) {
-            error = sr_oper_get_subscribe(running_session, IETF_INTERFACES_YANG_MODULE, op->path, op->cb, *private_data, SR_SUBSCR_DEFAULT, &subscription);
+            error = sr_oper_get_subscribe(running_session, op->module, op->path, op->cb, *private_data, SR_SUBSCR_DEFAULT, &subscription);
             if (error) {
                 SRPLG_LOG_ERR(PLUGIN_NAME, "sr_oper_get_subscribe() error (%d): %s", error, sr_strerror(error));
                 goto error_out;
