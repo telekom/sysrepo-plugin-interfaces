@@ -37,8 +37,6 @@ int sr_plugin_init_cb(sr_session_ctx_t* running_session, void** private_data)
     sr_session_ctx_t* startup_session = NULL;
     sr_conn_ctx_t* connection = NULL;
     sr_subscription_ctx_t* subscription = NULL;
-    srpc_feature_status_t* ietf_interfaces_features = NULL;
-    srpc_feature_status_t* ietf_if_extensions_features = NULL;
 
     // plugin
     interfaces_ctx_t* ctx = NULL;
@@ -49,13 +47,10 @@ int sr_plugin_init_cb(sr_session_ctx_t* running_session, void** private_data)
 
     *private_data = ctx;
 
-    // initialize feature status hashes
-    ietf_interfaces_features = srpc_feature_status_hash_new();
-    ietf_if_extensions_features = srpc_feature_status_hash_new();
-
     // load enabled features from modules in sysrepo
-    SRPC_SAFE_CALL_ERR(error, srpc_feature_status_hash_load(&ietf_interfaces_features, running_session, "ietf-interfaces"), error_out);
-    SRPC_SAFE_CALL_ERR(error, srpc_feature_status_hash_load(&ietf_if_extensions_features, running_session, "ietf-if-extensions"), error_out);
+    SRPC_SAFE_CALL_ERR(error, srpc_feature_status_hash_load(&ctx->features.ietf_interfaces_features, running_session, "ietf-interfaces"), error_out);
+    SRPC_SAFE_CALL_ERR(error, srpc_feature_status_hash_load(&ctx->features.ietf_if_extensions_features, running_session, "ietf-if-extensions"), error_out);
+    SRPC_SAFE_CALL_ERR(error, srpc_feature_status_hash_load(&ctx->features.ietf_ip_features, running_session, "ietf-if-extensions"), error_out);
 
     // module changes
     srpc_module_change_t module_changes[] = {
@@ -70,7 +65,7 @@ int sr_plugin_init_cb(sr_session_ctx_t* running_session, void** private_data)
         {
             //depends on if-mib feature
             INTERFACES_INTERFACES_INTERFACE_ADMIN_STATUS_YANG_PATH,
-            srpc_feature_status_hash_check(ietf_interfaces_features, "if-mib")? interfaces_subscription_operational_interfaces_interface_admin_status: NULL,
+            srpc_feature_status_hash_check(ctx->features.ietf_interfaces_features, "if-mib") ? interfaces_subscription_operational_interfaces_interface_admin_status : NULL,
         },
         {
             INTERFACES_INTERFACES_INTERFACE_OPER_STATUS_YANG_PATH,
@@ -83,7 +78,7 @@ int sr_plugin_init_cb(sr_session_ctx_t* running_session, void** private_data)
         {
             //depends on if-mib feature
             INTERFACES_INTERFACES_INTERFACE_IF_INDEX_YANG_PATH,
-            srpc_feature_status_hash_check(ietf_interfaces_features, "if-mib")? interfaces_subscription_operational_interfaces_interface_if_index: NULL,
+            srpc_feature_status_hash_check(ctx->features.ietf_interfaces_features, "if-mib") ? interfaces_subscription_operational_interfaces_interface_if_index : NULL,
         },
         {
             INTERFACES_INTERFACES_INTERFACE_PHYS_ADDRESS_YANG_PATH,
@@ -164,27 +159,27 @@ int sr_plugin_init_cb(sr_session_ctx_t* running_session, void** private_data)
         {
             //depends on carrier-delay feature
             INTERFACES_INTERFACES_INTERFACE_CARRIER_DELAY_CARRIER_TRANSITIONS_YANG_PATH,
-            srpc_feature_status_hash_check(ietf_if_extensions_features, "carrier-delay")? interfaces_subscription_operational_interfaces_interface_carrier_delay_carrier_transitions: NULL,
+            srpc_feature_status_hash_check(ctx->features.ietf_if_extensions_features, "carrier-delay") ? interfaces_subscription_operational_interfaces_interface_carrier_delay_carrier_transitions : NULL,
         },
         {
             //depends on carrier-delay feature
             INTERFACES_INTERFACES_INTERFACE_CARRIER_DELAY_TIMER_RUNNING_YANG_PATH,
-            srpc_feature_status_hash_check(ietf_if_extensions_features, "carrier-delay")? interfaces_subscription_operational_interfaces_interface_carrier_delay_timer_running: NULL,
+            srpc_feature_status_hash_check(ctx->features.ietf_if_extensions_features, "carrier-delay") ? interfaces_subscription_operational_interfaces_interface_carrier_delay_timer_running : NULL,
         },
         {
             //depends on dampening feature
             INTERFACES_INTERFACES_INTERFACE_DAMPENING_PENALTY_YANG_PATH,
-            srpc_feature_status_hash_check(ietf_if_extensions_features, "dampening")? interfaces_subscription_operational_interfaces_interface_dampening_penalty: NULL,
+            srpc_feature_status_hash_check(ctx->features.ietf_if_extensions_features, "dampening") ? interfaces_subscription_operational_interfaces_interface_dampening_penalty : NULL,
         },
         {
             //depends on dampening feature
             INTERFACES_INTERFACES_INTERFACE_DAMPENING_SUPPRESSED_YANG_PATH,
-            srpc_feature_status_hash_check(ietf_if_extensions_features, "dampening")? interfaces_subscription_operational_interfaces_interface_dampening_suppressed: NULL,
+            srpc_feature_status_hash_check(ctx->features.ietf_if_extensions_features, "dampening") ? interfaces_subscription_operational_interfaces_interface_dampening_suppressed : NULL,
         },
         {
             //depends on dampening feature
             INTERFACES_INTERFACES_INTERFACE_DAMPENING_TIME_REMAINING_YANG_PATH,
-            srpc_feature_status_hash_check(ietf_if_extensions_features, "dampening")? interfaces_subscription_operational_interfaces_interface_dampening_time_remaining: NULL,
+            srpc_feature_status_hash_check(ctx->features.ietf_if_extensions_features, "dampening") ? interfaces_subscription_operational_interfaces_interface_dampening_time_remaining : NULL,
         },
         {
             INTERFACES_INTERFACES_INTERFACE_FORWARDING_MODE_YANG_PATH,
@@ -327,8 +322,6 @@ error_out:
     SRPLG_LOG_ERR(PLUGIN_NAME, "Error occured while initializing the plugin (%d)", error);
 
 out:
-    srpc_feature_status_hash_free(&ietf_interfaces_features);
-    srpc_feature_status_hash_free(&ietf_if_extensions_features);
 
     return error ? SR_ERR_CALLBACK_FAILED : SR_ERR_OK;
 }
@@ -368,6 +361,11 @@ void sr_plugin_cleanup_cb(sr_session_ctx_t* running_session, void* private_data)
     }
 
     pthread_mutex_unlock(&ctx->state_ctx.state_hash_mutex);
+
+    // free feature status hashes
+    srpc_feature_status_hash_free(&ctx->features.ietf_interfaces_features);
+    srpc_feature_status_hash_free(&ctx->features.ietf_if_extensions_features);
+    srpc_feature_status_hash_free(&ctx->features.ietf_ip_features);
 
     free(ctx);
 }

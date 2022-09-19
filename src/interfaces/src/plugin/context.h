@@ -8,11 +8,14 @@
 
 #include <netlink/route/link.h>
 
+#include <srpc.h>
+
 // typedefs
 typedef struct interfaces_nl_ctx_s interfaces_nl_ctx_t;
 typedef struct interfaces_ctx_s interfaces_ctx_t;
 typedef struct interfaces_state_changes_ctx_s interfaces_state_changes_ctx_t;
 typedef struct interfaces_mod_changes_ctx_s interfaces_mod_changes_ctx_t;
+typedef struct interfaces_features_ctx_s interfaces_features_ctx_t;
 
 struct interfaces_state_changes_ctx_s {
     // libnl data
@@ -33,6 +36,12 @@ struct interfaces_mod_changes_ctx_s {
     struct nl_cache* link_cache;
 };
 
+struct interfaces_features_ctx_s {
+    srpc_feature_status_hash_t* ietf_interfaces_features;
+    srpc_feature_status_hash_t* ietf_if_extensions_features;
+    srpc_feature_status_hash_t* ietf_ip_features;
+};
+
 struct interfaces_nl_ctx_s {
     struct nl_sock* socket;
     struct nl_cache* link_cache;
@@ -43,6 +52,7 @@ struct interfaces_ctx_s {
     interfaces_nl_ctx_t nl_ctx;
     interfaces_state_changes_ctx_t state_ctx;
     interfaces_mod_changes_ctx_t mod_ctx;
+    interfaces_features_ctx_t features;
 };
 
 #endif // INTERFACES_PLUGIN_CONTEXT_H
