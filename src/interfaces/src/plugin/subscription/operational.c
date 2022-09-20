@@ -1308,6 +1308,7 @@ int interfaces_subscription_operational_interfaces_interface_ipv4_address(sr_ses
 
     struct rtnl_link* link = NULL;
     struct rtnl_addr* addr_iter = NULL;
+    struct nl_addr* local = NULL;
 
     if (*parent == NULL) {
         ly_ctx = sr_acquire_context(sr_session_get_connection(session));
@@ -1334,22 +1335,22 @@ int interfaces_subscription_operational_interfaces_interface_ipv4_address(sr_ses
 
     while (addr_iter) {
         if (rtnl_addr_get_ifindex(addr_iter) == rtnl_link_get_ifindex(link) && rtnl_addr_get_family(addr_iter) == AF_INET) {
-            SRPLG_LOG_INF(PLUGIN_NAME, "Found address for %s", rtnl_link_get_name(link));
-
-            const struct nl_addr* local = rtnl_addr_get_local(addr_iter);
+            SRPLG_LOG_INF(PLUGIN_NAME, "Found IPv4 address for %s", rtnl_link_get_name(link));
 
             // IP
+            SRPC_SAFE_CALL_PTR(local, rtnl_addr_get_local(addr_iter), error_out);
             SRPC_SAFE_CALL_PTR(error_ptr, nl_addr2str(local, ip_buffer, sizeof(ip_buffer)), error_out);
 
             // remove prefix from IP
             char* prefix = strchr(ip_buffer, '/');
-            *prefix = 0;
-            ++prefix;
+            if (prefix) {
+                *prefix = 0;
+            }
 
             // prefix
             SRPC_SAFE_CALL_ERR_COND(rc, rc < 0, snprintf(prefix_buffer, sizeof(prefix_buffer), "%d", rtnl_addr_get_prefixlen(addr_iter)), error_out);
 
-            SRPLG_LOG_INF(PLUGIN_NAME, "ipv4:address(%s) = %s/%s", rtnl_link_get_name(link), ip_buffer, prefix);
+            SRPLG_LOG_INF(PLUGIN_NAME, "ipv4:address(%s) = %s/%s", rtnl_link_get_name(link), ip_buffer, prefix_buffer);
 
             // address from the current link - add to the list
             SRPC_SAFE_CALL_ERR(error, interfaces_ly_tree_create_interfaces_interface_ipv4_address(ly_ctx, *parent, &address_node, ip_buffer), error_out);
@@ -1461,7 +1462,23 @@ out:
 int interfaces_subscription_operational_interfaces_interface_ipv6_address(sr_session_ctx_t* session, uint32_t sub_id, const char* module_name, const char* path, const char* request_xpath, uint32_t request_id, struct lyd_node** parent, void* private_data)
 {
     int error = SR_ERR_OK;
+    int rc = 0;
+    void* error_ptr = NULL;
+
+    interfaces_ctx_t* ctx = private_data;
+    interfaces_oper_ctx_t* oper_ctx = &ctx->oper_ctx;
+
+    char xpath_buffer[PATH_MAX] = { 0 };
+    char ip_buffer[100] = { 0 };
+    char prefix_buffer[20] = { 0 };
+
     const struct ly_ctx* ly_ctx = NULL;
+    struct lyd_node* address_node = NULL;
+    struct lys_module* ietf_ip_module = NULL;
+
+    struct rtnl_link* link = NULL;
+    struct rtnl_addr* addr_iter = NULL;
+    struct nl_addr* local = NULL;
 
     if (*parent == NULL) {
         ly_ctx = sr_acquire_context(sr_session_get_connection(session));
@@ -1469,6 +1486,49 @@ int interfaces_subscription_operational_interfaces_interface_ipv6_address(sr_ses
             SRPLG_LOG_ERR(PLUGIN_NAME, "sr_acquire_context() failed");
             goto error_out;
         }
+
+        // load ietf-ip module
+        SRPC_SAFE_CALL_PTR(ietf_ip_module, ly_ctx_get_module(ly_ctx, "ietf-ip", "2018-02-22"), error_out);
+    }
+
+    // there needs to be an allocated link cache in memory
+    assert(*parent != NULL);
+    assert(strcmp(LYD_NAME(*parent), "ipv6") == 0);
+
+    // get node xpath
+    SRPC_SAFE_CALL_PTR(error_ptr, lyd_path(*parent, LYD_PATH_STD, xpath_buffer, sizeof(xpath_buffer)), error_out);
+
+    // get link
+    SRPC_SAFE_CALL_PTR(link, interfaces_get_current_link(ctx, session, xpath_buffer), error_out);
+
+    addr_iter = (struct rtnl_addr*)nl_cache_get_first(oper_ctx->nl_ctx.addr_cache);
+
+    while (addr_iter) {
+        if (rtnl_addr_get_ifindex(addr_iter) == rtnl_link_get_ifindex(link) && rtnl_addr_get_family(addr_iter) == AF_INET6) {
+            SRPLG_LOG_INF(PLUGIN_NAME, "Found IPv6 address for %s", rtnl_link_get_name(link));
+
+            SRPC_SAFE_CALL_PTR(local, rtnl_addr_get_local(addr_iter), error_out);
+            SRPC_SAFE_CALL_PTR(error_ptr, nl_addr2str(local, ip_buffer, sizeof(ip_buffer)), error_out);
+
+            // remove prefix from IP
+            char* prefix = strchr(ip_buffer, '/');
+            if (prefix) {
+                *prefix = 0;
+            }
+
+            // prefix
+            SRPC_SAFE_CALL_ERR_COND(rc, rc < 0, snprintf(prefix_buffer, sizeof(prefix_buffer), "%d", rtnl_addr_get_prefixlen(addr_iter)), error_out);
+
+            SRPLG_LOG_INF(PLUGIN_NAME, "ipv6:address(%s) = %s/%s", rtnl_link_get_name(link), ip_buffer, prefix_buffer);
+
+            // address from the current link - add to the list
+            SRPC_SAFE_CALL_ERR(error, interfaces_ly_tree_create_interfaces_interface_ipv6_address(ly_ctx, *parent, &address_node, ip_buffer), error_out);
+
+            // prefix
+            SRPC_SAFE_CALL_ERR(error, interfaces_ly_tree_create_interfaces_interface_ipv6_address_prefix_length(ly_ctx, address_node, prefix_buffer), error_out);
+        }
+
+        addr_iter = (struct rtnl_addr*)nl_cache_get_next((struct nl_object*)addr_iter);
     }
 
     goto out;
@@ -1621,7 +1681,9 @@ int interfaces_subscription_operational_interfaces_interface(sr_session_ctx_t* s
         SRPC_SAFE_CALL_ERR(error, interfaces_ly_tree_create_interfaces_interface(ly_ctx, *parent, &interface_list_node, rtnl_link_get_name(link_iter)), error_out);
 
         // create needed containers for the interface
+        SRPC_SAFE_CALL_ERR(error, interfaces_ly_tree_create_interfaces_interface_statistics(ly_ctx, interface_list_node, NULL), error_out);
         SRPC_SAFE_CALL_ERR(error, interfaces_ly_tree_create_interfaces_interface_ipv4(ly_ctx, interface_list_node, NULL), error_out);
+        SRPC_SAFE_CALL_ERR(error, interfaces_ly_tree_create_interfaces_interface_ipv6(ly_ctx, interface_list_node, NULL), error_out);
 
         link_iter = (struct rtnl_link*)nl_cache_get_next((struct nl_object*)link_iter);
     }
