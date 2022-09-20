@@ -187,29 +187,13 @@ static int interfaces_parse_link(interfaces_ctx_t *ctx, struct nl_sock *socket, 
     int error = interfaces_load_success;
     *interface = (interfaces_interfaces_interface_t) {0};
 
-    interface->name = interfaces_get_interface_name(link);
-    if (interface->name == NULL) {
-		SRPLG_LOG_ERR(PLUGIN_NAME, "%s: name error", __func__);
-        goto error_out;
-    }
+    SRPC_SAFE_CALL_PTR(interface->name, interfaces_get_interface_name(link), error_out);
     
-    interface->description = interfaces_get_interface_description(ctx, interface->name);
-    if (interface->description == NULL) {
-		SRPLG_LOG_ERR(PLUGIN_NAME, "%s: description error", __func__);
-        goto error_out;
-    }
+    SRPC_SAFE_CALL_PTR(interface->description, interfaces_get_interface_description(ctx, interface->name), error_out);
      
-    interface->type = interfaces_get_interface_type(link, interface->name);
-    if (interface->type == NULL) {
-		SRPLG_LOG_ERR(PLUGIN_NAME, "%s: type error", __func__);
-        goto error_out;
-    }
+    SRPC_SAFE_CALL_PTR(interface->type, interfaces_get_interface_type(link, interface->name), error_out);
 
-    interface->parent_interface = interfaces_get_interface_parent_interface(cache, link);
-    if (interface->parent_interface == NULL) {
-		SRPLG_LOG_ERR(PLUGIN_NAME, "%s: parent_interface error", __func__);
-        goto error_out;
-    }
+    SRPC_SAFE_CALL_PTR(interface->parent_interface, interfaces_get_interface_parent_interface(cache, link), error_out);
 
     error = interfaces_get_interface_vlan_id(link, interface);
     if (error != interfaces_load_success) {
