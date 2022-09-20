@@ -226,11 +226,7 @@ static int interfaces_add_link(interfaces_interface_hash_element_t **if_hash, in
     interfaces_interface_hash_element_t *new_if_hash_elem = interfaces_interface_hash_element_new();
     interfaces_interface_hash_element_set_name(&new_if_hash_elem, interface->name);
 
-    error = interfaces_interface_hash_add_element(if_hash, new_if_hash_elem);
-    if (error != 0) {
-        SRPLG_LOG_ERR(PLUGIN_NAME, "%s: error adding link (%d)", __func__, error);
-        goto error_out;
-    }
+    SRPC_SAFE_CALL(interfaces_interface_hash_add_element(if_hash, new_if_hash_elem), error_out);
 
     if (interface->description != NULL) {
         SRPC_SAFE_CALL(interfaces_interface_hash_element_set_description(&new_if_hash_elem, interface->description), error_out);
@@ -306,23 +302,11 @@ int interfaces_load_interface(interfaces_ctx_t* ctx, interfaces_interface_hash_e
 		goto error_out;
 	}
     
-    error = nl_connect(socket, NETLINK_ROUTE);
-	if (error != 0) {
-		SRPLG_LOG_ERR(PLUGIN_NAME, "nl_connect error (%d): %s", error, nl_geterror(error));
-		goto error_out;
-	}
+    SRPC_SAFE_CALL(nl_connect(socket, NETLINK_ROUTE), error_out);
 
-    error = rtnl_link_alloc_cache(socket, AF_UNSPEC, &cache);
-	if (error != 0) {
-		SRPLG_LOG_ERR(PLUGIN_NAME, "rtnl_link_alloc_cache error (%d): %s", error, nl_geterror(error));
-		goto error_out;
-	}
+    SRPC_SAFE_CALL(rtnl_link_alloc_cache(socket, AF_UNSPEC, &cache), error_out);
 
-    error = interfaces_interfaces_worker(ctx, socket, cache, if_hash);
-    if (error != 0) {
-		SRPLG_LOG_ERR(PLUGIN_NAME, "interfaces_parse_links: error parsing links (%d)", error);
-		goto error_out;
-    }
+    SRPC_SAFE_CALL(interfaces_interfaces_worker(ctx, socket, cache, if_hash), error_out);
     
     goto out; 
 error_out:
