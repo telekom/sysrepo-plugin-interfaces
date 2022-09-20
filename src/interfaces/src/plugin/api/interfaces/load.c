@@ -103,11 +103,7 @@ static char *interfaces_get_interface_type(struct rtnl_link *link, char *name)
         const char *path_to_sys = "/sys/class/net/";
         int type_id = 0;
 
-        error = read_from_sys_file(path_to_sys, name, &type_id);
-        if (error != 0) {
-            SRPLG_LOG_ERR(PLUGIN_NAME, "%s: read_from_sys_file error", __func__);
-            goto error_out;
-        }
+        SRPC_SAFE_CALL(read_from_sys_file(path_to_sys, name, &type_id), error_out);
 
         switch (type_id) {
             case ARPHRD_ETHER:
@@ -237,27 +233,15 @@ static int interfaces_add_link(interfaces_interface_hash_element_t **if_hash, in
     }
 
     if (interface->description != NULL) {
-        error = interfaces_interface_hash_element_set_description(&new_if_hash_elem, interface->description);
-        if (error != 0) {
-            SRPLG_LOG_ERR(PLUGIN_NAME, "%s: error setting description (%d)", __func__, error);
-            goto error_out;
-        }
+        SRPC_SAFE_CALL(interfaces_interface_hash_element_set_description(&new_if_hash_elem, interface->description), error_out);
     }
 
     if (interface->type != NULL) {
-        error = interfaces_interface_hash_element_set_type(&new_if_hash_elem, interface->type);
-        if (error != 0) {
-            SRPLG_LOG_ERR(PLUGIN_NAME, "%s: error setting type (%d)", __func__, error);
-            goto error_out;
-        }
+        SRPC_SAFE_CALL(interfaces_interface_hash_element_set_type(&new_if_hash_elem, interface->type), error_out);
     }
 
     if (interface->parent_interface != NULL) {
-        error = interfaces_interface_hash_element_set_parent_interface(&new_if_hash_elem, interface->parent_interface);
-        if (error != 0) {
-            SRPLG_LOG_ERR(PLUGIN_NAME, "%s: error setting type (%d)", __func__, error);
-            goto error_out;
-        }
+        SRPC_SAFE_CALL(interfaces_interface_hash_element_set_parent_interface(&new_if_hash_elem, interface->parent_interface), error_out);
     }
 
     interfaces_interface_hash_element_set_enabled(&new_if_hash_elem, interface->enabled);
@@ -285,11 +269,7 @@ static int interfaces_interfaces_worker(interfaces_ctx_t *ctx, struct nl_sock *s
         error = interfaces_parse_link(ctx, socket, cache, link, &interface);
         switch (error) {
             case interfaces_load_success:
-                error = interfaces_add_link(if_hash, &interface);
-                if (error != 0) {
-                    SRPLG_LOG_ERR(PLUGIN_NAME, "%s: error adding link (%d)", __func__, error);
-                    goto error_out;
-                }
+                SRPC_SAFE_CALL(interfaces_add_link(if_hash, &interface), error_out);
                 break;
             case interfaces_load_continue:
                 break;
