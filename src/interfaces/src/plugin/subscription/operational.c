@@ -1285,7 +1285,6 @@ int interfaces_subscription_operational_interfaces_interface_ipv4_address_origin
 
     char xpath_buffer[PATH_MAX] = { 0 };
     char ip_buffer[20] = { 0 };
-    char prefix_buffer[20] = { 0 };
     char address_buffer[100] = { 0 };
 
     char prefix_path_buffer[PATH_MAX] = { 0 };
@@ -1323,11 +1322,11 @@ int interfaces_subscription_operational_interfaces_interface_ipv4_address_origin
     SRPLG_LOG_INF(PLUGIN_NAME, "origin(interface[%s]:address[%s]) = %s", rtnl_link_get_name(link), ip_buffer, ip_buffer);
 
     // get prefix length from the operational DS
-    SRPC_SAFE_CALL_ERR_COND(error, error < 0, snprintf(prefix_path_buffer, sizeof(prefix_path_buffer), "/ietf-interfaces:interfaces/interface[name=\"%s\"]/ietf-ip:ipv4/address[ip=\"%s\"]/prefix-length", rtnl_link_get_name(link), ip_buffer), error_out);
+    SRPC_SAFE_CALL_ERR_COND(rc, rc < 0, snprintf(prefix_path_buffer, sizeof(prefix_path_buffer), "/ietf-interfaces:interfaces/interface[name=\"%s\"]/ietf-ip:ipv4/address[ip=\"%s\"]/prefix-length", rtnl_link_get_name(link), ip_buffer), error_out);
     SRPC_SAFE_CALL_ERR(error, sr_get_item(running_session, prefix_path_buffer, 0, &prefix_length_val), error_out);
 
     // create an address
-    SRPC_SAFE_CALL_ERR_COND(error, error < 0, snprintf(address_buffer, sizeof(address_buffer), "%s/%d", ip_buffer, prefix_length_val->data.uint8_val), error_out);
+    SRPC_SAFE_CALL_ERR_COND(rc, rc < 0, snprintf(address_buffer, sizeof(address_buffer), "%s/%d", ip_buffer, prefix_length_val->data.uint8_val), error_out);
 
     // parse address
     SRPC_SAFE_CALL_ERR(error, nl_addr_parse(address_buffer, AF_INET, &local), error_out);
@@ -1341,7 +1340,6 @@ int interfaces_subscription_operational_interfaces_interface_ipv4_address_origin
     // add origin
     SRPC_SAFE_CALL_ERR(error, interfaces_ly_tree_create_interfaces_interface_ipv4_address_origin(ly_ctx, *parent, origin), error_out);
 
-    error = 0;
     goto out;
 
 error_out:
