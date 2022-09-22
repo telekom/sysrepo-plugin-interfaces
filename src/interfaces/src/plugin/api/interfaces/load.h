@@ -2,6 +2,7 @@
 #define INTERFACES_PLUGIN_API_INTERFACES_LOAD_H
 
 #include "plugin/data/interfaces/interface/hash.h"
+#include "plugin/data/interfaces/interface/linked_list.h"
 #include "plugin/context.h"
 
 enum interfaces_load_exit_status {
