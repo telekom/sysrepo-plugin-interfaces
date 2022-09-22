@@ -1,14 +1,94 @@
 #include "hash.h"
+#include "libyang/tree_data.h"
+#include "plugin/common.h"
+#include "src/uthash.h"
+#include "srpc/ly_tree.h"
+#include "sysrepo.h"
+
+#include <assert.h>
+#include <srpc.h>
 
 interfaces_interface_hash_element_t* interfaces_interface_hash_new(void)
 {
     return NULL;
 }
 
-interfaces_interface_hash_element_t* interfaces_interface_hash_from_ly(const struct lyd_node* interface_list_node)
+void interfaces_interface_hash_print_debug(const interfaces_interface_hash_element_t* if_hash)
 {
-    interfaces_interface_hash_element_t* if_hash = interfaces_interface_hash_new();
-    return if_hash;
+    const interfaces_interface_hash_element_t *iter = NULL, *tmp = NULL;
+
+    HASH_ITER(hh, if_hash, iter, tmp)
+    {
+        SRPLG_LOG_INF(PLUGIN_NAME, "Interface %s:", iter->interface.name);
+        SRPLG_LOG_INF(PLUGIN_NAME, "\t Name: %s", iter->interface.name);
+        SRPLG_LOG_INF(PLUGIN_NAME, "\t Type: %s", iter->interface.type);
+        SRPLG_LOG_INF(PLUGIN_NAME, "\t Enabled: %d", iter->interface.enabled);
+    }
+}
+
+int interfaces_interface_hash_from_ly(const struct lyd_node* interface_list_node, interfaces_interface_hash_element_t** if_hash)
+{
+    int error = 0;
+
+    // make sure the hash is empty at the start
+    assert(*if_hash == NULL);
+
+    // libyang
+    struct lyd_node* if_iter = (struct lyd_node*)interface_list_node;
+    struct lyd_node *if_name_node = NULL, *if_type_node = NULL, *if_enabled_node = NULL;
+
+    // extracted data
+    const char *if_name = NULL, *if_type = NULL, *if_enabled = NULL;
+
+    // internal DS
+    interfaces_interface_hash_element_t* new_element = NULL;
+    // interfaces_interfaces_interface_ipv4_t v4_config = { 0 };
+    // interfaces_interfaces_interface_ipv4_t v6_config = { 0 };
+
+    while (if_iter) {
+        if_name_node = srpc_ly_tree_get_child_leaf(if_iter, "name");
+        if_type_node = srpc_ly_tree_get_child_leaf(if_iter, "type");
+        if_enabled_node = srpc_ly_tree_get_child_leaf(if_iter, "enabled");
+
+        // extract data
+        if (if_name_node) {
+            if_name = lyd_get_value(if_name_node);
+        }
+        if (if_type_node) {
+            if_type = lyd_get_value(if_type_node);
+        }
+        if (if_enabled_node) {
+            if_enabled = lyd_get_value(if_enabled_node);
+        }
+
+        // create new element
+        new_element = interfaces_interface_hash_element_new();
+
+        // set data
+        SRPC_SAFE_CALL_ERR(error, interfaces_interface_hash_element_set_name(&new_element, if_name), error_out);
+        SRPC_SAFE_CALL_ERR(error, interfaces_interface_hash_element_set_type(&new_element, if_type), error_out);
+        SRPC_SAFE_CALL_ERR(error, interfaces_interface_hash_element_set_enabled(&new_element, strcmp(if_enabled, "true") ? 1 : 0), error_out);
+
+        // add element to the hash
+        interfaces_interface_hash_add_element(if_hash, new_element);
+
+        // set to NULL - free()
+        new_element = NULL;
+
+        // iterate next
+        if_iter = srpc_ly_tree_get_list_next(if_iter);
+    }
+
+    goto out;
+error_out:
+    error = -1;
+
+out:
+    if (new_element) {
+        interfaces_interface_hash_element_free(&new_element);
+    }
+
+    return error;
 }
 
 int interfaces_interface_hash_add_element(interfaces_interface_hash_element_t** hash, interfaces_interface_hash_element_t* new_element)
@@ -46,6 +126,8 @@ void interfaces_interface_hash_free(interfaces_interface_hash_element_t** hash)
         HASH_DEL(*hash, element);
         interfaces_interface_hash_element_free(&element);
     }
+
+    *hash = NULL;
 }
 
 interfaces_interface_hash_element_t* interfaces_interface_hash_element_new(void)
