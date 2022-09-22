@@ -3,6 +3,7 @@
 
 #include "plugin/api/interfaces/check.h"
 #include "plugin/api/interfaces/store.h"
+#include "srpc/ly_tree.h"
 
 #include <libyang/libyang.h>
 #include <srpc.h>
@@ -57,11 +58,21 @@ static int interfaces_startup_store_interface(void* priv, const struct lyd_node*
     interfaces_ctx_t* ctx = (interfaces_ctx_t*)priv;
     srpc_check_status_t check_status = srpc_check_status_none;
     interfaces_interface_hash_element_t* interface_head = NULL;
+    struct lyd_node* interface_node = NULL;
+    struct lyd_node *interface_name_node = NULL, *interface_type_name = NULL, *intereface_enabled_node = NULL;
 
-    struct lyd_node* interfaces_node = srpc_ly_tree_get_child_leaf(parent_container, "interfaces");
-    if (interfaces_node == NULL) {
+    interface_node
+        = srpc_ly_tree_get_child_list(parent_container, "interface");
+    if (interface_node == NULL) {
         SRPLG_LOG_ERR(PLUGIN_NAME, "srpc_ly_tree_get_child_leaf returned NULL for 'interfaces'");
         goto error_out;
+    }
+
+    // map libyang data to the interface hash
+    while (interface_node) {
+
+        SRPLG_LOG_INF(PLUGIN_NAME, "Node name: %s", lyd_get_value(interface_node));
+        interface_node = srpc_ly_tree_get_list_next(interface_node);
     }
 
     SRPLG_LOG_INF(PLUGIN_NAME, "Checking interface list");

@@ -5,6 +5,12 @@ interfaces_interface_hash_element_t* interfaces_interface_hash_new(void)
     return NULL;
 }
 
+interfaces_interface_hash_element_t* interfaces_interface_hash_from_ly(const struct lyd_node* interface_list_node)
+{
+    interfaces_interface_hash_element_t* if_hash = interfaces_interface_hash_new();
+    return if_hash;
+}
+
 int interfaces_interface_hash_add_element(interfaces_interface_hash_element_t** hash, interfaces_interface_hash_element_t* new_element)
 {
     interfaces_interface_hash_element_t* found_element = NULL;

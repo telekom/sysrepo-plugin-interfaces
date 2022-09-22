@@ -3,11 +3,14 @@
 
 #include "plugin/types.h"
 
+#include <libyang/libyang.h>
+
 /*
     Hash table operations
 */
 
 interfaces_interface_hash_element_t* interfaces_interface_hash_new(void);
+interfaces_interface_hash_element_t* interfaces_interface_hash_from_ly(const struct lyd_node* interface_list_node);
 int interfaces_interface_hash_add_element(interfaces_interface_hash_element_t** hash, interfaces_interface_hash_element_t* new_element);
 interfaces_interface_hash_element_t* interfaces_interface_hash_get_element(interfaces_interface_hash_element_t** hash, const char* name);
 void interfaces_interface_hash_free(interfaces_interface_hash_element_t** hash);
