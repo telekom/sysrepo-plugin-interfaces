@@ -67,12 +67,12 @@
     }                                                                               \
     while (0)
 
-#define INTERFACES_INTERFACE_LINKED_LIST_FREE(ll_ptr)                                                                                \
-        _Generic((ll_ptr),                                                                                                           \
-                 interfaces_interfaces_interface_ipv4_address_element_t**  : interfaces_interface_linked_list_ipv4_address_free      \
-                 interfaces_interfaces_interface_ipv4_neighbor_element_t** : interfaces_interface_linked_list_ipv4_neighbor_free     \
-                 interfaces_interfaces_interface_ipv6_address_element_t**  : interfaces_interface_linked_list_ipv6_address_free      \
-                 interfaces_interfaces_interface_ipv6_neighbor_element_t** : interfaces_interface_linked_list_ipv6_neighbor_free     \
+#define INTERFACES_INTERFACE_LINKED_LIST_FREE(ll_ptr)                                                                         \
+        _Generic((ll_ptr),                                                                                                    \
+                 interfaces_interfaces_interface_ipv4_address_element_t**  : interfaces_interface_ipv4_address_list_free      \
+                 interfaces_interfaces_interface_ipv4_neighbor_element_t** : interfaces_interface_ipv4_neighbor_list_free     \
+                 interfaces_interfaces_interface_ipv6_address_element_t**  : interfaces_interface_ipv6_address_list_free      \
+                 interfaces_interfaces_interface_ipv6_neighbor_element_t** : interfaces_interface_ipv6_neighbor_list_free     \
         )(ll_ptr)
 
 /* prepend since ordering doesn't matter - O(1) */
@@ -98,25 +98,25 @@
         LL_SEARCH_SCALAR(ll_ptr, element_ptr, member, value);                                     \
     } while(0)                                                                         
 
-void interfaces_interface_linked_list_ipv4_address_free(interfaces_interfaces_interface_ipv4_address_element_t **ll);
+void interfaces_interface_ipv4_address_list_free(interfaces_interfaces_interface_ipv4_address_element_t **ll);
 
-void interfaces_interface_linked_list_ipv4_neighbor_free(interfaces_interfaces_interface_ipv4_neighbor_element_t **ll);
+void interfaces_interface_ipv4_neighbor_list_free(interfaces_interfaces_interface_ipv4_neighbor_element_t **ll);
 
-void interfaces_interface_linked_list_ipv6_address_free(interfaces_interfaces_interface_ipv6_address_element_t **ll);
+void interfaces_interface_ipv6_address_list_free(interfaces_interfaces_interface_ipv6_address_element_t **ll);
 
-void interfaces_interface_linked_list_ipv6_neighbor_free(interfaces_interfaces_interface_ipv6_neighbor_element_t **ll);
+void interfaces_interface_ipv6_neighbor_list_free(interfaces_interfaces_interface_ipv6_neighbor_element_t **ll);
 
 /*
     Element operations
 */
 
-void *interfaces_interface_linked_list_ipv4_address_element_new(void);
-void *interfaces_interface_linked_list_ipv4_neighbor_element_new(void);
-void *interfaces_interface_linked_list_ipv6_address_element_new(void);
-void *interfaces_interface_linked_list_ipv6_neighbor_element_new(void);
+void *interfaces_interface_ipv4_address_list_element_new(void);
+void *interfaces_interface_ipv4_neighbor_list_element_new(void);
+void *interfaces_interface_ipv6_address_list_element_new(void);
+void *interfaces_interface_ipv6_neighbor_list_element_new(void);
 
-int interfaces_interface_linked_list_ipv4_address_element_set_address(interfaces_interfaces_interface_ipv4_address_element_t **ll, interfaces_interfaces_interface_ipv4_address_t *address);
-int interfaces_interface_linked_list_ipv4_address_element_set_neighbor(interfaces_interfaces_interface_ipv4_neighbor_element_t **ll, interfaces_interfaces_interface_ipv4_neighbor_t *neighbor);
+int interfaces_interface_ipv4_address_list_element_set_address(interfaces_interfaces_interface_ipv4_address_element_t **ll, interfaces_interfaces_interface_ipv4_address_t *address);
+int interfaces_interface_ipv4_address_list_element_set_neighbor(interfaces_interfaces_interface_ipv4_neighbor_element_t **ll, interfaces_interfaces_interface_ipv4_neighbor_t *neighbor);
 
 #endif // INTERFACES_PLUGIN_DATA_INTERFACES_INTERFACE_LIST_H
 
