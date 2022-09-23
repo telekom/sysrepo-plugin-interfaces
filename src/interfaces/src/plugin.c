@@ -294,35 +294,22 @@ int sr_plugin_init_cb(sr_session_ctx_t* running_session, void** private_data)
     if (empty_startup) {
         SRPLG_LOG_INF(PLUGIN_NAME, "Startup datastore is empty");
         SRPLG_LOG_INF(PLUGIN_NAME, "Loading initial system data");
-        error = interfaces_startup_load(ctx, startup_session);
-        if (error) {
-            SRPLG_LOG_ERR(PLUGIN_NAME, "Error loading initial data into the startup datastore... exiting");
-            goto error_out;
-        }
+
+        // load startup data on the system
+        SRPC_SAFE_CALL_ERR(error, interfaces_startup_load(ctx, startup_session), error_out);
 
         // copy contents of the startup session to the current running session
-        error = sr_copy_config(running_session, IETF_INTERFACES_YANG_MODULE, SR_DS_STARTUP, 0);
-        if (error) {
-            SRPLG_LOG_ERR(PLUGIN_NAME, "sr_copy_config() error (%d): %s", error, sr_strerror(error));
-            goto error_out;
-        }
+        SRPC_SAFE_CALL_ERR(error, sr_copy_config(running_session, IETF_INTERFACES_YANG_MODULE, SR_DS_STARTUP, 0), error_out);
     } else {
         // make sure the data from startup DS is stored in the interfaces
         SRPLG_LOG_INF(PLUGIN_NAME, "Startup datastore contains data");
         SRPLG_LOG_INF(PLUGIN_NAME, "Storing startup datastore data in the system");
 
-        // error = interfaces_startup_store(ctx, startup_session);
-        // if (error) {
-        //     SRPLG_LOG_ERR(PLUGIN_NAME, "Error applying initial data from startup datastore to the system... exiting");
-        //     goto error_out;
-        // }
+        // check and store startup data on the system
+        SRPC_SAFE_CALL_ERR(error, interfaces_startup_store(ctx, startup_session), error_out);
 
         // copy contents of the startup session to the current running session
-        error = sr_copy_config(running_session, IETF_INTERFACES_YANG_MODULE, SR_DS_STARTUP, 0);
-        if (error) {
-            SRPLG_LOG_ERR(PLUGIN_NAME, "sr_copy_config() error (%d): %s", error, sr_strerror(error));
-            goto error_out;
-        }
+        SRPC_SAFE_CALL_ERR(error, sr_copy_config(running_session, IETF_INTERFACES_YANG_MODULE, SR_DS_STARTUP, 0), error_out);
     }
 
     // subscribe every module change

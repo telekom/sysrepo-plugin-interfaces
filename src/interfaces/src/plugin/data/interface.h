@@ -8,12 +8,12 @@
 void interfaces_data_ht_root_init(interface_ht_element_t** if_root);
 
 static void
-interfaces_data_init(interfaces_interfaces_interface_t* interface);
+interfaces_data_init(interfaces_interface_t* interface);
 
 interface_ht_element_t*
 interfaces_data_ht_get_by_name(interface_ht_element_t* if_root, char* name);
 
-void interfaces_data_ht_set_name(interfaces_interfaces_interface_t* interface, char* name);
+void interfaces_data_ht_set_name(interfaces_interface_t* interface, char* name);
 
 int interfaces_data_ht_add(interface_ht_element_t* if_root, char* name);
 
@@ -25,7 +25,7 @@ int interfaces_data_ht_set_loopback(interface_ht_element_t* if_root, char* name,
 
 int interfaces_data_ht_set_parent_interface(interface_ht_element_t* if_root, char* name, char* parent_interface);
 
-void interfaces_data_ht_if_free(interfaces_interfaces_interface_t* interface);
+void interfaces_data_ht_if_free(interfaces_interface_t* interface);
 
 void interfaces_data_ht_free(interface_ht_element_t* if_root);
 

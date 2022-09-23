@@ -4,41 +4,38 @@
 
 #include <sysrepo.h>
 
-void 
-interfaces_data_ht_root_init(interface_ht_element_t **if_root) 
+void interfaces_data_ht_root_init(interface_ht_element_t** if_root)
 {
     /* uthash root node has to be initialized to NULL */
     *if_root = NULL;
 }
 
-static void 
-interfaces_data_init(interfaces_interfaces_interface_t* interface)
+static void
+interfaces_data_init(interfaces_interface_t* interface)
 {
     /* TODO: init all struct members */
-	interface->name = NULL;
-	interface->description = NULL;
-	interface->type = NULL;
-	interface->enabled = 0;
-	interface->loopback = NULL;
-	interface->parent_interface = NULL;
+    interface->name = NULL;
+    interface->description = NULL;
+    interface->type = NULL;
+    interface->enabled = 0;
+    interface->loopback = NULL;
+    interface->parent_interface = NULL;
 }
 
-interface_ht_element_t *
-interfaces_data_ht_get_by_name(interface_ht_element_t *if_root, char *name)
+interface_ht_element_t*
+interfaces_data_ht_get_by_name(interface_ht_element_t* if_root, char* name)
 {
-    interface_ht_element_t *elem = NULL;
+    interface_ht_element_t* elem = NULL;
     HASH_FIND_STR(if_root, name, elem);
     return elem;
 }
 
-void
-interfaces_data_ht_set_name(interfaces_interfaces_interface_t *interface, char *name)
+void interfaces_data_ht_set_name(interfaces_interface_t* interface, char* name)
 {
-	interface->name = xstrdup(name);
+    interface->name = xstrdup(name);
 }
 
-int
-interfaces_data_ht_add(interface_ht_element_t *if_root, char *name) 
+int interfaces_data_ht_add(interface_ht_element_t* if_root, char* name)
 {
     interface_ht_element_t *tmp = NULL, *elem = NULL;
     int rc = 0;
@@ -49,13 +46,13 @@ interfaces_data_ht_add(interface_ht_element_t *if_root, char *name)
         goto error_out;
     }
 
-    elem = (interface_ht_element_t *) xmalloc(sizeof elem);
+    elem = (interface_ht_element_t*)xmalloc(sizeof elem);
     interfaces_data_init(&elem->interface);
     interfaces_data_ht_set_name(&elem->interface, name);
 
     /* since name is char *, *_KEYPTR has to be used instead of *_STR */
     HASH_ADD_KEYPTR(hh, if_root, elem->interface.name, sizeof(elem->interface.name), elem);
-   
+
     goto out;
 error_out:
     rc = -1;
@@ -63,10 +60,9 @@ out:
     return rc;
 }
 
-int
-interfaces_data_ht_set_description(interface_ht_element_t *if_root, char *name, char *description) 
+int interfaces_data_ht_set_description(interface_ht_element_t* if_root, char* name, char* description)
 {
-    interface_ht_element_t *elem = NULL;
+    interface_ht_element_t* elem = NULL;
     int rc = 0;
 
     elem = interfaces_data_ht_get_by_name(if_root, name);
@@ -74,7 +70,7 @@ interfaces_data_ht_set_description(interface_ht_element_t *if_root, char *name, 
         SRPLG_LOG_ERR(PLUGIN_NAME, "interface with name key: %s non-existant in hash table", name);
         goto error_out;
     }
-    
+
     if (elem->interface.description != NULL) {
         FREE_SAFE(elem->interface.description);
     }
@@ -91,10 +87,9 @@ out:
     return rc;
 }
 
-int
-interfaces_data_ht_set_type(interface_ht_element_t *if_root, char *name, char *type) 
+int interfaces_data_ht_set_type(interface_ht_element_t* if_root, char* name, char* type)
 {
-    interface_ht_element_t *elem = NULL;
+    interface_ht_element_t* elem = NULL;
     int rc = 0;
 
     elem = interfaces_data_ht_get_by_name(if_root, name);
@@ -102,7 +97,7 @@ interfaces_data_ht_set_type(interface_ht_element_t *if_root, char *name, char *t
         SRPLG_LOG_ERR(PLUGIN_NAME, "interface with name key: %s non-existant in hash table", name);
         goto error_out;
     }
-    
+
     if (elem->interface.type != NULL) {
         FREE_SAFE(elem->interface.type);
     }
@@ -119,10 +114,9 @@ out:
     return rc;
 }
 
-int
-interfaces_data_ht_set_loopback(interface_ht_element_t *if_root, char *name, char *loopback) 
+int interfaces_data_ht_set_loopback(interface_ht_element_t* if_root, char* name, char* loopback)
 {
-    interface_ht_element_t *elem = NULL;
+    interface_ht_element_t* elem = NULL;
     int rc = 0;
 
     elem = interfaces_data_ht_get_by_name(if_root, name);
@@ -130,7 +124,7 @@ interfaces_data_ht_set_loopback(interface_ht_element_t *if_root, char *name, cha
         SRPLG_LOG_ERR(PLUGIN_NAME, "interface with name key: %s non-existant in hash table", name);
         goto error_out;
     }
-    
+
     if (elem->interface.loopback != NULL) {
         FREE_SAFE(elem->interface.loopback);
     }
@@ -147,10 +141,9 @@ out:
     return rc;
 }
 
-int
-interfaces_data_ht_set_parent_interface(interface_ht_element_t *if_root, char *name, char *parent_interface) 
+int interfaces_data_ht_set_parent_interface(interface_ht_element_t* if_root, char* name, char* parent_interface)
 {
-    interface_ht_element_t *elem = NULL;
+    interface_ht_element_t* elem = NULL;
     int rc = 0;
 
     elem = interfaces_data_ht_get_by_name(if_root, name);
@@ -158,7 +151,7 @@ interfaces_data_ht_set_parent_interface(interface_ht_element_t *if_root, char *n
         SRPLG_LOG_ERR(PLUGIN_NAME, "interface with name key: %s non-existant in hash table", name);
         goto error_out;
     }
-    
+
     if (elem->interface.parent_interface != NULL) {
         FREE_SAFE(elem->interface.parent_interface);
     }
@@ -175,8 +168,7 @@ out:
     return rc;
 }
 
-void
-interfaces_data_ht_if_free(interfaces_interfaces_interface_t *interface)
+void interfaces_data_ht_if_free(interfaces_interface_t* interface)
 {
     /* TODO: free other struct members as needed */
     if (interface->name) {
@@ -196,15 +188,14 @@ interfaces_data_ht_if_free(interfaces_interfaces_interface_t *interface)
     }
 }
 
-void
-interfaces_data_ht_free(interface_ht_element_t *if_root)
+void interfaces_data_ht_free(interface_ht_element_t* if_root)
 {
     interface_ht_element_t *tmp = NULL, *elem = NULL;
-    
-    HASH_ITER(hh, if_root, elem, tmp) {
+
+    HASH_ITER(hh, if_root, elem, tmp)
+    {
         HASH_DEL(if_root, elem);
         interfaces_data_ht_if_free(&elem->interface);
         FREE_SAFE(elem);
     }
 }
-
