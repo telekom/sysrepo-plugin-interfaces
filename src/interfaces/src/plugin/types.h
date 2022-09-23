@@ -35,8 +35,8 @@ typedef struct interfaces_interface_state_hash_element interfaces_interface_stat
 typedef struct interfaces_interface_hash_element interfaces_interface_hash_element_t;
 
 enum interfaces_interfaces_interface_enable {
-    interfaces_interfaces_interface_enable_disabled,
-    interfaces_interfaces_interface_enable_enabled,
+    interfaces_interfaces_interface_enable_disabled = 0,
+    interfaces_interfaces_interface_enable_enabled  = 1,
 };
 
 enum interfaces_interfaces_interface_link_up_down_trap_enable {
