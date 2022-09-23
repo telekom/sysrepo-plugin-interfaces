@@ -156,6 +156,4 @@
 
 #define ARRAY_SIZE(arr) (sizeof(arr) / sizeof(arr[0]))
 
-#define MAX_IF_NAME_LEN IFNAMSIZ // 16 bytes
-
 #endif // INTERFACES_PLUGIN_COMMON_H

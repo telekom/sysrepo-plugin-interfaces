@@ -147,12 +147,12 @@ static uint8_t interfaces_get_interface_enabled(struct rtnl_link *link)
 static char *interfaces_get_interface_parent_interface(struct nl_cache *cache, struct rtnl_link *link)
 {
     int parent_index = 0;
-	char parent_buffer[MAX_IF_NAME_LEN] = {0};
+	char parent_buffer[IFNAMSIZ] = {0};
     char *parent_interface = NULL;
 
     if (rtnl_link_is_vlan(link)) {
         parent_index = rtnl_link_get_link(link);
-        parent_interface = rtnl_link_i2name(cache, parent_index, parent_buffer, MAX_IF_NAME_LEN);
+        parent_interface = rtnl_link_i2name(cache, parent_index, parent_buffer, IFNAMSIZ);
     }
 
     return xstrdup(parent_interface);
