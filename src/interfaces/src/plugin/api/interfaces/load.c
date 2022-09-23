@@ -12,6 +12,12 @@
 
 #include <sysrepo.h>
 
+enum interfaces_load_exit_status {
+    interfaces_load_failure = -1,
+    interfaces_load_success =  0,
+    interfaces_load_continue = 1,
+};
+
 static char *interfaces_get_interface_name(struct rtnl_link *link)
 {
         char *name = NULL;
