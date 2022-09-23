@@ -3,6 +3,8 @@
 
 #include "plugin/api/interfaces/check.h"
 #include "plugin/api/interfaces/store.h"
+#include "plugin/data/interfaces/interface/hash.h"
+#include "srpc/ly_tree.h"
 
 #include <libyang/libyang.h>
 #include <srpc.h>
@@ -56,16 +58,24 @@ static int interfaces_startup_store_interface(void* priv, const struct lyd_node*
     int error = 0;
     interfaces_ctx_t* ctx = (interfaces_ctx_t*)priv;
     srpc_check_status_t check_status = srpc_check_status_none;
-    interfaces_interface_hash_element_t* interface_head = NULL;
+    interfaces_interface_hash_element_t* if_hash = NULL;
+    struct lyd_node* interface_node = NULL;
 
-    struct lyd_node* interfaces_node = srpc_ly_tree_get_child_leaf(parent_container, "interfaces");
-    if (interfaces_node == NULL) {
+    interface_node
+        = srpc_ly_tree_get_child_list(parent_container, "interface");
+    if (interface_node == NULL) {
         SRPLG_LOG_ERR(PLUGIN_NAME, "srpc_ly_tree_get_child_leaf returned NULL for 'interfaces'");
         goto error_out;
     }
 
-    SRPLG_LOG_INF(PLUGIN_NAME, "Checking interface list");
-    check_status = interfaces_check_interface(ctx, interface_head);
+    // map libyang data to the interface hash
+    SRPC_SAFE_CALL_ERR(error, interfaces_interface_hash_from_ly(interface_node, &if_hash), error_out);
+
+    interfaces_interface_hash_print_debug(if_hash);
+
+    // check startup data
+    SRPLG_LOG_INF(PLUGIN_NAME, "Checking interface list data");
+    check_status = interfaces_check_interface(ctx, if_hash);
 
     switch (check_status) {
     case srpc_check_status_none:
@@ -77,7 +87,7 @@ static int interfaces_startup_store_interface(void* priv, const struct lyd_node*
     case srpc_check_status_non_existant:
         SRPLG_LOG_INF(PLUGIN_NAME, "Storing interface array");
 
-        error = interfaces_store_interface(ctx, interface_head);
+        error = interfaces_store_interface(ctx, if_hash);
         if (error) {
             SRPLG_LOG_ERR(PLUGIN_NAME, "interfaces_store_interface() failed (%d)", error);
             goto error_out;
@@ -96,6 +106,11 @@ static int interfaces_startup_store_interface(void* priv, const struct lyd_node*
 
 error_out:
     error = -1;
+
 out:
+    if (if_hash) {
+        interfaces_interface_hash_free(&if_hash);
+    }
+
     return error;
 }
