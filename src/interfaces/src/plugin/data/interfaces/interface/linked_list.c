@@ -53,27 +53,27 @@ void interfaces_interface_ipv4_address_list_free(interfaces_interfaces_interface
 {
     interfaces_interfaces_interface_ipv4_address_element_t *elem, *tmp;
 
-    INTERFACES_INTERFACE_LINKED_LIST_IPV4_FREE_ADDRESS(ll, elem, tmp);
+    INTERFACES_INTERFACE_IPV4_ADDRESS_LIST_FREE(ll, elem, tmp);
 }
 
 void interfaces_interface_ipv4_neighbor_list_free(interfaces_interfaces_interface_ipv4_neighbor_element_t **ll)
 {
     interfaces_interfaces_interface_ipv4_neighbor_element_t *elem, *tmp;
 
-    INTERFACES_INTERFACE_LINKED_LIST_FREE_NEIGHBOR(ll, elem, tmp);
+    INTERFACES_INTERFACE_NEIGHBOR_LIST_FREE(ll, elem, tmp);
 }
 
 void interfaces_interface_ipv6_address_list_free(interfaces_interfaces_interface_ipv6_address_element_t **ll)
 {
     interfaces_interfaces_interface_ipv6_address_element_t *elem, *tmp;
 
-    INTERFACES_INTERFACE_LINKED_LIST_IPV6_FREE_ADDRESS(ll, elem, tmp);
+    INTERFACES_INTERFACE_IPV6_ADDRESS_LIST_FREE(ll, elem, tmp);
 }
 
 void interfaces_interface_ipv6_neighbor_list_free(interfaces_interfaces_interface_ipv6_neighbor_element_t **ll)
 {
     interfaces_interfaces_interface_ipv6_neighbor_element_t *elem, *tmp; 
-    INTERFACES_INTERFACE_LINKED_LIST_FREE_NEIGHBOR(ll, elem, tmp);
+    INTERFACES_INTERFACE_NEIGHBOR_LIST_FREE(ll, elem, tmp);
 }
 
 int interfaces_interface_ipv4_address_list_element_set_address(interfaces_interfaces_interface_ipv4_address_element_t **ll, interfaces_interfaces_interface_ipv4_address_t *address)
