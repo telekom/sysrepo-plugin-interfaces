@@ -41,7 +41,6 @@ int interfaces_interface_hash_element_set_ipv4(interfaces_interface_hash_element
 int interfaces_interface_hash_element_set_ipv4_enabled(interfaces_interface_hash_element_t** el, uint8_t enabled);
 int interfaces_interface_hash_element_set_ipv4_forwarding(interfaces_interface_hash_element_t** el, uint8_t forwarding);
 int interfaces_interface_hash_element_set_ipv4_mtu(interfaces_interface_hash_element_t** el, uint16_t mtu);
-int interfaces_interface_hash_element_set_ipv4_address(interfaces_interface_hash_element_t** el, interfaces_interface_ipv4_address_element_t* head);
 
 /*
     IPv6
