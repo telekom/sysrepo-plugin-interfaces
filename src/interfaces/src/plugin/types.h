@@ -72,12 +72,21 @@ struct interfaces_interface_encapsulation {
     interfaces_interface_encapsulation_dot1q_vlan_t dot1q_vlan;
 };
 
+enum interfaces_interface_ipv4_address_subnet {
+    interfaces_interface_ipv4_address_subnet_none = 0,
+    interfaces_interface_ipv4_address_subnet_prefix_length,
+    interfaces_interface_ipv4_address_subnet_netmask,
+};
+
+typedef enum interfaces_interface_ipv4_address_subnet interfaces_interface_ipv4_address_subnet_t;
+
 struct interfaces_interface_ipv4_address {
     char* ip;
     union {
         uint8_t prefix_length;
         char* netmask;
     } subnet;
+    interfaces_interface_ipv4_address_subnet_t subnet_type;
 };
 
 struct interfaces_interface_ipv4_address_element {
