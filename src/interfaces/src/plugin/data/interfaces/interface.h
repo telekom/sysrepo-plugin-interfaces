@@ -1,8 +1,7 @@
-#ifndef INTERFACES_PLUGIN_DATA_INTERFACES_INTERFACE_HASH_H
-#define INTERFACES_PLUGIN_DATA_INTERFACES_INTERFACE_HASH_H
+#ifndef INTERFACES_PLUGIN_DATA_INTERFACES_INTERFACE_H
+#define INTERFACES_PLUGIN_DATA_INTERFACES_INTERFACE_H
 
 #include "plugin/types.h"
-
 #include <libyang/libyang.h>
 
 /*
@@ -11,7 +10,7 @@
 
 interfaces_interface_hash_element_t* interfaces_interface_hash_new(void);
 void interfaces_interface_hash_print_debug(const interfaces_interface_hash_element_t* if_hash);
-int interfaces_interface_hash_from_ly(const struct lyd_node* interface_list_node, interfaces_interface_hash_element_t** if_hash);
+int interfaces_interface_hash_from_ly(interfaces_interface_hash_element_t** if_hash, const struct lyd_node* interface_list_node);
 int interfaces_interface_hash_add_element(interfaces_interface_hash_element_t** hash, interfaces_interface_hash_element_t* new_element);
 interfaces_interface_hash_element_t* interfaces_interface_hash_get_element(interfaces_interface_hash_element_t** hash, const char* name);
 void interfaces_interface_hash_free(interfaces_interface_hash_element_t** hash);
@@ -42,6 +41,7 @@ int interfaces_interface_hash_element_set_ipv4(interfaces_interface_hash_element
 int interfaces_interface_hash_element_set_ipv4_enabled(interfaces_interface_hash_element_t** el, uint8_t enabled);
 int interfaces_interface_hash_element_set_ipv4_forwarding(interfaces_interface_hash_element_t** el, uint8_t forwarding);
 int interfaces_interface_hash_element_set_ipv4_mtu(interfaces_interface_hash_element_t** el, uint16_t mtu);
+int interfaces_interface_hash_element_set_ipv4_address(interfaces_interface_hash_element_t** el, interfaces_interface_ipv4_address_element_t* head);
 
 /*
     IPv6
@@ -52,4 +52,4 @@ int interfaces_interface_hash_element_set_ipv6_enabled(interfaces_interface_hash
 int interfaces_interface_hash_element_set_ipv6_forwarding(interfaces_interface_hash_element_t** el, uint8_t forwarding);
 int interfaces_interface_hash_element_set_ipv6_mtu(interfaces_interface_hash_element_t** el, uint16_t mtu);
 
-#endif // INTERFACES_PLUGIN_DATA_INTERFACES_INTERFACE_HASH_H
+#endif // INTERFACES_PLUGIN_DATA_INTERFACES_INTERFACE_H

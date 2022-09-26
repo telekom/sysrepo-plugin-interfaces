@@ -45,8 +45,12 @@ set(
     src/plugin/api/interfaces/interface/carrier-delay/change.c
 
     # data
-    src/plugin/data/interfaces/interface/state_hash.c
-    src/plugin/data/interfaces/interface/hash.c
+    src/plugin/data/interfaces/interface.c
+    src/plugin/data/interfaces/interface_state.c
+    src/plugin/data/interfaces/interface/ipv4/address.c
+    src/plugin/data/interfaces/interface/ipv4/neighbor.c
+    src/plugin/data/interfaces/interface/ipv6/address.c
+    src/plugin/data/interfaces/interface/ipv6/neighbor.c
 
     # main files
     src/plugin.c

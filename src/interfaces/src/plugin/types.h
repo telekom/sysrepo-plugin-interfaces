@@ -34,6 +34,11 @@ typedef struct interfaces_interface_state interfaces_interface_state_t;
 typedef struct interfaces_interface_state_hash_element interfaces_interface_state_hash_element_t;
 typedef struct interfaces_interface_hash_element interfaces_interface_hash_element_t;
 
+enum interfaces_interface_enable {
+    interfaces_interface_enable_disabled = 0,
+    interfaces_interface_enable_enabled  = 1,
+};
+
 enum interfaces_interface_link_up_down_trap_enable {
     interfaces_interface_link_up_down_trap_enable_disabled,
     interfaces_interface_link_up_down_trap_enable_enabled,
@@ -72,12 +77,21 @@ struct interfaces_interface_encapsulation {
     interfaces_interface_encapsulation_dot1q_vlan_t dot1q_vlan;
 };
 
+enum interfaces_interface_ipv4_address_subnet {
+    interfaces_interface_ipv4_address_subnet_none = 0,
+    interfaces_interface_ipv4_address_subnet_prefix_length,
+    interfaces_interface_ipv4_address_subnet_netmask,
+};
+
+typedef enum interfaces_interface_ipv4_address_subnet interfaces_interface_ipv4_address_subnet_t;
+
 struct interfaces_interface_ipv4_address {
     char* ip;
     union {
         uint8_t prefix_length;
         char* netmask;
     } subnet;
+    interfaces_interface_ipv4_address_subnet_t subnet_type;
 };
 
 struct interfaces_interface_ipv4_address_element {
