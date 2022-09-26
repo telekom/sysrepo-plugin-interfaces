@@ -136,9 +136,9 @@ static uint8_t interfaces_get_interface_enabled(struct rtnl_link *link)
      * otherwise it will be set to down, and dns resolution won't work
      */
     if (IF_OPER_UP == enabled || IF_OPER_UNKNOWN == enabled) {
-        enabled = interfaces_interfaces_interface_enable_enabled;
+        enabled = interfaces_interface_enable_enabled;
     } else if (IF_OPER_DOWN == enabled ) {
-        enabled = interfaces_interfaces_interface_enable_disabled;
+        enabled = interfaces_interface_enable_disabled;
     }
 
 	return enabled;
@@ -159,7 +159,7 @@ static char *interfaces_get_interface_parent_interface(struct nl_cache *cache, s
 }
 
 /* TODO: outer tag, second id, tag - maybe refactor all to pass by reference, return error */
-static int interfaces_get_interface_vlan_id(struct rtnl_link *link, interfaces_interfaces_interface_t *interface)
+static int interfaces_get_interface_vlan_id(struct rtnl_link *link, interfaces_interface_t *interface)
 {
     uint16_t *outer_vlan_id = &interface->encapsulation.dot1q_vlan.outer_tag.vlan_id;
     char *first = NULL;
@@ -184,10 +184,10 @@ static int interfaces_get_interface_vlan_id(struct rtnl_link *link, interfaces_i
     return interfaces_load_success;
 }
 
-static int interfaces_parse_link(interfaces_ctx_t *ctx, struct nl_sock *socket, struct nl_cache *cache, struct rtnl_link *link, interfaces_interfaces_interface_t *interface)
+static int interfaces_parse_link(interfaces_ctx_t *ctx, struct nl_sock *socket, struct nl_cache *cache, struct rtnl_link *link, interfaces_interface_t *interface)
 {
     int error = interfaces_load_success;
-    *interface = (interfaces_interfaces_interface_t) {0};
+    *interface = (interfaces_interface_t) {0};
 
     SRPC_SAFE_CALL_PTR(interface->name, interfaces_get_interface_name(link), error_out);
     
@@ -225,7 +225,7 @@ out:
     return error;
 }
 
-static int interfaces_add_link(interfaces_interface_hash_element_t **if_hash, interfaces_interfaces_interface_t *interface)
+static int interfaces_add_link(interfaces_interface_hash_element_t **if_hash, interfaces_interface_t *interface)
 {
     int error = 0;
     
@@ -263,7 +263,7 @@ static int interfaces_interfaces_worker(interfaces_ctx_t *ctx, struct nl_sock *s
 {
     int error = 0;
 	struct rtnl_link *link = NULL;
-    interfaces_interfaces_interface_t interface = {0};
+    interfaces_interface_t interface = {0};
 
     link = (struct rtnl_link *) nl_cache_get_first(cache);
 

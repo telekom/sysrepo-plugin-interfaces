@@ -3,42 +3,42 @@
 
 void *interfaces_interface_ipv6_address_list_element_new(void)
 {
-    interfaces_interfaces_interface_ipv6_address_element_t *new_element = NULL;
+    interfaces_interface_ipv6_address_element_t *new_element = NULL;
 
-    new_element = xmalloc(sizeof(interfaces_interfaces_interface_ipv6_address_element_t));
+    new_element = xmalloc(sizeof(interfaces_interface_ipv6_address_element_t));
 
     /* NULL all address fields */
-    new_element->address = (interfaces_interfaces_interface_ipv6_address_t) {0};
+    new_element->address = (interfaces_interface_ipv6_address_t) {0};
 
     return new_element;
 }
 
 void *interfaces_interface_ipv6_neighbor_list_element_new(void)
 {
-    interfaces_interfaces_interface_ipv6_neighbor_element_t *new_element = NULL;
+    interfaces_interface_ipv6_neighbor_element_t *new_element = NULL;
 
-    new_element = xmalloc(sizeof(interfaces_interfaces_interface_ipv6_neighbor_element_t));
+    new_element = xmalloc(sizeof(interfaces_interface_ipv6_neighbor_element_t));
 
     /* NULL all address fields */
-    new_element->neighbor = (interfaces_interfaces_interface_ipv6_neighbor_t) {0};
+    new_element->neighbor = (interfaces_interface_ipv6_neighbor_t) {0};
 
     return new_element;
 }
 
-void interfaces_interface_ipv6_address_list_free(interfaces_interfaces_interface_ipv6_address_element_t **ll)
+void interfaces_interface_ipv6_address_list_free(interfaces_interface_ipv6_address_element_t **ll)
 {
-    interfaces_interfaces_interface_ipv6_address_element_t *elem, *tmp;
+    interfaces_interface_ipv6_address_element_t *elem, *tmp;
 
     INTERFACES_INTERFACE_IPV6_ADDRESS_LIST_FREE(ll, elem, tmp);
 }
 
-void interfaces_interface_ipv6_neighbor_list_free(interfaces_interfaces_interface_ipv6_neighbor_element_t **ll)
+void interfaces_interface_ipv6_neighbor_list_free(interfaces_interface_ipv6_neighbor_element_t **ll)
 {
-    interfaces_interfaces_interface_ipv6_neighbor_element_t *elem, *tmp; 
+    interfaces_interface_ipv6_neighbor_element_t *elem, *tmp; 
     INTERFACES_INTERFACE_IPV6_NEIGHBOR_LIST_FREE(ll, elem, tmp);
 }
 
-int interfaces_interface_ipv6_address_list_element_set_address(interfaces_interfaces_interface_ipv6_address_element_t **ll, interfaces_interfaces_interface_ipv6_address_t *address)
+int interfaces_interface_ipv6_address_list_element_set_address(interfaces_interface_ipv6_address_element_t **ll, interfaces_interface_ipv6_address_t *address)
 {
      
     if ((*ll)->address.ip != NULL) {
@@ -60,7 +60,7 @@ int interfaces_interface_ipv6_address_list_element_set_address(interfaces_interf
     return 0;
 }
 
-int interfaces_interface_ipv6_address_list_element_set_neighbor(interfaces_interfaces_interface_ipv6_neighbor_element_t **ll, interfaces_interfaces_interface_ipv6_neighbor_t *neighbor)
+int interfaces_interface_ipv6_address_list_element_set_neighbor(interfaces_interface_ipv6_neighbor_element_t **ll, interfaces_interface_ipv6_neighbor_t *neighbor)
 {
      
     if ((*ll)->neighbor.ip != NULL) {

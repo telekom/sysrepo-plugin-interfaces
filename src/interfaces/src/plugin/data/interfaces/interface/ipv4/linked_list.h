@@ -46,9 +46,9 @@
     }                                                                               \
     while (0)
 
-void interfaces_interface_ipv4_address_list_free(interfaces_interfaces_interface_ipv4_address_element_t **ll);
+void interfaces_interface_ipv4_address_list_free(interfaces_interface_ipv4_address_element_t **ll);
 
-void interfaces_interface_ipv4_neighbor_list_free(interfaces_interfaces_interface_ipv4_neighbor_element_t **ll);
+void interfaces_interface_ipv4_neighbor_list_free(interfaces_interface_ipv4_neighbor_element_t **ll);
 
 /*
     Element operations
@@ -57,8 +57,8 @@ void interfaces_interface_ipv4_neighbor_list_free(interfaces_interfaces_interfac
 void *interfaces_interface_ipv4_address_list_element_new(void);
 void *interfaces_interface_ipv4_neighbor_list_element_new(void);
 
-int interfaces_interface_ipv4_address_list_element_set_address(interfaces_interfaces_interface_ipv4_address_element_t **ll, interfaces_interfaces_interface_ipv4_address_t *address);
-int interfaces_interface_ipv4_address_list_element_set_neighbor(interfaces_interfaces_interface_ipv4_neighbor_element_t **ll, interfaces_interfaces_interface_ipv4_neighbor_t *neighbor);
+int interfaces_interface_ipv4_address_list_element_set_address(interfaces_interface_ipv4_address_element_t **ll, interfaces_interface_ipv4_address_t *address);
+int interfaces_interface_ipv4_address_list_element_set_neighbor(interfaces_interface_ipv4_neighbor_element_t **ll, interfaces_interface_ipv4_neighbor_t *neighbor);
 
 #endif // INTERFACES_PLUGIN_DATA_INTERFACES_INTERFACE_IPV4_LIST_H
 
