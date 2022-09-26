@@ -56,6 +56,10 @@ void interfaces_interface_hash_element_free(interfaces_interface_hash_element_t*
             free((*el)->interface.parent_interface);
         }
 
+        if ((*el)->interface.ipv4.address) {
+            INTERFACES_INTERFACE_LIST_FREE((*el)->interface.ipv4.address);
+        }
+
         // element data
         free(*el);
         *el = NULL;

@@ -1,7 +1,9 @@
 #include "address.h"
 #include "plugin/types.h"
 #include "src/utlist.h"
+#include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
 interfaces_interface_ipv4_address_element_t* interfaces_interface_ipv4_address_new(void)
 {

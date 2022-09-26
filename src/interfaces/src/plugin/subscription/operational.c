@@ -29,6 +29,8 @@
 #include <netlink/route/qdisc.h>
 #include <sys/sysinfo.h>
 
+#include <linux/limits.h>
+
 static struct rtnl_link* interfaces_get_current_link(interfaces_ctx_t* ctx, sr_session_ctx_t* session, const char* xpath);
 static int interfaces_extract_interface_name(sr_session_ctx_t* session, const char* xpath, char* buffer, size_t buffer_size);
 static int interfaces_extract_interface_address_ip(sr_session_ctx_t* session, const char* xpath, char* buffer, size_t buffer_size);

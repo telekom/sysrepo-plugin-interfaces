@@ -19,19 +19,19 @@
         (ll_ptr) = NULL;                      \
     } while (0)
 
-#define INTERFACES_INTERFACE_LIST_FREE(ll_ptr)                               \
-    _Generic((ll_ptr),                                                       \
-             interfaces_interfaces_interface_ipv4_address_element_t *        \
-             : interfaces_interface_ipv4_address_free                        \
-                     interfaces_interfaces_interface_ipv4_neighbor_element_t \
-                 *                                                           \
-             : interfaces_interface_ipv4_neighbor_free                       \
-                     interfaces_interfaces_interface_ipv6_address_element_t  \
-                 *                                                           \
-             : interfaces_interface_ipv6_address_free                        \
-                     interfaces_interfaces_interface_ipv6_neighbor_element_t \
-                 *                                                           \
-             : interfaces_interface_ipv6_neighbor_free)(&(ll_ptr))
+#define INTERFACES_INTERFACE_LIST_FREE(ll_ptr)             \
+    _Generic((ll_ptr),                                     \
+             interfaces_interface_ipv4_address_element_t * \
+             : interfaces_interface_ipv4_address_free,     \
+             interfaces_interface_ipv4_neighbor_element_t  \
+                 *                                         \
+             : interfaces_interface_ipv4_neighbor_free,    \
+             interfaces_interface_ipv6_address_element_t   \
+                 *                                         \
+             : interfaces_interface_ipv6_address_free,     \
+             interfaces_interface_ipv6_neighbor_element_t  \
+                 *                                         \
+             : interfaces_interface_ipv6_neighbor_free)(&ll_ptr)
 
 /* prepend since ordering doesn't matter - O(1) */
 #define INTERFACES_INTERFACE_LIST_ADD_ELEMENT(ll_ptr, new_element_ptr) \

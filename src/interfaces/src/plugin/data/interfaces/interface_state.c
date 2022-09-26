@@ -1,5 +1,6 @@
 #include "interface_state.h"
 #include "src/uthash.h"
+#include <string.h>
 
 interfaces_interface_state_hash_element_t* interfaces_interface_state_hash_new(void)
 {

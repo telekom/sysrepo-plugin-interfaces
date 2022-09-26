@@ -3,6 +3,7 @@
 #include "plugin/context.h"
 
 #include <libyang/libyang.h>
+#include <linux/limits.h>
 #include <srpc.h>
 #include <sysrepo.h>
 
