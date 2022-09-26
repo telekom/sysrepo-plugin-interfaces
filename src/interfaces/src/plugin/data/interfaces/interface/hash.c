@@ -1,4 +1,5 @@
 #include "hash.h"
+#include "utils/memory.h"
 #include "libyang/tree_data.h"
 #include "plugin/common.h"
 #include "srpc/ly_tree.h"
@@ -215,7 +216,7 @@ interfaces_interface_hash_element_t* interfaces_interface_hash_element_new(void)
 {
     interfaces_interface_hash_element_t* new_element = NULL;
 
-    new_element = malloc(sizeof(interfaces_interface_hash_element_t));
+    new_element = xmalloc(sizeof(interfaces_interface_hash_element_t));
     if (!new_element)
         return NULL;
 
@@ -228,12 +229,11 @@ interfaces_interface_hash_element_t* interfaces_interface_hash_element_new(void)
 int interfaces_interface_hash_element_set_name(interfaces_interface_hash_element_t** el, const char* name)
 {
     if ((*el)->interface.name) {
-        free((*el)->interface.name);
-        (*el)->interface.name = NULL;
+        FREE_SAFE((*el)->interface.name);
     }
 
     if (name) {
-        (*el)->interface.name = strdup(name);
+        (*el)->interface.name = xstrdup(name);
         return (*el)->interface.name == NULL;
     }
 
@@ -243,12 +243,11 @@ int interfaces_interface_hash_element_set_name(interfaces_interface_hash_element
 int interfaces_interface_hash_element_set_description(interfaces_interface_hash_element_t** el, const char* description)
 {
     if ((*el)->interface.description) {
-        free((*el)->interface.description);
-        (*el)->interface.description = NULL;
+        FREE_SAFE((*el)->interface.description);
     }
 
     if (description) {
-        (*el)->interface.description = strdup(description);
+        (*el)->interface.description = xstrdup(description);
         return (*el)->interface.description == NULL;
     }
 
@@ -258,12 +257,11 @@ int interfaces_interface_hash_element_set_description(interfaces_interface_hash_
 int interfaces_interface_hash_element_set_type(interfaces_interface_hash_element_t** el, const char* type)
 {
     if ((*el)->interface.type) {
-        free((*el)->interface.type);
-        (*el)->interface.type = NULL;
+        FREE_SAFE((*el)->interface.type);
     }
 
     if (type) {
-        (*el)->interface.type = strdup(type);
+        (*el)->interface.type = xstrdup(type);
         return (*el)->interface.type == NULL;
     }
 
@@ -298,18 +296,19 @@ int interfaces_interface_hash_element_set_dampening(interfaces_interface_hash_el
 int interfaces_interface_hash_element_set_encapsulation(interfaces_interface_hash_element_t** el, interfaces_interface_encapsulation_t encapsulation)
 {
     (*el)->interface.encapsulation = encapsulation;
+    (*el)->interface.encapsulation.dot1q_vlan.outer_tag.tag_type = xstrdup(encapsulation.dot1q_vlan.outer_tag.tag_type);
+    (*el)->interface.encapsulation.dot1q_vlan.second_tag.tag_type = xstrdup(encapsulation.dot1q_vlan.second_tag.tag_type);
     return 0;
 }
 
 int interfaces_interface_hash_element_set_loopback(interfaces_interface_hash_element_t** el, const char* loopback)
 {
     if ((*el)->interface.loopback) {
-        free((*el)->interface.loopback);
-        (*el)->interface.loopback = NULL;
+        FREE_SAFE((*el)->interface.loopback);
     }
 
     if (loopback) {
-        (*el)->interface.loopback = strdup(loopback);
+        (*el)->interface.loopback = xstrdup(loopback);
         return (*el)->interface.loopback == NULL;
     }
 
@@ -325,12 +324,11 @@ int interfaces_interface_hash_element_set_max_frame_size(interfaces_interface_ha
 int interfaces_interface_hash_element_set_parent_interface(interfaces_interface_hash_element_t** el, const char* parent_interface)
 {
     if ((*el)->interface.parent_interface) {
-        free((*el)->interface.parent_interface);
-        (*el)->interface.parent_interface = NULL;
+        FREE_SAFE((*el)->interface.parent_interface);
     }
 
     if (parent_interface) {
-        (*el)->interface.parent_interface = strdup(parent_interface);
+        (*el)->interface.parent_interface = xstrdup(parent_interface);
         return (*el)->interface.parent_interface == NULL;
     }
 

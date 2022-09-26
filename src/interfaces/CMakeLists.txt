@@ -47,6 +47,8 @@ set(
     # data
     src/plugin/data/interfaces/interface/state_hash.c
     src/plugin/data/interfaces/interface/hash.c
+    src/plugin/data/interfaces/interface/ipv4/linked_list.c
+    src/plugin/data/interfaces/interface/ipv6/linked_list.c
 
     # main files
     src/plugin.c
