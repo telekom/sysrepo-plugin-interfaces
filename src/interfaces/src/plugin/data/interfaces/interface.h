@@ -1,8 +1,7 @@
-#ifndef INTERFACES_PLUGIN_DATA_INTERFACES_INTERFACE_HASH_H
-#define INTERFACES_PLUGIN_DATA_INTERFACES_INTERFACE_HASH_H
+#ifndef INTERFACES_PLUGIN_DATA_INTERFACES_INTERFACE_H
+#define INTERFACES_PLUGIN_DATA_INTERFACES_INTERFACE_H
 
 #include "plugin/types.h"
-
 #include <libyang/libyang.h>
 
 /*
@@ -52,4 +51,4 @@ int interfaces_interface_hash_element_set_ipv6_enabled(interfaces_interface_hash
 int interfaces_interface_hash_element_set_ipv6_forwarding(interfaces_interface_hash_element_t** el, uint8_t forwarding);
 int interfaces_interface_hash_element_set_ipv6_mtu(interfaces_interface_hash_element_t** el, uint16_t mtu);
 
-#endif // INTERFACES_PLUGIN_DATA_INTERFACES_INTERFACE_HASH_H
+#endif // INTERFACES_PLUGIN_DATA_INTERFACES_INTERFACE_H

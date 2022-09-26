@@ -8,7 +8,7 @@
 #include "netlink/socket.h"
 #include "plugin/common.h"
 #include "plugin/context.h"
-#include "plugin/data/interfaces/interface/state_hash.h"
+#include "plugin/data/interfaces/interface_state.h"
 #include "plugin/ly_tree.h"
 #include "plugin/types.h"
 #include "srpc/common.h"

@@ -6,7 +6,7 @@
 #include "plugin/context.h"
 
 // startup
-#include "plugin/data/interfaces/interface/state_hash.h"
+#include "plugin/data/interfaces/interface_state.h"
 #include "plugin/startup/load.h"
 #include "plugin/startup/store.h"
 

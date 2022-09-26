@@ -3,7 +3,7 @@
 
 #include "plugin/api/interfaces/check.h"
 #include "plugin/api/interfaces/store.h"
-#include "plugin/data/interfaces/interface/hash.h"
+#include "plugin/data/interfaces/interface.h"
 #include "srpc/ly_tree.h"
 
 #include <libyang/libyang.h>

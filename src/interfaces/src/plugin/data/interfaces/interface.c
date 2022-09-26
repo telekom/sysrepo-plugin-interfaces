@@ -1,10 +1,10 @@
-#include "hash.h"
-#include "utils/memory.h"
+#include "interface.h"
 #include "libyang/tree_data.h"
 #include "plugin/common.h"
 #include "srpc/ly_tree.h"
 #include "sysrepo.h"
 #include "uthash.h"
+#include "utils/memory.h"
 #include "utlist.h"
 
 #include <assert.h>
