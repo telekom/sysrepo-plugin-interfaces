@@ -69,7 +69,7 @@ static int interfaces_startup_store_interface(void* priv, const struct lyd_node*
     }
 
     // map libyang data to the interface hash
-    SRPC_SAFE_CALL_ERR(error, interfaces_interface_hash_from_ly(interface_node, &if_hash), error_out);
+    SRPC_SAFE_CALL_ERR(error, interfaces_interface_hash_from_ly(&if_hash, interface_node), error_out);
 
     interfaces_interface_hash_print_debug(if_hash);
 
