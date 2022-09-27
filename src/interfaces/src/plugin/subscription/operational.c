@@ -546,11 +546,7 @@ int interfaces_subscription_operational_interfaces_interface_statistics_in_octet
 
     const uint64_t in_octets = rtnl_link_get_stat(link, RTNL_LINK_RX_BYTES);
 
-    error = snprintf(in_octets_buffer, sizeof(in_octets_buffer), "%lu", in_octets);
-    if (error < 0) {
-        SRPLG_LOG_ERR(PLUGIN_NAME, "snprintf() failed (%d)", error);
-        goto error_out;
-    }
+    SRPC_SAFE_CALL_ERR_COND(error, error < 0, snprintf(in_octets_buffer, sizeof(in_octets_buffer), "%lu", in_octets), error_out);
 
     SRPLG_LOG_INF(PLUGIN_NAME, "in-octets(%s) = %s", rtnl_link_get_name(link), in_octets_buffer);
 
