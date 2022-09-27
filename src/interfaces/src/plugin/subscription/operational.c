@@ -16,6 +16,7 @@
 
 #include <assert.h>
 #include <libyang/libyang.h>
+#include <linux/if.h>
 #include <linux/if_addr.h>
 #include <pthread.h>
 #include <srpc.h>
@@ -39,15 +40,59 @@ static int interfaces_get_system_boot_time(char* buffer, size_t buffer_size);
 int interfaces_subscription_operational_interfaces_interface_admin_status(sr_session_ctx_t* session, uint32_t sub_id, const char* module_name, const char* path, const char* request_xpath, uint32_t request_id, struct lyd_node** parent, void* private_data)
 {
     int error = SR_ERR_OK;
-    // void* error_ptr = NULL;
-    const struct ly_ctx* ly_ctx = NULL;
+    void* error_ptr = NULL;
 
-    if (*parent == NULL) {
-        ly_ctx = sr_acquire_context(sr_session_get_connection(session));
-        if (ly_ctx == NULL) {
-            SRPLG_LOG_ERR(PLUGIN_NAME, "sr_acquire_context() failed");
-            goto error_out;
-        }
+    // context
+    const struct ly_ctx* ly_ctx = NULL;
+    interfaces_ctx_t* ctx = private_data;
+
+    enum {
+        admin_status_none = 0,
+        admin_status_up,
+        admin_status_down,
+        admin_status_testing,
+    } admin_status
+        = admin_status_none;
+
+    const char* adminstate_map[] = {
+        [admin_status_none] = "none",
+        [admin_status_up] = "up",
+        [admin_status_down] = "down",
+        [admin_status_testing] = "testing",
+    };
+
+    // libnl
+    struct rtnl_link* link = NULL;
+
+    char xpath_buffer[PATH_MAX] = { 0 };
+
+    // there needs to be an allocated link cache in memory
+    assert(*parent != NULL);
+    assert(strcmp(LYD_NAME(*parent), "interface") == 0);
+
+    // get node xpath
+    SRPC_SAFE_CALL_PTR(error_ptr, lyd_path(*parent, LYD_PATH_STD, xpath_buffer, sizeof(xpath_buffer)), error_out);
+
+    // get link
+    SRPC_SAFE_CALL_PTR(link, interfaces_get_current_link(ctx, session, xpath_buffer), error_out);
+
+    // get admin status
+    const unsigned int flags = rtnl_link_get_flags(link);
+
+    if ((flags & IFF_UP) || (flags & IFF_RUNNING)) {
+        admin_status = admin_status_up;
+    } else {
+        admin_status = admin_status_down;
+    }
+
+    if (admin_status != admin_status_none) {
+        const char* admin_status_str = adminstate_map[admin_status];
+        SRPLG_LOG_INF(PLUGIN_NAME, "oper-status(%s) = %s", rtnl_link_get_name(link), admin_status_str);
+
+        // add admin-status node
+        SRPC_SAFE_CALL_ERR(error, interfaces_ly_tree_create_interfaces_interface_admin_status(ly_ctx, *parent, admin_status_str), error_out);
+    } else {
+        SRPLG_LOG_INF(PLUGIN_NAME, "Unable to determine admin-status for link %s", rtnl_link_get_name(link));
     }
 
     goto out;
