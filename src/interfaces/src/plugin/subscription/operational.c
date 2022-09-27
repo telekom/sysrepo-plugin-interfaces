@@ -39,7 +39,7 @@ static int interfaces_get_system_boot_time(char* buffer, size_t buffer_size);
 int interfaces_subscription_operational_interfaces_interface_admin_status(sr_session_ctx_t* session, uint32_t sub_id, const char* module_name, const char* path, const char* request_xpath, uint32_t request_id, struct lyd_node** parent, void* private_data)
 {
     int error = SR_ERR_OK;
-    void* error_ptr = NULL;
+    // void* error_ptr = NULL;
     const struct ly_ctx* ly_ctx = NULL;
 
     if (*parent == NULL) {
@@ -1113,7 +1113,7 @@ out:
 int interfaces_subscription_operational_interfaces_interface_statistics_in_discard_unknown_encaps(sr_session_ctx_t* session, uint32_t sub_id, const char* module_name, const char* path, const char* request_xpath, uint32_t request_id, struct lyd_node** parent, void* private_data)
 {
     int error = SR_ERR_OK;
-    void* error_ptr = NULL;
+    // void* error_ptr = NULL;
     const struct ly_ctx* ly_ctx = NULL;
 
     if (*parent == NULL) {
@@ -1136,7 +1136,7 @@ out:
 int interfaces_subscription_operational_interfaces_interface_carrier_delay_carrier_transitions(sr_session_ctx_t* session, uint32_t sub_id, const char* module_name, const char* path, const char* request_xpath, uint32_t request_id, struct lyd_node** parent, void* private_data)
 {
     int error = SR_ERR_OK;
-    void* error_ptr = NULL;
+    // void* error_ptr = NULL;
     const struct ly_ctx* ly_ctx = NULL;
 
     if (*parent == NULL) {
@@ -1159,7 +1159,7 @@ out:
 int interfaces_subscription_operational_interfaces_interface_carrier_delay_timer_running(sr_session_ctx_t* session, uint32_t sub_id, const char* module_name, const char* path, const char* request_xpath, uint32_t request_id, struct lyd_node** parent, void* private_data)
 {
     int error = SR_ERR_OK;
-    void* error_ptr = NULL;
+    // void* error_ptr = NULL;
     const struct ly_ctx* ly_ctx = NULL;
 
     if (*parent == NULL) {
@@ -1182,7 +1182,7 @@ out:
 int interfaces_subscription_operational_interfaces_interface_dampening_penalty(sr_session_ctx_t* session, uint32_t sub_id, const char* module_name, const char* path, const char* request_xpath, uint32_t request_id, struct lyd_node** parent, void* private_data)
 {
     int error = SR_ERR_OK;
-    void* error_ptr = NULL;
+    // void* error_ptr = NULL;
     const struct ly_ctx* ly_ctx = NULL;
 
     if (*parent == NULL) {
@@ -1205,7 +1205,7 @@ out:
 int interfaces_subscription_operational_interfaces_interface_dampening_suppressed(sr_session_ctx_t* session, uint32_t sub_id, const char* module_name, const char* path, const char* request_xpath, uint32_t request_id, struct lyd_node** parent, void* private_data)
 {
     int error = SR_ERR_OK;
-    void* error_ptr = NULL;
+    // void* error_ptr = NULL;
     const struct ly_ctx* ly_ctx = NULL;
 
     if (*parent == NULL) {
@@ -1228,7 +1228,7 @@ out:
 int interfaces_subscription_operational_interfaces_interface_dampening_time_remaining(sr_session_ctx_t* session, uint32_t sub_id, const char* module_name, const char* path, const char* request_xpath, uint32_t request_id, struct lyd_node** parent, void* private_data)
 {
     int error = SR_ERR_OK;
-    void* error_ptr = NULL;
+    // void* error_ptr = NULL;
     const struct ly_ctx* ly_ctx = NULL;
 
     if (*parent == NULL) {
@@ -1251,7 +1251,7 @@ out:
 int interfaces_subscription_operational_interfaces_interface_forwarding_mode(sr_session_ctx_t* session, uint32_t sub_id, const char* module_name, const char* path, const char* request_xpath, uint32_t request_id, struct lyd_node** parent, void* private_data)
 {
     int error = SR_ERR_OK;
-    void* error_ptr = NULL;
+    // void* error_ptr = NULL;
     const struct ly_ctx* ly_ctx = NULL;
 
     if (*parent == NULL) {
@@ -1751,7 +1751,7 @@ out:
 int interfaces_subscription_operational_interfaces_interface(sr_session_ctx_t* session, uint32_t sub_id, const char* module_name, const char* path, const char* request_xpath, uint32_t request_id, struct lyd_node** parent, void* private_data)
 {
     int error = SR_ERR_OK;
-    void* error_ptr = NULL;
+    // void* error_ptr = NULL;
     const struct ly_ctx* ly_ctx = NULL;
     interfaces_ctx_t* ctx = private_data;
     interfaces_nl_ctx_t* nl_ctx = &ctx->oper_ctx.nl_ctx;
