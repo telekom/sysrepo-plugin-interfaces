@@ -36,6 +36,7 @@
 static struct rtnl_link* interfaces_get_current_link(interfaces_ctx_t* ctx, sr_session_ctx_t* session, const char* xpath);
 static int interfaces_extract_interface_name(sr_session_ctx_t* session, const char* xpath, char* buffer, size_t buffer_size);
 static int interfaces_extract_interface_address_ip(sr_session_ctx_t* session, const char* xpath, char* buffer, size_t buffer_size);
+static int interfaces_extract_interface_neighbor_ip(sr_session_ctx_t* session, const char* xpath, char* buffer, size_t buffer_size);
 static int interfaces_get_system_boot_time(char* buffer, size_t buffer_size);
 
 int interfaces_subscription_operational_interfaces_interface_admin_status(sr_session_ctx_t* session, uint32_t sub_id, const char* module_name, const char* path, const char* request_xpath, uint32_t request_id, struct lyd_node** parent, void* private_data)
@@ -1423,7 +1424,19 @@ out:
 int interfaces_subscription_operational_interfaces_interface_ipv4_neighbor_origin(sr_session_ctx_t* session, uint32_t sub_id, const char* module_name, const char* path, const char* request_xpath, uint32_t request_id, struct lyd_node** parent, void* private_data)
 {
     int error = SR_ERR_OK;
+    void* error_ptr = NULL;
+
+    interfaces_ctx_t* ctx = private_data;
+    interfaces_oper_ctx_t* oper_ctx = &ctx->oper_ctx;
+
+    char xpath_buffer[PATH_MAX] = { 0 };
+    char ip_buffer[20] = { 0 };
+
     const struct ly_ctx* ly_ctx = NULL;
+
+    struct rtnl_link* link = NULL;
+    struct rtnl_neigh* neigh = NULL;
+    struct nl_addr* neigh_addr = NULL;
 
     if (*parent == NULL) {
         ly_ctx = sr_acquire_context(sr_session_get_connection(session));
@@ -1433,12 +1446,39 @@ int interfaces_subscription_operational_interfaces_interface_ipv4_neighbor_origi
         }
     }
 
+    assert(*parent != NULL);
+    assert(strcmp(LYD_NAME(*parent), "neighbor") == 0);
+
+    // get node xpath
+    SRPC_SAFE_CALL_PTR(error_ptr, lyd_path(*parent, LYD_PATH_STD, xpath_buffer, sizeof(xpath_buffer)), error_out);
+
+    // get link
+    SRPC_SAFE_CALL_PTR(link, interfaces_get_current_link(ctx, session, xpath_buffer), error_out);
+
+    // get IP
+    SRPC_SAFE_CALL_ERR(error, interfaces_extract_interface_neighbor_ip(session, xpath_buffer, ip_buffer, sizeof(ip_buffer)), error_out);
+
+    // parse address
+    SRPC_SAFE_CALL_ERR(error, nl_addr_parse(ip_buffer, AF_INET, &neigh_addr), error_out);
+
+    // get neighbor
+    SRPC_SAFE_CALL_PTR(neigh, rtnl_neigh_get(oper_ctx->nl_ctx.neigh_cache, rtnl_link_get_ifindex(link), neigh_addr), error_out);
+
+    // get address origin - static or dynamic
+    const char* origin = (rtnl_neigh_get_flags(neigh) & NTF_ROUTER) > 0 ? "dynamic" : "static";
+
+    SRPLG_LOG_INF(PLUGIN_NAME, "origin(interface[%s]:neighbor[%s]) = %s", rtnl_link_get_name(link), ip_buffer, origin);
+
+    // add origin
+    SRPC_SAFE_CALL_ERR(error, interfaces_ly_tree_create_interfaces_interface_ipv4_neighbor_origin(ly_ctx, *parent, origin), error_out);
+
     goto out;
 
 error_out:
     error = SR_ERR_CALLBACK_FAILED;
 
 out:
+
     return error;
 }
 
@@ -1994,6 +2034,39 @@ static int interfaces_extract_interface_address_ip(sr_session_ctx_t* session, co
 
     // extract key
     SRPC_SAFE_CALL_PTR(ip, sr_xpath_key_value(xpath_copy, "address", "ip", &xpath_ctx), error_out);
+
+    // store to buffer
+    SRPC_SAFE_CALL_ERR_COND(error, error < 0, snprintf(buffer, buffer_size, "%s", ip), error_out);
+
+    error = 0;
+
+    goto out;
+
+error_out:
+    error = -1;
+
+out:
+    if (xpath_copy) {
+        free(xpath_copy);
+    }
+
+    return error;
+}
+
+static int interfaces_extract_interface_neighbor_ip(sr_session_ctx_t* session, const char* xpath, char* buffer, size_t buffer_size)
+{
+    int error = 0;
+
+    const char* ip = NULL;
+    char* xpath_copy = NULL;
+
+    sr_xpath_ctx_t xpath_ctx = { 0 };
+
+    // copy xpath due to changing it when using xpath_ctx from sysrepo
+    SRPC_SAFE_CALL_PTR(xpath_copy, strdup(xpath), error_out);
+
+    // extract key
+    SRPC_SAFE_CALL_PTR(ip, sr_xpath_key_value(xpath_copy, "neighbor", "ip", &xpath_ctx), error_out);
 
     // store to buffer
     SRPC_SAFE_CALL_ERR_COND(error, error < 0, snprintf(buffer, buffer_size, "%s", ip), error_out);
