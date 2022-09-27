@@ -604,11 +604,7 @@ int interfaces_subscription_operational_interfaces_interface_statistics_in_unica
     const uint64_t in_multicast_pkts = rtnl_link_get_stat(link, RTNL_LINK_IP6_INMCASTPKTS);
     const uint64_t in_unicast_pkts = in_pkts - in_broadcast_pkts - in_multicast_pkts;
 
-    error = snprintf(in_unicast_pkts_buffer, sizeof(in_unicast_pkts_buffer), "%lu", in_unicast_pkts);
-    if (error < 0) {
-        SRPLG_LOG_ERR(PLUGIN_NAME, "snprintf() failed (%d)", error);
-        goto error_out;
-    }
+    SRPC_SAFE_CALL_ERR_COND(error, error < 0, snprintf(in_unicast_pkts_buffer, sizeof(in_unicast_pkts_buffer), "%lu", in_unicast_pkts), error_out);
 
     SRPLG_LOG_INF(PLUGIN_NAME, "in-unicast-pkts(%s) = %s", rtnl_link_get_name(link), in_unicast_pkts_buffer);
 
