@@ -1309,8 +1309,6 @@ int interfaces_subscription_operational_interfaces_interface_ipv4_address_origin
     // get IP
     SRPC_SAFE_CALL_ERR(error, interfaces_extract_interface_address_ip(session, xpath_buffer, ip_buffer, sizeof(ip_buffer)), error_out);
 
-    SRPLG_LOG_INF(PLUGIN_NAME, "origin(interface[%s]:address[%s]) = %s", rtnl_link_get_name(link), ip_buffer, ip_buffer);
-
     // get prefix length from the operational DS
     SRPC_SAFE_CALL_ERR_COND(rc, rc < 0, snprintf(prefix_path_buffer, sizeof(prefix_path_buffer), "/ietf-interfaces:interfaces/interface[name=\"%s\"]/ietf-ip:ipv4/address[ip=\"%s\"]/prefix-length", rtnl_link_get_name(link), ip_buffer), error_out);
     SRPC_SAFE_CALL_ERR(error, sr_get_item(running_session, prefix_path_buffer, 0, &prefix_length_val), error_out);
@@ -1326,6 +1324,8 @@ int interfaces_subscription_operational_interfaces_interface_ipv4_address_origin
 
     // get address origin - static or dynamic
     const char* origin = (rtnl_addr_get_flags(addr) & IFA_F_PERMANENT) > 0 ? "static" : "dhcp";
+
+    SRPLG_LOG_INF(PLUGIN_NAME, "origin(interface[%s]:address[%s]) = %s", rtnl_link_get_name(link), ip_buffer, origin);
 
     // add origin
     SRPC_SAFE_CALL_ERR(error, interfaces_ly_tree_create_interfaces_interface_ipv4_address_origin(ly_ctx, *parent, origin), error_out);
