@@ -1830,7 +1830,19 @@ out:
 int interfaces_subscription_operational_interfaces_interface_ipv6_neighbor_state(sr_session_ctx_t* session, uint32_t sub_id, const char* module_name, const char* path, const char* request_xpath, uint32_t request_id, struct lyd_node** parent, void* private_data)
 {
     int error = SR_ERR_OK;
+    void* error_ptr = NULL;
+
+    interfaces_ctx_t* ctx = private_data;
+    interfaces_oper_ctx_t* oper_ctx = &ctx->oper_ctx;
+
+    char xpath_buffer[PATH_MAX] = { 0 };
+    char ip_buffer[100] = { 0 };
+
     const struct ly_ctx* ly_ctx = NULL;
+
+    struct rtnl_link* link = NULL;
+    struct rtnl_neigh* neigh = NULL;
+    struct nl_addr* neigh_addr = NULL;
 
     if (*parent == NULL) {
         ly_ctx = sr_acquire_context(sr_session_get_connection(session));
@@ -1840,12 +1852,52 @@ int interfaces_subscription_operational_interfaces_interface_ipv6_neighbor_state
         }
     }
 
+    const char* state_map[] = {
+        [NUD_INCOMPLETE] = "incomplete",
+        [NUD_REACHABLE] = "reachable",
+        [NUD_STALE] = "stale",
+        [NUD_DELAY] = "delay",
+        [NUD_PROBE] = "probe",
+        [NUD_FAILED] = "failed",
+        [NUD_NOARP] = "noarp",
+        [NUD_PERMANENT] = "permanent",
+    };
+
+    assert(*parent != NULL);
+    assert(strcmp(LYD_NAME(*parent), "neighbor") == 0);
+
+    // get node xpath
+    SRPC_SAFE_CALL_PTR(error_ptr, lyd_path(*parent, LYD_PATH_STD, xpath_buffer, sizeof(xpath_buffer)), error_out);
+
+    // get link
+    SRPC_SAFE_CALL_PTR(link, interfaces_get_current_link(ctx, session, xpath_buffer), error_out);
+
+    // get IP
+    SRPC_SAFE_CALL_ERR(error, interfaces_extract_interface_neighbor_ip(session, xpath_buffer, ip_buffer, sizeof(ip_buffer)), error_out);
+
+    // parse address
+    SRPC_SAFE_CALL_ERR(error, nl_addr_parse(ip_buffer, AF_INET6, &neigh_addr), error_out);
+
+    // get neighbor
+    SRPC_SAFE_CALL_PTR(neigh, rtnl_neigh_get(oper_ctx->nl_ctx.neigh_cache, rtnl_link_get_ifindex(link), neigh_addr), error_out);
+
+    // get neighbor state - static or dynamic
+    const char* state = state_map[rtnl_neigh_get_state(neigh)];
+
+    SRPLG_LOG_INF(PLUGIN_NAME, "state(interface[%s]:neighbor[%s]) = %s", rtnl_link_get_name(link), ip_buffer, state);
+
+    if (rtnl_neigh_get_state(neigh) != NUD_FAILED && rtnl_neigh_get_state(neigh) != NUD_NOARP && rtnl_neigh_get_state(neigh) != NUD_PERMANENT) {
+        // add state
+        SRPC_SAFE_CALL_ERR(error, interfaces_ly_tree_create_interfaces_interface_ipv6_neighbor_state(ly_ctx, *parent, state), error_out);
+    }
+
     goto out;
 
 error_out:
     error = SR_ERR_CALLBACK_FAILED;
 
 out:
+
     return error;
 }
 
