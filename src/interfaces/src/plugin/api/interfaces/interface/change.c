@@ -6,6 +6,7 @@
 #include "sysrepo/xpath.h"
 
 #include <linux/if.h>
+#include <linux/limits.h>
 #include <linux/netlink.h>
 #include <string.h>
 #include <sysrepo.h>

@@ -4,6 +4,7 @@
 
 #include "interface/change.h"
 
+#include <linux/limits.h>
 #include <srpc.h>
 #include <sysrepo.h>
 
