@@ -1648,7 +1648,28 @@ out:
 int interfaces_subscription_operational_interfaces_interface_ipv6_address_status(sr_session_ctx_t* session, uint32_t sub_id, const char* module_name, const char* path, const char* request_xpath, uint32_t request_id, struct lyd_node** parent, void* private_data)
 {
     int error = SR_ERR_OK;
+    int rc = 0;
+    void* error_ptr = NULL;
+
+    sr_session_ctx_t* running_session = NULL;
+    sr_conn_ctx_t* connection = NULL;
+
+    sr_val_t* prefix_length_val = NULL;
+
+    interfaces_ctx_t* ctx = private_data;
+    interfaces_oper_ctx_t* oper_ctx = &ctx->oper_ctx;
+
+    char xpath_buffer[PATH_MAX] = { 0 };
+    char ip_buffer[100] = { 0 };
+    char address_buffer[100] = { 0 };
+
+    char prefix_path_buffer[PATH_MAX] = { 0 };
+
     const struct ly_ctx* ly_ctx = NULL;
+
+    struct rtnl_link* link = NULL;
+    struct nl_addr* local = NULL;
+    struct rtnl_addr* addr = NULL;
 
     if (*parent == NULL) {
         ly_ctx = sr_acquire_context(sr_session_get_connection(session));
@@ -1658,12 +1679,53 @@ int interfaces_subscription_operational_interfaces_interface_ipv6_address_status
         }
     }
 
+    // connect to the operational DS
+    SRPC_SAFE_CALL_PTR(connection, sr_session_get_connection(session), error_out);
+    SRPC_SAFE_CALL_ERR(error, sr_session_start(connection, SR_DS_RUNNING, &running_session), error_out);
+
+    assert(*parent != NULL);
+    assert(strcmp(LYD_NAME(*parent), "address") == 0);
+
+    // get node xpath
+    SRPC_SAFE_CALL_PTR(error_ptr, lyd_path(*parent, LYD_PATH_STD, xpath_buffer, sizeof(xpath_buffer)), error_out);
+
+    // get link
+    SRPC_SAFE_CALL_PTR(link, interfaces_get_current_link(ctx, session, xpath_buffer), error_out);
+
+    // get IP
+    SRPC_SAFE_CALL_ERR(error, interfaces_extract_interface_address_ip(session, xpath_buffer, ip_buffer, sizeof(ip_buffer)), error_out);
+
+    // get prefix length from the operational DS
+    SRPC_SAFE_CALL_ERR_COND(rc, rc < 0, snprintf(prefix_path_buffer, sizeof(prefix_path_buffer), "/ietf-interfaces:interfaces/interface[name=\"%s\"]/ietf-ip:ipv6/address[ip=\"%s\"]/prefix-length", rtnl_link_get_name(link), ip_buffer), error_out);
+    SRPC_SAFE_CALL_ERR(error, sr_get_item(running_session, prefix_path_buffer, 0, &prefix_length_val), error_out);
+
+    // create an address
+    SRPC_SAFE_CALL_ERR_COND(rc, rc < 0, snprintf(address_buffer, sizeof(address_buffer), "%s/%d", ip_buffer, prefix_length_val->data.uint8_val), error_out);
+
+    // parse address
+    SRPC_SAFE_CALL_ERR(error, nl_addr_parse(address_buffer, AF_INET6, &local), error_out);
+
+    // get rtnl address
+    SRPC_SAFE_CALL_PTR(addr, rtnl_addr_get(oper_ctx->nl_ctx.addr_cache, rtnl_link_get_ifindex(link), local), error_out);
+
+    // get address status
+    const char* status = "preferred";
+
+    SRPLG_LOG_INF(PLUGIN_NAME, "status(interface[%s]:address[%s]) = %s", rtnl_link_get_name(link), ip_buffer, status);
+
+    // add origin
+    SRPC_SAFE_CALL_ERR(error, interfaces_ly_tree_create_interfaces_interface_ipv6_address_status(ly_ctx, *parent, status), error_out);
+
     goto out;
 
 error_out:
     error = SR_ERR_CALLBACK_FAILED;
 
 out:
+    if (running_session) {
+        sr_session_stop(running_session);
+    }
+
     return error;
 }
 
