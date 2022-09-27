@@ -1840,8 +1840,6 @@ int interfaces_subscription_operational_interfaces_interface(sr_session_ctx_t* s
     // iterate links and add them to the operational DS
     link_iter = (struct rtnl_link*)nl_cache_get_first(nl_ctx->link_cache);
     while (link_iter) {
-        SRPLG_LOG_INF(PLUGIN_NAME, "Interface %s", rtnl_link_get_name(link_iter));
-
         // add interface
         SRPC_SAFE_CALL_ERR(error, interfaces_ly_tree_create_interfaces_interface(ly_ctx, *parent, &interface_list_node, rtnl_link_get_name(link_iter)), error_out);
 
