@@ -244,11 +244,7 @@ int interfaces_subscription_operational_interfaces_interface_if_index(sr_session
     // get if-index
     const int ifindex = rtnl_link_get_ifindex(link);
 
-    error = snprintf(ifindex_buffer, sizeof(ifindex_buffer), "%d", ifindex);
-    if (error < 0) {
-        SRPLG_LOG_ERR(PLUGIN_NAME, "snprintf() failed (%d)", error);
-        goto error_out;
-    }
+    SRPC_SAFE_CALL_ERR_COND(error, error < 0, snprintf(ifindex_buffer, sizeof(ifindex_buffer), "%d", ifindex), error_out);
 
     SRPLG_LOG_INF(PLUGIN_NAME, "if-index(%s) = %s", rtnl_link_get_name(link), ifindex_buffer);
 
