@@ -1793,7 +1793,7 @@ int interfaces_subscription_operational_interfaces_interface_ipv6_neighbor_origi
     SRPLG_LOG_INF(PLUGIN_NAME, "origin(interface[%s]:neighbor[%s]) = %s", rtnl_link_get_name(link), ip_buffer, origin);
 
     // add origin
-    SRPC_SAFE_CALL_ERR(error, interfaces_ly_tree_create_interfaces_interface_ipv4_neighbor_origin(ly_ctx, *parent, origin), error_out);
+    SRPC_SAFE_CALL_ERR(error, interfaces_ly_tree_create_interfaces_interface_ipv6_neighbor_origin(ly_ctx, *parent, origin), error_out);
 
     goto out;
 
