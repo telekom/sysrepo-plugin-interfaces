@@ -61,8 +61,7 @@ static int interfaces_startup_store_interface(void* priv, const struct lyd_node*
     interfaces_interface_hash_element_t* if_hash = NULL;
     struct lyd_node* interface_node = NULL;
 
-    interface_node
-        = srpc_ly_tree_get_child_list(parent_container, "interface");
+    interface_node = srpc_ly_tree_get_child_list(parent_container, "interface");
     if (interface_node == NULL) {
         SRPLG_LOG_ERR(PLUGIN_NAME, "srpc_ly_tree_get_child_leaf returned NULL for 'interfaces'");
         goto error_out;

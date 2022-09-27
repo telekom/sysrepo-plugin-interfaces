@@ -56,8 +56,22 @@ void interfaces_interface_hash_element_free(interfaces_interface_hash_element_t*
             free((*el)->interface.parent_interface);
         }
 
+        // lists
+
         if ((*el)->interface.ipv4.address) {
             INTERFACES_INTERFACE_LIST_FREE((*el)->interface.ipv4.address);
+        }
+
+        if ((*el)->interface.ipv6.address) {
+            INTERFACES_INTERFACE_LIST_FREE((*el)->interface.ipv6.address);
+        }
+
+        if ((*el)->interface.ipv4.address) {
+            INTERFACES_INTERFACE_LIST_FREE((*el)->interface.ipv4.neighbor);
+        }
+
+        if ((*el)->interface.ipv6.address) {
+            INTERFACES_INTERFACE_LIST_FREE((*el)->interface.ipv6.neighbor);
         }
 
         // element data
