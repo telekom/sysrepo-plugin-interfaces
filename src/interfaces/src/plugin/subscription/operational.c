@@ -4,6 +4,7 @@
 #include "netlink/addr.h"
 #include "netlink/cache.h"
 #include "netlink/object.h"
+#include "netlink/route/neighbour.h"
 #include "netlink/route/tc.h"
 #include "netlink/socket.h"
 #include "plugin/common.h"
@@ -1444,7 +1445,22 @@ out:
 int interfaces_subscription_operational_interfaces_interface_ipv4_neighbor(sr_session_ctx_t* session, uint32_t sub_id, const char* module_name, const char* path, const char* request_xpath, uint32_t request_id, struct lyd_node** parent, void* private_data)
 {
     int error = SR_ERR_OK;
+    int rc = 0;
+    void* error_ptr = NULL;
+
+    interfaces_ctx_t* ctx = private_data;
+    interfaces_oper_ctx_t* oper_ctx = &ctx->oper_ctx;
+
+    char xpath_buffer[PATH_MAX] = { 0 };
+    char dst_buffer[20] = { 0 };
+    char ll_buffer[100] = { 0 };
+
     const struct ly_ctx* ly_ctx = NULL;
+    struct lyd_node* address_node = NULL;
+
+    struct rtnl_link* link = NULL;
+    struct rtnl_neigh* neigh_iter = NULL;
+    struct nl_addr *dst_addr = NULL, *ll_addr = NULL;
 
     if (*parent == NULL) {
         ly_ctx = sr_acquire_context(sr_session_get_connection(session));
@@ -1452,6 +1468,49 @@ int interfaces_subscription_operational_interfaces_interface_ipv4_neighbor(sr_se
             SRPLG_LOG_ERR(PLUGIN_NAME, "sr_acquire_context() failed");
             goto error_out;
         }
+    }
+
+    // there needs to be an allocated link cache in memory
+    assert(*parent != NULL);
+    assert(strcmp(LYD_NAME(*parent), "ipv4") == 0);
+
+    // get node xpath
+    SRPC_SAFE_CALL_PTR(error_ptr, lyd_path(*parent, LYD_PATH_STD, xpath_buffer, sizeof(xpath_buffer)), error_out);
+
+    // get link
+    SRPC_SAFE_CALL_PTR(link, interfaces_get_current_link(ctx, session, xpath_buffer), error_out);
+
+    neigh_iter = (struct rtnl_neigh*)nl_cache_get_first(oper_ctx->nl_ctx.neigh_cache);
+
+    while (neigh_iter) {
+        // check for interface IPv4 neighbor
+        if (rtnl_neigh_get_ifindex(neigh_iter) == rtnl_link_get_ifindex(link) && rtnl_neigh_get_family(neigh_iter) == AF_INET) {
+            SRPLG_LOG_INF(PLUGIN_NAME, "Found IPv4 neighbor for %s", rtnl_link_get_name(link));
+
+            // IP
+            SRPC_SAFE_CALL_PTR(dst_addr, rtnl_neigh_get_dst(neigh_iter), error_out);
+            SRPC_SAFE_CALL_PTR(error_ptr, nl_addr2str(dst_addr, dst_buffer, sizeof(dst_buffer)), error_out);
+
+            // link-layer-address
+            SRPC_SAFE_CALL_PTR(ll_addr, rtnl_neigh_get_lladdr(neigh_iter), error_out);
+            SRPC_SAFE_CALL_PTR(error_ptr, nl_addr2str(ll_addr, ll_buffer, sizeof(ll_buffer)), error_out);
+
+            // remove prefix from IP
+            char* prefix = strchr(dst_buffer, '/');
+            if (prefix) {
+                *prefix = 0;
+            }
+
+            SRPLG_LOG_INF(PLUGIN_NAME, "ipv4:neighbor(%s) = %s | %s", rtnl_link_get_name(link), dst_buffer, ll_buffer);
+
+            // neighbor IP
+            SRPC_SAFE_CALL_ERR(error, interfaces_ly_tree_create_interfaces_interface_ipv4_neighbor(ly_ctx, *parent, &address_node, dst_buffer), error_out);
+
+            // link-layer-address
+            SRPC_SAFE_CALL_ERR(error, interfaces_ly_tree_create_interfaces_interface_ipv4_neighbor_link_layer_address(ly_ctx, address_node, ll_buffer), error_out);
+        }
+
+        neigh_iter = (struct rtnl_neigh*)nl_cache_get_next((struct nl_object*)neigh_iter);
     }
 
     goto out;
@@ -1759,12 +1818,16 @@ int interfaces_subscription_operational_interfaces_interface(sr_session_ctx_t* s
     if (nl_ctx->link_cache) {
         nl_cache_refill(nl_ctx->socket, nl_ctx->link_cache);
         nl_cache_refill(nl_ctx->socket, nl_ctx->addr_cache);
+        nl_cache_refill(nl_ctx->socket, nl_ctx->neigh_cache);
     } else {
         // allocate new link cache
         SRPC_SAFE_CALL_ERR(error, rtnl_link_alloc_cache(nl_ctx->socket, AF_UNSPEC, &nl_ctx->link_cache), error_out);
 
         // allocate new address cache
         SRPC_SAFE_CALL_ERR(error, rtnl_addr_alloc_cache(nl_ctx->socket, &nl_ctx->addr_cache), error_out);
+
+        // allocate new neighbor cache
+        SRPC_SAFE_CALL_ERR(error, rtnl_neigh_alloc_cache(nl_ctx->socket, &nl_ctx->neigh_cache), error_out);
     }
 
     if (*parent == NULL) {
