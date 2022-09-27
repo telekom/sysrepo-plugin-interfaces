@@ -637,11 +637,7 @@ int interfaces_subscription_operational_interfaces_interface_statistics_in_broad
 
     const uint64_t in_broadcast_pkts = rtnl_link_get_stat(link, RTNL_LINK_IP6_INBCASTPKTS);
 
-    error = snprintf(in_broadcast_pkts_buffer, sizeof(in_broadcast_pkts_buffer), "%lu", in_broadcast_pkts);
-    if (error < 0) {
-        SRPLG_LOG_ERR(PLUGIN_NAME, "snprintf() failed (%d)", error);
-        goto error_out;
-    }
+    SRPC_SAFE_CALL_ERR_COND(error, error < 0, snprintf(in_broadcast_pkts_buffer, sizeof(in_broadcast_pkts_buffer), "%lu", in_broadcast_pkts), error_out);
 
     SRPLG_LOG_INF(PLUGIN_NAME, "in-broadcast-pkts(%s) = %s", rtnl_link_get_name(link), in_broadcast_pkts_buffer);
 
