@@ -725,11 +725,7 @@ int interfaces_subscription_operational_interfaces_interface_statistics_in_disca
 
     const uint32_t in_discards = (uint32_t)rtnl_link_get_stat(link, RTNL_LINK_RX_DROPPED);
 
-    error = snprintf(in_discards_buffer, sizeof(in_discards_buffer), "%u", in_discards);
-    if (error < 0) {
-        SRPLG_LOG_ERR(PLUGIN_NAME, "snprintf() failed (%d)", error);
-        goto error_out;
-    }
+    SRPC_SAFE_CALL_ERR_COND(error, error < 0, snprintf(in_discards_buffer, sizeof(in_discards_buffer), "%u", in_discards), error_out);
 
     SRPLG_LOG_INF(PLUGIN_NAME, "in-discards(%s) = %s", rtnl_link_get_name(link), in_discards_buffer);
 
@@ -773,11 +769,7 @@ int interfaces_subscription_operational_interfaces_interface_statistics_in_error
 
     const uint32_t in_errors = (uint32_t)rtnl_link_get_stat(link, RTNL_LINK_RX_ERRORS);
 
-    error = snprintf(in_errors_buffer, sizeof(in_errors_buffer), "%u", in_errors);
-    if (error < 0) {
-        SRPLG_LOG_ERR(PLUGIN_NAME, "snprintf() failed (%d)", error);
-        goto error_out;
-    }
+    SRPC_SAFE_CALL_ERR_COND(error, error < 0, snprintf(in_errors_buffer, sizeof(in_errors_buffer), "%u", in_errors), error_out);
 
     SRPLG_LOG_INF(PLUGIN_NAME, "in-errors(%s) = %s", rtnl_link_get_name(link), in_errors_buffer);
 
@@ -821,11 +813,7 @@ int interfaces_subscription_operational_interfaces_interface_statistics_in_unkno
 
     const uint32_t in_unknown_protos = (uint32_t)rtnl_link_get_stat(link, RTNL_LINK_IP6_INUNKNOWNPROTOS);
 
-    error = snprintf(in_unknown_protos_buffer, sizeof(in_unknown_protos_buffer), "%u", in_unknown_protos);
-    if (error < 0) {
-        SRPLG_LOG_ERR(PLUGIN_NAME, "snprintf() failed (%d)", error);
-        goto error_out;
-    }
+    SRPC_SAFE_CALL_ERR_COND(error, error < 0, snprintf(in_unknown_protos_buffer, sizeof(in_unknown_protos_buffer), "%u", in_unknown_protos), error_out);
 
     SRPLG_LOG_INF(PLUGIN_NAME, "in-unknown-protos(%s) = %s", rtnl_link_get_name(link), in_unknown_protos_buffer);
 
@@ -869,11 +857,7 @@ int interfaces_subscription_operational_interfaces_interface_statistics_out_octe
 
     const uint64_t out_octets = rtnl_link_get_stat(link, RTNL_LINK_TX_BYTES);
 
-    error = snprintf(out_octets_buffer, sizeof(out_octets_buffer), "%lu", out_octets);
-    if (error < 0) {
-        SRPLG_LOG_ERR(PLUGIN_NAME, "snprintf() failed (%d)", error);
-        goto error_out;
-    }
+    SRPC_SAFE_CALL_ERR_COND(error, error < 0, snprintf(out_octets_buffer, sizeof(out_octets_buffer), "%lu", out_octets), error_out);
 
     SRPLG_LOG_INF(PLUGIN_NAME, "out-octets(%s) = %s", rtnl_link_get_name(link), out_octets_buffer);
 
@@ -920,11 +904,7 @@ int interfaces_subscription_operational_interfaces_interface_statistics_out_unic
     const uint64_t out_multicast_pkts = rtnl_link_get_stat(link, RTNL_LINK_IP6_OUTMCASTPKTS);
     const uint64_t out_unicast_pkts = out_pkts - out_broadcast_pkts - out_multicast_pkts;
 
-    error = snprintf(out_unicast_pkts_buffer, sizeof(out_unicast_pkts_buffer), "%lu", out_unicast_pkts);
-    if (error < 0) {
-        SRPLG_LOG_ERR(PLUGIN_NAME, "snprintf() failed (%d)", error);
-        goto error_out;
-    }
+    SRPC_SAFE_CALL_ERR_COND(error, error < 0, snprintf(out_unicast_pkts_buffer, sizeof(out_unicast_pkts_buffer), "%lu", out_unicast_pkts), error_out);
 
     SRPLG_LOG_INF(PLUGIN_NAME, "out-unicast-pkts(%s) = %s", rtnl_link_get_name(link), out_unicast_pkts_buffer);
 
@@ -968,11 +948,7 @@ int interfaces_subscription_operational_interfaces_interface_statistics_out_broa
 
     const uint64_t out_broadcast_pkts = rtnl_link_get_stat(link, RTNL_LINK_IP6_OUTBCASTPKTS);
 
-    error = snprintf(out_broadcast_pkts_buffer, sizeof(out_broadcast_pkts_buffer), "%lu", out_broadcast_pkts);
-    if (error < 0) {
-        SRPLG_LOG_ERR(PLUGIN_NAME, "snprintf() failed (%d)", error);
-        goto error_out;
-    }
+    SRPC_SAFE_CALL_ERR_COND(error, error < 0, snprintf(out_broadcast_pkts_buffer, sizeof(out_broadcast_pkts_buffer), "%lu", out_broadcast_pkts), error_out);
 
     SRPLG_LOG_INF(PLUGIN_NAME, "out-broadcast-pkts(%s) = %s", rtnl_link_get_name(link), out_broadcast_pkts_buffer);
 
@@ -1016,11 +992,7 @@ int interfaces_subscription_operational_interfaces_interface_statistics_out_mult
 
     const uint64_t out_multicast_pkts = rtnl_link_get_stat(link, RTNL_LINK_IP6_OUTMCASTPKTS);
 
-    error = snprintf(out_multicast_pkts_buffer, sizeof(out_multicast_pkts_buffer), "%lu", out_multicast_pkts);
-    if (error < 0) {
-        SRPLG_LOG_ERR(PLUGIN_NAME, "snprintf() failed (%d)", error);
-        goto error_out;
-    }
+    SRPC_SAFE_CALL_ERR_COND(error, error < 0, snprintf(out_multicast_pkts_buffer, sizeof(out_multicast_pkts_buffer), "%lu", out_multicast_pkts), error_out);
 
     SRPLG_LOG_INF(PLUGIN_NAME, "out-multicast-pkts(%s) = %s", rtnl_link_get_name(link), out_multicast_pkts_buffer);
 
@@ -1064,11 +1036,7 @@ int interfaces_subscription_operational_interfaces_interface_statistics_out_disc
 
     const uint64_t out_discards = rtnl_link_get_stat(link, RTNL_LINK_TX_DROPPED);
 
-    error = snprintf(out_discards_buffer, sizeof(out_discards_buffer), "%lu", out_discards);
-    if (error < 0) {
-        SRPLG_LOG_ERR(PLUGIN_NAME, "snprintf() failed (%d)", error);
-        goto error_out;
-    }
+    SRPC_SAFE_CALL_ERR_COND(error, error < 0, snprintf(out_discards_buffer, sizeof(out_discards_buffer), "%lu", out_discards), error_out);
 
     SRPLG_LOG_INF(PLUGIN_NAME, "out-discards(%s) = %s", rtnl_link_get_name(link), out_discards_buffer);
 
@@ -1112,11 +1080,7 @@ int interfaces_subscription_operational_interfaces_interface_statistics_out_erro
 
     const uint64_t out_errors = rtnl_link_get_stat(link, RTNL_LINK_TX_DROPPED);
 
-    error = snprintf(out_errors_buffer, sizeof(out_errors_buffer), "%lu", out_errors);
-    if (error < 0) {
-        SRPLG_LOG_ERR(PLUGIN_NAME, "snprintf() failed (%d)", error);
-        goto error_out;
-    }
+    SRPC_SAFE_CALL_ERR_COND(error, error < 0, snprintf(out_errors_buffer, sizeof(out_errors_buffer), "%lu", out_errors), error_out);
 
     SRPLG_LOG_INF(PLUGIN_NAME, "out-errors(%s) = %s", rtnl_link_get_name(link), out_errors_buffer);
 
@@ -1881,11 +1845,7 @@ static int interfaces_extract_interface_name(sr_session_ctx_t* session, const ch
     SRPC_SAFE_CALL_PTR(name, sr_xpath_key_value(xpath_copy, "interface", "name", &xpath_ctx), error_out);
 
     // store to buffer
-    error = snprintf(buffer, buffer_size, "%s", name);
-    if (error < 0) {
-        SRPLG_LOG_ERR(PLUGIN_NAME, "snprintf() failed");
-        goto error_out;
-    }
+    SRPC_SAFE_CALL_ERR_COND(error, error < 0, snprintf(buffer, buffer_size, "%s", name), error_out);
 
     error = 0;
     goto out;
