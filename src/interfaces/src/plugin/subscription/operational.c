@@ -455,11 +455,8 @@ int interfaces_subscription_operational_interfaces_interface_speed(sr_session_ct
 
     // get speed
     const uint64_t speed = rtnl_tc_get_stat(tc, RTNL_TC_RATE_BPS);
-    error = snprintf(speed_buffer, sizeof(speed_buffer), "%lu", speed);
-    if (error < 0) {
-        SRPLG_LOG_ERR(PLUGIN_NAME, "snprintf() failed (%d)", error);
-        goto error_out;
-    }
+
+    SRPC_SAFE_CALL_ERR_COND(error, error < 0, snprintf(speed_buffer, sizeof(speed_buffer), "%lu", speed), error_out);
 
     SRPLG_LOG_INF(PLUGIN_NAME, "speed(%s) = %s", rtnl_link_get_name(link), speed_buffer);
 
