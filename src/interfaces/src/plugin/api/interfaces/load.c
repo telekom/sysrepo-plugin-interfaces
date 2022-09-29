@@ -121,6 +121,7 @@ static char* interfaces_get_interface_type(struct rtnl_link* link, char* name)
             break;
         default:
             SRPLG_LOG_ERR(PLUGIN_NAME, "%s: unkown type_id: %d", __func__, type_id);
+            return NULL;
         }
     }
 
@@ -154,9 +155,10 @@ static char* interfaces_get_interface_parent_interface(struct nl_cache* cache, s
     if (rtnl_link_is_vlan(link)) {
         parent_index = rtnl_link_get_link(link);
         parent_interface = rtnl_link_i2name(cache, parent_index, parent_buffer, IFNAMSIZ);
+        return xstrdup(parent_interface);
     }
 
-    return xstrdup(parent_interface);
+    return NULL;
 }
 
 /* TODO: outer tag, second id, tag - maybe refactor all to pass by reference, return error */
@@ -178,6 +180,7 @@ static int interfaces_get_interface_vlan_id(struct rtnl_link* link, interfaces_i
         second = strchr(first + 1, '.');
 
         if (second != 0) {
+            // continue to the next interface
             return interfaces_load_continue;
         }
     }
@@ -185,18 +188,22 @@ static int interfaces_get_interface_vlan_id(struct rtnl_link* link, interfaces_i
     return interfaces_load_success;
 }
 
+/*
+    Parses the link for interface data
+*/
 static int interfaces_parse_link(interfaces_ctx_t* ctx, struct nl_sock* socket, struct nl_cache* cache, struct rtnl_link* link, interfaces_interface_t* interface)
 {
     int error = interfaces_load_success;
     *interface = (interfaces_interface_t) { 0 };
 
+    // required
     SRPC_SAFE_CALL_PTR(interface->name, interfaces_get_interface_name(link), error_out);
 
-    SRPC_SAFE_CALL_PTR(interface->description, interfaces_get_interface_description(ctx, interface->name), error_out);
+    interfaces_get_interface_description(ctx, interface->name);
 
-    SRPC_SAFE_CALL_PTR(interface->type, interfaces_get_interface_type(link, interface->name), error_out);
+    interfaces_get_interface_type(link, interface->name);
 
-    SRPC_SAFE_CALL_PTR(interface->parent_interface, interfaces_get_interface_parent_interface(cache, link), error_out);
+    interfaces_get_interface_parent_interface(cache, link);
 
     error = interfaces_get_interface_vlan_id(link, interface);
     if (error != interfaces_load_success) {
@@ -209,19 +216,8 @@ static int interfaces_parse_link(interfaces_ctx_t* ctx, struct nl_sock* socket, 
     goto out;
 error_out:
     error = interfaces_load_failure;
+    // do not free the data, the interface data needs to be added in the interfaces hash table
 out:
-    if (interface->name != NULL) {
-        FREE_SAFE(interface->name);
-    }
-    if (interface->description != NULL) {
-        FREE_SAFE(interface->description);
-    }
-    if (interface->type != NULL) {
-        FREE_SAFE(interface->type);
-    }
-    if (interface->parent_interface != NULL) {
-        FREE_SAFE(interface->parent_interface);
-    }
 
     return error;
 }
@@ -252,6 +248,19 @@ static int interfaces_add_link(interfaces_interface_hash_element_t** if_hash, in
     goto out;
 error_out:
 out:
+    if (interface->name != NULL) {
+        FREE_SAFE(interface->name);
+    }
+    if (interface->description != NULL) {
+        FREE_SAFE(interface->description);
+    }
+    if (interface->type != NULL) {
+        FREE_SAFE(interface->type);
+    }
+    if (interface->parent_interface != NULL) {
+        FREE_SAFE(interface->parent_interface);
+    }
+
     return error;
 }
 
