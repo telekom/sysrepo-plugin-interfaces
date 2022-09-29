@@ -82,11 +82,7 @@ static int interfaces_startup_load_interface(void* priv, sr_session_ctx_t* sessi
     interfaces_ctx_t* ctx = (interfaces_ctx_t*)priv;
     interfaces_interface_hash_element_t* interface_head = NULL;
 
-    error = interfaces_load_interface(ctx, &interface_head);
-    if (error) {
-        SRPLG_LOG_ERR(PLUGIN_NAME, "interfaces_load_interface() error (%d)", error);
-        goto error_out;
-    }
+    SRPC_SAFE_CALL_ERR(error, interfaces_load_interface(ctx, &interface_head), error_out);
 
     goto out;
 

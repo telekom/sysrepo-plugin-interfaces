@@ -29,14 +29,13 @@ typedef struct interfaces_interface_ipv6 interfaces_interface_ipv6_t;
 typedef struct interfaces_interface interfaces_interface_t;
 typedef struct interfaces_interface_element interfaces_interface_element_t;
 typedef struct interfaces interfaces_t;
-typedef struct interface_ht_element interface_ht_element_t;
 typedef struct interfaces_interface_state interfaces_interface_state_t;
 typedef struct interfaces_interface_state_hash_element interfaces_interface_state_hash_element_t;
 typedef struct interfaces_interface_hash_element interfaces_interface_hash_element_t;
 
 enum interfaces_interface_enable {
     interfaces_interface_enable_disabled = 0,
-    interfaces_interface_enable_enabled  = 1,
+    interfaces_interface_enable_enabled = 1,
 };
 
 enum interfaces_interface_link_up_down_trap_enable {
@@ -173,16 +172,6 @@ struct interfaces_interface {
 struct interfaces_interface_element {
     interfaces_interface_element_t* next;
     interfaces_interface_t interface;
-};
-
-/* 
- *  - interface hash table element
- *  - used due to interface name indexing 
- */
-struct interface_ht_element {
-    interfaces_interface_t interface;
-    /* makes the structure hashable */
-    UT_hash_handle hh;
 };
 
 struct interfaces {
