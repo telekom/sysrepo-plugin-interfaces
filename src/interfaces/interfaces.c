@@ -54,6 +54,7 @@
 #include "if_state.h"
 #include "ip_data.h"
 #include "link_data.h"
+#include "sysrepo_types.h"
 #include "utils/memory.h"
 #include "datastore.h"
 
@@ -90,6 +91,7 @@ int add_existing_links(sr_session_ctx_t *session, link_data_list_t *ld);
 static int get_interface_description(sr_session_ctx_t *session, char *name, char **description);
 static int create_vlan_qinq(struct nl_sock *socket, struct nl_cache *cache, char *second_vlan_name, char *name, char *parent_interface, uint16_t outer_vlan_id, uint16_t second_vlan_id);
 static int get_system_boot_time(char boot_datetime[]);
+static int remove_dynamic_addr_from_startup(sr_session_ctx_t *startup_session);
 
 // function to start all threads for each interface
 static int init_state_changes(void);
@@ -160,9 +162,9 @@ int sr_plugin_init_cb(sr_session_ctx_t *session, void **private_data)
 			goto error_out;
 		}
 
-		error = sr_copy_config(startup_session, BASE_YANG_MODEL, SR_DS_RUNNING, 0);
+		error = remove_dynamic_addr_from_startup(startup_session);
 		if (error) {
-			SRPLG_LOG_ERR(PLUGIN_NAME, "sr_copy_config error (%d): %s", error, sr_strerror(error));
+			SRPLG_LOG_ERR(PLUGIN_NAME, "remove_dynamic_addr_from_startup failed");
 			goto error_out;
 		}
 	}
@@ -455,37 +457,8 @@ void sr_plugin_cleanup_cb(sr_session_ctx_t *session, void *private_data)
 {
 	sr_session_ctx_t *startup_session = (sr_session_ctx_t *) private_data;
 
-	char path_buffer[PATH_MAX] = {0};
-
 	// copy the running datastore to startup one, in case we reboot
-	sr_copy_config(startup_session, BASE_YANG_MODEL, SR_DS_RUNNING, 0);
-
-	for (int i = 0; i < link_data_list.count; i++) {
-		const link_data_t *link = &link_data_list.links[i];
-		for (size_t j = 0; j < link->ipv4.addr_list.count; j++) {
-			const ip_address_t *addr = &link->ipv4.addr_list.addr[j];
-
-			SRPLG_LOG_DBG(PLUGIN_NAME, "Address = %s, origin = %d", addr->ip, addr->origin);
-			if (addr->origin == ip_address_origin_dhcp) {
-				// delete from startup
-				SRPLG_LOG_DBG(PLUGIN_NAME, "Deleting %s from startup", addr->ip);
-				snprintf(path_buffer, sizeof(path_buffer), "/" BASE_YANG_MODEL ":interfaces/interface[name=\"%s\"]/ietf-ip:ipv4/address[ip=\"%s\"]", link->name, addr->ip);
-				SRPLG_LOG_DBG(PLUGIN_NAME, "Path = %s", path_buffer);
-				sr_delete_item(startup_session, path_buffer, 0);
-			}
-		}
-		for (size_t j = 0; j < link->ipv6.ip_data.addr_list.count; j++) {
-			const ip_address_t *addr = &link->ipv6.ip_data.addr_list.addr[j];
-
-			SRPLG_LOG_DBG(PLUGIN_NAME, "Address = %s, origin = %d", addr->ip, addr->origin);
-			if (addr->origin == ip_address_origin_dhcp) {
-				snprintf(path_buffer, sizeof(path_buffer), "/" BASE_YANG_MODEL ":interfaces/interface[name=\"%s\"]/ipv6/address[ip=\"%s\"]/*", link->name, addr->ip);
-				sr_delete_item(startup_session, path_buffer, 0);
-			}
-		}
-	}
-
-	sr_apply_changes(startup_session, 0);
+	remove_dynamic_addr_from_startup(startup_session);
 
 	exit_application = 1;
 
@@ -3098,6 +3071,77 @@ static void *manager_thread_cb(void *data)
 	} while (exit_application == 0);
 
 	return NULL;
+}
+
+static int remove_dynamic_addr_from_startup(sr_session_ctx_t *startup_session)
+{
+	int error = 0;
+	int rc = 0;
+
+	char path_buffer[PATH_MAX] = {0};
+
+	rc = sr_copy_config(startup_session, BASE_YANG_MODEL, SR_DS_RUNNING, 0);
+	if (rc) {
+		SRPLG_LOG_ERR(PLUGIN_NAME, "sr_copy_config() failed");
+		goto error_out;
+	}
+
+	for (int i = 0; i < link_data_list.count; i++) {
+		const link_data_t *link = &link_data_list.links[i];
+		for (size_t j = 0; j < link->ipv4.addr_list.count; j++) {
+			const ip_address_t *addr = &link->ipv4.addr_list.addr[j];
+
+			SRPLG_LOG_DBG(PLUGIN_NAME, "Address = %s, origin = %d", addr->ip, addr->origin);
+			if (addr->origin == ip_address_origin_dhcp) {
+				// delete from startup
+				SRPLG_LOG_DBG(PLUGIN_NAME, "Deleting %s from startup", addr->ip);
+				rc = snprintf(path_buffer, sizeof(path_buffer), "/" BASE_YANG_MODEL ":interfaces/interface[name=\"%s\"]/ietf-ip:ipv4/address[ip=\"%s\"]", link->name, addr->ip);
+				if (rc < 0) {
+					SRPLG_LOG_ERR(PLUGIN_NAME, "snprintf() failed");
+					goto error_out;
+				}
+				SRPLG_LOG_DBG(PLUGIN_NAME, "Path = %s", path_buffer);
+				rc = sr_delete_item(startup_session, path_buffer, 0);
+				if (rc) {
+					SRPLG_LOG_ERR(PLUGIN_NAME, "sr_delete_item() failed");
+					goto error_out;
+				}
+			}
+		}
+		for (size_t j = 0; j < link->ipv6.ip_data.addr_list.count; j++) {
+			const ip_address_t *addr = &link->ipv6.ip_data.addr_list.addr[j];
+
+			SRPLG_LOG_DBG(PLUGIN_NAME, "Address = %s, origin = %d", addr->ip, addr->origin);
+			if (addr->origin == ip_address_origin_dhcp) {
+				SRPLG_LOG_DBG(PLUGIN_NAME, "Deleting %s from startup", addr->ip);
+				rc = snprintf(path_buffer, sizeof(path_buffer), "/" BASE_YANG_MODEL ":interfaces/interface[name=\"%s\"]/ipv6/address[ip=\"%s\"]/*", link->name, addr->ip);
+				if (rc < 0) {
+					SRPLG_LOG_ERR(PLUGIN_NAME, "snprintf() failed");
+					goto error_out;
+				}
+				rc = sr_delete_item(startup_session, path_buffer, 0);
+				if (rc) {
+					SRPLG_LOG_ERR(PLUGIN_NAME, "sr_delete_item() failed");
+					goto error_out;
+				}
+			}
+		}
+	}
+
+	rc = sr_apply_changes(startup_session, 0);
+	if (rc) {
+		SRPLG_LOG_ERR(PLUGIN_NAME, "sr_apply_changes() failed");
+		goto error_out;
+	}
+
+	goto out;
+
+error_out:
+	error = -1;
+
+out:
+
+	return error;
 }
 
 #ifndef PLUGIN
