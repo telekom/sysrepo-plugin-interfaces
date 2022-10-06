@@ -157,6 +157,9 @@ int interfaces_interface_ipv4_address_change_ip(void* priv, sr_session_ctx_t* se
     goto out;
 
 error_out:
+    if (error < 0) {
+        SRPLG_LOG_INF(PLUGIN_NAME, "nl_geterror(): %s", nl_geterror(error));
+    }
     error = -1;
 
 out:
