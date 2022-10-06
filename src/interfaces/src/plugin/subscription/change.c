@@ -55,10 +55,6 @@ int interfaces_subscription_change_interfaces_interface(sr_session_ctx_t* sessio
         SRPC_SAFE_CALL_ERR_COND(rc, rc < 0, snprintf(change_xpath_buffer, sizeof(change_xpath_buffer), "%s/ipv4/enabled", xpath), error_out);
         SRPC_SAFE_CALL_ERR(rc, srpc_iterate_changes(ctx, session, change_xpath_buffer, interfaces_interface_ipv4_change_enabled, interfaces_change_interface_init, interfaces_change_interface_free), error_out);
 
-        // ipv4/address
-        SRPC_SAFE_CALL_ERR_COND(rc, rc < 0, snprintf(change_xpath_buffer, sizeof(change_xpath_buffer), "%s/ipv4/address", xpath), error_out);
-        SRPC_SAFE_CALL_ERR(rc, srpc_iterate_changes(ctx, session, change_xpath_buffer, interfaces_interface_ipv4_change_address, interfaces_change_interface_init, interfaces_change_interface_free), error_out);
-
         // ipv4/address/ip
         SRPC_SAFE_CALL_ERR_COND(rc, rc < 0, snprintf(change_xpath_buffer, sizeof(change_xpath_buffer), "%s/ipv4/address/ip", xpath), error_out);
         SRPC_SAFE_CALL_ERR(rc, srpc_iterate_changes(ctx, session, change_xpath_buffer, interfaces_interface_ipv4_address_change_ip, interfaces_change_interface_init, interfaces_change_interface_free), error_out);
