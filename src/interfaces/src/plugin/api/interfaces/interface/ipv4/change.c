@@ -198,6 +198,8 @@ int interfaces_interface_ipv4_change_enabled(void* priv, sr_session_ctx_t* sessi
     const char* node_name = LYD_NAME(change_ctx->node);
     const char* node_value = lyd_get_value(change_ctx->node);
 
+    // IPv4 can be disabled by deleting all IPv4 addresses associated with the interface
+
     SRPLG_LOG_INF(PLUGIN_NAME, "Node Name: %s; Previous Value: %s, Value: %s; Operation: %d", node_name, change_ctx->previous_value, node_value, change_ctx->operation);
 
     switch (change_ctx->operation) {
