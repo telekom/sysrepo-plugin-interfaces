@@ -10,6 +10,7 @@
 // change API
 #include "plugin/api/interfaces/change.h"
 #include "plugin/api/interfaces/interface/change.h"
+#include "plugin/api/interfaces/interface/ipv4/address/change.h"
 #include "plugin/api/interfaces/interface/ipv4/change.h"
 
 int interfaces_subscription_change_interfaces_interface(sr_session_ctx_t* session, uint32_t subscription_id, const char* module_name, const char* xpath, sr_event_t event, uint32_t request_id, void* private_data)
@@ -57,6 +58,18 @@ int interfaces_subscription_change_interfaces_interface(sr_session_ctx_t* sessio
         // ipv4/address
         SRPC_SAFE_CALL_ERR_COND(rc, rc < 0, snprintf(change_xpath_buffer, sizeof(change_xpath_buffer), "%s/ipv4/address", xpath), error_out);
         SRPC_SAFE_CALL_ERR(rc, srpc_iterate_changes(ctx, session, change_xpath_buffer, interfaces_interface_ipv4_change_address, interfaces_change_interface_init, interfaces_change_interface_free), error_out);
+
+        // ipv4/address/ip
+        SRPC_SAFE_CALL_ERR_COND(rc, rc < 0, snprintf(change_xpath_buffer, sizeof(change_xpath_buffer), "%s/ipv4/address/ip", xpath), error_out);
+        SRPC_SAFE_CALL_ERR(rc, srpc_iterate_changes(ctx, session, change_xpath_buffer, interfaces_interface_ipv4_address_change_ip, interfaces_change_interface_init, interfaces_change_interface_free), error_out);
+
+        // ipv4/address/prefix-length
+        SRPC_SAFE_CALL_ERR_COND(rc, rc < 0, snprintf(change_xpath_buffer, sizeof(change_xpath_buffer), "%s/ipv4/address/prefix-length", xpath), error_out);
+        SRPC_SAFE_CALL_ERR(rc, srpc_iterate_changes(ctx, session, change_xpath_buffer, interfaces_interface_ipv4_address_change_prefix_length, interfaces_change_interface_init, interfaces_change_interface_free), error_out);
+
+        // ipv4/address/netmask
+        SRPC_SAFE_CALL_ERR_COND(rc, rc < 0, snprintf(change_xpath_buffer, sizeof(change_xpath_buffer), "%s/ipv4/address/netmask", xpath), error_out);
+        SRPC_SAFE_CALL_ERR(rc, srpc_iterate_changes(ctx, session, change_xpath_buffer, interfaces_interface_ipv4_address_change_netmask, interfaces_change_interface_init, interfaces_change_interface_free), error_out);
 
         // ipv4/neighbor
         SRPC_SAFE_CALL_ERR_COND(rc, rc < 0, snprintf(change_xpath_buffer, sizeof(change_xpath_buffer), "%s/ipv4/neighbor", xpath), error_out);
