@@ -195,12 +195,24 @@ int interfaces_interface_ipv4_change_enabled_init(void* priv)
 int interfaces_interface_ipv4_change_enabled(void* priv, sr_session_ctx_t* session, const srpc_change_ctx_t* change_ctx)
 {
     int error = 0;
+    void* error_ptr = NULL;
     const char* node_name = LYD_NAME(change_ctx->node);
     const char* node_value = lyd_get_value(change_ctx->node);
+
+    char path_buffer[PATH_MAX] = { 0 };
+    char interface_name_buffer[100] = { 0 };
 
     // IPv4 can be disabled by deleting all IPv4 addresses associated with the interface
 
     SRPLG_LOG_INF(PLUGIN_NAME, "Node Name: %s; Previous Value: %s, Value: %s; Operation: %d", node_name, change_ctx->previous_value, node_value, change_ctx->operation);
+
+    // get node path
+    SRPC_SAFE_CALL_PTR(error_ptr, lyd_path(change_ctx->node, LYD_PATH_STD, path_buffer, sizeof(path_buffer)), error_out);
+
+    // get interface name
+    SRPC_SAFE_CALL_ERR(error, srpc_extract_xpath_key_value(path_buffer, "interface", "name", interface_name_buffer, sizeof(interface_name_buffer)), error_out);
+
+    SRPLG_LOG_INF(PLUGIN_NAME, "Node Path: %s; Interface Name: %s", path_buffer, interface_name_buffer);
 
     switch (change_ctx->operation) {
     case SR_OP_CREATED:
@@ -213,6 +225,12 @@ int interfaces_interface_ipv4_change_enabled(void* priv, sr_session_ctx_t* sessi
         break;
     }
 
+    goto out;
+
+error_out:
+    error = -1;
+
+out:
     return -1;
 }
 
