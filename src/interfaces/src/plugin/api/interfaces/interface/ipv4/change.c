@@ -35,7 +35,7 @@ int interfaces_interface_ipv4_change_neighbor(void* priv, sr_session_ctx_t* sess
         break;
     }
 
-    return error;
+    return -1;
 }
 
 void interfaces_interface_ipv4_change_neighbor_free(void* priv)
@@ -67,7 +67,7 @@ int interfaces_interface_ipv4_change_address(void* priv, sr_session_ctx_t* sessi
         break;
     }
 
-    return error;
+    return -1;
 }
 
 void interfaces_interface_ipv4_change_address_free(void* priv)
@@ -179,7 +179,7 @@ int interfaces_interface_ipv4_change_forwarding(void* priv, sr_session_ctx_t* se
         break;
     }
 
-    return error;
+    return -1;
 }
 
 void interfaces_interface_ipv4_change_forwarding_free(void* priv)
