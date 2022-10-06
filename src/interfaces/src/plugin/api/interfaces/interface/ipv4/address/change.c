@@ -83,8 +83,10 @@ int interfaces_interface_ipv4_address_change_ip(void* priv, sr_session_ctx_t* se
 
     switch (change_ctx->operation) {
     case SR_OP_CREATED:
+        // new address
         break;
     case SR_OP_MODIFIED:
+        // should be impossible - address IP can only be created and deleted
         break;
     case SR_OP_DELETED:
         break;
