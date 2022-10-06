@@ -23,6 +23,7 @@ int interfaces_subscription_change_interfaces_interface(sr_session_ctx_t* sessio
         SRPLG_LOG_ERR(PLUGIN_NAME, "Aborting changes for %s", xpath);
         goto error_out;
     } else if (event == SR_EV_DONE) {
+        // when all changes processed - copy running DS contents to startup
         SRPC_SAFE_CALL_ERR(error, sr_copy_config(ctx->startup_session, IETF_INTERFACES_YANG_MODULE, SR_DS_RUNNING, 0), error_out);
     } else if (event == SR_EV_CHANGE) {
         // name
@@ -48,6 +49,18 @@ int interfaces_subscription_change_interfaces_interface(sr_session_ctx_t* sessio
         // ipv4/mtu
         SRPC_SAFE_CALL_ERR_COND(rc, rc < 0, snprintf(change_xpath_buffer, sizeof(change_xpath_buffer), "%s/ipv4/mtu", xpath), error_out);
         SRPC_SAFE_CALL_ERR(rc, srpc_iterate_changes(ctx, session, change_xpath_buffer, interfaces_interface_ipv4_change_mtu, interfaces_change_interface_init, interfaces_change_interface_free), error_out);
+
+        // ipv4/enabled
+        SRPC_SAFE_CALL_ERR_COND(rc, rc < 0, snprintf(change_xpath_buffer, sizeof(change_xpath_buffer), "%s/ipv4/enabled", xpath), error_out);
+        SRPC_SAFE_CALL_ERR(rc, srpc_iterate_changes(ctx, session, change_xpath_buffer, interfaces_interface_ipv4_change_enabled, interfaces_change_interface_init, interfaces_change_interface_free), error_out);
+
+        // ipv4/address
+        SRPC_SAFE_CALL_ERR_COND(rc, rc < 0, snprintf(change_xpath_buffer, sizeof(change_xpath_buffer), "%s/ipv4/address", xpath), error_out);
+        SRPC_SAFE_CALL_ERR(rc, srpc_iterate_changes(ctx, session, change_xpath_buffer, interfaces_interface_ipv4_change_address, interfaces_change_interface_init, interfaces_change_interface_free), error_out);
+
+        // ipv4/neighbor
+        SRPC_SAFE_CALL_ERR_COND(rc, rc < 0, snprintf(change_xpath_buffer, sizeof(change_xpath_buffer), "%s/ipv4/neighbor", xpath), error_out);
+        SRPC_SAFE_CALL_ERR(rc, srpc_iterate_changes(ctx, session, change_xpath_buffer, interfaces_interface_ipv4_change_neighbor, interfaces_change_interface_init, interfaces_change_interface_free), error_out);
     }
 
     goto out;

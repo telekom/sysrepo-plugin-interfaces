@@ -15,7 +15,7 @@ int interfaces_interface_ipv6_change_dup_addr_detect_transmits(void* priv, sr_se
     const char* node_name = LYD_NAME(change_ctx->node);
     const char* node_value = lyd_get_value(change_ctx->node);
 
-    SRPLG_LOG_DBG(PLUGIN_NAME, "Node Name: %s; Previous Value: %s, Value: %s; Operation: %d", node_name, change_ctx->previous_value, node_value, change_ctx->operation);
+    SRPLG_LOG_INF(PLUGIN_NAME, "Node Name: %s; Previous Value: %s, Value: %s; Operation: %d", node_name, change_ctx->previous_value, node_value, change_ctx->operation);
 
     switch (change_ctx->operation) {
     case SR_OP_CREATED:
@@ -47,7 +47,7 @@ int interfaces_interface_ipv6_change_neighbor(void* priv, sr_session_ctx_t* sess
     const char* node_name = LYD_NAME(change_ctx->node);
     const char* node_value = lyd_get_value(change_ctx->node);
 
-    SRPLG_LOG_DBG(PLUGIN_NAME, "Node Name: %s; Previous Value: %s, Value: %s; Operation: %d", node_name, change_ctx->previous_value, node_value, change_ctx->operation);
+    SRPLG_LOG_INF(PLUGIN_NAME, "Node Name: %s; Previous Value: %s, Value: %s; Operation: %d", node_name, change_ctx->previous_value, node_value, change_ctx->operation);
 
     switch (change_ctx->operation) {
     case SR_OP_CREATED:
@@ -79,7 +79,7 @@ int interfaces_interface_ipv6_change_address(void* priv, sr_session_ctx_t* sessi
     const char* node_name = LYD_NAME(change_ctx->node);
     const char* node_value = lyd_get_value(change_ctx->node);
 
-    SRPLG_LOG_DBG(PLUGIN_NAME, "Node Name: %s; Previous Value: %s, Value: %s; Operation: %d", node_name, change_ctx->previous_value, node_value, change_ctx->operation);
+    SRPLG_LOG_INF(PLUGIN_NAME, "Node Name: %s; Previous Value: %s, Value: %s; Operation: %d", node_name, change_ctx->previous_value, node_value, change_ctx->operation);
 
     switch (change_ctx->operation) {
     case SR_OP_CREATED:
@@ -111,7 +111,7 @@ int interfaces_interface_ipv6_change_mtu(void* priv, sr_session_ctx_t* session, 
     const char* node_name = LYD_NAME(change_ctx->node);
     const char* node_value = lyd_get_value(change_ctx->node);
 
-    SRPLG_LOG_DBG(PLUGIN_NAME, "Node Name: %s; Previous Value: %s, Value: %s; Operation: %d", node_name, change_ctx->previous_value, node_value, change_ctx->operation);
+    SRPLG_LOG_INF(PLUGIN_NAME, "Node Name: %s; Previous Value: %s, Value: %s; Operation: %d", node_name, change_ctx->previous_value, node_value, change_ctx->operation);
 
     switch (change_ctx->operation) {
     case SR_OP_CREATED:
@@ -143,7 +143,7 @@ int interfaces_interface_ipv6_change_forwarding(void* priv, sr_session_ctx_t* se
     const char* node_name = LYD_NAME(change_ctx->node);
     const char* node_value = lyd_get_value(change_ctx->node);
 
-    SRPLG_LOG_DBG(PLUGIN_NAME, "Node Name: %s; Previous Value: %s, Value: %s; Operation: %d", node_name, change_ctx->previous_value, node_value, change_ctx->operation);
+    SRPLG_LOG_INF(PLUGIN_NAME, "Node Name: %s; Previous Value: %s, Value: %s; Operation: %d", node_name, change_ctx->previous_value, node_value, change_ctx->operation);
 
     switch (change_ctx->operation) {
     case SR_OP_CREATED:
@@ -175,7 +175,7 @@ int interfaces_interface_ipv6_change_enabled(void* priv, sr_session_ctx_t* sessi
     const char* node_name = LYD_NAME(change_ctx->node);
     const char* node_value = lyd_get_value(change_ctx->node);
 
-    SRPLG_LOG_DBG(PLUGIN_NAME, "Node Name: %s; Previous Value: %s, Value: %s; Operation: %d", node_name, change_ctx->previous_value, node_value, change_ctx->operation);
+    SRPLG_LOG_INF(PLUGIN_NAME, "Node Name: %s; Previous Value: %s, Value: %s; Operation: %d", node_name, change_ctx->previous_value, node_value, change_ctx->operation);
 
     switch (change_ctx->operation) {
     case SR_OP_CREATED:
