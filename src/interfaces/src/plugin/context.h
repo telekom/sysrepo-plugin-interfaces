@@ -35,6 +35,11 @@ struct interfaces_nl_ctx_s {
 struct interfaces_mod_changes_ctx_s {
     // libnl links data
     interfaces_nl_ctx_t nl_ctx;
+
+    // data
+    struct {
+        int32_t prefix_length;
+    } mod_data;
 };
 
 struct interfaces_state_changes_ctx_s {

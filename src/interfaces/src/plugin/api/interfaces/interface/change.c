@@ -134,6 +134,7 @@ int interfaces_interface_change_enabled(void* priv, sr_session_ctx_t* session, c
         // set name
         rtnl_link_set_name(request_link, interface_name_buffer);
         rtnl_link_set_type(request_link, rtnl_link_get_type(current_link));
+
         // set operstate
         rtnl_link_set_flags(request_link, (strcmp(node_value, "true") == 0) ? (unsigned int)rtnl_link_str2flags("up") : (unsigned int)rtnl_link_str2flags("down"));
         rtnl_link_unset_flags(request_link, (strcmp(node_value, "true") == 0) ? (unsigned int)rtnl_link_str2flags("down") : (unsigned int)rtnl_link_str2flags("up"));

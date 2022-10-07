@@ -17,11 +17,7 @@ int interfaces_startup_store(interfaces_ctx_t* ctx, sr_session_ctx_t* session)
     int error = 0;
     sr_data_t* subtree = NULL;
 
-    error = sr_get_subtree(session, INTERFACES_INTERFACES_CONTAINER_YANG_PATH, 0, &subtree);
-    if (error) {
-        SRPLG_LOG_ERR(PLUGIN_NAME, "sr_get_subtree() error (%d): %s", error, sr_strerror(error));
-        goto error_out;
-    }
+    SRPC_SAFE_CALL_ERR(error, sr_get_subtree(session, INTERFACES_INTERFACES_CONTAINER_YANG_PATH, 0, &subtree), error_out);
 
     srpc_startup_store_t store_values[] = {
         {
@@ -86,17 +82,12 @@ static int interfaces_startup_store_interface(void* priv, const struct lyd_node*
     case srpc_check_status_non_existant:
         SRPLG_LOG_INF(PLUGIN_NAME, "Storing interface array");
 
-        error = interfaces_store_interface(ctx, if_hash);
-        if (error) {
-            SRPLG_LOG_ERR(PLUGIN_NAME, "interfaces_store_interface() failed (%d)", error);
-            goto error_out;
-        }
+        SRPC_SAFE_CALL_ERR(error, interfaces_store_interface(ctx, if_hash), error_out);
         break;
     case srpc_check_status_equal:
         SRPLG_LOG_ERR(PLUGIN_NAME, "Startup interface array is already applied on the system");
         break;
     case srpc_check_status_partial:
-        /* should not be returned - treat as an error */
         SRPLG_LOG_ERR(PLUGIN_NAME, "Error loading current interface array");
         goto error_out;
     }
