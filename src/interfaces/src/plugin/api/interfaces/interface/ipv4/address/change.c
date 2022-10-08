@@ -230,7 +230,7 @@ int interfaces_interface_ipv4_address_change_ip(void* priv, sr_session_ctx_t* se
         break;
     case SR_OP_MODIFIED:
         // should be impossible - address IP can only be created and deleted
-        SRPLG_LOG_ERR(PLUGIN_NAME, "Unsuported operation MODIFY for ietf-ip:ipv4/address/ip");
+        SRPLG_LOG_ERR(PLUGIN_NAME, "Unsuported operation MODIFY for interface IPv4 address IP leaf");
         goto error_out;
         break;
     case SR_OP_DELETED:
