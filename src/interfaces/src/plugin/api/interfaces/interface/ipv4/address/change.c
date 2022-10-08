@@ -70,6 +70,7 @@ int interfaces_interface_ipv4_address_change_prefix_length(void* priv, sr_sessio
     char interface_name_buffer[100] = { 0 };
     char ip_buffer[100] = { 0 };
     char address_buffer[100] = { 0 };
+    char old_address_buffer[100] = { 0 };
 
     // app context
     interfaces_ctx_t* ctx = priv;
@@ -79,8 +80,10 @@ int interfaces_interface_ipv4_address_change_prefix_length(void* priv, sr_sessio
 
     // libnl
     struct rtnl_addr* request_addr = NULL;
+    struct rtnl_addr* delete_addr = NULL;
     struct rtnl_link* current_link = NULL;
     struct nl_addr* local_addr = NULL;
+    struct nl_addr* old_local_addr = NULL;
 
     SRPLG_LOG_INF(PLUGIN_NAME, "Node Name: %s; Previous Value: %s, Value: %s; Operation: %d", node_name, change_ctx->previous_value, node_value, change_ctx->operation);
 
@@ -101,22 +104,39 @@ int interfaces_interface_ipv4_address_change_prefix_length(void* priv, sr_sessio
     switch (change_ctx->operation) {
     case SR_OP_CREATED:
         // this change case should be handled only when creating the whole address in the IP callback
-        // if handled in this callback - report an error
+        // no need to process created change
         break;
     case SR_OP_MODIFIED:
         // change prefix length
+        request_addr = rtnl_addr_alloc();
+        delete_addr = rtnl_addr_alloc();
 
         // get full address
         SRPC_SAFE_CALL_ERR_COND(error, error < 0, snprintf(address_buffer, sizeof(address_buffer), "%s/%s", ip_buffer, node_value), error_out);
+        SRPC_SAFE_CALL_ERR_COND(error, error < 0, snprintf(old_address_buffer, sizeof(old_address_buffer), "%s/%s", ip_buffer, change_ctx->previous_value), error_out);
 
-        // create local address
+        // parse local address
         SRPC_SAFE_CALL_ERR(error, nl_addr_parse(address_buffer, AF_INET, &local_addr), error_out);
+        SRPC_SAFE_CALL_ERR(error, nl_addr_parse(old_address_buffer, AF_INET, &old_local_addr), error_out);
 
-        // fetch rtnl_address
+        // set to route address
+        SRPC_SAFE_CALL_ERR(error, rtnl_addr_set_local(request_addr, local_addr), error_out);
+        SRPC_SAFE_CALL_ERR(error, rtnl_addr_set_local(delete_addr, old_local_addr), error_out);
+
+        // set interface
+        rtnl_addr_set_ifindex(request_addr, rtnl_link_get_ifindex(current_link));
+        rtnl_addr_set_ifindex(delete_addr, rtnl_link_get_ifindex(current_link));
+
+        // delete old address
+        SRPC_SAFE_CALL_ERR(error, rtnl_addr_delete(mod_ctx->nl_ctx.socket, delete_addr, 0), error_out);
+
+        // add new address
+        SRPC_SAFE_CALL_ERR(error, rtnl_addr_add(mod_ctx->nl_ctx.socket, request_addr, 0), error_out);
+
         break;
     case SR_OP_DELETED:
-        // fetch info about prefix-length/netmask and use the pair address/prefix to delete address
         // prefix is needed to find the appropriate address
+        // should be processed when IP deleted
         break;
     case SR_OP_MOVED:
         break;
@@ -183,9 +203,6 @@ int interfaces_interface_ipv4_address_change_ip(void* priv, sr_session_ctx_t* se
     // get link
     SRPC_SAFE_CALL_PTR(current_link, rtnl_link_get_by_name(mod_ctx->nl_ctx.link_cache, interface_name_buffer), error_out);
 
-    // get interface index
-    const int ifindex = rtnl_link_get_ifindex(current_link);
-
     switch (change_ctx->operation) {
     case SR_OP_CREATED:
         // new address
@@ -198,8 +215,6 @@ int interfaces_interface_ipv4_address_change_ip(void* priv, sr_session_ctx_t* se
         SRPC_SAFE_CALL_ERR_COND(error, error < 0, snprintf(path_buffer, sizeof(path_buffer), "%s[name=\"%s\"]/ietf-ip:ipv4/address/prefix-length", INTERFACES_INTERFACES_LIST_YANG_PATH, interface_name_buffer), error_out);
         SRPC_SAFE_CALL_ERR(error, srpc_iterate_changes(ctx, session, path_buffer, interfaces_interface_ipv4_address_get_prefix_length, NULL, NULL), error_out);
 
-        SRPLG_LOG_INF(PLUGIN_NAME, "prefix-length(%s) = %d", node_value, mod_ctx->mod_data.prefix_length);
-
         // set final prefix length
         nl_addr_set_prefixlen(local_addr, mod_ctx->mod_data.prefix_length);
 
@@ -207,7 +222,7 @@ int interfaces_interface_ipv4_address_change_ip(void* priv, sr_session_ctx_t* se
         SRPC_SAFE_CALL_ERR(error, rtnl_addr_set_local(request_addr, local_addr), error_out);
 
         // set interface
-        rtnl_addr_set_ifindex(request_addr, ifindex);
+        rtnl_addr_set_ifindex(request_addr, rtnl_link_get_ifindex(current_link));
 
         // add address
         SRPC_SAFE_CALL_ERR(error, rtnl_addr_add(mod_ctx->nl_ctx.socket, request_addr, 0), error_out);
@@ -235,7 +250,7 @@ error_out:
     error = -1;
 
 out:
-    return -1;
+    return error;
 }
 
 void interfaces_interface_ipv4_address_change_ip_free(void* priv)
@@ -261,7 +276,7 @@ static int interfaces_interface_ipv4_address_get_prefix_length(void* priv, sr_se
     // parse prefix length
     mod_ctx->mod_data.prefix_length = atoi(node_value);
 
-    return 0;
+    return error;
 }
 
 static int interfaces_interface_ipv4_address_get_netmask(void* priv, sr_session_ctx_t* session, const srpc_change_ctx_t* change_ctx)
