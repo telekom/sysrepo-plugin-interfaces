@@ -274,7 +274,7 @@ int interfaces_interface_ipv4_address_change_ip(void* priv, sr_session_ctx_t* se
     struct nl_addr* local_addr = NULL;
 
     // data
-    int prefix_length = 0;
+    uint8_t prefix_length = 0;
 
     SRPLG_LOG_INF(PLUGIN_NAME, "Node Name: %s; Previous Value: %s, Value: %s; Operation: %d", node_name, change_ctx->previous_value, node_value, change_ctx->operation);
 
@@ -358,8 +358,8 @@ int interfaces_interface_ipv4_address_change_ip(void* priv, sr_session_ctx_t* se
             SRPC_SAFE_CALL_ERR_COND(error, error < 0, snprintf(path_buffer, sizeof(path_buffer), "%s[name=\"%s\"]/ietf-ip:ipv4/address[ip=\"%s\"]/netmask", INTERFACES_INTERFACES_LIST_YANG_PATH, interface_name_buffer, node_value), error_out);
             SRPC_SAFE_CALL_ERR(error, sr_get_item(running_session, path_buffer, 0, &netmask_val), error_out);
 
-            // TODO: convert netmask to prefix
-
+            // convert netmask to prefix
+            SRPC_SAFE_CALL_ERR(error, interfaces_interface_ipv4_address_netmask2prefix(netmask_val->data.string_val, &prefix_length), error_out);
         } else {
             // other error - treat as invalid
             SRPLG_LOG_ERR(PLUGIN_NAME, "Error retrieving prefix-length value for address %s", node_value);
