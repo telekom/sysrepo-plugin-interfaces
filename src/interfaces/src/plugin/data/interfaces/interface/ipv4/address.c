@@ -128,6 +128,10 @@ int interfaces_interface_ipv4_address_netmask2prefix(const char* netmask, uint8_
         addr.s_addr >>= 1;
     }
 
+    // set the provided value
+    *prefix_length = prefix;
+
+    error = 0;
     goto out;
 
 error_out:

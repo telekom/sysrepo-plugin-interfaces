@@ -307,6 +307,21 @@ int interfaces_interface_ipv4_address_change_ip(void* priv, sr_session_ctx_t* se
         SRPC_SAFE_CALL_ERR_COND(error, error < 0, snprintf(path_buffer, sizeof(path_buffer), "%s[name=\"%s\"]/ietf-ip:ipv4/address[ip=\"%s\"]/prefix-length", INTERFACES_INTERFACES_LIST_YANG_PATH, interface_name_buffer, node_value), error_out);
         SRPC_SAFE_CALL_ERR(error, srpc_iterate_changes(ctx, session, path_buffer, interfaces_interface_ipv4_address_get_prefix_length, NULL, NULL), error_out);
 
+        if (!mod_ctx->mod_data.prefix_set) {
+            // prefix not found - check for netmask
+            SRPC_SAFE_CALL_ERR_COND(error, error < 0, snprintf(path_buffer, sizeof(path_buffer), "%s[name=\"%s\"]/ietf-ip:ipv4/address[ip=\"%s\"]/netmask", INTERFACES_INTERFACES_LIST_YANG_PATH, interface_name_buffer, node_value), error_out);
+            SRPC_SAFE_CALL_ERR(error, srpc_iterate_changes(ctx, session, path_buffer, interfaces_interface_ipv4_address_get_netmask, NULL, NULL), error_out);
+
+            if (!mod_ctx->mod_data.prefix_set) {
+                SRPLG_LOG_ERR(PLUGIN_NAME, "Unable to get prefix-length/netmask for address %s... Discarding changes", node_value);
+                goto error_out;
+            }
+        }
+
+        SRPLG_LOG_INF(PLUGIN_NAME, "Recieved prefix-length of %d for address %s", mod_ctx->mod_data.prefix_length, node_value);
+
+        // prefix was set and found
+
         // set final prefix length
         nl_addr_set_prefixlen(local_addr, mod_ctx->mod_data.prefix_length);
 
@@ -388,6 +403,10 @@ out:
         sr_session_stop(running_session);
     }
 
+    // re-initialize mod_ctx data
+    mod_ctx->mod_data.prefix_length = 0;
+    mod_ctx->mod_data.prefix_set = false;
+
     return error;
 }
 
@@ -426,6 +445,8 @@ static int interfaces_interface_ipv4_address_get_netmask(void* priv, sr_session_
     interfaces_ctx_t* ctx = priv;
     interfaces_mod_changes_ctx_t* mod_ctx = &ctx->mod_ctx;
 
+    uint8_t prefix_length = 0;
+
     const char* node_name = LYD_NAME(change_ctx->node);
     const char* node_value = lyd_get_value(change_ctx->node);
 
@@ -434,8 +455,18 @@ static int interfaces_interface_ipv4_address_get_netmask(void* priv, sr_session_
     // this callback should only be called on CREATED operation
     assert(change_ctx->operation == SR_OP_CREATED);
 
-    // TODO: parse netmask into prefix length
-    (void)mod_ctx;
+    // parse netmask into prefix length
+    SRPC_SAFE_CALL_ERR(error, interfaces_interface_ipv4_address_netmask2prefix(node_value, &prefix_length), error_out);
 
+    // set mod changes prefix length
+    mod_ctx->mod_data.prefix_length = prefix_length;
+    mod_ctx->mod_data.prefix_set = true;
+
+    goto out;
+
+error_out:
+    error = -1;
+
+out:
     return error;
 }
