@@ -24,4 +24,10 @@ int interfaces_interface_ipv4_address_element_set_ip(interfaces_interface_ipv4_a
 int interfaces_interface_ipv4_address_element_set_prefix_length(interfaces_interface_ipv4_address_element_t** el, uint8_t prefix_length);
 int interfaces_interface_ipv4_address_element_set_netmask(interfaces_interface_ipv4_address_element_t** el, const char* netmask);
 
+/*
+    Helper functions
+*/
+
+int interfaces_interface_ipv4_address_netmask2prefix(const char* netmask, uint8_t* prefix_length);
+
 #endif // INTERFACES_PLUGIN_DATA_INTERFACES_INTERFACE_IPV4_ADDRESS_H

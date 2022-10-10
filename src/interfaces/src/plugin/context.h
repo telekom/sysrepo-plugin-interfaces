@@ -36,9 +36,18 @@ struct interfaces_mod_changes_ctx_s {
     // libnl links data
     interfaces_nl_ctx_t nl_ctx;
 
-    // data
+    // temporary module changing data
     struct {
-        int32_t prefix_length;
+        struct {
+            struct {
+                uint8_t prefix_length;
+                uint8_t prefix_set; ///< prefix_length has been set
+            } address;
+            struct {
+                char* link_layer_address;
+                uint8_t link_layer_set; ///< link_layer_address has been set
+            } neighbor;
+        } ipv4;
     } mod_data;
 };
 

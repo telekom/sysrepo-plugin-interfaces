@@ -1,9 +1,13 @@
 #include "address.h"
 #include "plugin/types.h"
 #include "src/utlist.h"
+
+#include <arpa/inet.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+
+#include <srpc.h>
 
 interfaces_interface_ipv4_address_element_t* interfaces_interface_ipv4_address_new(void)
 {
@@ -104,4 +108,35 @@ int interfaces_interface_ipv4_address_element_set_netmask(interfaces_interface_i
     }
 
     return 0;
+}
+
+int interfaces_interface_ipv4_address_netmask2prefix(const char* netmask, uint8_t* prefix_length)
+{
+    int error = 0;
+    struct in_addr addr = { 0 };
+    uint8_t prefix = 0;
+
+    // convert to bits (uint32_t -> addr.s_addr)
+    SRPC_SAFE_CALL_ERR_COND(error, error != 1, inet_pton(AF_INET, netmask, &addr), error_out);
+
+    // count address bits
+    while (addr.s_addr) {
+        if (addr.s_addr & 0x1) {
+            ++prefix;
+        }
+
+        addr.s_addr >>= 1;
+    }
+
+    // set the provided value
+    *prefix_length = prefix;
+
+    error = 0;
+    goto out;
+
+error_out:
+    error = -1;
+
+out:
+    return error;
 }

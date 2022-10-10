@@ -7,6 +7,7 @@
 int interfaces_interface_ipv4_neighbor_change_link_layer_address_init(void* priv);
 int interfaces_interface_ipv4_neighbor_change_link_layer_address(void* priv, sr_session_ctx_t* session, const srpc_change_ctx_t* change_ctx);
 void interfaces_interface_ipv4_neighbor_change_link_layer_address_free(void* priv);
+
 int interfaces_interface_ipv4_neighbor_change_ip_init(void* priv);
 int interfaces_interface_ipv4_neighbor_change_ip(void* priv, sr_session_ctx_t* session, const srpc_change_ctx_t* change_ctx);
 void interfaces_interface_ipv4_neighbor_change_ip_free(void* priv);

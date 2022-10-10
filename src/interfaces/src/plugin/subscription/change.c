@@ -1,4 +1,5 @@
 #include "change.h"
+#include "plugin/api/interfaces/interface/ipv4/neighbor/change.h"
 #include "plugin/common.h"
 #include "plugin/context.h"
 
@@ -67,9 +68,13 @@ int interfaces_subscription_change_interfaces_interface(sr_session_ctx_t* sessio
         SRPC_SAFE_CALL_ERR_COND(rc, rc < 0, snprintf(change_xpath_buffer, sizeof(change_xpath_buffer), "%s/ipv4/address/netmask", xpath), error_out);
         SRPC_SAFE_CALL_ERR(rc, srpc_iterate_changes(ctx, session, change_xpath_buffer, interfaces_interface_ipv4_address_change_netmask, interfaces_change_interface_init, interfaces_change_interface_free), error_out);
 
-        // ipv4/neighbor
-        SRPC_SAFE_CALL_ERR_COND(rc, rc < 0, snprintf(change_xpath_buffer, sizeof(change_xpath_buffer), "%s/ipv4/neighbor", xpath), error_out);
-        SRPC_SAFE_CALL_ERR(rc, srpc_iterate_changes(ctx, session, change_xpath_buffer, interfaces_interface_ipv4_change_neighbor, interfaces_change_interface_init, interfaces_change_interface_free), error_out);
+        // ipv4/neighbor/ip
+        SRPC_SAFE_CALL_ERR_COND(rc, rc < 0, snprintf(change_xpath_buffer, sizeof(change_xpath_buffer), "%s/ipv4/neighbor/ip", xpath), error_out);
+        SRPC_SAFE_CALL_ERR(rc, srpc_iterate_changes(ctx, session, change_xpath_buffer, interfaces_interface_ipv4_neighbor_change_ip, interfaces_change_interface_init, interfaces_change_interface_free), error_out);
+
+        // ipv4/neighbor/link-layer-address
+        SRPC_SAFE_CALL_ERR_COND(rc, rc < 0, snprintf(change_xpath_buffer, sizeof(change_xpath_buffer), "%s/ipv4/neighbor/link-layer-address", xpath), error_out);
+        SRPC_SAFE_CALL_ERR(rc, srpc_iterate_changes(ctx, session, change_xpath_buffer, interfaces_interface_ipv4_neighbor_change_link_layer_address, interfaces_change_interface_init, interfaces_change_interface_free), error_out);
     }
 
     goto out;

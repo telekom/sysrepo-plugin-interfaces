@@ -36,7 +36,7 @@ int interfaces_interface_ipv4_change_neighbor(void* priv, sr_session_ctx_t* sess
         break;
     }
 
-    return -1;
+    return error;
 }
 
 void interfaces_interface_ipv4_change_neighbor_free(void* priv)
