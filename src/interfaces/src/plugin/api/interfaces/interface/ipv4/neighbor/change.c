@@ -56,7 +56,6 @@ int interfaces_interface_ipv4_neighbor_change_ip(void* priv, sr_session_ctx_t* s
     void* error_ptr = NULL;
 
     // sysrepo
-    // sr_val_t* link_layer_address_val = NULL;
     sr_conn_ctx_t* conn_ctx = NULL;
     sr_session_ctx_t* running_session = NULL;
 
@@ -65,7 +64,6 @@ int interfaces_interface_ipv4_neighbor_change_ip(void* priv, sr_session_ctx_t* s
     const char* node_value = lyd_get_value(change_ctx->node);
     char path_buffer[PATH_MAX] = { 0 };
     char interface_name_buffer[100] = { 0 };
-    // char address_buffer[100] = { 0 };
 
     // app context
     interfaces_ctx_t* ctx = priv;
