@@ -38,7 +38,8 @@ struct interfaces_mod_changes_ctx_s {
 
     // data
     struct {
-        int32_t prefix_length;
+        uint8_t prefix_length;
+        uint8_t prefix_set; ///< prefix_length has been set
     } mod_data;
 };
 
