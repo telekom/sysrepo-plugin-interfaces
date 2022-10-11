@@ -403,6 +403,10 @@ out:
         sr_session_stop(running_session);
     }
 
+    if (request_addr) {
+        rtnl_addr_put(request_addr);
+    }
+
     // re-initialize mod_ctx data
     mod_ctx->mod_data.ipv4.address.prefix_length = 0;
     mod_ctx->mod_data.ipv4.address.prefix_set = false;
