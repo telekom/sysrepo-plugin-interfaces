@@ -218,6 +218,10 @@ out:
     mod_ctx->mod_data.ipv4.neighbor.link_layer_address = NULL;
     mod_ctx->mod_data.ipv4.neighbor.link_layer_set = false;
 
+    if (request_neigh) {
+        rtnl_neigh_put(request_neigh);
+    }
+
     return error;
 }
 
