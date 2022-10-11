@@ -8,26 +8,300 @@
 
 #include <linux/if_arp.h>
 
+#include <netlink/addr.h>
+#include <netlink/cache.h>
+#include <netlink/errno.h>
+#include <netlink/netlink.h>
+#include <netlink/route/addr.h>
 #include <netlink/route/link.h>
+#include <netlink/route/link/inet.h>
+#include <netlink/route/link/inet6.h>
 #include <netlink/route/link/vlan.h>
+#include <netlink/route/neighbour.h>
+#include <netlink/route/qdisc.h>
+#include <netlink/route/tc.h>
+#include <netlink/socket.h>
 
 #include <sysrepo.h>
 
 enum interfaces_load_exit_status {
-    interfaces_load_failure = -1,
-    interfaces_load_success = 0,
-    interfaces_load_continue = 1,
+    interfaces_load_failure  = -1,
+    interfaces_load_success  =  0,
+    interfaces_load_continue =  1,
 };
+
+static int interfaces_add_address_ipv4(interfaces_interface_ipv4_address_element_t **address, char *ip, char *netmask)
+{
+    interfaces_interface_ipv4_address_element_t* new_element = NULL;
+
+    new_element = interfaces_interface_ipv4_address_element_new(); 
+
+    interfaces_interface_ipv4_address_element_set_ip(&new_element, ip);
+    interfaces_interface_ipv4_address_element_set_subnet(&new_element, netmask, interfaces_interface_ipv4_address_subnet_netmask);
+    interfaces_interface_ipv4_address_add_element(address, new_element);
+
+}
+
+static int interfaces_add_address_ipv6(interfaces_interface_ipv6_address_element_t **address, char *ip, char *netmask)
+{
+    int prefix_length = 0;
+
+    interfaces_interface_ipv6_address_element_t* new_element = NULL;
+
+    new_element = interfaces_interface_ipv6_address_element_new(); 
+
+    interfaces_interface_ipv6_address_element_set_ip(&new_element, ip);
+    prefix_length = interfaces_interface_netmask_to_prefix_length(netmask);
+    interfaces_interface_ipv6_address_element_set_prefix_length(&new_element, prefix_length);
+    interfaces_interface_ipv6_address_add_element(address, new_element);
+
+}
+
+static int interfaces_add_ips(interfaces_interface_t* interface, char *ip, int netmask, int addr_family)
+{
+    switch (addr_family) {
+        case AF_INET:
+            interfaces_add_address_ipv4(&interface->ipv4.address, ip, netmask);
+            break;
+        case  AF_INET6:
+            interfaces_add_address_ipv6(&interface->ipv6.address, ip, netmask);
+            break;
+        default:
+            SRPLG_LOG_ERR(PLUGIN_NAME, "%s: invalid address family", __func__);
+            return -1;
+    }
+
+    return 0;
+}
+
+static int interfaces_get_ips(struct nl_sock* socket, struct rtnl_link* link, interfaces_interface_t* interface)
+{
+    struct nl_object *nl_object = NULL;
+	struct nl_cache *addr_cache = NULL;
+	struct nl_addr *nl_addr_local = NULL;
+	struct rtnl_addr *addr = { 0 };
+    char *address = NULL;
+    char *subnet = NULL;
+    char *addr_s = NULL;
+    char *token = NULL;
+    char *str = NULL;
+	char addr_str[ADDR_STR_BUF_SIZE] = { 0 };
+
+    unsigned int mtu = 0;
+    int addr_count = 0;
+    int addr_family = 0;
+    int if_index = 0;
+    int cur_if_index = 0;
+    int error = 0;
+
+    mtu = rtnl_link_get_mtu(link);
+
+    if_index = rtnl_link_get_ifindex(link);
+
+    SRPC_SAFE_CALL(rtnl_neigh_alloc_cache(socket, &addr_cache), error_out);
+
+    /* get ipv4 and ipv6 addresses */
+    addr_count = nl_cache_nitems(addr_cache);
+
+    nl_object = nl_cache_get_first(addr_cache);
+    addr = (struct rtnl_addr *) nl_object;
+
+    for (int i = 0; i < addr_count; ++i) {
+        SRPC_SAFE_CALL_PTR(nl_addr_local, rtnl_addr_get_local(addr), error_out);
+        
+        cur_if_index = rtnl_addr_get_ifindex(addr);
+
+        if (if_index != cur_if_index) {
+            goto next_address;
+        }
+
+        SRPC_SAFE_CALL_PTR(addr_s, nl_addr2str(nl_addr_local, addr_str, sizeof(addr_str)), error_out);
+
+        str = xstrdup(addr_s);
+        SRPC_SAFE_CALL_PTR(token, strtok(str, "/"), error_out);
+        
+        address = xstrdup(token);
+
+        /* get subnet */
+        token = strtok(NULL, "/");
+        if (token == NULL) {
+            /*
+               the address exists
+               skip it
+               we didn't add this address
+               e.g.: ::1 
+            */
+            FREE_SAFE(str);
+            FREE_SAFE(address);
+            continue;
+        }
+
+        subnet = xstrdup(token);
+
+        /* check if ipv4 or ipv6 */
+		addr_family = rtnl_addr_get_family(addr);
+
+        interfaces_add_ips(interface, address, subnet, addr_family);
+
+    next_address:
+        nl_object = nl_cache_get_next(nl_object);
+        addr = (struct rtnl_addr *) nl_object;
+
+        FREE_SAFE(subnet);
+        FREE_SAFE(str);
+        FREE_SAFE(address);
+}
+
+    goto out;
+error_out:
+out:
+    if (addr_cache) {
+        nl_cache_free(addr_cache);
+    }   
+    if (str) {
+        FREE_SAFE(str);
+    }   
+    if (address) {
+        FREE_SAFE(address);
+    }   
+
+    return interfaces_load_success;
+}
+
+static int interfaces_add_neighbor_ipv4(interfaces_interface_ipv4_neighbor_element_t** neighbor, char *dst_addr, char *ll_addr)
+{
+    interfaces_interface_ipv4_neighbor_element_t* new_element = NULL;
+
+    new_element = interfaces_interface_ipv4_neighbor_element_new(); 
+
+    interfaces_interface_ipv4_neighbor_element_set_ip(&new_element, dst_addr);
+    interfaces_interface_ipv4_neighbor_element_set_link_layer_address(&new_element, ll_addr);
+    interfaces_interface_ipv4_neighbor_add_element(neighbor, new_element);
+
+    return 0;
+}
+
+static int interfaces_add_neighbor_ipv6(interfaces_interface_ipv6_neighbor_element_t** neighbor, char *dst_addr, char *ll_addr)
+{
+    interfaces_interface_ipv6_neighbor_element_t* new_element = NULL;
+
+    new_element = interfaces_interface_ipv6_neighbor_element_new(); 
+
+    interfaces_interface_ipv6_neighbor_element_set_ip(&new_element, dst_addr);
+    interfaces_interface_ipv6_neighbor_element_set_link_layer_address(&new_element, ll_addr);
+    interfaces_interface_ipv6_neighbor_add_element(neighbor, new_element);
+
+    return 0;
+}
+
+static int interfaces_add_neighbor(interfaces_interface_t* interface, char *dst_addr, char *ll_addr, int addr_family)
+{
+    switch (addr_family) {
+        case AF_INET:
+            interfaces_add_neighbor_ipv4(&interface->ipv4.neighbor, dst_addr, ll_addr);
+            break;
+        case  AF_INET6:
+            interfaces_add_neighbor_ipv6(&interface->ipv6.neighbor, dst_addr, ll_addr);
+            break;
+        default:
+            SRPLG_LOG_ERR(PLUGIN_NAME, "%s: invalid address family", __func__);
+            return -1;
+    }
+
+    return 0;
+}
+
+static int interfaces_get_neighbors(struct nl_sock* socket, struct rtnl_link* link, interfaces_interface_t* interface) 
+{
+    struct nl_cache *neigh_cache = NULL;
+    struct nl_object *nl_neigh_object = NULL;
+    struct nl_addr *nl_dst_addr = NULL;
+    struct nl_addr *ll_addr = NULL;
+	struct rtnl_neigh *neigh = NULL;
+
+    int error = 0;
+    int if_index = 0;
+    int addr_family = 0;
+    int neigh_state = 0;
+    int neigh_count = 0;
+    char *dst_addr = NULL;
+    char *ll_addr_s = NULL;
+    char dst_addr_str[ADDR_STR_BUF_SIZE] = { 0 };
+	char ll_addr_str[ADDR_STR_BUF_SIZE] = { 0 };
+
+    INTERFACES_INTERFACE_LIST_NEW(interface->ipv4.neighbor);
+    INTERFACES_INTERFACE_LIST_NEW(interface->ipv6.neighbor);
+    
+    if_index = rtnl_link_get_ifindex(link);
+
+    SRPC_SAFE_CALL(rtnl_neigh_alloc_cache(socket, &neigh_cache), error_out);
+
+    neigh_count = nl_cache_nitems(neigh_cache);
+
+    nl_neigh_object = nl_cache_get_first(neigh_cache);
+
+    for (int i = 0; i < neigh_count; ++i) {
+        nl_dst_addr = rtnl_neigh_get_dst((struct rtnl_neigh *) nl_neigh_object);
+
+        SRPC_SAFE_CALL_PTR(dst_addr, nl_addr2str(nl_dst_addr, dst_addr_str, sizeof(dst_addr_str)), error_out);
+
+        neigh = rtnl_neigh_get(neigh_cache, if_index, nl_dst_addr);
+
+        if (neigh != NULL) {
+				// get neigh state
+				neigh_state = rtnl_neigh_get_state(neigh);
+
+				// skip neighs with no arp state
+				if (NUD_NOARP == neigh_state) {
+					nl_neigh_object = nl_cache_get_next(nl_neigh_object);
+					continue;
+				}
+
+				int cur_neigh_index = rtnl_neigh_get_ifindex(neigh);
+
+				if (if_index != cur_neigh_index) {
+					nl_neigh_object = nl_cache_get_next(nl_neigh_object);
+					continue;
+				}
+
+				ll_addr = rtnl_neigh_get_lladdr(neigh);
+
+				SRPC_SAFE_CALL_PTR(ll_addr_s, nl_addr2str(ll_addr, ll_addr_str, sizeof(ll_addr_str)), error_out);
+
+				// check if ipv4 or ipv6
+				addr_family = rtnl_neigh_get_family(neigh);
+
+                // switch based on address family, add to the neighbor linked list
+                SRPC_SAFE_CALL(interfaces_add_neighbor(interface, dst_addr, ll_addr_s, addr_family), error_out);
+                
+                rtnl_neigh_put(neigh);
+        }
+         
+        nl_neigh_object = nl_cache_get_next(nl_neigh_object);
+    }
+    
+
+    goto out;
+
+error_out:
+out:
+    if (neigh_cache) {
+        nl_cache_free(neigh_cache);
+    }   
+    if (neigh) {
+        rtnl_neigh_put(neigh);
+    }   
+
+    return interfaces_load_success;
+}
 
 static char* interfaces_get_interface_name(struct rtnl_link* link)
 {
     char* name = NULL;
 
-    name = rtnl_link_get_name(link);
-    if (name == NULL) {
-        SRPLG_LOG_ERR(PLUGIN_NAME, "rtnl_link_get_name error");
-    }
+    SRPC_SAFE_CALL_PTR(name, rtnl_link_get_name(link), error_out);
 
+error_out:
     return xstrdup(name);
 }
 
@@ -194,9 +468,8 @@ static int interfaces_get_interface_vlan_id(struct rtnl_link* link, interfaces_i
 static int interfaces_parse_link(interfaces_ctx_t* ctx, struct nl_sock* socket, struct nl_cache* cache, struct rtnl_link* link, interfaces_interface_t* interface)
 {
     int error = interfaces_load_success;
-    *interface = (interfaces_interface_t) { 0 };
 
-    // required
+    // required, fail if NULL
     SRPC_SAFE_CALL_PTR(interface->name, interfaces_get_interface_name(link), error_out);
 
     interfaces_get_interface_description(ctx, interface->name);
@@ -212,6 +485,10 @@ static int interfaces_parse_link(interfaces_ctx_t* ctx, struct nl_sock* socket, 
     }
 
     interface->enabled = interfaces_get_interface_enabled(link);
+
+    interfaces_get_neighbors(socket, link, interface);
+
+    interfaces_get_ips(socket, link, interface);
 
     goto out;
 error_out:
@@ -245,6 +522,10 @@ static int interfaces_add_link(interfaces_interface_hash_element_t** if_hash, in
 
     interfaces_interface_hash_element_set_enabled(&new_if_hash_elem, interface->enabled);
 
+    interfaces_interface_hash_element_set_ipv4(&new_if_hash_elem, interface->ipv4);
+
+    interfaces_interface_hash_element_set_ipv6(&new_if_hash_elem, interface->ipv6);
+
     goto out;
 error_out:
 out:
@@ -259,6 +540,18 @@ out:
     }
     if (interface->parent_interface != NULL) {
         FREE_SAFE(interface->parent_interface);
+    }
+    if (interface->ipv4.neighbor != NULL) {
+        INTERFACES_INTERFACE_LIST_FREE(interface->ipv4.neighbor);
+    }
+    if (interface->ipv4.address != NULL) {
+        INTERFACES_INTERFACE_LIST_FREE(interface->ipv4.address);
+    }
+    if (interface->ipv6.neighbor != NULL) {
+        INTERFACES_INTERFACE_LIST_FREE(interface->ipv6.neighbor);
+    }
+    if (interface->ipv6.address != NULL) {
+        INTERFACES_INTERFACE_LIST_FREE(interface->ipv6.address);
     }
 
     return error;
