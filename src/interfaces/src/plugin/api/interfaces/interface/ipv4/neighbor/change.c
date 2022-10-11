@@ -28,10 +28,14 @@ int interfaces_interface_ipv4_neighbor_change_link_layer_address(void* priv, sr_
 
     switch (change_ctx->operation) {
     case SR_OP_CREATED:
+        // not used - used only in IP change callback
         break;
     case SR_OP_MODIFIED:
+        // change lladdr
+
         break;
     case SR_OP_DELETED:
+        // not used - used only in IP change callback
         break;
     case SR_OP_MOVED:
         break;
@@ -54,10 +58,6 @@ int interfaces_interface_ipv4_neighbor_change_ip(void* priv, sr_session_ctx_t* s
 {
     int error = 0;
     void* error_ptr = NULL;
-
-    // sysrepo
-    sr_conn_ctx_t* conn_ctx = NULL;
-    sr_session_ctx_t* running_session = NULL;
 
     // strings and buffers
     const char* node_name = LYD_NAME(change_ctx->node);
@@ -89,12 +89,6 @@ int interfaces_interface_ipv4_neighbor_change_ip(void* priv, sr_session_ctx_t* s
 
     // get link
     SRPC_SAFE_CALL_PTR(current_link, rtnl_link_get_by_name(mod_ctx->nl_ctx.link_cache, interface_name_buffer), error_out);
-
-    // get connection
-    SRPC_SAFE_CALL_PTR(conn_ctx, sr_session_get_connection(session), error_out);
-
-    // start a running DS session - fetching data about prefix when deleting the address
-    SRPC_SAFE_CALL_ERR(error, sr_session_start(conn_ctx, SR_DS_RUNNING, &running_session), error_out);
 
     switch (change_ctx->operation) {
     case SR_OP_CREATED:
@@ -158,9 +152,6 @@ error_out:
     error = -1;
 
 out:
-    if (running_session) {
-        sr_session_stop(running_session);
-    }
 
     // re-initialize mod_ctx data
     if (mod_ctx->mod_data.ipv4.neighbor.link_layer_address) {
