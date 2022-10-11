@@ -95,6 +95,9 @@ error_out:
     error = -1;
 
 out:
+    if (request_neigh) {
+        rtnl_neigh_put(request_neigh);
+    }
 
     return error;
 }
