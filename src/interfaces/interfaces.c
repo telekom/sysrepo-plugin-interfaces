@@ -1378,7 +1378,7 @@ int add_interface_ipv4(link_data_t *ld, struct rtnl_link *old, struct rtnl_link 
 	}
 
 	for (uint i = 0; i < neigh_ls->count; i++) {
-		if (neigh_ls->nbor[i].ip == NULL) { // neighbor was deleted
+		if (neigh_ls->nbor[i].ip == NULL || neigh_ls->nbor[i].phys_addr == NULL) { // neighbor was deleted
 			continue;
 		}
 		neigh = rtnl_neigh_alloc();
@@ -1577,7 +1577,7 @@ int add_interface_ipv6(link_data_t *ld, struct rtnl_link *old, struct rtnl_link 
 	}
 
 	for (uint i = 0; i < neigh_ls->count; i++) {
-		if (neigh_ls->nbor[i].ip == NULL) { // neighbor was deleted
+		if (neigh_ls->nbor[i].ip == NULL || neigh_ls->nbor[i].phys_addr == NULL) { // neighbor was deleted
 			continue;
 		}
 		neigh = rtnl_neigh_alloc();
