@@ -129,6 +129,18 @@ out:
         rtnl_addr_put(request_addr);
     }
 
+    if (delete_addr) {
+        rtnl_addr_put(delete_addr);
+    }
+
+    if (old_local_addr) {
+        nl_addr_put(old_local_addr);
+    }
+
+    if (local_addr) {
+        nl_addr_put(local_addr);
+    }
+
     return error;
 }
 
@@ -237,6 +249,18 @@ error_out:
 out:
     if (request_addr) {
         rtnl_addr_put(request_addr);
+    }
+
+    if (delete_addr) {
+        rtnl_addr_put(delete_addr);
+    }
+
+    if (old_local_addr) {
+        nl_addr_put(old_local_addr);
+    }
+
+    if (local_addr) {
+        nl_addr_put(local_addr);
     }
 
     return error;
