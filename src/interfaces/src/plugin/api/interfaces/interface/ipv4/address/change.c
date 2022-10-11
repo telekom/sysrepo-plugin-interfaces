@@ -125,6 +125,10 @@ error_out:
     error = -1;
 
 out:
+    if (request_addr) {
+        rtnl_addr_put(request_addr);
+    }
+
     return error;
 }
 
@@ -231,6 +235,10 @@ error_out:
     error = -1;
 
 out:
+    if (request_addr) {
+        rtnl_addr_put(request_addr);
+    }
+
     return error;
 }
 
