@@ -28,7 +28,7 @@ int interfaces_interface_ipv6_address_change_prefix_length(void* priv, sr_sessio
         break;
     }
 
-    return error;
+    return -1;
 }
 
 void interfaces_interface_ipv6_address_change_prefix_length_free(void* priv)
@@ -60,7 +60,7 @@ int interfaces_interface_ipv6_address_change_ip(void* priv, sr_session_ctx_t* se
         break;
     }
 
-    return error;
+    return -1;
 }
 
 void interfaces_interface_ipv6_address_change_ip_free(void* priv)

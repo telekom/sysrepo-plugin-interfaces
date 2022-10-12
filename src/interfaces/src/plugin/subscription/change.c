@@ -1,5 +1,4 @@
 #include "change.h"
-#include "plugin/api/interfaces/interface/ipv4/neighbor/change.h"
 #include "plugin/common.h"
 #include "plugin/context.h"
 
@@ -13,6 +12,9 @@
 #include "plugin/api/interfaces/interface/change.h"
 #include "plugin/api/interfaces/interface/ipv4/address/change.h"
 #include "plugin/api/interfaces/interface/ipv4/change.h"
+#include "plugin/api/interfaces/interface/ipv4/neighbor/change.h"
+#include "plugin/api/interfaces/interface/ipv6/address/change.h"
+#include "plugin/api/interfaces/interface/ipv6/neighbor/change.h"
 
 int interfaces_subscription_change_interfaces_interface(sr_session_ctx_t* session, uint32_t subscription_id, const char* module_name, const char* xpath, sr_event_t event, uint32_t request_id, void* private_data)
 {
@@ -75,6 +77,14 @@ int interfaces_subscription_change_interfaces_interface(sr_session_ctx_t* sessio
         // ipv4/neighbor/link-layer-address
         SRPC_SAFE_CALL_ERR_COND(rc, rc < 0, snprintf(change_xpath_buffer, sizeof(change_xpath_buffer), "%s/ipv4/neighbor/link-layer-address", xpath), error_out);
         SRPC_SAFE_CALL_ERR(rc, srpc_iterate_changes(ctx, session, change_xpath_buffer, interfaces_interface_ipv4_neighbor_change_link_layer_address, interfaces_change_interface_init, interfaces_change_interface_free), error_out);
+
+        // ipv6/address/ip
+        SRPC_SAFE_CALL_ERR_COND(rc, rc < 0, snprintf(change_xpath_buffer, sizeof(change_xpath_buffer), "%s/ipv6/address/ip", xpath), error_out);
+        SRPC_SAFE_CALL_ERR(rc, srpc_iterate_changes(ctx, session, change_xpath_buffer, interfaces_interface_ipv6_address_change_ip, interfaces_change_interface_init, interfaces_change_interface_free), error_out);
+
+        // ipv6/address/prefix-length
+        SRPC_SAFE_CALL_ERR_COND(rc, rc < 0, snprintf(change_xpath_buffer, sizeof(change_xpath_buffer), "%s/ipv6/address/prefix-length", xpath), error_out);
+        SRPC_SAFE_CALL_ERR(rc, srpc_iterate_changes(ctx, session, change_xpath_buffer, interfaces_interface_ipv6_address_change_prefix_length, interfaces_change_interface_init, interfaces_change_interface_free), error_out);
     }
 
     goto out;
