@@ -11,7 +11,7 @@
 #include <netlink/route/link.h>
 #include <netlink/route/neighbour.h>
 
-static int interfaces_interface_ipv4_address_get_link_layer_address(void* priv, sr_session_ctx_t* session, const srpc_change_ctx_t* change_ctx);
+static int interfaces_interface_ipv4_neighbor_get_link_layer_address(void* priv, sr_session_ctx_t* session, const srpc_change_ctx_t* change_ctx);
 
 int interfaces_interface_ipv4_neighbor_change_link_layer_address_init(void* priv)
 {
@@ -158,7 +158,7 @@ int interfaces_interface_ipv4_neighbor_change_ip(void* priv, sr_session_ctx_t* s
 
         // get prefix length by using prefix-length or netmask leafs
         SRPC_SAFE_CALL_ERR_COND(error, error < 0, snprintf(path_buffer, sizeof(path_buffer), INTERFACES_INTERFACES_INTERFACE_YANG_PATH "[name=\"%s\"]/ietf-ip:ipv4/neighbor[ip=\"%s\"]/link-layer-address", interface_name_buffer, node_value), error_out);
-        SRPC_SAFE_CALL_ERR(error, srpc_iterate_changes(ctx, session, path_buffer, interfaces_interface_ipv4_address_get_link_layer_address, NULL, NULL), error_out);
+        SRPC_SAFE_CALL_ERR(error, srpc_iterate_changes(ctx, session, path_buffer, interfaces_interface_ipv4_neighbor_get_link_layer_address, NULL, NULL), error_out);
 
         SRPLG_LOG_INF(PLUGIN_NAME, "Recieved link-layer-address %s for neighbor address %s", mod_ctx->mod_data.ipv4.neighbor.link_layer_address, node_value);
 
@@ -229,7 +229,7 @@ void interfaces_interface_ipv4_neighbor_change_ip_free(void* priv)
 {
 }
 
-static int interfaces_interface_ipv4_address_get_link_layer_address(void* priv, sr_session_ctx_t* session, const srpc_change_ctx_t* change_ctx)
+static int interfaces_interface_ipv4_neighbor_get_link_layer_address(void* priv, sr_session_ctx_t* session, const srpc_change_ctx_t* change_ctx)
 {
     int error = 0;
 
