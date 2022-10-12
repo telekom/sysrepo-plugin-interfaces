@@ -2105,7 +2105,9 @@ int add_existing_links(sr_session_ctx_t *session, link_data_list_t *ld)
 			char *second = NULL;
 
 			first = strchr(name, '.');
-			second = strchr(first + 1, '.');
+			if (first != 0) {
+				second = strchr(first + 1, '.');
+			}
 
 			if (second != 0) {
 				link = (struct rtnl_link *) nl_cache_get_next((struct nl_object *) link);
