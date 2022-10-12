@@ -219,7 +219,7 @@ int interfaces_interface_ipv6_address_change_ip(void* priv, sr_session_ctx_t* se
         break;
     case SR_OP_MODIFIED:
         // should be impossible - address IP can only be created and deleted
-        SRPLG_LOG_ERR(PLUGIN_NAME, "Unsuported operation MODIFY for interface IPv4 address IP leaf");
+        SRPLG_LOG_ERR(PLUGIN_NAME, "Unsuported operation MODIFY for interface IPv6 address IP leaf");
         goto error_out;
         break;
     case SR_OP_DELETED:
