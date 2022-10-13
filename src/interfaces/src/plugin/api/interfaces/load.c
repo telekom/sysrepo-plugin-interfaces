@@ -75,7 +75,7 @@ static int interfaces_add_ips(interfaces_interface_t* interface, char *ip, int n
     return 0;
 }
 
-static int interfaces_get_ips(struct nl_sock* socket, struct rtnl_link* link, interfaces_interface_t* interface)
+static int interfaces_get_interface_ips(struct nl_sock* socket, struct rtnl_link* link, interfaces_interface_t* interface)
 {
     struct nl_object *nl_object = NULL;
 	struct nl_cache *addr_cache = NULL;
@@ -209,7 +209,7 @@ static int interfaces_add_neighbor(interfaces_interface_t* interface, char *dst_
     return 0;
 }
 
-static int interfaces_get_neighbors(struct nl_sock* socket, struct rtnl_link* link, interfaces_interface_t* interface) 
+static int interfaces_get_interface_ip_neighbors(struct nl_sock* socket, struct rtnl_link* link, interfaces_interface_t* interface) 
 {
     struct nl_cache *neigh_cache = NULL;
     struct nl_object *nl_neigh_object = NULL;
@@ -316,7 +316,7 @@ static unsigned int interfaces_get_ipv6_mtu(struct rtnl_link* link, interfaces_i
     
 }
 
-static unsigned int interfaces_get_mtu(struct rtnl_link* link, interfaces_interface_t* interface)
+static unsigned int interfaces_get_interface_ip_mtu(struct rtnl_link* link, interfaces_interface_t* interface)
 {
     interfaces_get_ipv4_mtu(link, interface);
 
@@ -339,7 +339,7 @@ static unsigned int interfaces_get_ipv6_enabled(interfaces_interface_t* interfac
 
     const char *ipv6_base = "/proc/sys/net/ipv6/conf";
     
-    SRPC_SAFE_CALL(read_from_proc_file(ipv6_base, interface->name, "disable_ipv6", enabled), out);
+    SRPC_SAFE_CALL(read_from_proc_file(ipv6_base, interface->name, "disable_ipv6", &enabled), out);
 
     interface->ipv6.enabled = enabled;
 
@@ -347,7 +347,7 @@ out:
     return error;
 }
 
-static unsigned int interfaces_get_enabled(interfaces_interface_t* interface)
+static unsigned int interfaces_get_interface_ip_enabled(interfaces_interface_t* interface)
 {
     interfaces_get_ipv4_enabled(interface);
 
@@ -361,7 +361,7 @@ static unsigned int interfaces_get_ipv4_forwarding(interfaces_interface_t* inter
 
     const char *ipv4_base = "/proc/sys/net/ipv4/conf";
     
-    SRPC_SAFE_CALL(read_from_proc_file(ipv4_base, interface->name, "forwarding", forwarding), out);
+    SRPC_SAFE_CALL(read_from_proc_file(ipv4_base, interface->name, "forwarding", &forwarding), out);
 
     interface->ipv4.forwarding = forwarding;
 
@@ -376,7 +376,7 @@ static unsigned int interfaces_get_ipv6_forwarding(interfaces_interface_t* inter
 
     const char *ipv6_base = "/proc/sys/net/ipv6/conf";
     
-    SRPC_SAFE_CALL(read_from_proc_file(ipv6_base, interface->name, "forwarding", forwarding), out);
+    SRPC_SAFE_CALL(read_from_proc_file(ipv6_base, interface->name, "forwarding", &forwarding), out);
 
     interface->ipv6.forwarding = forwarding;
 
@@ -385,7 +385,7 @@ out:
 }
 
 
-static unsigned int interfaces_get_forwarding(interfaces_interface_t* interface)
+static unsigned int interfaces_get_interface_ip_forwarding(interfaces_interface_t* interface)
 {
     interfaces_get_ipv4_forwarding(interface);
 
@@ -538,7 +538,7 @@ static int interfaces_parse_link(interfaces_ctx_t* ctx, struct nl_sock* socket, 
     // required, fail if NULL
     SRPC_SAFE_CALL_PTR(interface->name, interfaces_get_interface_name(link), error_out);
 
-    interfaces_get_interface_description(ctx, interface->name);
+    /* interfaces_get_interface_description(ctx, interface->name); */
 
     interfaces_get_interface_type(link, interface->name);
 
@@ -547,21 +547,20 @@ static int interfaces_parse_link(interfaces_ctx_t* ctx, struct nl_sock* socket, 
     /* interface can be skipped - interface_load_continue*/
     error = interfaces_get_interface_vlan_id(link, interface);
     if (error != interfaces_load_success) {
-        SRPLG_LOG_ERR(PLUGIN_NAME, "%s: vlan id error", __func__);
         goto out; // error_out would possibly change the error
     }
 
-    interface->enabled = interfaces_get_interface_enabled(link, interface);
+    interfaces_get_interface_enabled(link, interface);
 
-    interfaces_get_neighbors(socket, link, interface);
+    interfaces_get_interface_ips(socket, link, interface);
 
-    interfaces_get_ips(socket, link, interface);
+    interfaces_get_interface_ip_neighbors(socket, link, interface);
 
-    interfaces_get_mtu(link, interface);
+    interfaces_get_interface_ip_mtu(link, interface);
 
-    interfaces_get_enabled(interface);
+    //interfaces_get_interface_ip_enabled(interface);
 
-    interfaces_get_forwarding(interface);
+    interfaces_get_interface_ip_forwarding(interface);
 
     goto out;
 error_out:
@@ -598,10 +597,12 @@ static int interfaces_add_link(interfaces_interface_hash_element_t** if_hash, in
     interfaces_interface_hash_element_set_ipv4(&new_if_hash_elem, interface->ipv4);
     interfaces_interface_hash_element_set_ipv4_mtu(&new_if_hash_elem, interface->ipv4.mtu);
     interfaces_interface_hash_element_set_ipv4_enabled(&new_if_hash_elem, interface->ipv4.enabled);
+    interfaces_interface_hash_element_set_ipv4_forwarding(&new_if_hash_elem, interface->ipv4.forwarding);
 
     interfaces_interface_hash_element_set_ipv6(&new_if_hash_elem, interface->ipv6);
     interfaces_interface_hash_element_set_ipv6_mtu(&new_if_hash_elem, interface->ipv6.mtu);
     interfaces_interface_hash_element_set_ipv6_enabled(&new_if_hash_elem, interface->ipv6.enabled);
+    interfaces_interface_hash_element_set_ipv6_forwarding(&new_if_hash_elem, interface->ipv6.forwarding);
 
     interfaces_interface_hash_element_set_enabled(&new_if_hash_elem, interface->enabled);
 
