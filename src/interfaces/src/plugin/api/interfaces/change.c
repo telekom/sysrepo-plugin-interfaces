@@ -1,4 +1,5 @@
 #include "change.h"
+#include "netlink/route/addr.h"
 #include "plugin/common.h"
 #include "plugin/context.h"
 
@@ -24,6 +25,9 @@ int interfaces_change_interface_init(void* priv)
 
     // allocate link cache
     SRPC_SAFE_CALL_ERR(error, rtnl_link_alloc_cache(mod_ctx->nl_ctx.socket, AF_UNSPEC, &mod_ctx->nl_ctx.link_cache), error_out);
+
+    // allocate address cache
+    SRPC_SAFE_CALL_ERR(error, rtnl_addr_alloc_cache(mod_ctx->nl_ctx.socket, &mod_ctx->nl_ctx.addr_cache), error_out);
 
     goto out;
 
@@ -91,6 +95,11 @@ void interfaces_change_interface_free(void* priv)
     if (mod_ctx->nl_ctx.link_cache) {
         nl_cache_put(mod_ctx->nl_ctx.link_cache);
     }
+
+    if (mod_ctx->nl_ctx.addr_cache) {
+        nl_cache_put(mod_ctx->nl_ctx.addr_cache);
+    }
+
     if (mod_ctx->nl_ctx.socket) {
         nl_socket_free(mod_ctx->nl_ctx.socket);
     }

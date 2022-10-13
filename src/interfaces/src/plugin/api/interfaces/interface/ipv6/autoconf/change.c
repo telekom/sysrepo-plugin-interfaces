@@ -15,7 +15,7 @@ int interfaces_interface_ipv6_autoconf_change_temporary_preferred_lifetime(void*
     const char* node_name = LYD_NAME(change_ctx->node);
     const char* node_value = lyd_get_value(change_ctx->node);
 
-    SRPLG_LOG_DBG(PLUGIN_NAME, "Node Name: %s; Previous Value: %s, Value: %s; Operation: %d", node_name, change_ctx->previous_value, node_value, change_ctx->operation);
+    SRPLG_LOG_INF(PLUGIN_NAME, "Node Name: %s; Previous Value: %s, Value: %s; Operation: %d", node_name, change_ctx->previous_value, node_value, change_ctx->operation);
 
     switch (change_ctx->operation) {
     case SR_OP_CREATED:
@@ -47,7 +47,7 @@ int interfaces_interface_ipv6_autoconf_change_temporary_valid_lifetime(void* pri
     const char* node_name = LYD_NAME(change_ctx->node);
     const char* node_value = lyd_get_value(change_ctx->node);
 
-    SRPLG_LOG_DBG(PLUGIN_NAME, "Node Name: %s; Previous Value: %s, Value: %s; Operation: %d", node_name, change_ctx->previous_value, node_value, change_ctx->operation);
+    SRPLG_LOG_INF(PLUGIN_NAME, "Node Name: %s; Previous Value: %s, Value: %s; Operation: %d", node_name, change_ctx->previous_value, node_value, change_ctx->operation);
 
     switch (change_ctx->operation) {
     case SR_OP_CREATED:
@@ -79,7 +79,7 @@ int interfaces_interface_ipv6_autoconf_change_create_temporary_addresses(void* p
     const char* node_name = LYD_NAME(change_ctx->node);
     const char* node_value = lyd_get_value(change_ctx->node);
 
-    SRPLG_LOG_DBG(PLUGIN_NAME, "Node Name: %s; Previous Value: %s, Value: %s; Operation: %d", node_name, change_ctx->previous_value, node_value, change_ctx->operation);
+    SRPLG_LOG_INF(PLUGIN_NAME, "Node Name: %s; Previous Value: %s, Value: %s; Operation: %d", node_name, change_ctx->previous_value, node_value, change_ctx->operation);
 
     switch (change_ctx->operation) {
     case SR_OP_CREATED:
@@ -111,7 +111,7 @@ int interfaces_interface_ipv6_autoconf_change_create_global_addresses(void* priv
     const char* node_name = LYD_NAME(change_ctx->node);
     const char* node_value = lyd_get_value(change_ctx->node);
 
-    SRPLG_LOG_DBG(PLUGIN_NAME, "Node Name: %s; Previous Value: %s, Value: %s; Operation: %d", node_name, change_ctx->previous_value, node_value, change_ctx->operation);
+    SRPLG_LOG_INF(PLUGIN_NAME, "Node Name: %s; Previous Value: %s, Value: %s; Operation: %d", node_name, change_ctx->previous_value, node_value, change_ctx->operation);
 
     switch (change_ctx->operation) {
     case SR_OP_CREATED:

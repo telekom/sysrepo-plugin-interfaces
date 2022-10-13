@@ -172,7 +172,7 @@ int interfaces_interface_hash_from_ly(interfaces_interface_hash_element_t** if_h
         }
 
         if (if_enabled_node) {
-            SRPC_SAFE_CALL_ERR(error, interfaces_interface_hash_element_set_enabled(&new_element, strcmp(lyd_get_value(if_enabled_node), "true") ? 1 : 0), error_out);
+            SRPC_SAFE_CALL_ERR(error, interfaces_interface_hash_element_set_enabled(&new_element, strcmp(lyd_get_value(if_enabled_node), "true") == 0 ? 1 : 0), error_out);
         }
 
         if (ipv4_enabled_node) {
