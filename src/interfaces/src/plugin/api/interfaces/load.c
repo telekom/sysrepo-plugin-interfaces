@@ -323,6 +323,75 @@ static unsigned int interfaces_get_mtu(struct rtnl_link* link, interfaces_interf
     interfaces_get_ipv6_mtu(link, interface);
 }
 
+static unsigned int interfaces_get_ipv4_enabled(interfaces_interface_t* interface)
+{
+    const char *ipv4_base = "/proc/sys/net/ipv4/conf";
+
+    /* TODO: figure out how to enable/disable ipv4                                      */
+    /*		 since disable_ipv4 doesn't exist in /proc/sys/net/ipv6/conf/interface_name */
+
+}
+
+static unsigned int interfaces_get_ipv6_enabled(interfaces_interface_t* interface)
+{
+    int error = 0;
+    int enabled = 0;
+
+    const char *ipv6_base = "/proc/sys/net/ipv6/conf";
+    
+    SRPC_SAFE_CALL(read_from_proc_file(ipv6_base, interface->name, "disable_ipv6", enabled), out);
+
+    interface->ipv6.enabled = enabled;
+
+out:
+    return error;
+}
+
+static unsigned int interfaces_get_enabled(interfaces_interface_t* interface)
+{
+    interfaces_get_ipv4_enabled(interface);
+
+    interfaces_get_ipv6_enabled(interface);
+}
+
+static unsigned int interfaces_get_ipv4_forwarding(interfaces_interface_t* interface)
+{
+    int error = 0;
+    int forwarding = 0;
+
+    const char *ipv4_base = "/proc/sys/net/ipv4/conf";
+    
+    SRPC_SAFE_CALL(read_from_proc_file(ipv4_base, interface->name, "forwarding", forwarding), out);
+
+    interface->ipv4.forwarding = forwarding;
+
+out:
+    return error;
+}
+
+static unsigned int interfaces_get_ipv6_forwarding(interfaces_interface_t* interface)
+{
+    int error = 0;
+    int forwarding = 0;
+
+    const char *ipv6_base = "/proc/sys/net/ipv6/conf";
+    
+    SRPC_SAFE_CALL(read_from_proc_file(ipv6_base, interface->name, "forwarding", forwarding), out);
+
+    interface->ipv6.forwarding = forwarding;
+
+out:
+    return error;
+}
+
+
+static unsigned int interfaces_get_forwarding(interfaces_interface_t* interface)
+{
+    interfaces_get_ipv4_forwarding(interface);
+
+    interfaces_get_ipv6_forwarding(interface);
+}
+
 static char* interfaces_get_interface_name(struct rtnl_link* link)
 {
     char* name = NULL;
@@ -475,6 +544,7 @@ static int interfaces_parse_link(interfaces_ctx_t* ctx, struct nl_sock* socket, 
 
     interfaces_get_interface_parent_interface(cache, link, interface);
 
+    /* interface can be skipped - interface_load_continue*/
     error = interfaces_get_interface_vlan_id(link, interface);
     if (error != interfaces_load_success) {
         SRPLG_LOG_ERR(PLUGIN_NAME, "%s: vlan id error", __func__);
@@ -489,11 +559,15 @@ static int interfaces_parse_link(interfaces_ctx_t* ctx, struct nl_sock* socket, 
 
     interfaces_get_mtu(link, interface);
 
+    interfaces_get_enabled(interface);
+
+    interfaces_get_forwarding(interface);
+
     goto out;
 error_out:
     error = interfaces_load_failure;
-    // do not free the data, the interface data needs to be added in the interfaces hash table
 out:
+    /* do not free the data, the interface data needs to be added in the interfaces hash table */
 
     return error;
 }
@@ -523,9 +597,11 @@ static int interfaces_add_link(interfaces_interface_hash_element_t** if_hash, in
 
     interfaces_interface_hash_element_set_ipv4(&new_if_hash_elem, interface->ipv4);
     interfaces_interface_hash_element_set_ipv4_mtu(&new_if_hash_elem, interface->ipv4.mtu);
+    interfaces_interface_hash_element_set_ipv4_enabled(&new_if_hash_elem, interface->ipv4.enabled);
 
     interfaces_interface_hash_element_set_ipv6(&new_if_hash_elem, interface->ipv6);
     interfaces_interface_hash_element_set_ipv6_mtu(&new_if_hash_elem, interface->ipv6.mtu);
+    interfaces_interface_hash_element_set_ipv6_enabled(&new_if_hash_elem, interface->ipv6.enabled);
 
     interfaces_interface_hash_element_set_enabled(&new_if_hash_elem, interface->enabled);
 
