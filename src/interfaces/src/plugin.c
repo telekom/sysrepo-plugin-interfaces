@@ -276,20 +276,15 @@ int sr_plugin_init_cb(sr_session_ctx_t* running_session, void** private_data)
         },
     };
 
-    connection = sr_session_get_connection(running_session);
-    error = sr_session_start(connection, SR_DS_STARTUP, &startup_session);
-    if (error) {
-        SRPLG_LOG_ERR(PLUGIN_NAME, "sr_session_start() error (%d): %s", error, sr_strerror(error));
-        goto error_out;
-    }
+    // get connection
+    SRPC_SAFE_CALL_PTR(connection, sr_session_get_connection(running_session), error_out);
+
+    // start a session
+    SRPC_SAFE_CALL_ERR(error, sr_session_start(connection, SR_DS_STARTUP, &startup_session), error_out);
 
     ctx->startup_session = startup_session;
 
-    error = srpc_check_empty_datastore(startup_session, INTERFACES_INTERFACES_INTERFACE_YANG_PATH, &empty_startup);
-    if (error) {
-        SRPLG_LOG_ERR(PLUGIN_NAME, "Failed checking datastore contents: %d", error);
-        goto error_out;
-    }
+    SRPC_SAFE_CALL_ERR(error, srpc_check_empty_datastore(startup_session, INTERFACES_INTERFACES_INTERFACE_YANG_PATH, &empty_startup), error_out);
 
     if (empty_startup) {
         SRPLG_LOG_INF(PLUGIN_NAME, "Startup datastore is empty");
@@ -338,7 +333,7 @@ int sr_plugin_init_cb(sr_session_ctx_t* running_session, void** private_data)
         if (op->cb) {
             error = sr_oper_get_subscribe(running_session, op->module, op->path, op->cb, *private_data, SR_SUBSCR_DEFAULT, &subscription);
             if (error) {
-                SRPLG_LOG_ERR(PLUGIN_NAME, "sr_oper_get_subscribe() error (%d): %s", error, sr_strerror(error));
+                SRPLG_LOG_ERR(PLUGIN_NAME, "sr_oper_get_subscribe() error for \"%s\" (%d): %s", op->path, error, sr_strerror(error));
                 goto error_out;
             }
         }
