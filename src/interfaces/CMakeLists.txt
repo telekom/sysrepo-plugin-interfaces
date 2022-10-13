@@ -29,6 +29,7 @@ set(
     # API
     src/plugin/api/interfaces/check.c
     src/plugin/api/interfaces/load.c
+    src/plugin/api/interfaces/read.c
     src/plugin/api/interfaces/store.c
     src/plugin/api/interfaces/change.c
     src/plugin/api/interfaces/interface/change.c
