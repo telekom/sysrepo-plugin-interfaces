@@ -1,4 +1,5 @@
 #include "load.h"
+#include "read.h"
 #include "plugin/common.h"
 #include "utils/memory.h"
 #include "utlist.h"
@@ -87,14 +88,11 @@ static int interfaces_get_ips(struct nl_sock* socket, struct rtnl_link* link, in
     char *str = NULL;
 	char addr_str[ADDR_STR_BUF_SIZE] = { 0 };
 
-    unsigned int mtu = 0;
     int addr_count = 0;
     int addr_family = 0;
     int if_index = 0;
     int cur_if_index = 0;
     int error = 0;
-
-    mtu = rtnl_link_get_mtu(link);
 
     if_index = rtnl_link_get_ifindex(link);
 
@@ -295,6 +293,36 @@ out:
     return interfaces_load_success;
 }
 
+static unsigned int interfaces_get_ipv4_mtu(struct rtnl_link* link, interfaces_interface_t* interface)
+{
+    unsigned int mtu = 0;
+
+    mtu = rtnl_link_get_mtu(link);
+
+    interface->ipv4.mtu = mtu;
+
+    return 0;
+}
+
+static unsigned int interfaces_get_ipv6_mtu(struct rtnl_link* link, interfaces_interface_t* interface)
+{
+    unsigned int mtu = 0;
+
+    mtu = rtnl_link_get_mtu(link);
+
+    interface->ipv6.mtu = mtu;
+
+    return 0;
+    
+}
+
+static unsigned int interfaces_get_mtu(struct rtnl_link* link, interfaces_interface_t* interface)
+{
+    interfaces_get_ipv4_mtu(link, interface);
+
+    interfaces_get_ipv6_mtu(link, interface);
+}
+
 static char* interfaces_get_interface_name(struct rtnl_link* link)
 {
     char* name = NULL;
@@ -334,41 +362,6 @@ error_out:
     return description;
 }
 
-static int read_from_sys_file(const char* dir_path, char* interface, int* val)
-{
-    int error = 0;
-    char tmp_buffer[PATH_MAX];
-    FILE* fptr = NULL;
-    char tmp_val[4] = { 0 };
-
-    error = snprintf(tmp_buffer, sizeof(tmp_buffer), "%s/%s/type", dir_path, interface);
-    if (error < 0) {
-        // snprintf error
-        SRPLG_LOG_ERR(PLUGIN_NAME, "%s: snprintf failed", __func__);
-        goto out;
-    }
-
-    /* snprintf returns return the number of bytes that are written - reset error to 0 */
-    error = 0;
-
-    fptr = fopen((const char*)tmp_buffer, "r");
-
-    if (fptr != NULL) {
-        fgets(tmp_val, sizeof(tmp_val), fptr);
-
-        *val = atoi(tmp_val);
-
-        fclose(fptr);
-    } else {
-        SRPLG_LOG_ERR(PLUGIN_NAME, "%s: failed to open %s: %s", __func__, tmp_buffer, strerror(errno));
-        error = -1;
-        goto out;
-    }
-
-out:
-    return error;
-}
-
 static char* interfaces_get_interface_type(struct rtnl_link* link, char* name)
 {
     int error = 0;
@@ -403,7 +396,7 @@ error_out:
     return xstrdup(type);
 }
 
-static uint8_t interfaces_get_interface_enabled(struct rtnl_link* link)
+static int interfaces_get_interface_enabled(struct rtnl_link* link, interfaces_interface_t *interface)
 {
     uint8_t enabled = rtnl_link_get_operstate(link);
 
@@ -417,10 +410,12 @@ static uint8_t interfaces_get_interface_enabled(struct rtnl_link* link)
         enabled = interfaces_interface_enable_disabled;
     }
 
-    return enabled;
+    interface->enabled = enabled;
+
+    return 0;
 }
 
-static char* interfaces_get_interface_parent_interface(struct nl_cache* cache, struct rtnl_link* link)
+static int interfaces_get_interface_parent_interface(struct nl_cache* cache, struct rtnl_link* link, interfaces_interface_t* interface)
 {
     int parent_index = 0;
     char parent_buffer[IFNAMSIZ] = { 0 };
@@ -429,10 +424,12 @@ static char* interfaces_get_interface_parent_interface(struct nl_cache* cache, s
     if (rtnl_link_is_vlan(link)) {
         parent_index = rtnl_link_get_link(link);
         parent_interface = rtnl_link_i2name(cache, parent_index, parent_buffer, IFNAMSIZ);
-        return xstrdup(parent_interface);
+        interface->parent_interface = xstrdup(parent_interface);
+
+        return 0;
     }
 
-    return NULL;
+    return -1;
 }
 
 /* TODO: outer tag, second id, tag - maybe refactor all to pass by reference, return error */
@@ -476,7 +473,7 @@ static int interfaces_parse_link(interfaces_ctx_t* ctx, struct nl_sock* socket, 
 
     interfaces_get_interface_type(link, interface->name);
 
-    interfaces_get_interface_parent_interface(cache, link);
+    interfaces_get_interface_parent_interface(cache, link, interface);
 
     error = interfaces_get_interface_vlan_id(link, interface);
     if (error != interfaces_load_success) {
@@ -484,11 +481,13 @@ static int interfaces_parse_link(interfaces_ctx_t* ctx, struct nl_sock* socket, 
         goto out; // error_out would possibly change the error
     }
 
-    interface->enabled = interfaces_get_interface_enabled(link);
+    interface->enabled = interfaces_get_interface_enabled(link, interface);
 
     interfaces_get_neighbors(socket, link, interface);
 
     interfaces_get_ips(socket, link, interface);
+
+    interfaces_get_mtu(link, interface);
 
     goto out;
 error_out:
@@ -523,8 +522,12 @@ static int interfaces_add_link(interfaces_interface_hash_element_t** if_hash, in
     interfaces_interface_hash_element_set_enabled(&new_if_hash_elem, interface->enabled);
 
     interfaces_interface_hash_element_set_ipv4(&new_if_hash_elem, interface->ipv4);
+    interfaces_interface_hash_element_set_ipv4_mtu(&new_if_hash_elem, interface->ipv4.mtu);
 
     interfaces_interface_hash_element_set_ipv6(&new_if_hash_elem, interface->ipv6);
+    interfaces_interface_hash_element_set_ipv6_mtu(&new_if_hash_elem, interface->ipv6.mtu);
+
+    interfaces_interface_hash_element_set_enabled(&new_if_hash_elem, interface->enabled);
 
     goto out;
 error_out:
@@ -540,18 +543,6 @@ out:
     }
     if (interface->parent_interface != NULL) {
         FREE_SAFE(interface->parent_interface);
-    }
-    if (interface->ipv4.neighbor != NULL) {
-        INTERFACES_INTERFACE_LIST_FREE(interface->ipv4.neighbor);
-    }
-    if (interface->ipv4.address != NULL) {
-        INTERFACES_INTERFACE_LIST_FREE(interface->ipv4.address);
-    }
-    if (interface->ipv6.neighbor != NULL) {
-        INTERFACES_INTERFACE_LIST_FREE(interface->ipv6.neighbor);
-    }
-    if (interface->ipv6.address != NULL) {
-        INTERFACES_INTERFACE_LIST_FREE(interface->ipv6.address);
     }
 
     return error;
