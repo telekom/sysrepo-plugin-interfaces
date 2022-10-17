@@ -81,34 +81,6 @@ int interfaces_interface_ipv4_address_element_set_ip(interfaces_interface_ipv4_a
     return 0;
 }
 
-int interfaces_interface_netmask_to_prefix_length(const char *netmask)
-{
-        int error = 0;
-
-        struct sockaddr_in sa = { 0 };
-        struct sockaddr_in6 sa6 = { 0 };
-
-        // IPv6 if a ':' is found
-        if (strchr(netmask, ':')) {
-                SRPC_SAFE_CALL(inet_pton(AF_INET6, netmask, &(sa6.sin6_addr)), error_out);
-
-                // s6_addr is a uint8_t array of length 16, all the byte popcounts need to be summarized
-                // avoid branching, use popcountll's 64 bits minimum
-                uint64_t *s6_addr64 = (uint64_t *) sa6.sin6_addr.s6_addr;
-
-                return __builtin_popcountll(s6_addr64[0]) + __builtin_popcountll(s6_addr64[1]);
-
-        }
-
-        // IPv4 otherwise
-        SRPC_SAFE_CALL(inet_pton(AF_INET, netmask, &(sa.sin_addr)), error_out);
-
-        return __builtin_popcountl(sa.sin_addr.s_addr);
-
-error_out:
-        return -1;
-}
-
 int interfaces_interface_ipv4_address_element_set_subnet(interfaces_interface_ipv4_address_element_t** el, char *netmask, enum interfaces_interface_ipv4_address_subnet subtype)
 {
     int error = 0;
