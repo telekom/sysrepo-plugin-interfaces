@@ -1,6 +1,8 @@
 #include "load.h"
 #include "read.h"
 #include "plugin/common.h"
+#include "interface/ipv4/load.h"
+#include "interface/ipv6/load.h"
 #include "utils/memory.h"
 #include "utlist.h"
 
@@ -30,39 +32,6 @@ enum interfaces_load_exit_status {
     interfaces_load_success  =  0,
     interfaces_load_continue =  1,
 };
-
-static int interfaces_add_address_ipv4(interfaces_interface_ipv4_address_element_t **address, char *ip, char *netmask)
-{
-    int prefix_length = 0;
-    int error = 0;
-
-    interfaces_interface_ipv4_address_element_t* new_element = NULL;
-
-    new_element = interfaces_interface_ipv4_address_element_new(); 
-
-    interfaces_interface_ipv4_address_element_set_ip(&new_element, ip);
-    SRPC_SAFE_CALL(interfaces_interface_ipv4_address_netmask2prefix(netmask, prefix_length), out);
-    interfaces_interface_ipv4_address_element_set_subnet(&new_element, netmask, interfaces_interface_ipv4_address_subnet_prefix_length);
-    interfaces_interface_ipv4_address_add_element(address, new_element);
-
-out:
-    return error;
-}
-
-static int interfaces_add_address_ipv6(interfaces_interface_ipv6_address_element_t **address, char *ip, char *netmask)
-{
-    int prefix_length = 0;
-
-    interfaces_interface_ipv6_address_element_t* new_element = NULL;
-
-    new_element = interfaces_interface_ipv6_address_element_new(); 
-
-    interfaces_interface_ipv6_address_element_set_ip(&new_element, ip);
-    prefix_length = interfaces_interface_netmask_to_prefix_length(netmask);
-    interfaces_interface_ipv6_address_element_set_prefix_length(&new_element, prefix_length);
-    interfaces_interface_ipv6_address_add_element(address, new_element);
-
-}
 
 static int interfaces_add_ips(interfaces_interface_t* interface, char *ip, int netmask, int addr_family)
 {
@@ -172,32 +141,6 @@ out:
     return interfaces_load_success;
 }
 
-static int interfaces_add_neighbor_ipv4(interfaces_interface_ipv4_neighbor_element_t** neighbor, char *dst_addr, char *ll_addr)
-{
-    interfaces_interface_ipv4_neighbor_element_t* new_element = NULL;
-
-    new_element = interfaces_interface_ipv4_neighbor_element_new(); 
-
-    interfaces_interface_ipv4_neighbor_element_set_ip(&new_element, dst_addr);
-    interfaces_interface_ipv4_neighbor_element_set_link_layer_address(&new_element, ll_addr);
-    interfaces_interface_ipv4_neighbor_add_element(neighbor, new_element);
-
-    return 0;
-}
-
-static int interfaces_add_neighbor_ipv6(interfaces_interface_ipv6_neighbor_element_t** neighbor, char *dst_addr, char *ll_addr)
-{
-    interfaces_interface_ipv6_neighbor_element_t* new_element = NULL;
-
-    new_element = interfaces_interface_ipv6_neighbor_element_new(); 
-
-    interfaces_interface_ipv6_neighbor_element_set_ip(&new_element, dst_addr);
-    interfaces_interface_ipv6_neighbor_element_set_link_layer_address(&new_element, ll_addr);
-    interfaces_interface_ipv6_neighbor_add_element(neighbor, new_element);
-
-    return 0;
-}
-
 static int interfaces_add_neighbor(interfaces_interface_t* interface, char *dst_addr, char *ll_addr, int addr_family)
 {
     switch (addr_family) {
@@ -299,58 +242,11 @@ out:
     return interfaces_load_success;
 }
 
-static unsigned int interfaces_get_ipv4_mtu(struct rtnl_link* link, interfaces_interface_t* interface)
-{
-    unsigned int mtu = 0;
-
-    mtu = rtnl_link_get_mtu(link);
-
-    interface->ipv4.mtu = mtu;
-
-    return 0;
-}
-
-static unsigned int interfaces_get_ipv6_mtu(struct rtnl_link* link, interfaces_interface_t* interface)
-{
-    unsigned int mtu = 0;
-
-    mtu = rtnl_link_get_mtu(link);
-
-    interface->ipv6.mtu = mtu;
-
-    return 0;
-    
-}
-
 static unsigned int interfaces_get_interface_ip_mtu(struct rtnl_link* link, interfaces_interface_t* interface)
 {
     interfaces_get_ipv4_mtu(link, interface);
 
     interfaces_get_ipv6_mtu(link, interface);
-}
-
-static unsigned int interfaces_get_ipv4_enabled(interfaces_interface_t* interface)
-{
-    const char *ipv4_base = "/proc/sys/net/ipv4/conf";
-
-    /* TODO: figure out how to enable/disable ipv4                                      */
-    /*		 since disable_ipv4 doesn't exist in /proc/sys/net/ipv6/conf/interface_name */
-
-}
-
-static unsigned int interfaces_get_ipv6_enabled(interfaces_interface_t* interface)
-{
-    int error = 0;
-    int enabled = 0;
-
-    const char *ipv6_base = "/proc/sys/net/ipv6/conf";
-    
-    SRPC_SAFE_CALL(read_from_proc_file(ipv6_base, interface->name, "disable_ipv6", &enabled), out);
-
-    interface->ipv6.enabled = enabled;
-
-out:
-    return error;
 }
 
 static unsigned int interfaces_get_interface_ip_enabled(interfaces_interface_t* interface)
@@ -359,37 +255,6 @@ static unsigned int interfaces_get_interface_ip_enabled(interfaces_interface_t* 
 
     interfaces_get_ipv6_enabled(interface);
 }
-
-static unsigned int interfaces_get_ipv4_forwarding(interfaces_interface_t* interface)
-{
-    int error = 0;
-    int forwarding = 0;
-
-    const char *ipv4_base = "/proc/sys/net/ipv4/conf";
-    
-    SRPC_SAFE_CALL(read_from_proc_file(ipv4_base, interface->name, "forwarding", &forwarding), out);
-
-    interface->ipv4.forwarding = forwarding;
-
-out:
-    return error;
-}
-
-static unsigned int interfaces_get_ipv6_forwarding(interfaces_interface_t* interface)
-{
-    int error = 0;
-    int forwarding = 0;
-
-    const char *ipv6_base = "/proc/sys/net/ipv6/conf";
-    
-    SRPC_SAFE_CALL(read_from_proc_file(ipv6_base, interface->name, "forwarding", &forwarding), out);
-
-    interface->ipv6.forwarding = forwarding;
-
-out:
-    return error;
-}
-
 
 static unsigned int interfaces_get_interface_ip_forwarding(interfaces_interface_t* interface)
 {
