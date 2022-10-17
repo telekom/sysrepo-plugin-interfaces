@@ -33,14 +33,20 @@ enum interfaces_load_exit_status {
 
 static int interfaces_add_address_ipv4(interfaces_interface_ipv4_address_element_t **address, char *ip, char *netmask)
 {
+    int prefix_length = 0;
+    int error = 0;
+
     interfaces_interface_ipv4_address_element_t* new_element = NULL;
 
     new_element = interfaces_interface_ipv4_address_element_new(); 
 
     interfaces_interface_ipv4_address_element_set_ip(&new_element, ip);
-    interfaces_interface_ipv4_address_element_set_subnet(&new_element, netmask, interfaces_interface_ipv4_address_subnet_netmask);
+    SRPC_SAFE_CALL(interfaces_interface_ipv4_address_netmask2prefix(netmask, prefix_length), out);
+    interfaces_interface_ipv4_address_element_set_subnet(&new_element, netmask, interfaces_interface_ipv4_address_subnet_prefix_length);
     interfaces_interface_ipv4_address_add_element(address, new_element);
 
+out:
+    return error;
 }
 
 static int interfaces_add_address_ipv6(interfaces_interface_ipv6_address_element_t **address, char *ip, char *netmask)
