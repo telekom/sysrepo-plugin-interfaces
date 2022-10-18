@@ -38,6 +38,26 @@ interfaces_interface_ipv6_address_element_t* interfaces_interface_ipv6_address_e
     return new_element;
 }
 
+int interfaces_interface_ipv6_address_element_set(interfaces_interface_ipv6_address_element_t** src, 
+                                                  interfaces_interface_ipv6_address_element_t **dst) 
+{
+    interfaces_interface_ipv6_address_element_t *src_iter = NULL;
+    interfaces_interface_ipv6_address_element_t *new_elem = NULL;
+
+    LL_FOREACH(*src, src_iter) {
+        new_elem = interfaces_interface_ipv6_address_element_new();
+        interfaces_interface_ipv6_address_element_set_ip(&new_elem, src_iter->address.ip);
+        interfaces_interface_ipv6_address_element_set_prefix_length(&new_elem, 
+                                                                    src_iter->address.prefix_length);
+
+        interfaces_interface_ipv6_address_add_element(dst, new_elem);
+    }
+    
+    return 0;
+    
+}
+
+
 void interfaces_interface_ipv6_address_element_free(interfaces_interface_ipv6_address_element_t** el)
 {
     if (*el) {

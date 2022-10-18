@@ -465,12 +465,17 @@ static int interfaces_add_link(interfaces_interface_hash_element_t** if_hash, in
 
     interfaces_interface_hash_element_set_enabled(&new_if_hash_elem, interface->enabled);
 
-    interfaces_interface_hash_element_set_ipv4(&new_if_hash_elem, interface->ipv4);
+    //interfaces_interface_hash_element_set_ipv4(&new_if_hash_elem, interface->ipv4);
+    interfaces_interface_ipv4_address_element_set(&interface->ipv4.address, &new_if_hash_elem->interface.ipv4.address);
+    interfaces_interface_ipv4_neighbor_element_set(&interface->ipv4.neighbor, &new_if_hash_elem->interface.ipv4.neighbor);
+    
     interfaces_interface_hash_element_set_ipv4_mtu(&new_if_hash_elem, interface->ipv4.mtu);
     interfaces_interface_hash_element_set_ipv4_enabled(&new_if_hash_elem, interface->ipv4.enabled);
     interfaces_interface_hash_element_set_ipv4_forwarding(&new_if_hash_elem, interface->ipv4.forwarding);
 
-    interfaces_interface_hash_element_set_ipv6(&new_if_hash_elem, interface->ipv6);
+    //interfaces_interface_hash_element_set_ipv6(&new_if_hash_elem, interface->ipv6);
+    interfaces_interface_ipv6_address_element_set(&interface->ipv6.address, &new_if_hash_elem->interface.ipv6.address);
+    interfaces_interface_ipv6_neighbor_element_set(&interface->ipv6.neighbor, &new_if_hash_elem->interface.ipv6.neighbor);
     interfaces_interface_hash_element_set_ipv6_mtu(&new_if_hash_elem, interface->ipv6.mtu);
     interfaces_interface_hash_element_set_ipv6_enabled(&new_if_hash_elem, interface->ipv6.enabled);
     interfaces_interface_hash_element_set_ipv6_forwarding(&new_if_hash_elem, interface->ipv6.forwarding);

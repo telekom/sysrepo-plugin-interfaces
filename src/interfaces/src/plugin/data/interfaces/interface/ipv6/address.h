@@ -22,5 +22,6 @@ interfaces_interface_ipv6_address_element_t* interfaces_interface_ipv6_address_e
 void interfaces_interface_ipv6_address_element_free(interfaces_interface_ipv6_address_element_t** el);
 int interfaces_interface_ipv6_address_element_set_ip(interfaces_interface_ipv6_address_element_t** el, const char* ip);
 int interfaces_interface_ipv6_address_element_set_prefix_length(interfaces_interface_ipv6_address_element_t** el, uint8_t prefix_length);
+int interfaces_interface_ipv6_address_element_set(interfaces_interface_ipv6_address_element_t** src, interfaces_interface_ipv6_address_element_t **dst);
 
 #endif // INTERFACES_PLUGIN_DATA_INTERFACES_INTERFACE_IPV6_ADDRESS_H
