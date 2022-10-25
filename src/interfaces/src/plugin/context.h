@@ -48,6 +48,16 @@ struct interfaces_mod_changes_ctx_s {
                 uint8_t link_layer_set; ///< link_layer_address has been set
             } neighbor;
         } ipv4;
+        struct {
+            struct {
+                uint8_t prefix_length;
+                uint8_t prefix_set; ///< prefix_length has been set
+            } address;
+            struct {
+                char* link_layer_address;
+                uint8_t link_layer_set; ///< link_layer_address has been set
+            } neighbor;
+        } ipv6;
     } mod_data;
 };
 

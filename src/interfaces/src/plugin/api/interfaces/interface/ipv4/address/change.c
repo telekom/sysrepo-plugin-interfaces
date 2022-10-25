@@ -125,6 +125,22 @@ error_out:
     error = -1;
 
 out:
+    if (request_addr) {
+        rtnl_addr_put(request_addr);
+    }
+
+    if (delete_addr) {
+        rtnl_addr_put(delete_addr);
+    }
+
+    if (old_local_addr) {
+        nl_addr_put(old_local_addr);
+    }
+
+    if (local_addr) {
+        nl_addr_put(local_addr);
+    }
+
     return error;
 }
 
@@ -231,6 +247,22 @@ error_out:
     error = -1;
 
 out:
+    if (request_addr) {
+        rtnl_addr_put(request_addr);
+    }
+
+    if (delete_addr) {
+        rtnl_addr_put(delete_addr);
+    }
+
+    if (old_local_addr) {
+        nl_addr_put(old_local_addr);
+    }
+
+    if (local_addr) {
+        nl_addr_put(local_addr);
+    }
+
     return error;
 }
 
@@ -401,6 +433,10 @@ error_out:
 out:
     if (running_session) {
         sr_session_stop(running_session);
+    }
+
+    if (request_addr) {
+        rtnl_addr_put(request_addr);
     }
 
     // re-initialize mod_ctx data
