@@ -71,7 +71,7 @@ static int interfaces_get_interface_ips(struct nl_sock* socket, struct rtnl_link
 
     if_index = rtnl_link_get_ifindex(link);
 
-    SRPC_SAFE_CALL(rtnl_neigh_alloc_cache(socket, &addr_cache), error_out);
+    SRPC_SAFE_CALL_ERR(error, rtnl_neigh_alloc_cache(socket, &addr_cache), error_out);
 
     /* get ipv4 and ipv6 addresses */
     addr_count = nl_cache_nitems(addr_cache);
@@ -181,7 +181,7 @@ static int interfaces_get_interface_ip_neighbors(struct nl_sock* socket, struct 
     
     if_index = rtnl_link_get_ifindex(link);
 
-    SRPC_SAFE_CALL(rtnl_neigh_alloc_cache(socket, &neigh_cache), error_out);
+    SRPC_SAFE_CALL_ERR(error, rtnl_neigh_alloc_cache(socket, &neigh_cache), error_out);
 
     neigh_count = nl_cache_nitems(neigh_cache);
 
@@ -219,7 +219,7 @@ static int interfaces_get_interface_ip_neighbors(struct nl_sock* socket, struct 
 				addr_family = rtnl_neigh_get_family(neigh);
 
                 // switch based on address family, add to the neighbor linked list
-                SRPC_SAFE_CALL(interfaces_add_neighbor(interface, dst_addr, ll_addr_s, addr_family), error_out);
+                SRPC_SAFE_CALL_ERR(error, interfaces_add_neighbor(interface, dst_addr, ll_addr_s, addr_family), error_out);
                 
                 rtnl_neigh_put(neigh);
         }
@@ -317,7 +317,7 @@ static char* interfaces_get_interface_type(struct rtnl_link* link, char* name)
         const char* path_to_sys = "/sys/class/net/";
         int type_id = 0;
 
-        SRPC_SAFE_CALL(read_from_sys_file(path_to_sys, name, &type_id), error_out);
+        SRPC_SAFE_CALL_ERR(error, read_from_sys_file(path_to_sys, name, &type_id), error_out);
 
         switch (type_id) {
         case ARPHRD_ETHER:
@@ -449,18 +449,18 @@ static int interfaces_add_link(interfaces_interface_hash_element_t** if_hash, in
     interfaces_interface_hash_element_t* new_if_hash_elem = interfaces_interface_hash_element_new();
     interfaces_interface_hash_element_set_name(&new_if_hash_elem, interface->name);
 
-    SRPC_SAFE_CALL(interfaces_interface_hash_add_element(if_hash, new_if_hash_elem), error_out);
+    SRPC_SAFE_CALL_ERR(error, interfaces_interface_hash_add_element(if_hash, new_if_hash_elem), error_out);
 
     if (interface->description != NULL) {
-        SRPC_SAFE_CALL(interfaces_interface_hash_element_set_description(&new_if_hash_elem, interface->description), error_out);
+        SRPC_SAFE_CALL_ERR(error, interfaces_interface_hash_element_set_description(&new_if_hash_elem, interface->description), error_out);
     }
 
     if (interface->type != NULL) {
-        SRPC_SAFE_CALL(interfaces_interface_hash_element_set_type(&new_if_hash_elem, interface->type), error_out);
+        SRPC_SAFE_CALL_ERR(error, interfaces_interface_hash_element_set_type(&new_if_hash_elem, interface->type), error_out);
     }
 
     if (interface->parent_interface != NULL) {
-        SRPC_SAFE_CALL(interfaces_interface_hash_element_set_parent_interface(&new_if_hash_elem, interface->parent_interface), error_out);
+        SRPC_SAFE_CALL_ERR(error, interfaces_interface_hash_element_set_parent_interface(&new_if_hash_elem, interface->parent_interface), error_out);
     }
 
     interfaces_interface_hash_element_set_enabled(&new_if_hash_elem, interface->enabled);
@@ -518,7 +518,7 @@ static int interfaces_interfaces_worker(interfaces_ctx_t* ctx, struct nl_sock* s
         error = interfaces_parse_link(ctx, socket, cache, link, &interface);
         switch (error) {
         case interfaces_load_success:
-            SRPC_SAFE_CALL(interfaces_add_link(if_hash, &interface), error_out);
+            SRPC_SAFE_CALL_ERR(error, interfaces_add_link(if_hash, &interface), error_out);
             break;
         case interfaces_load_continue:
             break;
@@ -555,11 +555,11 @@ int interfaces_load_interface(interfaces_ctx_t* ctx, interfaces_interface_hash_e
         goto error_out;
     }
 
-    SRPC_SAFE_CALL(nl_connect(socket, NETLINK_ROUTE), error_out);
+    SRPC_SAFE_CALL_ERR(error, nl_connect(socket, NETLINK_ROUTE), error_out);
 
-    SRPC_SAFE_CALL(rtnl_link_alloc_cache(socket, AF_UNSPEC, &cache), error_out);
+    SRPC_SAFE_CALL_ERR(error, rtnl_link_alloc_cache(socket, AF_UNSPEC, &cache), error_out);
 
-    SRPC_SAFE_CALL(interfaces_interfaces_worker(ctx, socket, cache, if_hash), error_out);
+    SRPC_SAFE_CALL_ERR(error, interfaces_interfaces_worker(ctx, socket, cache, if_hash), error_out);
 
     goto out;
 error_out:

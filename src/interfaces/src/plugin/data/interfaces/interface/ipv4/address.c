@@ -110,7 +110,7 @@ int interfaces_interface_ipv4_address_element_set_subnet(interfaces_interface_ip
             interfaces_interface_ipv4_address_element_set_netmask(el, netmask);
             break;
         case interfaces_interface_ipv4_address_subnet_prefix_length:
-            SRPC_SAFE_CALL(interfaces_interface_ipv4_address_netmask2prefix(netmask, prefix_length), out);
+            SRPC_SAFE_CALL_ERR(error, interfaces_interface_ipv4_address_netmask2prefix(netmask, prefix_length), out);
             interfaces_interface_ipv4_address_element_set_prefix_length(el, prefix_length);
             break;
         case interfaces_interface_ipv4_address_subnet_none:

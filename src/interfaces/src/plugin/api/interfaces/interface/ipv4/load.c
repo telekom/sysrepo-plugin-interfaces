@@ -11,7 +11,7 @@ int interfaces_add_address_ipv4(interfaces_interface_ipv4_address_element_t **ad
     new_element = interfaces_interface_ipv4_address_element_new(); 
 
     interfaces_interface_ipv4_address_element_set_ip(&new_element, ip);
-    SRPC_SAFE_CALL(interfaces_interface_ipv4_address_netmask2prefix(netmask, prefix_length), out);
+    SRPC_SAFE_CALL_ERR(error, interfaces_interface_ipv4_address_netmask2prefix(netmask, prefix_length), out);
     interfaces_interface_ipv4_address_element_set_subnet(&new_element, netmask, interfaces_interface_ipv4_address_subnet_prefix_length);
     interfaces_interface_ipv4_address_add_element(address, new_element);
 
@@ -59,7 +59,7 @@ unsigned int interfaces_get_ipv4_forwarding(interfaces_interface_t* interface)
 
     const char *ipv4_base = "/proc/sys/net/ipv4/conf";
     
-    SRPC_SAFE_CALL(read_from_proc_file(ipv4_base, interface->name, "forwarding", &forwarding), out);
+    SRPC_SAFE_CALL_ERR(error, read_from_proc_file(ipv4_base, interface->name, "forwarding", &forwarding), out);
 
     interface->ipv4.forwarding = forwarding;
 
