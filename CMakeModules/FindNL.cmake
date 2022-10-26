@@ -5,12 +5,30 @@ find_path(NL_INCLUDE_DIRS netlink/netlink.h
 	/usr/include/libnl3
 	/usr/local/include
 	/usr/local/include/libnl3
+	${CMAKE_INCLUDE_PATH}
+	${CMAKE_PREFIX_PATH}/include/libnl3
 )
 
-find_library(NL_LIBRARY NAMES nl nl-3)
-find_library(NL_ROUTE_LIBRARY NAMES nl-route nl-route-3)
-find_library(NL_NETFILTER_LIBRARY NAMES nl-nf nl-nf-3)
-find_library(NL_GENL_LIBRARY NAMES nl-genl nl-genl-3)
+find_library(
+	NL_LIBRARY 
+	NAMES nl nl-3 
+	PATHS /usr/lib /usr/lib64 /usr/local/lib /usr/local/lib64 /opt/local/lib /sw/lib ${CMAKE_LIBRARY_PATH} ${CMAKE_INSTALL_PREFIX}/lib
+)
+find_library(
+	NL_ROUTE_LIBRARY 
+	NAMES nl-route nl-route-3
+	PATHS /usr/lib /usr/lib64 /usr/local/lib /usr/local/lib64 /opt/local/lib /sw/lib ${CMAKE_LIBRARY_PATH} ${CMAKE_INSTALL_PREFIX}/lib
+)
+find_library(
+	NL_NETFILTER_LIBRARY 
+	NAMES nl-nf nl-nf-3
+	PATHS /usr/lib /usr/lib64 /usr/local/lib /usr/local/lib64 /opt/local/lib /sw/lib ${CMAKE_LIBRARY_PATH} ${CMAKE_INSTALL_PREFIX}/lib
+)
+find_library(
+	NL_GENL_LIBRARY 
+	NAMES nl-genl nl-genl-3
+	PATHS /usr/lib /usr/lib64 /usr/local/lib /usr/local/lib64 /opt/local/lib /sw/lib ${CMAKE_LIBRARY_PATH} ${CMAKE_INSTALL_PREFIX}/lib
+)
 
 if (NL_INCLUDE_DIRS AND NL_LIBRARY)
 	set(NL_FOUND TRUE)
