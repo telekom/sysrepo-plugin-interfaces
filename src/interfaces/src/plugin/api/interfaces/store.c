@@ -5,6 +5,7 @@
 #include "netlink/route/addr.h"
 #include "netlink/socket.h"
 #include "plugin/data/interfaces/interface/ipv4/address.h"
+#include "src/utlist.h"
 #include "srpc/common.h"
 #include "utlist.h"
 #include "uthash.h"
@@ -26,6 +27,8 @@ int interfaces_store_interface(interfaces_ctx_t* ctx, const interfaces_interface
     char *if_type = NULL;
     char *if_type_libnl = NULL;
     const interfaces_interface_hash_element_t *i = NULL, *tmp = NULL;
+    interfaces_interface_ipv4_address_element_t *ipv4_iter = NULL;
+    interfaces_interface_ipv6_address_element_t *ipv6_iter = NULL;
     struct nl_sock *sk = NULL;
     struct nl_addr* local_addr = NULL;
     struct nl_cache* link_cache = NULL;
@@ -53,7 +56,7 @@ int interfaces_store_interface(interfaces_ctx_t* ctx, const interfaces_interface
         //determine link type
         if (strcmp(if_type, "iana-if-type:ethernetCsmacd") == 0) {
                 if_type_libnl = "veth";
-                // !! ADS 2 INTERFACES (one without ip addresses)
+                // !! ADDS 2 INTERFACES (one without ip addresses)
         }   else if (strcmp(if_type, "iana-if-type:softwareLoopback") == 0) {
                 if_type_libnl = "vcan";
                 //!! vcan INSTEAD OF lo
@@ -92,25 +95,25 @@ int interfaces_store_interface(interfaces_ctx_t* ctx, const interfaces_interface
         // get updated new_link
         SRPC_SAFE_CALL_PTR(new_link, rtnl_link_get_by_name(link_cache, i->interface.name), error_out);
 
-        for(interfaces_interface_ipv4_address_element_t *addr_ptr = i->interface.ipv4.address; addr_ptr != NULL; addr_ptr = addr_ptr->next) {
+        LL_FOREACH (i->interface.ipv4.address, ipv4_iter) {
             link_ipv4_addr = rtnl_addr_alloc();
 
             //parse local ipv4 address
-            SRPC_SAFE_CALL_ERR(error, nl_addr_parse(addr_ptr->address.ip, AF_INET, &local_addr), error_out);
+            SRPC_SAFE_CALL_ERR(error, nl_addr_parse(ipv4_iter->address.ip, AF_INET, &local_addr), error_out);
 
             // get ipv4 prefix length by using prefix-length or netmask
-            switch (addr_ptr->address.subnet_type) {
+            switch (ipv4_iter->address.subnet_type) {
                 case interfaces_interface_ipv4_address_subnet_none:
-                    SRPLG_LOG_ERR(PLUGIN_NAME, "Unable to get prefix-length/netmask for address %s", addr_ptr->address.ip);
+                    SRPLG_LOG_ERR(PLUGIN_NAME, "Unable to get prefix-length/netmask for address %s", ipv4_iter->address.ip);
                     break;
                 case interfaces_interface_ipv4_address_subnet_prefix_length:
-                    prefix_length = addr_ptr->address.subnet.prefix_length;
+                    prefix_length = ipv4_iter->address.subnet.prefix_length;
                     break;
                 case interfaces_interface_ipv4_address_subnet_netmask:
-                    interfaces_interface_ipv4_address_netmask2prefix(addr_ptr->address.subnet.netmask, &prefix_length);
+                    interfaces_interface_ipv4_address_netmask2prefix(ipv4_iter->address.subnet.netmask, &prefix_length);
                     break;
                 default:
-                    SRPLG_LOG_ERR(PLUGIN_NAME, "Unable to get prefix-length/netmask for address %s", addr_ptr->address.ip);
+                    SRPLG_LOG_ERR(PLUGIN_NAME, "Unable to get prefix-length/netmask for address %s", ipv4_iter->address.ip);
             }
         
             // set ipv4 prefix length
@@ -130,14 +133,14 @@ int interfaces_store_interface(interfaces_ctx_t* ctx, const interfaces_interface
         }
 
         
-        for(interfaces_interface_ipv6_address_element_t *addr_ptr = i->interface.ipv6.address; addr_ptr != NULL; addr_ptr = addr_ptr->next) {
+        LL_FOREACH (i->interface.ipv6.address, ipv6_iter) {
             link_ipv6_addr = rtnl_addr_alloc();
 
             // parse local ipv6 address
-            SRPC_SAFE_CALL_ERR(error, nl_addr_parse(addr_ptr->address.ip, AF_INET6, &local_addr), error_out);
+            SRPC_SAFE_CALL_ERR(error, nl_addr_parse(ipv6_iter->address.ip, AF_INET6, &local_addr), error_out);
 
             // set ipv6 prefix length
-            nl_addr_set_prefixlen(local_addr, addr_ptr->address.prefix_length);
+            nl_addr_set_prefixlen(local_addr, ipv6_iter->address.prefix_length);
 
             //set to route address
             SRPC_SAFE_CALL_ERR(error, rtnl_addr_set_local(link_ipv6_addr, local_addr), error_out);
