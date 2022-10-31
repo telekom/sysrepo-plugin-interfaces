@@ -86,6 +86,8 @@ void interfaces_interface_hash_print_debug(const interfaces_interface_hash_eleme
     const interfaces_interface_hash_element_t *iter = NULL, *tmp = NULL;
     interfaces_interface_ipv4_address_element_t* v4addr_iter = NULL;
     interfaces_interface_ipv6_address_element_t* v6addr_iter = NULL;
+    interfaces_interface_ipv4_neighbor_element_t* v4neigh_iter = NULL;
+    interfaces_interface_ipv6_neighbor_element_t* v6neigh_iter = NULL;
 
     HASH_ITER(hh, if_hash, iter, tmp)
     {
@@ -97,20 +99,25 @@ void interfaces_interface_hash_print_debug(const interfaces_interface_hash_eleme
         SRPLG_LOG_INF(PLUGIN_NAME, "\t IPv4:Enabled = %d", iter->interface.ipv4.enabled);
         SRPLG_LOG_INF(PLUGIN_NAME, "\t IPv4:Forwarding = %d", iter->interface.ipv4.forwarding);
         SRPLG_LOG_INF(PLUGIN_NAME, "\t IPv4:MTU = %hu", iter->interface.ipv4.mtu);
-        SRPLG_LOG_INF(PLUGIN_NAME, "\t IPv4:Address List:");
 
         LL_FOREACH(iter->interface.ipv4.address, v4addr_iter)
         {
-            SRPLG_LOG_INF(PLUGIN_NAME, "\t IPv4:Address %s:", v4addr_iter->address.ip);
-            SRPLG_LOG_INF(PLUGIN_NAME, "\t IPv4:Address IP = %s", v4addr_iter->address.ip);
-            SRPLG_LOG_INF(PLUGIN_NAME, "\t IPv4:Address Prefix Length = %d", v4addr_iter->address.subnet.prefix_length);
+            SRPLG_LOG_INF(PLUGIN_NAME, "\t IPv4:Address = %s/%d", v4addr_iter->address.ip, v4addr_iter->address.subnet.prefix_length);
+        }
+
+        LL_FOREACH(iter->interface.ipv4.neighbor, v4neigh_iter)
+        {
+            SRPLG_LOG_INF(PLUGIN_NAME, "\t IPv4:Neighbor = %s : %s", v4neigh_iter->neighbor.ip, v4neigh_iter->neighbor.link_layer_address);
         }
 
         LL_FOREACH(iter->interface.ipv6.address, v6addr_iter)
         {
-            SRPLG_LOG_INF(PLUGIN_NAME, "\t IPv6:Address %s:", v6addr_iter->address.ip);
-            SRPLG_LOG_INF(PLUGIN_NAME, "\t IPv6:Address IP = %s", v6addr_iter->address.ip);
-            SRPLG_LOG_INF(PLUGIN_NAME, "\t IPv6:Address Prefix Length = %d", v6addr_iter->address.prefix_length);
+            SRPLG_LOG_INF(PLUGIN_NAME, "\t IPv6:Address = %s/%d", v6addr_iter->address.ip, v6addr_iter->address.prefix_length);
+        }
+
+        LL_FOREACH(iter->interface.ipv6.neighbor, v6neigh_iter)
+        {
+            SRPLG_LOG_INF(PLUGIN_NAME, "\t IPv6:Neighbor = %s : %s", v6neigh_iter->neighbor.ip, v6neigh_iter->neighbor.link_layer_address);
         }
     }
 }
@@ -304,6 +311,13 @@ out:
     if (new_v6_element) {
         interfaces_interface_ipv6_address_element_free(&new_v6_element);
     }
+
+    return error;
+}
+
+int interfaces_interface_hash_to_ly(interfaces_interface_hash_element_t* if_hash, struct lyd_node** interfaces_container_node)
+{
+    int error = 0;
 
     return error;
 }

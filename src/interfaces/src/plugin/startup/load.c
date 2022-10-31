@@ -84,58 +84,23 @@ static int interfaces_startup_load_interface(void* priv, sr_session_ctx_t* sessi
 {
     int error = 0;
     interfaces_ctx_t* ctx = (interfaces_ctx_t*)priv;
-    interfaces_interface_hash_element_t* interface_head = NULL;
-    interfaces_interface_hash_element_t *iter = NULL, *tmp = NULL;
+    interfaces_interface_hash_element_t* interface_hash = NULL;
 
-    interfaces_interface_ipv4_address_element_t* v4_addr_iter = NULL;
-    interfaces_interface_ipv6_address_element_t* v6_addr_iter = NULL;
+    // load interfaces data
+    SRPC_SAFE_CALL_ERR(error, interfaces_load_interface(ctx, &interface_hash), error_out);
 
-    interfaces_interface_ipv4_neighbor_element_t* v4_neigh_iter = NULL;
-    interfaces_interface_ipv6_neighbor_element_t* v6_neigh_iter = NULL;
+    // print debug info for now
+    // interfaces_interface_hash_print_debug(interface_hash);
 
-    SRPC_SAFE_CALL_ERR(error, interfaces_load_interface(ctx, &interface_head), error_out);
-
-    HASH_ITER(hh, interface_head, iter, tmp)
-    {
-        SRPLG_LOG_INF(PLUGIN_NAME, "Name: %s", iter->interface.name);
-        SRPLG_LOG_INF(PLUGIN_NAME, "Type: %s", iter->interface.type);
-        SRPLG_LOG_INF(PLUGIN_NAME, "Enabled: %d", iter->interface.enabled);
-
-        // v4
-        SRPLG_LOG_INF(PLUGIN_NAME, "v4 MTU: %d", iter->interface.ipv4.mtu);
-        SRPLG_LOG_INF(PLUGIN_NAME, "v4 Enabled: %d", iter->interface.ipv4.enabled);
-        SRPLG_LOG_INF(PLUGIN_NAME, "v4 Forwarding: %d", iter->interface.ipv4.forwarding);
-
-        LL_FOREACH(iter->interface.ipv4.address, v4_addr_iter)
-        {
-            SRPLG_LOG_INF(PLUGIN_NAME, "v4 Address : %s/%d", v4_addr_iter->address.ip, v4_addr_iter->address.subnet.prefix_length);
-        }
-        LL_FOREACH(iter->interface.ipv4.neighbor, v4_neigh_iter)
-        {
-            SRPLG_LOG_INF(PLUGIN_NAME, "v4 Neighbor : %s : %s", v4_neigh_iter->neighbor.ip, v4_neigh_iter->neighbor.link_layer_address);
-        }
-
-        // v6
-        SRPLG_LOG_INF(PLUGIN_NAME, "v6 MTU: %d", iter->interface.ipv6.mtu);
-        SRPLG_LOG_INF(PLUGIN_NAME, "v6 Enabled: %d", iter->interface.ipv6.enabled);
-        SRPLG_LOG_INF(PLUGIN_NAME, "v6 Forwarding: %d", iter->interface.ipv6.forwarding);
-
-        LL_FOREACH(iter->interface.ipv6.address, v6_addr_iter)
-        {
-            SRPLG_LOG_INF(PLUGIN_NAME, "v6 Address : %s/%d", v6_addr_iter->address.ip, v6_addr_iter->address.prefix_length);
-        }
-        LL_FOREACH(iter->interface.ipv6.neighbor, v6_neigh_iter)
-        {
-            SRPLG_LOG_INF(PLUGIN_NAME, "v6 Neighbor : %s : %s", v6_neigh_iter->neighbor.ip, v6_neigh_iter->neighbor.link_layer_address);
-        }
-    }
+    // convert to libyang
+    SRPC_SAFE_CALL_ERR(error, interfaces_interface_hash_to_ly(interface_hash, &parent_node), error_out);
 
     goto out;
 
 error_out:
     error = -1;
 out:
-    interfaces_interface_hash_free(&interface_head);
+    interfaces_interface_hash_free(&interface_hash);
 
     return error;
 }
