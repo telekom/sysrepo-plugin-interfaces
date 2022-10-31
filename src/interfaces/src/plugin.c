@@ -80,7 +80,7 @@ int sr_plugin_init_cb(sr_session_ctx_t* running_session, void** private_data)
         },
         {
             IETF_INTERFACES_YANG_MODULE,
-            //depends on if-mib feature
+            // depends on if-mib feature
             INTERFACES_INTERFACES_INTERFACE_IF_INDEX_YANG_PATH,
             srpc_feature_status_hash_check(ctx->features.ietf_interfaces_features, "if-mib") ? interfaces_subscription_operational_interfaces_interface_if_index : NULL,
         },
@@ -181,31 +181,31 @@ int sr_plugin_init_cb(sr_session_ctx_t* running_session, void** private_data)
         },
         {
             IETF_INTERFACES_YANG_MODULE,
-            //depends on carrier-delay feature
+            // depends on carrier-delay feature
             INTERFACES_INTERFACES_INTERFACE_CARRIER_DELAY_CARRIER_TRANSITIONS_YANG_PATH,
             srpc_feature_status_hash_check(ctx->features.ietf_if_extensions_features, "carrier-delay") ? interfaces_subscription_operational_interfaces_interface_carrier_delay_carrier_transitions : NULL,
         },
         {
             IETF_INTERFACES_YANG_MODULE,
-            //depends on carrier-delay feature
+            // depends on carrier-delay feature
             INTERFACES_INTERFACES_INTERFACE_CARRIER_DELAY_TIMER_RUNNING_YANG_PATH,
             srpc_feature_status_hash_check(ctx->features.ietf_if_extensions_features, "carrier-delay") ? interfaces_subscription_operational_interfaces_interface_carrier_delay_timer_running : NULL,
         },
         {
             IETF_INTERFACES_YANG_MODULE,
-            //depends on dampening feature
+            // depends on dampening feature
             INTERFACES_INTERFACES_INTERFACE_DAMPENING_PENALTY_YANG_PATH,
             srpc_feature_status_hash_check(ctx->features.ietf_if_extensions_features, "dampening") ? interfaces_subscription_operational_interfaces_interface_dampening_penalty : NULL,
         },
         {
             IETF_INTERFACES_YANG_MODULE,
-            //depends on dampening feature
+            // depends on dampening feature
             INTERFACES_INTERFACES_INTERFACE_DAMPENING_SUPPRESSED_YANG_PATH,
             srpc_feature_status_hash_check(ctx->features.ietf_if_extensions_features, "dampening") ? interfaces_subscription_operational_interfaces_interface_dampening_suppressed : NULL,
         },
         {
             IETF_INTERFACES_YANG_MODULE,
-            //depends on dampening feature
+            // depends on dampening feature
             INTERFACES_INTERFACES_INTERFACE_DAMPENING_TIME_REMAINING_YANG_PATH,
             srpc_feature_status_hash_check(ctx->features.ietf_if_extensions_features, "dampening") ? interfaces_subscription_operational_interfaces_interface_dampening_time_remaining : NULL,
         },
@@ -355,15 +355,7 @@ out:
 
 void sr_plugin_cleanup_cb(sr_session_ctx_t* running_session, void* private_data)
 {
-    int error = 0;
-
     interfaces_ctx_t* ctx = (interfaces_ctx_t*)private_data;
-
-    // save current running configuration into startup for next time when the plugin starts
-    error = sr_copy_config(ctx->startup_session, IETF_INTERFACES_YANG_MODULE, SR_DS_RUNNING, 0);
-    if (error) {
-        SRPLG_LOG_ERR(PLUGIN_NAME, "sr_copy_config() error (%d): %s", error, sr_strerror(error));
-    }
 
     if (ctx->oper_ctx.nl_ctx.link_cache) {
         nl_cache_put(ctx->oper_ctx.nl_ctx.link_cache);

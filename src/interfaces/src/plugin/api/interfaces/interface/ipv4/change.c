@@ -163,7 +163,7 @@ int interfaces_interface_ipv4_change_forwarding_init(void* priv)
 
 int interfaces_interface_ipv4_change_forwarding(void* priv, sr_session_ctx_t* session, const srpc_change_ctx_t* change_ctx)
 {
-    int error = 0;
+    // int error = 0;
     const char* node_name = LYD_NAME(change_ctx->node);
     const char* node_value = lyd_get_value(change_ctx->node);
 
