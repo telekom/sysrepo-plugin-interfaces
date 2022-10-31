@@ -51,4 +51,11 @@ int interfaces_interface_hash_element_set_ipv6_enabled(interfaces_interface_hash
 int interfaces_interface_hash_element_set_ipv6_forwarding(interfaces_interface_hash_element_t** el, uint8_t forwarding);
 int interfaces_interface_hash_element_set_ipv6_mtu(interfaces_interface_hash_element_t** el, uint16_t mtu);
 
+/*
+    Helper functionality.
+*/
+
+int interfaces_interface_type_nl2ly(const char* nl_type, const char** ly_type);
+int interfaces_interface_type_ly2nl(const char* ly_type, const char** nl_type);
+
 #endif // INTERFACES_PLUGIN_DATA_INTERFACES_INTERFACE_H

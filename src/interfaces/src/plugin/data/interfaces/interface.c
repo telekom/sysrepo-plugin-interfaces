@@ -524,3 +524,49 @@ int interfaces_interface_hash_element_set_ipv6_mtu(interfaces_interface_hash_ele
 
     return 0;
 }
+
+int interfaces_interface_type_nl2ly(const char* nl_type, const char** ly_type)
+{
+    int error = 0;
+
+    if (nl_type == NULL) {
+        return -1;
+    }
+
+    if (strcmp(nl_type, "veth") == 0) {
+        *ly_type = "iana-if-type:ethernetCsmacd";
+    } else if (strcmp(nl_type, "vcan") == 0) {
+        *ly_type = "iana-if-type:softwareLoopback";
+    } else if (strcmp(nl_type, "vlan") == 0) {
+        *ly_type = "iana-if-type:l2vlan";
+    } else if (strcmp(nl_type, "dummy") == 0) {
+        *ly_type = "iana-if-type:other";
+    } else {
+        error = -2;
+    }
+
+    return error;
+}
+
+int interfaces_interface_type_ly2nl(const char* ly_type, const char** nl_type)
+{
+    int error = 0;
+
+    if (ly_type == NULL) {
+        return -1;
+    }
+
+    if (strcmp(ly_type, "iana-if-type:ethernetCsmacd") == 0) {
+        *nl_type = "veth";
+    } else if (strcmp(ly_type, "iana-if-type:softwareLoopback") == 0) {
+        *nl_type = "vcan";
+    } else if (strcmp(ly_type, "iana-if-type:l2vlan") == 0) {
+        *nl_type = "vlan";
+    } else if (strcmp(ly_type, "iana-if-type:other") == 0) {
+        *nl_type = "dummy";
+    } else {
+        error = -2;
+    }
+
+    return error;
+}
