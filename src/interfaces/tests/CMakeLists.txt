@@ -4,7 +4,7 @@ set(UTILS_MEMORY_LIBRARY_NAME  "utils_memory")
 add_executable(
     ${INTERFACES_UTEST_NAME}
 
-    "interfaces_utest.c"
+    ${CMAKE_SOURCE_DIR}/src/interfaces/tests/interfaces_utest.c
 )
 target_include_directories(
     ${INTERFACES_UTEST_NAME}
@@ -19,6 +19,7 @@ target_link_libraries(
     ${INTERFACES_UTEST_NAME}
 
 	${CMOCKA_LIBRARIES}
+    ${PLUGIN_LIBRARY_NAME}
 	${SYSREPO_LIBRARIES}
 	${LIBYANG_LIBRARIES}
     ${UTILS_MEMORY_LIBRARY_NAME}
