@@ -16,6 +16,7 @@ typedef struct interfaces_ctx_s interfaces_ctx_t;
 typedef struct interfaces_state_changes_ctx_s interfaces_state_changes_ctx_t;
 typedef struct interfaces_mod_changes_ctx_s interfaces_mod_changes_ctx_t;
 typedef struct interfaces_oper_ctx_s interfaces_oper_ctx_t;
+typedef struct interfaces_startup_ctx_s interfaces_startup_ctx_t;
 typedef struct interfaces_features_ctx_s interfaces_features_ctx_t;
 
 struct interfaces_features_ctx_s {
@@ -83,9 +84,17 @@ struct interfaces_oper_ctx_s {
     interfaces_state_changes_ctx_t state_changes_ctx;
 };
 
-struct interfaces_ctx_s {
+struct interfaces_startup_ctx_s {
     // startup DS
     sr_session_ctx_t* startup_session;
+
+    // libnl context
+    interfaces_nl_ctx_t nl_ctx;
+};
+
+struct interfaces_ctx_s {
+    // startup data
+    interfaces_startup_ctx_t startup_ctx;
 
     // module changes data
     interfaces_mod_changes_ctx_t mod_ctx;

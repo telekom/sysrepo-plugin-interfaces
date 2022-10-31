@@ -282,7 +282,7 @@ int sr_plugin_init_cb(sr_session_ctx_t* running_session, void** private_data)
     // start a session
     SRPC_SAFE_CALL_ERR(error, sr_session_start(connection, SR_DS_STARTUP, &startup_session), error_out);
 
-    ctx->startup_session = startup_session;
+    ctx->startup_ctx.startup_session = startup_session;
 
     SRPC_SAFE_CALL_ERR(error, srpc_check_empty_datastore(startup_session, INTERFACES_INTERFACES_INTERFACE_YANG_PATH, &empty_startup), error_out);
 

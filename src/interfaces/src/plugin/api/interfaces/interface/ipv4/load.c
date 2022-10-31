@@ -46,3 +46,15 @@ out:
 
     return error;
 }
+
+int interfaces_interface_ipv4_load_address(interfaces_ctx_t* ctx, interfaces_interface_ipv4_t* ipv4, struct rtnl_link* link)
+{
+    int error = 0;
+    return error;
+}
+
+int interfaces_interface_ipv4_load_neighbor(interfaces_ctx_t* ctx, interfaces_interface_ipv4_t* ipv4, struct rtnl_link* link)
+{
+    int error = 0;
+    return error;
+}

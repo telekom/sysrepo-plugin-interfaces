@@ -2,6 +2,7 @@
 #include "interface/ipv4/load.h"
 #include "interface/ipv6/load.h"
 #include "plugin/common.h"
+#include "plugin/context.h"
 #include "plugin/data/interfaces/interface.h"
 #include "plugin/types.h"
 #include "read.h"
@@ -36,23 +37,25 @@
 int interfaces_load_interface(interfaces_ctx_t* ctx, interfaces_interface_hash_element_t** if_hash)
 {
     int error = 0;
-    struct nl_sock* socket = NULL;
-    struct nl_cache* link_cache = NULL;
-    struct rtnl_link* link_iter = NULL;
+
+    // ctx
+    interfaces_startup_ctx_t* startup_ctx = &ctx->startup_ctx;
+    interfaces_nl_ctx_t* nl_ctx = &startup_ctx->nl_ctx;
 
     // temp data
     interfaces_interface_hash_element_t* new_element = NULL;
+    struct rtnl_link* link_iter = NULL;
 
     // init hash
     *if_hash = interfaces_interface_hash_new();
 
     // socket + cache
-    SRPC_SAFE_CALL_PTR(socket, nl_socket_alloc(), error_out);
-    SRPC_SAFE_CALL_ERR(error, nl_connect(socket, NETLINK_ROUTE), error_out);
-    SRPC_SAFE_CALL_ERR(error, rtnl_link_alloc_cache(socket, AF_UNSPEC, &link_cache), error_out);
+    SRPC_SAFE_CALL_PTR(nl_ctx->socket, nl_socket_alloc(), error_out);
+    SRPC_SAFE_CALL_ERR(error, nl_connect(nl_ctx->socket, NETLINK_ROUTE), error_out);
+    SRPC_SAFE_CALL_ERR(error, rtnl_link_alloc_cache(nl_ctx->socket, AF_UNSPEC, &nl_ctx->link_cache), error_out);
 
     // get link iterator
-    SRPC_SAFE_CALL_PTR(link_iter, (struct rtnl_link*)nl_cache_get_first(link_cache), error_out);
+    SRPC_SAFE_CALL_PTR(link_iter, (struct rtnl_link*)nl_cache_get_first(nl_ctx->link_cache), error_out);
 
     // iterate links
     while (link_iter) {
@@ -65,6 +68,18 @@ int interfaces_load_interface(interfaces_ctx_t* ctx, interfaces_interface_hash_e
         SRPC_SAFE_CALL_ERR(error, interfaces_interface_load_enabled(ctx, &new_element, link_iter), error_out);
 
         // load interface IPv4 data
+        SRPC_SAFE_CALL_ERR(error, interfaces_interface_ipv4_load_enabled(ctx, &new_element->interface.ipv4, link_iter), error_out);
+        SRPC_SAFE_CALL_ERR(error, interfaces_interface_ipv4_load_forwarding(ctx, &new_element->interface.ipv4, link_iter), error_out);
+        SRPC_SAFE_CALL_ERR(error, interfaces_interface_ipv4_load_mtu(ctx, &new_element->interface.ipv4, link_iter), error_out);
+
+        // load interface IPv6 data
+        SRPC_SAFE_CALL_ERR(error, interfaces_interface_ipv6_load_enabled(ctx, &new_element->interface.ipv6, link_iter), error_out);
+        SRPC_SAFE_CALL_ERR(error, interfaces_interface_ipv6_load_forwarding(ctx, &new_element->interface.ipv6, link_iter), error_out);
+        SRPC_SAFE_CALL_ERR(error, interfaces_interface_ipv6_load_mtu(ctx, &new_element->interface.ipv6, link_iter), error_out);
+
+        // load IPv4 address and neighbor lists
+        SRPC_SAFE_CALL_ERR(error, interfaces_interface_ipv4_load_address(ctx, &new_element->interface.ipv4, link_iter), error_out);
+        SRPC_SAFE_CALL_ERR(error, interfaces_interface_ipv4_load_neighbor(ctx, &new_element->interface.ipv4, link_iter), error_out);
     }
 
     goto out;
@@ -73,13 +88,17 @@ error_out:
     error = -1;
 
 out:
-    if (socket != NULL) {
-        nl_socket_free(socket);
+    // dealloc nl_ctx data
+
+    if (nl_ctx->socket != NULL) {
+        nl_socket_free(nl_ctx->socket);
     }
 
-    if (link_cache != NULL) {
-        nl_cache_free(link_cache);
+    if (nl_ctx->link_cache != NULL) {
+        nl_cache_free(nl_ctx->link_cache);
     }
+
+    // address and neighbor caches should be freed by their functions (_load_address and _load_neighbor)
 
     return error;
 }
