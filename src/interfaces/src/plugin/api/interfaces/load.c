@@ -80,6 +80,9 @@ int interfaces_load_interface(interfaces_ctx_t* ctx, interfaces_interface_hash_e
         // load IPv4 address and neighbor lists
         SRPC_SAFE_CALL_ERR(error, interfaces_interface_ipv4_load_address(ctx, &new_element->interface.ipv4, link_iter), error_out);
         SRPC_SAFE_CALL_ERR(error, interfaces_interface_ipv4_load_neighbor(ctx, &new_element->interface.ipv4, link_iter), error_out);
+
+        // iterate
+        SRPC_SAFE_CALL_PTR(link_iter, (struct rtnl_link*)nl_cache_get_next((struct nl_object*)link_iter), error_out);
     }
 
     goto out;

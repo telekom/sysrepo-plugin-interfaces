@@ -38,11 +38,15 @@ set(
     src/plugin/api/interfaces/interface/ipv6/change.c
     src/plugin/api/interfaces/interface/ipv6/autoconf/change.c
     src/plugin/api/interfaces/interface/ipv6/neighbor/change.c
+    src/plugin/api/interfaces/interface/ipv6/neighbor/load.c
     src/plugin/api/interfaces/interface/ipv6/address/change.c
+    src/plugin/api/interfaces/interface/ipv6/address/load.c
     src/plugin/api/interfaces/interface/ipv4/change.c
     src/plugin/api/interfaces/interface/ipv4/load.c
     src/plugin/api/interfaces/interface/ipv4/neighbor/change.c
+    src/plugin/api/interfaces/interface/ipv4/neighbor/load.c
     src/plugin/api/interfaces/interface/ipv4/address/change.c
+    src/plugin/api/interfaces/interface/ipv4/address/load.c
     src/plugin/api/interfaces/interface/encapsulation/dot1q-vlan/second-tag/change.c
     src/plugin/api/interfaces/interface/encapsulation/dot1q-vlan/outer-tag/change.c
     src/plugin/api/interfaces/interface/dampening/change.c
