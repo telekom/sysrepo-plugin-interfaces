@@ -34,24 +34,6 @@ int interfaces_interface_hash_element_set_max_frame_size(interfaces_interface_ha
 int interfaces_interface_hash_element_set_parent_interface(interfaces_interface_hash_element_t** el, const char* parent_interface);
 
 /*
-    IPv4
-*/
-
-int interfaces_interface_hash_element_set_ipv4(interfaces_interface_hash_element_t** el, interfaces_interface_ipv4_t ipv4);
-int interfaces_interface_hash_element_set_ipv4_enabled(interfaces_interface_hash_element_t** el, uint8_t enabled);
-int interfaces_interface_hash_element_set_ipv4_forwarding(interfaces_interface_hash_element_t** el, uint8_t forwarding);
-int interfaces_interface_hash_element_set_ipv4_mtu(interfaces_interface_hash_element_t** el, uint16_t mtu);
-
-/*
-    IPv6
-*/
-
-int interfaces_interface_hash_element_set_ipv6(interfaces_interface_hash_element_t** el, interfaces_interface_ipv6_t ipv6);
-int interfaces_interface_hash_element_set_ipv6_enabled(interfaces_interface_hash_element_t** el, uint8_t enabled);
-int interfaces_interface_hash_element_set_ipv6_forwarding(interfaces_interface_hash_element_t** el, uint8_t forwarding);
-int interfaces_interface_hash_element_set_ipv6_mtu(interfaces_interface_hash_element_t** el, uint16_t mtu);
-
-/*
     Helper functionality.
 */
 

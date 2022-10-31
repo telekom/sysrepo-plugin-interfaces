@@ -1,4 +1,5 @@
 #include "interface.h"
+#include "interface/ipv4.h"
 #include "libyang/tree_data.h"
 #include "plugin/common.h"
 #include "srpc/ly_tree.h"
@@ -176,18 +177,18 @@ int interfaces_interface_hash_from_ly(interfaces_interface_hash_element_t** if_h
         }
 
         if (ipv4_enabled_node) {
-            SRPC_SAFE_CALL_ERR(error, interfaces_interface_hash_element_set_ipv4_enabled(&new_element, strcmp(lyd_get_value(ipv4_enabled_node), "true") == 0 ? 1 : 0), error_out);
+            SRPC_SAFE_CALL_ERR(error, interfaces_interface_hash_element_ipv4_set_enabled(&new_element->interface.ipv4, strcmp(lyd_get_value(ipv4_enabled_node), "true") == 0 ? 1 : 0), error_out);
         }
 
         if (ipv4_forwarding_node) {
-            SRPC_SAFE_CALL_ERR(error, interfaces_interface_hash_element_set_ipv4_forwarding(&new_element, strcmp(lyd_get_value(ipv4_forwarding_node), "true") == 0 ? 1 : 0), error_out);
+            SRPC_SAFE_CALL_ERR(error, interfaces_interface_hash_element_ipv4_set_forwarding(&new_element->interface.ipv4, strcmp(lyd_get_value(ipv4_forwarding_node), "true") == 0 ? 1 : 0), error_out);
         }
 
         if (ipv4_mtu_node) {
             const char* mtu_str = lyd_get_value(ipv4_mtu_node);
             uint16_t mtu = (uint16_t)atoi(mtu_str);
 
-            SRPC_SAFE_CALL_ERR(error, interfaces_interface_hash_element_set_ipv4_mtu(&new_element, mtu), error_out);
+            SRPC_SAFE_CALL_ERR(error, interfaces_interface_hash_element_ipv4_set_mtu(&new_element->interface.ipv4, mtu), error_out);
         }
 
         // init every list
@@ -432,6 +433,7 @@ int interfaces_interface_hash_element_set_encapsulation(interfaces_interface_has
     (*el)->interface.encapsulation = encapsulation;
     (*el)->interface.encapsulation.dot1q_vlan.outer_tag.tag_type = xstrdup(encapsulation.dot1q_vlan.outer_tag.tag_type);
     (*el)->interface.encapsulation.dot1q_vlan.second_tag.tag_type = xstrdup(encapsulation.dot1q_vlan.second_tag.tag_type);
+
     return 0;
 }
 
@@ -465,62 +467,6 @@ int interfaces_interface_hash_element_set_parent_interface(interfaces_interface_
         (*el)->interface.parent_interface = xstrdup(parent_interface);
         return (*el)->interface.parent_interface == NULL;
     }
-
-    return 0;
-}
-
-int interfaces_interface_hash_element_set_ipv4(interfaces_interface_hash_element_t** el, interfaces_interface_ipv4_t ipv4)
-{
-    (*el)->interface.ipv4 = ipv4;
-
-    return 0;
-}
-
-int interfaces_interface_hash_element_set_ipv4_enabled(interfaces_interface_hash_element_t** el, uint8_t enabled)
-{
-    (*el)->interface.ipv4.enabled = enabled;
-
-    return 0;
-}
-
-int interfaces_interface_hash_element_set_ipv4_forwarding(interfaces_interface_hash_element_t** el, uint8_t forwarding)
-{
-    (*el)->interface.ipv4.forwarding = forwarding;
-
-    return 0;
-}
-
-int interfaces_interface_hash_element_set_ipv4_mtu(interfaces_interface_hash_element_t** el, uint16_t mtu)
-{
-    (*el)->interface.ipv4.mtu = mtu;
-
-    return 0;
-}
-
-int interfaces_interface_hash_element_set_ipv6(interfaces_interface_hash_element_t** el, interfaces_interface_ipv6_t ipv6)
-{
-    (*el)->interface.ipv6 = ipv6;
-
-    return 0;
-}
-
-int interfaces_interface_hash_element_set_ipv6_enabled(interfaces_interface_hash_element_t** el, uint8_t enabled)
-{
-    (*el)->interface.ipv6.enabled = enabled;
-
-    return 0;
-}
-
-int interfaces_interface_hash_element_set_ipv6_forwarding(interfaces_interface_hash_element_t** el, uint8_t forwarding)
-{
-    (*el)->interface.ipv6.forwarding = forwarding;
-
-    return 0;
-}
-
-int interfaces_interface_hash_element_set_ipv6_mtu(interfaces_interface_hash_element_t** el, uint16_t mtu)
-{
-    (*el)->interface.ipv6.mtu = mtu;
 
     return 0;
 }

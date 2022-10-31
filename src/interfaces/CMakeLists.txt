@@ -51,6 +51,8 @@ set(
     # data
     src/plugin/data/interfaces/interface.c
     src/plugin/data/interfaces/interface_state.c
+    src/plugin/data/interfaces/interface/ipv4.c
+    src/plugin/data/interfaces/interface/ipv6.c
     src/plugin/data/interfaces/interface/ipv4/address.c
     src/plugin/data/interfaces/interface/ipv4/neighbor.c
     src/plugin/data/interfaces/interface/ipv6/address.c
