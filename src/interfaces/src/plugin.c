@@ -302,9 +302,6 @@ int sr_plugin_init_cb(sr_session_ctx_t* running_session, void** private_data)
 
         // check and store startup data on the system
         SRPC_SAFE_CALL_ERR(error, interfaces_startup_store(ctx, startup_session), error_out);
-
-        // copy contents of the startup session to the current running session
-        SRPC_SAFE_CALL_ERR(error, sr_copy_config(running_session, IETF_INTERFACES_YANG_MODULE, SR_DS_STARTUP, 0), error_out);
     }
 
     // subscribe every module change
