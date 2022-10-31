@@ -476,7 +476,9 @@ int interfaces_interface_type_nl2ly(const char* nl_type, const char** ly_type)
     int error = 0;
 
     if (nl_type == NULL) {
-        return -1;
+        // fix for now - investigate more - lo interface has type == NULL
+        *ly_type = "iana-if-type:softwareLoopback";
+        return 0;
     }
 
     if (strcmp(nl_type, "veth") == 0) {

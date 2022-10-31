@@ -44,6 +44,8 @@ int interfaces_load_interface(interfaces_ctx_t* ctx, interfaces_interface_hash_e
 
     // temp data
     interfaces_interface_hash_element_t* new_element = NULL;
+    uint8_t element_added = 0;
+
     struct rtnl_link* link_iter = NULL;
 
     // init hash
@@ -61,6 +63,7 @@ int interfaces_load_interface(interfaces_ctx_t* ctx, interfaces_interface_hash_e
     while (link_iter) {
         // allocate new element
         SRPC_SAFE_CALL_PTR(new_element, interfaces_interface_hash_element_new(), error_out);
+        element_added = 0;
 
         // load interface data
         SRPC_SAFE_CALL_ERR(error, interfaces_interface_load_name(ctx, &new_element, link_iter), error_out);
@@ -81,14 +84,26 @@ int interfaces_load_interface(interfaces_ctx_t* ctx, interfaces_interface_hash_e
         SRPC_SAFE_CALL_ERR(error, interfaces_interface_ipv4_load_address(ctx, &new_element->interface.ipv4, link_iter), error_out);
         SRPC_SAFE_CALL_ERR(error, interfaces_interface_ipv4_load_neighbor(ctx, &new_element->interface.ipv4, link_iter), error_out);
 
+        // load IPv6 address and neighbor lists
+        SRPC_SAFE_CALL_ERR(error, interfaces_interface_ipv6_load_address(ctx, &new_element->interface.ipv6, link_iter), error_out);
+        SRPC_SAFE_CALL_ERR(error, interfaces_interface_ipv6_load_neighbor(ctx, &new_element->interface.ipv6, link_iter), error_out);
+
+        // add element to the hash
+        SRPC_SAFE_CALL_ERR(error, interfaces_interface_hash_add_element(if_hash, new_element), error_out);
+        element_added = 1;
+
         // iterate
-        SRPC_SAFE_CALL_PTR(link_iter, (struct rtnl_link*)nl_cache_get_next((struct nl_object*)link_iter), error_out);
+        link_iter = (struct rtnl_link*)nl_cache_get_next((struct nl_object*)link_iter);
     }
 
     goto out;
 
 error_out:
     error = -1;
+
+    if (!element_added) {
+        interfaces_interface_hash_element_free(&new_element);
+    }
 
 out:
     // dealloc nl_ctx data

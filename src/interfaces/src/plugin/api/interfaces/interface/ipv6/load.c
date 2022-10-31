@@ -86,7 +86,7 @@ int interfaces_interface_ipv6_load_address(interfaces_ctx_t* ctx, interfaces_int
         }
 
         // iterate
-        SRPC_SAFE_CALL_PTR(addr_iter, (struct rtnl_addr*)nl_cache_get_next((struct nl_object*)addr_iter), error_out);
+        addr_iter = (struct rtnl_addr*)nl_cache_get_next((struct nl_object*)addr_iter);
     }
 
     goto out;
@@ -141,7 +141,7 @@ int interfaces_interface_ipv6_load_neighbor(interfaces_ctx_t* ctx, interfaces_in
         }
 
         // iterate
-        SRPC_SAFE_CALL_PTR(neigh_iter, (struct rtnl_neigh*)nl_cache_get_next((struct nl_object*)neigh_iter), error_out);
+        neigh_iter = (struct rtnl_neigh*)nl_cache_get_next((struct nl_object*)neigh_iter);
     }
 
     goto out;

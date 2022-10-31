@@ -1,5 +1,7 @@
 #include "load.h"
+#include "plugin/common.h"
 #include "plugin/data/interfaces/interface.h"
+#include "sysrepo.h"
 
 #include <linux/if.h>
 #include <srpc.h>
@@ -31,7 +33,7 @@ int interfaces_interface_load_type(interfaces_ctx_t* ctx, interfaces_interface_h
     const char* nl_if_type = NULL;
     const char* ly_if_type = NULL;
 
-    // 2. interface type - nl version -> convert to libyang version
+    // interface type - nl version -> convert to libyang version
     nl_if_type = rtnl_link_get_type(link);
 
     SRPC_SAFE_CALL_ERR(error, interfaces_interface_type_nl2ly(nl_if_type, &ly_if_type), error_out);
