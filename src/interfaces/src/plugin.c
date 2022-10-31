@@ -290,11 +290,8 @@ int sr_plugin_init_cb(sr_session_ctx_t* running_session, void** private_data)
         SRPLG_LOG_INF(PLUGIN_NAME, "Startup datastore is empty");
         SRPLG_LOG_INF(PLUGIN_NAME, "Loading initial system data");
 
-        // load startup data on the system
-        SRPC_SAFE_CALL_ERR(error, interfaces_startup_load(ctx, startup_session), error_out);
-
-        // copy contents of the startup session to the current running session
-        SRPC_SAFE_CALL_ERR(error, sr_copy_config(running_session, IETF_INTERFACES_YANG_MODULE, SR_DS_STARTUP, 0), error_out);
+        // load initial data on the system
+        SRPC_SAFE_CALL_ERR(error, interfaces_startup_load(ctx, running_session), error_out);
     } else {
         // make sure the data from startup DS is stored in the interfaces
         SRPLG_LOG_INF(PLUGIN_NAME, "Startup datastore contains data");
