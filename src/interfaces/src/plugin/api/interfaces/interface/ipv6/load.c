@@ -121,7 +121,7 @@ int interfaces_interface_ipv6_load_neighbor(interfaces_ctx_t* ctx, interfaces_in
     SRPC_SAFE_CALL_ERR(error, rtnl_neigh_alloc_cache(nl_ctx->socket, &nl_ctx->neigh_cache), error_out);
 
     // get link iterator
-    SRPC_SAFE_CALL_PTR(neigh_iter, (struct rtnl_neigh*)nl_cache_get_first(nl_ctx->addr_cache), error_out);
+    SRPC_SAFE_CALL_PTR(neigh_iter, (struct rtnl_neigh*)nl_cache_get_first(nl_ctx->neigh_cache), error_out);
 
     // iterate links
     while (neigh_iter) {
