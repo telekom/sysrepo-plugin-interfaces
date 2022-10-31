@@ -26,9 +26,6 @@ int interfaces_subscription_change_interfaces_interface(sr_session_ctx_t* sessio
     if (event == SR_EV_ABORT) {
         SRPLG_LOG_ERR(PLUGIN_NAME, "Aborting changes for %s", xpath);
         goto error_out;
-    } else if (event == SR_EV_DONE) {
-        // when all changes processed - copy running DS contents to startup
-        SRPC_SAFE_CALL_ERR(error, sr_copy_config(ctx->startup_session, IETF_INTERFACES_YANG_MODULE, SR_DS_RUNNING, 0), error_out);
     } else if (event == SR_EV_CHANGE) {
         // name
         SRPC_SAFE_CALL_ERR_COND(rc, rc < 0, snprintf(change_xpath_buffer, sizeof(change_xpath_buffer), "%s/name", xpath), error_out);
