@@ -32,6 +32,7 @@ set(
     src/plugin/api/interfaces/read.c
     src/plugin/api/interfaces/store.c
     src/plugin/api/interfaces/change.c
+    src/plugin/api/interfaces/interface/load.c
     src/plugin/api/interfaces/interface/change.c
     src/plugin/api/interfaces/interface/ipv6/load.c
     src/plugin/api/interfaces/interface/ipv6/change.c
