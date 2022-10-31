@@ -53,6 +53,25 @@ void interfaces_interface_ipv4_neighbor_element_free(interfaces_interface_ipv4_n
     }
 }
 
+/* set (deepcopy) an IPv4 neighbor list */
+int interfaces_interface_ipv4_neighbor_element_set(interfaces_interface_ipv4_neighbor_element_t** src,
+                                                   interfaces_interface_ipv4_neighbor_element_t **dst)
+{
+    interfaces_interface_ipv4_neighbor_element_t *src_iter = NULL;
+    interfaces_interface_ipv4_neighbor_element_t *new_elem = NULL;
+
+    LL_FOREACH(*src, src_iter) {
+        new_elem = interfaces_interface_ipv4_neighbor_element_new();
+        interfaces_interface_ipv4_neighbor_element_set_ip(&new_elem, src_iter->neighbor.ip);
+        interfaces_interface_ipv4_neighbor_element_set_link_layer_address(&new_elem, 
+                                                                          src_iter->neighbor.link_layer_address);
+
+        interfaces_interface_ipv4_neighbor_add_element(dst, new_elem);
+    }
+    
+    return 0;
+}
+
 int interfaces_interface_ipv4_neighbor_element_set_ip(interfaces_interface_ipv4_neighbor_element_t** el, const char* ip)
 {
     if ((*el)->neighbor.ip) {

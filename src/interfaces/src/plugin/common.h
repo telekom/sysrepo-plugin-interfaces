@@ -156,4 +156,6 @@
 
 #define ARRAY_SIZE(arr) (sizeof(arr) / sizeof(arr[0]))
 
+#define ADDR_STR_BUF_SIZE 45 // max ip string length (15 for ipv4 and 45 for ipv6)
+
 #endif // INTERFACES_PLUGIN_COMMON_H

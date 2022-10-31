@@ -1,6 +1,7 @@
 #ifndef INTERFACES_PLUGIN_API_INTERFACES_LOAD_H
 #define INTERFACES_PLUGIN_API_INTERFACES_LOAD_H
 
+#include "plugin/common.h"
 #include "plugin/context.h"
 #include "plugin/data/interfaces/interface.h"
 #include "plugin/data/interfaces/interface/linked_list.h"

@@ -1,11 +1,13 @@
 #include "address.h"
 #include "plugin/types.h"
+#include "srpc/common.h"
 #include "src/utlist.h"
 
 #include <arpa/inet.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <arpa/inet.h>
 
 #include <srpc.h>
 
@@ -77,6 +79,49 @@ int interfaces_interface_ipv4_address_element_set_ip(interfaces_interface_ipv4_a
     }
 
     return 0;
+}
+
+/* set (deepcopy) an IPv4 address list */
+int interfaces_interface_ipv4_address_element_set(interfaces_interface_ipv4_address_element_t** src,
+                                                   interfaces_interface_ipv4_address_element_t **dst)
+{
+    interfaces_interface_ipv4_address_element_t *src_iter = NULL;
+    interfaces_interface_ipv4_address_element_t *new_elem = NULL;
+
+    LL_FOREACH(*src, src_iter) {
+        new_elem = interfaces_interface_ipv4_address_element_new();
+        interfaces_interface_ipv4_address_element_set_ip(&new_elem, src_iter->address.ip);
+        interfaces_interface_ipv4_address_element_set_prefix_length(&new_elem, 
+                                                                    src_iter->address.subnet.prefix_length);
+
+        interfaces_interface_ipv4_address_add_element(dst, new_elem);
+    }
+    
+    return 0;
+}
+
+int interfaces_interface_ipv4_address_element_set_subnet(interfaces_interface_ipv4_address_element_t** el, char *netmask, enum interfaces_interface_ipv4_address_subnet subtype)
+{
+    int error = 0;
+    int prefix_length = 0;
+
+    switch (subtype) {
+        case interfaces_interface_ipv4_address_subnet_netmask:
+            interfaces_interface_ipv4_address_element_set_netmask(el, netmask);
+            break;
+        case interfaces_interface_ipv4_address_subnet_prefix_length:
+            SRPC_SAFE_CALL_ERR(error, interfaces_interface_ipv4_address_netmask2prefix(netmask, prefix_length), out);
+            interfaces_interface_ipv4_address_element_set_prefix_length(el, prefix_length);
+            break;
+        case interfaces_interface_ipv4_address_subnet_none:
+            break;
+        default:
+            error = -1;            
+    }
+
+out:
+
+    return error;
 }
 
 int interfaces_interface_ipv4_address_element_set_prefix_length(interfaces_interface_ipv4_address_element_t** el, uint8_t prefix_length)

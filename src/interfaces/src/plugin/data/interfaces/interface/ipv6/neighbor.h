@@ -22,5 +22,6 @@ interfaces_interface_ipv6_neighbor_element_t* interfaces_interface_ipv6_neighbor
 void interfaces_interface_ipv6_neighbor_element_free(interfaces_interface_ipv6_neighbor_element_t** el);
 int interfaces_interface_ipv6_neighbor_element_set_ip(interfaces_interface_ipv6_neighbor_element_t** el, const char* ip);
 int interfaces_interface_ipv6_neighbor_element_set_link_layer_address(interfaces_interface_ipv6_neighbor_element_t** el, const char* link_layer_address);
+int interfaces_interface_ipv6_neighbor_element_set(interfaces_interface_ipv6_neighbor_element_t** src, interfaces_interface_ipv6_neighbor_element_t **dst);
 
 #endif // INTERFACES_PLUGIN_DATA_INTERFACES_INTERFACE_IPV6_NEIGHBOR_H
