@@ -1,8 +1,9 @@
 set(INTERFACES_UTEST_NAME "interfaces_utest")
 set(UTILS_MEMORY_LIBRARY_NAME  "utils_memory")
+# for wrapping cmocka mock functions
 set(
     INTERFACES_UTEST_LINKER_OPTIONS
-    #"-Wl,--wrap=foo"
+    #"-Wl,--wrap=function_foo"
 )
 
 add_executable(
