@@ -30,12 +30,8 @@ int interfaces_startup_load(interfaces_ctx_t* ctx, sr_session_ctx_t* session)
         },
     };
 
-    conn_ctx = sr_session_get_connection(session);
-    ly_ctx = sr_acquire_context(conn_ctx);
-    if (ly_ctx == NULL) {
-        SRPLG_LOG_ERR(PLUGIN_NAME, "Unable to get ly_ctx variable");
-        goto error_out;
-    }
+    SRPC_SAFE_CALL_PTR(conn_ctx, sr_session_get_connection(session), error_out);
+    SRPC_SAFE_CALL_PTR(ly_ctx, sr_acquire_context(conn_ctx), error_out);
 
     SRPC_SAFE_CALL_ERR(error, interfaces_ly_tree_create_interfaces(ly_ctx, &root_node), error_out);
 
