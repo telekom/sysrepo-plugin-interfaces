@@ -77,7 +77,7 @@ static int interfaces_startup_store_interface(void* priv, const struct lyd_node*
         SRPLG_LOG_ERR(PLUGIN_NAME, "Error loading current interface list");
         goto error_out;
     case srpc_check_status_error:
-        SRPLG_LOG_ERR(PLUGIN_NAME, "Error loading current interface array");
+        SRPLG_LOG_ERR(PLUGIN_NAME, "Error loading current interface list");
         goto error_out;
     case srpc_check_status_non_existant:
         SRPLG_LOG_INF(PLUGIN_NAME, "Storing interface array");
