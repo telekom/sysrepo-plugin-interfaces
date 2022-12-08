@@ -34,12 +34,31 @@ static void test_state_hash_get_incorrect(void **state);
 static void test_state_hash_set_name_correct(void **state);
 static void test_state_hash_set_name_incorrect(void **state);
 
-/* load */
+
+/** interface list state **/
+static void test_interface_list_new_correct(void **state);
+static void test_interface_list_add_element_correct(void **state);
+/*** ipv4 ***/
+static void test_interface_list_new_ipv4_address_correct(void **state);
+static void test_interface_list_new_ipv4_neighbor_correct(void **state);
+static void test_interface_list_element_new_ipv4_address_correct(void **state);
+static void test_interface_list_element_new_ipv4_neighbor_correct(void **state);
+static void test_interface_ipv4_address_netmask2prefix_correct(void **state);
+static void test_interface_ipv4_address_netmask2prefix_incorrect(void **state);
+
+/*** ipv6 ***/
+static void test_interface_list_new_ipv6_address_correct(void **state);
+static void test_interface_list_new_ipv6_neighbor_correct(void **state);
+static void test_interface_list_element_new_ipv6_address_correct(void **state);
+static void test_interface_list_element_new_ipv6_neighbor_correct(void **state);
+
+/** load **/
 static void test_correct_load_interface(void **state);
 
 int main(void)
 {
 	const struct CMUnitTest tests[] = {
+        /** interface hash table state **/
 		cmocka_unit_test(test_correct_load_interface),
 		cmocka_unit_test(test_state_hash_new_correct),
 		cmocka_unit_test(test_state_hash_element_new_correct),
@@ -49,6 +68,21 @@ int main(void)
 		cmocka_unit_test(test_state_hash_get_incorrect),
 		cmocka_unit_test(test_state_hash_set_name_correct),
 		cmocka_unit_test(test_state_hash_set_name_incorrect),
+        /** interface list state **/
+		cmocka_unit_test(test_interface_list_new_correct),
+		cmocka_unit_test(test_interface_list_add_element_correct),
+        /*** ipv4 ***/
+		cmocka_unit_test(test_interface_list_new_ipv4_address_correct),
+		cmocka_unit_test(test_interface_list_new_ipv4_neighbor_correct),
+		cmocka_unit_test(test_interface_list_element_new_ipv4_address_correct),
+		cmocka_unit_test(test_interface_list_element_new_ipv4_neighbor_correct),
+		cmocka_unit_test(test_interface_ipv4_address_netmask2prefix_correct),
+		cmocka_unit_test(test_interface_ipv4_address_netmask2prefix_incorrect),
+        /*** ipv6 ***/
+		cmocka_unit_test(test_interface_list_new_ipv6_address_correct),
+		cmocka_unit_test(test_interface_list_new_ipv6_neighbor_correct),
+		cmocka_unit_test(test_interface_list_element_new_ipv6_address_correct),
+		cmocka_unit_test(test_interface_list_element_new_ipv6_neighbor_correct),
 	};
 
 	return cmocka_run_group_tests(tests, setup, teardown);
@@ -234,4 +268,219 @@ static void test_state_hash_set_name_incorrect(void **state)
 
     rc = interfaces_interface_state_hash_element_set_name(&new_elem, NULL);
     assert_int_not_equal(rc, 0);
+}
+
+static void test_interface_list_new_correct(void **state)
+{
+    (void) state;
+    interfaces_interface_ipv4_address_element_t *address_ipv4; 
+    interfaces_interface_ipv4_neighbor_element_t *neighbor_ipv4; 
+
+    interfaces_interface_ipv6_address_element_t *address_ipv6;
+    interfaces_interface_ipv6_neighbor_element_t *neighbor_ipv6;
+
+    INTERFACES_INTERFACE_LIST_NEW(address_ipv4);
+    assert_null(address_ipv4);
+   
+    INTERFACES_INTERFACE_LIST_NEW(neighbor_ipv4);
+    assert_null(neighbor_ipv4);
+
+    INTERFACES_INTERFACE_LIST_NEW(address_ipv6);
+    assert_null(address_ipv6);
+   
+    INTERFACES_INTERFACE_LIST_NEW(neighbor_ipv6);
+    assert_null(neighbor_ipv6);
+}
+
+static void test_interface_list_add_element_correct(void **state)
+{
+    (void) state;
+    interfaces_interface_ipv4_address_element_t *address_ipv4; 
+    interfaces_interface_ipv4_address_element_t *address_elem_ipv4; 
+
+    interfaces_interface_ipv4_neighbor_element_t *neighbor_ipv4; 
+    interfaces_interface_ipv4_neighbor_element_t *neighbor_elem_ipv4; 
+
+    interfaces_interface_ipv6_address_element_t *address_ipv6;
+    interfaces_interface_ipv6_address_element_t *address_elem_ipv6;
+
+    interfaces_interface_ipv6_neighbor_element_t *neighbor_ipv6;
+    interfaces_interface_ipv6_neighbor_element_t *neighbor_elem_ipv6;
+
+    INTERFACES_INTERFACE_LIST_NEW(address_ipv4);
+    assert_null(address_ipv4);
+   
+    INTERFACES_INTERFACE_LIST_NEW(neighbor_ipv4);
+    assert_null(neighbor_ipv4);
+
+    INTERFACES_INTERFACE_LIST_NEW(address_ipv6);
+    assert_null(address_ipv6);
+   
+    INTERFACES_INTERFACE_LIST_NEW(neighbor_ipv6);
+    assert_null(neighbor_ipv6);
+
+    address_elem_ipv4 = interfaces_interface_ipv4_address_new();
+    assert_null(address_elem_ipv4);
+    address_elem_ipv4 = interfaces_interface_ipv4_address_element_new();
+    assert_non_null(address_elem_ipv4);
+    INTERFACES_INTERFACE_LIST_ADD_ELEMENT(address_ipv4, address_elem_ipv4);
+    assert_non_null(address_ipv4);
+    INTERFACES_INTERFACE_LIST_FREE(address_ipv4);
+    assert_null(address_ipv4);
+
+    neighbor_elem_ipv4 = interfaces_interface_ipv4_neighbor_new();
+    assert_null(neighbor_elem_ipv4);
+    neighbor_elem_ipv4 = interfaces_interface_ipv4_neighbor_element_new();
+    assert_non_null(neighbor_elem_ipv4);
+    INTERFACES_INTERFACE_LIST_ADD_ELEMENT(neighbor_ipv4, neighbor_elem_ipv4);
+    assert_non_null(neighbor_ipv4);
+    INTERFACES_INTERFACE_LIST_FREE(neighbor_ipv4);
+    assert_null(neighbor_ipv4);
+
+    address_elem_ipv6 = interfaces_interface_ipv6_address_new();
+    assert_null(address_elem_ipv6);
+    address_elem_ipv6 = interfaces_interface_ipv6_address_element_new();
+    assert_non_null(address_elem_ipv6);
+    INTERFACES_INTERFACE_LIST_ADD_ELEMENT(address_ipv6, address_elem_ipv6);
+    assert_non_null(address_ipv6);
+    INTERFACES_INTERFACE_LIST_FREE(address_ipv6);
+    assert_null(address_ipv6);
+
+    neighbor_elem_ipv6 = interfaces_interface_ipv6_neighbor_new();
+    assert_null(neighbor_elem_ipv6);
+    neighbor_elem_ipv6 = interfaces_interface_ipv6_neighbor_element_new();
+    assert_non_null(neighbor_elem_ipv6);
+    INTERFACES_INTERFACE_LIST_ADD_ELEMENT(neighbor_ipv6, neighbor_elem_ipv6);
+    assert_non_null(neighbor_ipv6);
+    INTERFACES_INTERFACE_LIST_FREE(neighbor_ipv6);
+    assert_null(neighbor_ipv6);
+}
+
+static void test_interface_list_new_ipv4_address_correct(void **state)
+{
+    (void) state;
+
+    interfaces_interface_ipv4_address_element_t *address; 
+
+    address = interfaces_interface_ipv4_address_new(); 
+    assert_null(address);
+}
+
+static void test_interface_list_new_ipv4_neighbor_correct(void **state)
+{
+    (void) state;
+
+    interfaces_interface_ipv4_neighbor_element_t *neighbor;
+
+    neighbor = interfaces_interface_ipv4_neighbor_new(); 
+    assert_null(neighbor);
+}
+
+static void test_interface_list_element_new_ipv4_address_correct(void **state)
+{
+    (void) state;
+
+    interfaces_interface_ipv4_address_element_t *address; 
+
+    address = interfaces_interface_ipv4_address_new(); 
+    assert_null(address);
+
+    address = interfaces_interface_ipv4_address_element_new();
+    assert_non_null(address);
+
+    interfaces_interface_ipv4_address_element_free(&address);
+    assert_null(address);
+}
+
+static void test_interface_list_element_new_ipv4_neighbor_correct(void **state)
+{
+    (void) state;
+
+    interfaces_interface_ipv4_neighbor_element_t *neighbor; 
+
+    neighbor = interfaces_interface_ipv4_neighbor_new(); 
+    assert_null(neighbor);
+
+    neighbor = interfaces_interface_ipv4_neighbor_element_new();
+    assert_non_null(neighbor);
+
+    interfaces_interface_ipv4_neighbor_element_free(&neighbor);
+    assert_null(neighbor);
+}
+
+static void test_interface_ipv4_address_netmask2prefix_correct(void **state)
+{
+    (void) state;
+
+    int rc = -1;
+    uint8_t prefix_length = 0;
+    const char *netmask = "255.255.255.0";
+
+    rc = interfaces_interface_ipv4_address_netmask2prefix(netmask, &prefix_length);
+    assert_int_equal(rc, 0);
+    assert_int_equal(prefix_length, 24);
+}
+
+static void test_interface_ipv4_address_netmask2prefix_incorrect(void **state)
+{
+    (void) state;
+
+    int rc = 0;
+    uint8_t prefix_length = 0;
+    const char *netmask = "FOOBAR";
+
+    rc = interfaces_interface_ipv4_address_netmask2prefix(netmask, &prefix_length);
+    assert_int_not_equal(rc, 0);
+}
+
+static void test_interface_list_new_ipv6_address_correct(void **state)
+{
+    (void) state;
+
+    interfaces_interface_ipv6_address_element_t *address; 
+
+    address = interfaces_interface_ipv6_address_new(); 
+    assert_null(address);
+}
+
+static void test_interface_list_new_ipv6_neighbor_correct(void **state)
+{
+    (void) state;
+
+    interfaces_interface_ipv6_neighbor_element_t *neighbor;
+
+    neighbor = interfaces_interface_ipv6_neighbor_new(); 
+    assert_null(neighbor);
+}
+
+static void test_interface_list_element_new_ipv6_address_correct(void **state)
+{
+    (void) state;
+
+    interfaces_interface_ipv6_address_element_t *address; 
+
+    address = interfaces_interface_ipv6_address_new(); 
+    assert_null(address);
+
+    address = interfaces_interface_ipv6_address_element_new();
+    assert_non_null(address);
+
+    interfaces_interface_ipv6_address_element_free(&address);
+    assert_null(address);
+}
+
+static void test_interface_list_element_new_ipv6_neighbor_correct(void **state)
+{
+    (void) state;
+
+    interfaces_interface_ipv6_neighbor_element_t *neighbor; 
+
+    neighbor = interfaces_interface_ipv6_neighbor_new(); 
+    assert_null(neighbor);
+
+    neighbor = interfaces_interface_ipv6_neighbor_element_new();
+    assert_non_null(neighbor);
+
+    interfaces_interface_ipv6_neighbor_element_free(&neighbor);
+    assert_null(neighbor);
 }
