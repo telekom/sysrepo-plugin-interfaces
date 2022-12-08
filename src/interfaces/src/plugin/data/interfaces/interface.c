@@ -340,8 +340,8 @@ int interfaces_interface_hash_to_ly(const struct ly_ctx* ly_ctx, interfaces_inte
     struct lyd_node *ipv4_neighbor_node = NULL, *ipv6_neighbor_node = NULL;
 
     // buffers
-    char mtu_buffer[20] = { 0 };
-    char prefix_length_buffer[20] = { 0 };
+    char mtu_buffer[100] = { 0 };
+    char prefix_length_buffer[100] = { 0 };
 
     HASH_ITER(hh, if_hash, if_iter, tmp)
     {
@@ -362,13 +362,13 @@ int interfaces_interface_hash_to_ly(const struct ly_ctx* ly_ctx, interfaces_inte
         SRPC_SAFE_CALL_ERR(error, interfaces_ly_tree_create_interfaces_interface_ipv4_enabled(ly_ctx, ipv4_container_node, if_iter->interface.ipv4.enabled ? "true" : "false"), error_out);
         SRPC_SAFE_CALL_ERR(error, interfaces_ly_tree_create_interfaces_interface_ipv4_forwarding(ly_ctx, ipv4_container_node, if_iter->interface.ipv4.forwarding ? "true" : "false"), error_out);
 
-        // write MTU to the buffer
+        // write IPv4 MTU to the buffer
         if (if_iter->interface.ipv4.mtu != 0) {
             SRPC_SAFE_CALL_ERR_COND(error, error < 0, snprintf(mtu_buffer, sizeof(mtu_buffer), "%u", if_iter->interface.ipv4.mtu), error_out);
             SRPC_SAFE_CALL_ERR(error, interfaces_ly_tree_create_interfaces_interface_ipv4_mtu(ly_ctx, ipv4_container_node, mtu_buffer), error_out);
         }
 
-        // address list
+        // IPv4 address list
         LL_FOREACH(if_iter->interface.ipv4.address, v4_addr_iter)
         {
             // create list element
@@ -388,6 +388,7 @@ int interfaces_interface_hash_to_ly(const struct ly_ctx* ly_ctx, interfaces_inte
             }
         }
 
+        // IPv4 neighbor list
         LL_FOREACH(if_iter->interface.ipv4.neighbor, v4_neigh_iter)
         {
             // create list element
@@ -399,6 +400,37 @@ int interfaces_interface_hash_to_ly(const struct ly_ctx* ly_ctx, interfaces_inte
 
         // IPv6
         SRPC_SAFE_CALL_ERR(error, interfaces_ly_tree_create_interfaces_interface_ipv6(ly_ctx, interface_list_node, &ipv6_container_node), error_out);
+
+        // IPv6 properties
+        SRPC_SAFE_CALL_ERR(error, interfaces_ly_tree_create_interfaces_interface_ipv6_enabled(ly_ctx, ipv6_container_node, if_iter->interface.ipv6.enabled ? "true" : "false"), error_out);
+        SRPC_SAFE_CALL_ERR(error, interfaces_ly_tree_create_interfaces_interface_ipv6_forwarding(ly_ctx, ipv6_container_node, if_iter->interface.ipv6.forwarding ? "true" : "false"), error_out);
+
+        // write IPv6 MTU to the buffer
+        if (if_iter->interface.ipv6.mtu != 0) {
+            SRPC_SAFE_CALL_ERR_COND(error, error < 0, snprintf(mtu_buffer, sizeof(mtu_buffer), "%u", if_iter->interface.ipv6.mtu), error_out);
+            SRPC_SAFE_CALL_ERR(error, interfaces_ly_tree_create_interfaces_interface_ipv6_mtu(ly_ctx, ipv6_container_node, mtu_buffer), error_out);
+        }
+
+        // IPv6 address list
+        LL_FOREACH(if_iter->interface.ipv6.address, v6_addr_iter)
+        {
+            // create list element
+            SRPC_SAFE_CALL_ERR(error, interfaces_ly_tree_create_interfaces_interface_ipv6_address(ly_ctx, ipv6_container_node, &ipv6_address_node, v6_addr_iter->address.ip), error_out);
+
+            // element properties
+            SRPC_SAFE_CALL_ERR_COND(error, error < 0, snprintf(prefix_length_buffer, sizeof(prefix_length_buffer), "%d", v6_addr_iter->address.prefix_length), error_out);
+            SRPC_SAFE_CALL_ERR(error, interfaces_ly_tree_create_interfaces_interface_ipv6_address_prefix_length(ly_ctx, ipv6_address_node, prefix_length_buffer), error_out);
+        }
+
+        // IPv4 neighbor list
+        LL_FOREACH(if_iter->interface.ipv6.neighbor, v6_neigh_iter)
+        {
+            // create list element
+            SRPC_SAFE_CALL_ERR(error, interfaces_ly_tree_create_interfaces_interface_ipv6_neighbor(ly_ctx, ipv6_container_node, &ipv6_neighbor_node, v6_neigh_iter->neighbor.ip), error_out);
+
+            // add properties to the list element
+            SRPC_SAFE_CALL_ERR(error, interfaces_ly_tree_create_interfaces_interface_ipv6_neighbor_link_layer_address(ly_ctx, ipv6_neighbor_node, v6_neigh_iter->neighbor.link_layer_address), error_out);
+        }
     }
 
     goto out;
