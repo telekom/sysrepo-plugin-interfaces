@@ -49,7 +49,7 @@ int interfaces_startup_load(interfaces_ctx_t* ctx, sr_session_ctx_t* session)
 /* enable or disable storing into startup, use for testing */
 #define INTERFACES_PLUGIN_LOAD_STARTUP
 /* disable for now */
-#undef INTERFACES_PLUGIN_LOAD_STARTUP
+// #undef INTERFACES_PLUGIN_LOAD_STARTUP
 #ifdef INTERFACES_PLUGIN_LOAD_STARTUP
     error = sr_edit_batch(session, root_node, "merge");
     if (error != SR_ERR_OK) {
@@ -91,7 +91,7 @@ static int interfaces_startup_load_interface(void* priv, sr_session_ctx_t* sessi
     SRPC_SAFE_CALL_ERR(error, interfaces_interface_hash_to_ly(ly_ctx, interface_hash, &parent_node), error_out);
 
     // print created tree
-    lyd_print_file(stdout, parent_node, LYD_XML, 0);
+    // lyd_print_file(stdout, parent_node, LYD_XML, 0);
 
     goto out;
 
