@@ -359,12 +359,14 @@ int interfaces_interface_hash_to_ly(const struct ly_ctx* ly_ctx, interfaces_inte
         SRPC_SAFE_CALL_ERR(error, interfaces_ly_tree_create_interfaces_interface_ipv4(ly_ctx, interface_list_node, &ipv4_container_node), error_out);
 
         // IPv4 properties
-        SRPC_SAFE_CALL_ERR(error, interfaces_ly_tree_create_interfaces_interface_ipv4_enabled(ly_ctx, ipv4_container_node, if_iter->interface.ipv4.enabled ? "enabled" : "disabled"), error_out);
-        SRPC_SAFE_CALL_ERR(error, interfaces_ly_tree_create_interfaces_interface_ipv4_forwarding(ly_ctx, ipv4_container_node, if_iter->interface.ipv4.forwarding ? "enabled" : "disabled"), error_out);
+        SRPC_SAFE_CALL_ERR(error, interfaces_ly_tree_create_interfaces_interface_ipv4_enabled(ly_ctx, ipv4_container_node, if_iter->interface.ipv4.enabled ? "true" : "false"), error_out);
+        SRPC_SAFE_CALL_ERR(error, interfaces_ly_tree_create_interfaces_interface_ipv4_forwarding(ly_ctx, ipv4_container_node, if_iter->interface.ipv4.forwarding ? "true" : "false"), error_out);
 
         // write MTU to the buffer
-        SRPC_SAFE_CALL_ERR_COND(error, error < 0, snprintf(mtu_buffer, sizeof(mtu_buffer), "%d", if_iter->interface.ipv4.mtu), error_out);
-        SRPC_SAFE_CALL_ERR(error, interfaces_ly_tree_create_interfaces_interface_ipv4_mtu(ly_ctx, ipv4_container_node, mtu_buffer), error_out);
+        if (if_iter->interface.ipv4.mtu != 0) {
+            SRPC_SAFE_CALL_ERR_COND(error, error < 0, snprintf(mtu_buffer, sizeof(mtu_buffer), "%u", if_iter->interface.ipv4.mtu), error_out);
+            SRPC_SAFE_CALL_ERR(error, interfaces_ly_tree_create_interfaces_interface_ipv4_mtu(ly_ctx, ipv4_container_node, mtu_buffer), error_out);
+        }
 
         // address list
         LL_FOREACH(if_iter->interface.ipv4.address, v4_addr_iter)
