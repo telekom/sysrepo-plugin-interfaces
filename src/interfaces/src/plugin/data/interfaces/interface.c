@@ -388,6 +388,15 @@ int interfaces_interface_hash_to_ly(const struct ly_ctx* ly_ctx, interfaces_inte
             }
         }
 
+        LL_FOREACH(if_iter->interface.ipv4.neighbor, v4_neigh_iter)
+        {
+            // create list element
+            SRPC_SAFE_CALL_ERR(error, interfaces_ly_tree_create_interfaces_interface_ipv4_neighbor(ly_ctx, ipv4_container_node, &ipv4_neighbor_node, v4_neigh_iter->neighbor.ip), error_out);
+
+            // add properties to the list element
+            SRPC_SAFE_CALL_ERR(error, interfaces_ly_tree_create_interfaces_interface_ipv4_neighbor_link_layer_address(ly_ctx, ipv4_neighbor_node, v4_neigh_iter->neighbor.link_layer_address), error_out);
+        }
+
         // IPv6
         SRPC_SAFE_CALL_ERR(error, interfaces_ly_tree_create_interfaces_interface_ipv6(ly_ctx, interface_list_node, &ipv6_container_node), error_out);
     }
