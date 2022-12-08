@@ -1,4 +1,5 @@
 #include "load.h"
+#include "libyang/printer_data.h"
 #include "plugin/common.h"
 #include "plugin/data/interfaces/interface.h"
 #include "plugin/ly_tree.h"
@@ -25,7 +26,7 @@ int interfaces_startup_load(interfaces_ctx_t* ctx, sr_session_ctx_t* session)
 
     srpc_startup_load_t load_values[] = {
         {
-            "/ietf-interfaces:interfaces/interface[name='%s']",
+            "/ietf-interfaces:interfaces/interface",
             interfaces_startup_load_interface,
         },
     };
@@ -73,6 +74,7 @@ out:
         lyd_free_tree(root_node);
     }
     sr_release_context(conn_ctx);
+
     return error;
 }
 
@@ -85,11 +87,11 @@ static int interfaces_startup_load_interface(void* priv, sr_session_ctx_t* sessi
     // load interfaces data
     SRPC_SAFE_CALL_ERR(error, interfaces_load_interface(ctx, &interface_hash), error_out);
 
-    // print debug info for now
-    // interfaces_interface_hash_print_debug(interface_hash);
-
     // convert to libyang
-    SRPC_SAFE_CALL_ERR(error, interfaces_interface_hash_to_ly(interface_hash, &parent_node), error_out);
+    SRPC_SAFE_CALL_ERR(error, interfaces_interface_hash_to_ly(ly_ctx, interface_hash, &parent_node), error_out);
+
+    // print created tree
+    lyd_print_file(stdout, parent_node, LYD_XML, 0);
 
     goto out;
 

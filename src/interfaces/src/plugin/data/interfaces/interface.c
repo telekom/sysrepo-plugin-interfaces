@@ -1,7 +1,10 @@
 #include "interface.h"
 #include "interface/ipv4.h"
+#include "libyang/log.h"
 #include "libyang/tree_data.h"
 #include "plugin/common.h"
+#include "plugin/ly_tree.h"
+#include "plugin/types.h"
 #include "srpc/ly_tree.h"
 #include "sysrepo.h"
 #include "uthash.h"
@@ -315,10 +318,84 @@ out:
     return error;
 }
 
-int interfaces_interface_hash_to_ly(interfaces_interface_hash_element_t* if_hash, struct lyd_node** interfaces_container_node)
+int interfaces_interface_hash_to_ly(const struct ly_ctx* ly_ctx, interfaces_interface_hash_element_t* if_hash, struct lyd_node** interfaces_container_node)
 {
     int error = 0;
 
+    // interface iterator
+    interfaces_interface_hash_element_t *if_iter = NULL, *tmp = NULL;
+
+    // address iterators
+    interfaces_interface_ipv4_address_element_t* v4_addr_iter = NULL;
+    interfaces_interface_ipv6_address_element_t* v6_addr_iter = NULL;
+
+    // neighbor iterators
+    interfaces_interface_ipv4_neighbor_element_t* v4_neigh_iter = NULL;
+    interfaces_interface_ipv6_neighbor_element_t* v6_neigh_iter = NULL;
+
+    // libyang data
+    struct lyd_node* interface_list_node = NULL;
+    struct lyd_node *ipv4_container_node = NULL, *ipv6_container_node = NULL;
+    struct lyd_node *ipv4_address_node = NULL, *ipv6_address_node = NULL;
+    struct lyd_node *ipv4_neighbor_node = NULL, *ipv6_neighbor_node = NULL;
+
+    // buffers
+    char mtu_buffer[20] = { 0 };
+    char prefix_length_buffer[20] = { 0 };
+
+    HASH_ITER(hh, if_hash, if_iter, tmp)
+    {
+        // alloc new interface list node and fill that node with info
+        // name added via list creation
+        SRPC_SAFE_CALL_ERR(error, interfaces_ly_tree_create_interfaces_interface(ly_ctx, *interfaces_container_node, &interface_list_node, if_iter->interface.name), error_out);
+
+        // enabled
+        SRPC_SAFE_CALL_ERR(error, interfaces_ly_tree_create_interfaces_interface_enabled(ly_ctx, interface_list_node, if_iter->interface.enabled ? "true" : "false"), error_out);
+
+        // type
+        SRPC_SAFE_CALL_ERR(error, interfaces_ly_tree_create_interfaces_interface_type(ly_ctx, interface_list_node, if_iter->interface.type), error_out);
+
+        // IPv4
+        SRPC_SAFE_CALL_ERR(error, interfaces_ly_tree_create_interfaces_interface_ipv4(ly_ctx, interface_list_node, &ipv4_container_node), error_out);
+
+        // IPv4 properties
+        SRPC_SAFE_CALL_ERR(error, interfaces_ly_tree_create_interfaces_interface_ipv4_enabled(ly_ctx, ipv4_container_node, if_iter->interface.ipv4.enabled ? "enabled" : "disabled"), error_out);
+        SRPC_SAFE_CALL_ERR(error, interfaces_ly_tree_create_interfaces_interface_ipv4_forwarding(ly_ctx, ipv4_container_node, if_iter->interface.ipv4.forwarding ? "enabled" : "disabled"), error_out);
+
+        // write MTU to the buffer
+        SRPC_SAFE_CALL_ERR_COND(error, error < 0, snprintf(mtu_buffer, sizeof(mtu_buffer), "%d", if_iter->interface.ipv4.mtu), error_out);
+        SRPC_SAFE_CALL_ERR(error, interfaces_ly_tree_create_interfaces_interface_ipv4_mtu(ly_ctx, ipv4_container_node, mtu_buffer), error_out);
+
+        // address list
+        LL_FOREACH(if_iter->interface.ipv4.address, v4_addr_iter)
+        {
+            // create list element
+            SRPC_SAFE_CALL_ERR(error, interfaces_ly_tree_create_interfaces_interface_ipv4_address(ly_ctx, ipv4_container_node, &ipv4_address_node, v4_addr_iter->address.ip), error_out);
+
+            // add properties to the list element
+            switch (v4_addr_iter->address.subnet_type) {
+            case interfaces_interface_ipv4_address_subnet_none:
+                break;
+            case interfaces_interface_ipv4_address_subnet_prefix_length:
+                SRPC_SAFE_CALL_ERR_COND(error, error < 0, snprintf(prefix_length_buffer, sizeof(prefix_length_buffer), "%d", v4_addr_iter->address.subnet.prefix_length), error_out);
+                SRPC_SAFE_CALL_ERR(error, interfaces_ly_tree_create_interfaces_interface_ipv4_address_prefix_length(ly_ctx, ipv4_address_node, prefix_length_buffer), error_out);
+                break;
+            case interfaces_interface_ipv4_address_subnet_netmask:
+                SRPC_SAFE_CALL_ERR(error, interfaces_ly_tree_create_interfaces_interface_ipv4_address_netmask(ly_ctx, ipv4_address_node, v4_addr_iter->address.subnet.netmask), error_out);
+                break;
+            }
+        }
+
+        // IPv6
+        SRPC_SAFE_CALL_ERR(error, interfaces_ly_tree_create_interfaces_interface_ipv6(ly_ctx, interface_list_node, &ipv6_container_node), error_out);
+    }
+
+    goto out;
+
+error_out:
+    error = -1;
+
+out:
     return error;
 }
 
