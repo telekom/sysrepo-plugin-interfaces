@@ -80,15 +80,14 @@ static int interfaces_startup_store_interface(void* priv, const struct lyd_node*
         SRPLG_LOG_ERR(PLUGIN_NAME, "Error loading current interface list");
         goto error_out;
     case srpc_check_status_non_existant:
-        SRPLG_LOG_INF(PLUGIN_NAME, "Storing interface array");
-
+        SRPLG_LOG_INF(PLUGIN_NAME, "Storing interface list");
         SRPC_SAFE_CALL_ERR(error, interfaces_store_interface(ctx, if_hash), error_out);
         break;
     case srpc_check_status_equal:
-        SRPLG_LOG_ERR(PLUGIN_NAME, "Startup interface array is already applied on the system");
+        SRPLG_LOG_ERR(PLUGIN_NAME, "Startup interface list is already applied on the system");
         break;
     case srpc_check_status_partial:
-        SRPLG_LOG_ERR(PLUGIN_NAME, "Error loading current interface array");
+        SRPLG_LOG_ERR(PLUGIN_NAME, "Error loading current interface list");
         goto error_out;
     }
 
