@@ -6,9 +6,6 @@
 #include <errno.h>
 #include <unistd.h>
 
-/* xmalloc, FREE_SAFE */
-#include "utils/memory.h"
-
 /* load api */
 #include "plugin/api/interfaces/load.h"
 
@@ -90,7 +87,7 @@ int main(void)
 
 static int setup(void **state)
 {
-	interfaces_ctx_t *ctx = xmalloc(sizeof(interfaces_ctx_t));
+	interfaces_ctx_t *ctx = malloc(sizeof(interfaces_ctx_t));
 	if (!ctx) {
 		return -1;
 	}
@@ -104,7 +101,7 @@ static int setup(void **state)
 static int teardown(void **state)
 {
 	if (*state) {
-		FREE_SAFE(*state);
+		free(*state);
 	}
 
 	return 0;
