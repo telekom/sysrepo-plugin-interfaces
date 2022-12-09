@@ -251,6 +251,9 @@ static void test_state_hash_set_name_correct(void **state)
 
     rc = interfaces_interface_state_hash_element_set_name(&new_elem, "FOO");
     assert_int_equal(rc, 0);
+    assert_non_null(new_elem->state.name);
+
+    interfaces_interface_state_hash_element_free(&new_elem);
 }
 
 static void test_state_hash_set_name_incorrect(void **state)
@@ -264,7 +267,10 @@ static void test_state_hash_set_name_incorrect(void **state)
     new_elem = interfaces_interface_state_hash_element_new();
 
     rc = interfaces_interface_state_hash_element_set_name(&new_elem, NULL);
-    assert_int_not_equal(rc, 0);
+    assert_int_equal(rc, 0);
+    assert_null(new_elem->state.name);
+
+    interfaces_interface_state_hash_element_free(&new_elem);
 }
 
 static void test_interface_list_new_correct(void **state)
