@@ -71,7 +71,7 @@ int interfaces_interface_state_hash_element_set_name(interfaces_interface_state_
         return (*el)->state.name == NULL;
     }
 
-    return -1;
+    return 0;
 }
 
 void interfaces_interface_state_hash_element_set_state(interfaces_interface_state_hash_element_t** el, const uint8_t state)
