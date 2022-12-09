@@ -15,11 +15,6 @@ target_include_directories(
     ${INTERFACES_UTEST_NAME}
     PUBLIC ${CMAKE_SOURCE_DIR}/src/interfaces/src
 )
-add_library(
-   ${UTILS_MEMORY_LIBRARY_NAME} 
-   STATIC
-   ${CMAKE_SOURCE_DIR}/src/utils/memory.c
-)
 target_link_options(
     ${INTERFACES_UTEST_NAME}
     PRIVATE ${INTERFACES_UTEST_LINKER_OPTIONS}
@@ -31,7 +26,6 @@ target_link_libraries(
     ${PLUGIN_LIBRARY_NAME}
 	${SYSREPO_LIBRARIES}
 	${LIBYANG_LIBRARIES}
-    ${UTILS_MEMORY_LIBRARY_NAME}
 )
 add_test(
     NAME ${INTERFACES_UTEST_NAME}
