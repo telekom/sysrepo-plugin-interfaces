@@ -18,6 +18,10 @@ set(
     src/plugin/startup/load.c
     src/plugin/startup/store.c
 
+    # running
+    src/plugin/running/load.c
+    src/plugin/running/store.c
+
     # subscription
     src/plugin/subscription/change.c
     src/plugin/subscription/operational.c

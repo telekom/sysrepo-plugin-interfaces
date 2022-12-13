@@ -611,7 +611,7 @@ int interfaces_interface_type_nl2ly(const char* nl_type, const char** ly_type)
 
     if (nl_type == NULL) {
         // fix for now - investigate more - lo interface has type == NULL
-        *ly_type = "iana-if-type:softwareLoopback";
+        *ly_type = "iana-if-type:other";
         return 0;
     }
 
@@ -623,6 +623,8 @@ int interfaces_interface_type_nl2ly(const char* nl_type, const char** ly_type)
         *ly_type = "iana-if-type:l2vlan";
     } else if (strcmp(nl_type, "dummy") == 0) {
         *ly_type = "iana-if-type:other";
+    } else if (strcmp(nl_type, "bridge") == 0) {
+        *ly_type = "iana-if-type:bridge";
     } else {
         error = -2;
     }

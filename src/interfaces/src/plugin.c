@@ -4,11 +4,15 @@
 #include "netlink/socket.h"
 #include "plugin/common.h"
 #include "plugin/context.h"
-
-// startup
 #include "plugin/data/interfaces/interface_state.h"
+
+// startup DS
 #include "plugin/startup/load.h"
 #include "plugin/startup/store.h"
+
+// running DS
+#include "plugin/running/load.h"
+#include "plugin/running/store.h"
 
 // subscription
 #include "plugin/subscription/change.h"
@@ -284,21 +288,21 @@ int sr_plugin_init_cb(sr_session_ctx_t* running_session, void** private_data)
 
     ctx->startup_ctx.startup_session = startup_session;
 
-    SRPC_SAFE_CALL_ERR(error, srpc_check_empty_datastore(startup_session, INTERFACES_INTERFACES_INTERFACE_YANG_PATH, &empty_startup), error_out);
+    SRPC_SAFE_CALL_ERR(error, srpc_check_empty_datastore(running_session, INTERFACES_INTERFACES_INTERFACE_YANG_PATH, &empty_startup), error_out);
 
     if (empty_startup) {
-        SRPLG_LOG_INF(PLUGIN_NAME, "Startup datastore is empty");
+        SRPLG_LOG_INF(PLUGIN_NAME, "Running datastore is empty");
         SRPLG_LOG_INF(PLUGIN_NAME, "Loading initial system data");
 
-        // load initial data on the system
-        SRPC_SAFE_CALL_ERR(error, interfaces_startup_load(ctx, running_session), error_out);
+        // load initial running DS data on the system
+        SRPC_SAFE_CALL_ERR(error, interfaces_running_load(ctx, running_session), error_out);
     } else {
         // make sure the data from startup DS is stored in the interfaces
-        SRPLG_LOG_INF(PLUGIN_NAME, "Startup datastore contains data");
-        SRPLG_LOG_INF(PLUGIN_NAME, "Storing startup datastore data in the system");
+        SRPLG_LOG_INF(PLUGIN_NAME, "Running datastore contains data");
+        SRPLG_LOG_INF(PLUGIN_NAME, "Checking running datastore against system data");
 
-        // check and store startup data on the system
-        SRPC_SAFE_CALL_ERR(error, interfaces_startup_store(ctx, startup_session), error_out);
+        // check and store running DS data on the system
+        SRPC_SAFE_CALL_ERR(error, interfaces_running_store(ctx, running_session), error_out);
     }
 
     // subscribe every module change
