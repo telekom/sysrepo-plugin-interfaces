@@ -302,7 +302,7 @@ int sr_plugin_init_cb(sr_session_ctx_t* running_session, void** private_data)
         SRPLG_LOG_INF(PLUGIN_NAME, "Checking running datastore against system data");
 
         // check and store running DS data on the system
-        SRPC_SAFE_CALL_ERR(error, interfaces_running_store(ctx, running_session), error_out);
+        // SRPC_SAFE_CALL_ERR(error, interfaces_running_store(ctx, running_session), error_out);
     }
 
     // subscribe every module change
