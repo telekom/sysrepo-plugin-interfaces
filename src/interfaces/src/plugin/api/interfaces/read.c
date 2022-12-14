@@ -1,42 +1,54 @@
+/*
+ * telekom / sysrepo-plugin-system
+ *
+ * This program is made available under the terms of the
+ * BSD 3-Clause license which is available at
+ * https://opensource.org/licenses/BSD-3-Clause
+ *
+ * SPDX-FileCopyrightText: 2022 Deutsche Telekom AG
+ * SPDX-FileContributor: Sartura Ltd.
+ *
+ * SPDX-License-Identifier: BSD-3-Clause
+ */
 #include "plugin/common.h"
 #include "srpc/common.h"
 
 #include <errno.h>
 
-int read_from_proc_file(const char *dir_path, char *interface, const char *fn, int *val)
+int read_from_proc_file(const char* dir_path, char* interface, const char* fn, int* val)
 {
-	int error = 0;
-	char tmp_buffer[PATH_MAX];
-	FILE *fptr = NULL;
-	char tmp_val[2] = {0};
+    int error = 0;
+    char tmp_buffer[PATH_MAX];
+    FILE* fptr = NULL;
+    char tmp_val[2] = { 0 };
 
-	error = snprintf(tmp_buffer, sizeof(tmp_buffer), "%s/%s/%s", dir_path, interface, fn);
-	if (error < 0) {
-		// snprintf error
-		SRPLG_LOG_ERR(PLUGIN_NAME, "snprintf failed");
-		goto out;
-	}
+    error = snprintf(tmp_buffer, sizeof(tmp_buffer), "%s/%s/%s", dir_path, interface, fn);
+    if (error < 0) {
+        // snprintf error
+        SRPLG_LOG_ERR(PLUGIN_NAME, "snprintf failed");
+        goto out;
+    }
 
-	// snprintf returns return the number of bytes that are written
-	// reset error to 0
-	error = 0;
+    // snprintf returns return the number of bytes that are written
+    // reset error to 0
+    error = 0;
 
-	fptr = fopen((const char *) tmp_buffer, "r");
+    fptr = fopen((const char*)tmp_buffer, "r");
 
-	if (fptr != NULL) {
-		fgets(tmp_val, sizeof(tmp_val), fptr);
+    if (fptr != NULL) {
+        fgets(tmp_val, sizeof(tmp_val), fptr);
 
-		*val = atoi(tmp_val);
+        *val = atoi(tmp_val);
 
-		fclose(fptr);
-	} else {
-		SRPLG_LOG_ERR(PLUGIN_NAME, "failed to open %s: %s", tmp_buffer, strerror(errno));
-		error = -1;
-		goto out;
-	}
+        fclose(fptr);
+    } else {
+        SRPLG_LOG_ERR(PLUGIN_NAME, "failed to open %s: %s", tmp_buffer, strerror(errno));
+        error = -1;
+        goto out;
+    }
 
 out:
-	return error;
+    return error;
 }
 
 int read_from_sys_file(const char* dir_path, char* interface, int* val)
