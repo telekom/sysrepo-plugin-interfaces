@@ -64,3 +64,23 @@ test:default:
   artifacts:
     paths:
       - build/
+
+test:sanitized:
+  stage: test
+  needs: ["build:sanitized"]
+  script:
+    - cd build-sanitized
+    - ctest -V
+  artifacts:
+    paths:
+      - build-sanitized/
+
+test:sanitized_memory:
+  stage: test
+  needs: ["build:sanitized_memory"]
+  script:
+    - cd build-sanitized-memory
+    - ctest -V
+  artifacts:
+    paths:
+      - build-sanitized-memory/
