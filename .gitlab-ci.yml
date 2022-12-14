@@ -42,3 +42,14 @@ build:sanitized:
   artifacts:
     paths:
       - build-sanitized/
+
+build:sanitized_memory:
+  stage: build
+
+  script:
+    - mkdir build-sanitized-memory
+    - cmake -S . -B build-sanitized-memory/ -DSYSTEMD_IFINDEX=1 -DCMAKE_C_COMPILER=clang -DCMAKE_C_FLAGS=\"-fsanitize=memory\" -DENABLE_SANITIZER=ON
+    - cmake --build build-sanitized-memory/
+  artifacts:
+    paths:
+      - build-sanitized-memory/
