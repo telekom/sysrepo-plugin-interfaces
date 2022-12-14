@@ -46,8 +46,9 @@ Besides the usual C development environment, the following additional dependenci
 
 First clone the repository:
 
-```
-$ git clone https://github.com/telekom/sysrepo-plugin-interfaces
+```sh
+# clone recursively to also clone uthash library
+$ git clone https://github.com/telekom/sysrepo-plugin-interfaces --recursive
 ```
 
 Next, create a build directory and generate the build recipes using CMake:
@@ -77,7 +78,7 @@ Lastly, invoke the build and install using `make`:
 $ make -j$(nproc) install
 ```
 
-The plugins require several YANG modules to be loaded into the Sysrepo datastore.
+The plugins require several YANG modules to be loaded into the Sysrepo datastore and several features need to be enabled.
 For the interfaces plugin this can be achieved by invoking the following commands:
 
 ```
@@ -87,6 +88,8 @@ $ sysrepoctl -i ./yang/ietf-ip@2018-02-22.yang
 $ sysrepoctl -i ./yang/ietf-if-extensions@2020-07-29.yang
 $ sysrepoctl -i ./yang/ieee802-dot1q-types.yang
 $ sysrepoctl -i ./yang/ietf-if-vlan-encapsulation@2020-07-13.yang
+$ sysrepoctl --change ietf-interfaces --enable-feature if-mib
+$ sysrepoctl --change ietf-if-extensions --enable-feature sub-interfaces
 ```
 
 For the routing plugin, the following models have to be installed:
@@ -117,10 +120,10 @@ The full documentation for the Sysrepo interfaces and routing plugins can be fou
 
 The following channels are available for discussions, feedback, and support requests:
 
-| Type                     | Channel                                                |
-| ------------------------ | ------------------------------------------------------ |
-| **Issues**   | <a href="/../../issues/new/choose" title="General Discussion"><img src="https://img.shields.io/github/issues/telekom/sysrepo-plugin-interfaces?style=flat-square"></a> </a>   |
-| **Other Requests**    | <a href="mailto:opensource@telekom.de" title="Email Open Source Team"><img src="https://img.shields.io/badge/email-Open%20Source%20Team-green?logo=mail.ru&style=flat-square&logoColor=white"></a>   |
+| Type               | Channel                                                                                                                                                                                            |
+| ------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Issues**         | <a href="/../../issues/new/choose" title="General Discussion"><img src="https://img.shields.io/github/issues/telekom/sysrepo-plugin-interfaces?style=flat-square"></a> </a>                        |
+| **Other Requests** | <a href="mailto:opensource@telekom.de" title="Email Open Source Team"><img src="https://img.shields.io/badge/email-Open%20Source%20Team-green?logo=mail.ru&style=flat-square&logoColor=white"></a> |
 
 ## How to Contribute
 

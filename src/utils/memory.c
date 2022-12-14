@@ -17,6 +17,10 @@ void *xmalloc(size_t size)
 {
 	void *res;
 
+	if (size == 0) {
+		abort();
+	}
+
 	res = malloc(size);
 
 	if (res == NULL) {
@@ -30,6 +34,10 @@ void *xrealloc(void *ptr, size_t size)
 {
 	void *res;
 
+	if (size == 0) {
+		abort();
+	}
+
 	res = realloc(ptr, size);
 
 	if (res == NULL) {
@@ -42,6 +50,10 @@ void *xrealloc(void *ptr, size_t size)
 void *xcalloc(size_t nmemb, size_t size)
 {
 	void *res;
+
+	if (size == 0) {
+		abort();
+	}
 
 	res = calloc(nmemb, size);
 

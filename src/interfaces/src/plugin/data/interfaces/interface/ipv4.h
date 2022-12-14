@@ -1,0 +1,10 @@
+#ifndef INTERFACES_PLUGIN_DATA_INTERFACES_INTERFACE_IPV4_H
+#define INTERFACES_PLUGIN_DATA_INTERFACES_INTERFACE_IPV4_H
+
+#include "plugin/types.h"
+
+int interfaces_interface_hash_element_ipv4_set_enabled(interfaces_interface_ipv4_t* ipv4, uint8_t enabled);
+int interfaces_interface_hash_element_ipv4_set_forwarding(interfaces_interface_ipv4_t* ipv4, uint8_t forwarding);
+int interfaces_interface_hash_element_ipv4_set_mtu(interfaces_interface_ipv4_t* ipv4, uint16_t mtu);
+
+#endif // INTERFACES_PLUGIN_DATA_INTERFACES_INTERFACE_IPV4_H
