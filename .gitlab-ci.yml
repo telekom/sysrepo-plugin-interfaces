@@ -1,97 +1,36 @@
-image: "debian:sid"
+image: debian
 
-before_script:
-  - apt-get update
-  - apt-get -y install clang cmake libcmocka0 libcmocka-dev valgrind libnl-3-200 libnl-3-dev libnl-genl-3-dev libnl-nf-3-dev
-
-  # prepare for building debian packages
-  - apt-get -y install git build-essential fakeroot devscripts
-
-  # TODO: when libyang2 is available in Debian unstable
-  - git clone --depth=1 https://github.com/jpetrina/libyang -b debian/v2.0.7 && cd libyang
-  - mk-build-deps --install --tool 'apt-get --yes --no-install-recommends' --remove
-  - dpkg-buildpackage -j$(nproc) --build=binary --root-command=fakeroot --unsigned-source --unsigned-changes
-  - (dpkg -i ../libyang2*.deb || apt-get -y install -f) && cd ..
-
-  # TODO: when libyang2 is available in Debian unstable
-  - git clone --depth=1 https://github.com/jpetrina/sysrepo -b debian/v2.0.1 && cd sysrepo
-  - mk-build-deps --install --tool 'apt-get --yes --no-install-recommends' --remove
-  - dpkg-buildpackage -j$(nproc) --build=binary --root-command=fakeroot --unsigned-source --unsigned-changes
-  - (dpkg -i ../sysrepo*.deb ../libsysrepo*.deb || apt-get -y install -f) && cd ..
-
-  # resolve time issues
-  - ln -snf /usr/share/zoneinfo/Europe/Zagreb /etc/localtime && echo 'Europe/Zagreb' > /etc/timezone
+variables:
+  GIT_SUBMODULE_STRATEGY: recursive
 
 stages:
   - build
-  - test
 
-build:default:
+# install libraries
+before_script:
+  - apt-get update
+  - apt-get -y install clang cmake git libpcre2-dev libsystemd-dev
+  - apt-get -y install python3 python3-pip
+  - git clone https://github.com/CESNET/libyang.git
+  - git clone https://github.com/sysrepo/sysrepo.git
+  - git clone https://github.com/telekom/sysrepo-plugins-common.git
+  - git clone https://github.com/sartura/umgmt.git
+  - cd libyang; git checkout devel; mkdir build; cd build; cmake .. -DCMAKE_C_COMPILER=clang; make -j install; cd ../../
+  - cd sysrepo; git checkout devel; mkdir build; cd build; cmake .. -DCMAKE_C_COMPILER=clang; make -j install; cd ../../
+  - cd sysrepo-plugins-common; git submodule init; git submodule update; mkdir build; cd build; cmake .. -DCMAKE_C_COMPILER=clang; make -j install; cd ../..
+  - cd umgmt; git submodule init; git submodule update;  mkdir build; cd build; cmake .. -DCMAKE_C_COMPILER=clang; make -j install; cd ../..
+  - pip3 install libyang
+  - pip3 install Jinja2
+
+build:
   stage: build
-  script:
-    - mkdir build && cd build
-    - CC=clang cmake -DENABLE_BUILD_TESTS=ON ..
-    - make
-  artifacts:
-    paths:
-      - build/
 
-build:sanitized:
-  stage: build
   script:
-    - mkdir build_sanitized && cd build_sanitized
-    - CC=clang cmake -DCMAKE_C_FLAGS=\"-fsanitize=address,undefined\" -DENABLE_SANITIZER=ON ..
-    - make
-  artifacts:
-    paths:
-      - build_sanitized/
-
-build:sanitized_memory:
-  stage: build
-  script:
-    - mkdir build_sanitized_memory && cd build_sanitized_memory
-    - CC=clang cmake -DCMAKE_C_FLAGS=\"-fsanitize=memory\" -DENABLE_SANITIZER=ON ..
-    - make
-  artifacts:
-    paths:
-      - build_sanitized_memory/
-
-test:default:
-  stage: test
-  needs: ["build:default"]
-  script:
-    - cd build
-    - ctest -T test --output-on-failure
-  artifacts:
-    paths:
-      - build/
-
-test:sanitized:
-  stage: test
-  needs: ["build:sanitized"]
-  script:
-    - cd build_sanitized
-    - ctest -T test --output-on-failure
-  artifacts:
-    paths:
-      - build_sanitized/
-
-test:sanitized_memory:
-  stage: test
-  needs: ["build:sanitized_memory"]
-  script:
-    - cd build_sanitized_memory
-    - ctest -T test --output-on-failure
-  artifacts:
-    paths:
-      - build_sanitized_memory/
-
-test:valgrind:
-  stage: test
-  needs: ["build:default"]
-  script:
-    - cd build
-    - ctest -T memcheck
+    # build interfaces plugin
+    - mkdir build
+    - cmake -DSYSTEMD_IFINDEX=1 -DCMAKE_C_COMPILER=clang -S . -B build/
+    - cmake --build build/
+  
   artifacts:
     paths:
       - build/
