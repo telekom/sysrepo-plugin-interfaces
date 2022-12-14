@@ -31,3 +31,14 @@ build:default:
   artifacts:
     paths:
       - build/
+
+build:sanitized:
+  stage: build
+
+  script:
+    - mkdir build-sanitized
+    - cmake -S . -B build-sanitized/ -DSYSTEMD_IFINDEX=1 -DCMAKE_C_COMPILER=clang -DCMAKE_C_FLAGS=\"-fsanitize=address,undefined\" -DENABLE_SANITIZER=ON
+    - cmake --build build-sanitized/
+  artifacts:
+    paths:
+      - build-sanitized/
