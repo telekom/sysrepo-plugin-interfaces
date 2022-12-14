@@ -20,11 +20,10 @@ before_script:
   - pip3 install libyang
   - pip3 install Jinja2
 
-build:
+build:default:
   stage: build
 
   script:
-    # build interfaces plugin
     - mkdir build
     - cmake -DSYSTEMD_IFINDEX=1 -DCMAKE_C_COMPILER=clang -S . -B build/
     - cmake --build build/
