@@ -5,6 +5,7 @@ variables:
 
 stages:
   - build
+  - test
 
 # install libraries
 before_script:
@@ -53,3 +54,13 @@ build:sanitized_memory:
   artifacts:
     paths:
       - build-sanitized-memory/
+
+test:default:
+  stage: test
+  needs: ["build:default"]
+  script:
+    - cd build
+    - ctest -V
+  artifacts:
+    paths:
+      - build/
