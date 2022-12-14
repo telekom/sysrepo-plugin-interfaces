@@ -25,7 +25,7 @@ build:default:
 
   script:
     - mkdir build
-    - cmake -DSYSTEMD_IFINDEX=1 -DCMAKE_C_COMPILER=clang -S . -B build/
+    - cmake -DCMAKE_C_COMPILER=clang -S . -B build/
     - cmake --build build/
   
   artifacts:
@@ -37,7 +37,7 @@ build:sanitized:
 
   script:
     - mkdir build-sanitized
-    - cmake -S . -B build-sanitized/ -DSYSTEMD_IFINDEX=1 -DCMAKE_C_COMPILER=clang -DCMAKE_C_FLAGS=\"-fsanitize=address,undefined\" -DENABLE_SANITIZER=ON
+    - cmake -S . -B build-sanitized/ -DCMAKE_C_COMPILER=clang -DCMAKE_C_FLAGS=\"-fsanitize=address,undefined\"
     - cmake --build build-sanitized/
   artifacts:
     paths:
@@ -48,7 +48,7 @@ build:sanitized_memory:
 
   script:
     - mkdir build-sanitized-memory
-    - cmake -S . -B build-sanitized-memory/ -DSYSTEMD_IFINDEX=1 -DCMAKE_C_COMPILER=clang -DCMAKE_C_FLAGS=\"-fsanitize=memory\" -DENABLE_SANITIZER=ON
+    - cmake -S . -B build-sanitized-memory/ -DCMAKE_C_COMPILER=clang -DCMAKE_C_FLAGS=\"-fsanitize=memory\"
     - cmake --build build-sanitized-memory/
   artifacts:
     paths:
