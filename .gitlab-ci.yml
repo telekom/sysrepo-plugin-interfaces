@@ -14,11 +14,9 @@ before_script:
   - git clone https://github.com/CESNET/libyang.git
   - git clone https://github.com/sysrepo/sysrepo.git
   - git clone https://github.com/telekom/sysrepo-plugins-common.git
-  - git clone https://github.com/sartura/umgmt.git
   - cd libyang; git checkout devel; mkdir build; cd build; cmake .. -DCMAKE_C_COMPILER=clang; make -j install; cd ../../
   - cd sysrepo; git checkout devel; mkdir build; cd build; cmake .. -DCMAKE_C_COMPILER=clang; make -j install; cd ../../
   - cd sysrepo-plugins-common; git submodule init; git submodule update; mkdir build; cd build; cmake .. -DCMAKE_C_COMPILER=clang; make -j install; cd ../..
-  - cd umgmt; git submodule init; git submodule update;  mkdir build; cd build; cmake .. -DCMAKE_C_COMPILER=clang; make -j install; cd ../..
   - pip3 install libyang
   - pip3 install Jinja2
 
