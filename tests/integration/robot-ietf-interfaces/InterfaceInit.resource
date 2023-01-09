@@ -41,12 +41,12 @@ Connect Interfaces
 
 Cleanup Interfaces
     Restore Initial Running Datastore
-    Cleanup IETF Interfaces
+    Stop Plugin
 
 Start Plugin
     ${Plugin}=    Start Process    %{SYSREPO_INTERFACES_PLUGIN_PATH}
     Set Global Variable    ${Plugin}
     Wait For Process    ${Plugin}    timeout=0.1s    on_timeout=continue
 
-Cleanup IETF Interfaces
+Stop Plugin
     Terminate Process    ${Plugin}
