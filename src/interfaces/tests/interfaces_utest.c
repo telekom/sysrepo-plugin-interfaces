@@ -2,18 +2,23 @@
 #include <setjmp.h>
 #include <stddef.h>
 #include <cmocka.h>
+#include <stdint.h>
 #include <string.h>
 #include <errno.h>
+#include <sys/types.h>
 #include <unistd.h>
 
 /* load api */
 #include "plugin/api/interfaces/load.h"
 
 /* interfaces hash table state */
+#include "plugin/data/interfaces/interface/ipv4/address.h"
+#include "plugin/data/interfaces/interface/ipv6/address.h"
 #include "plugin/data/interfaces/interface_state.h"
 
 /* interfaces interface linked list */
 #include "plugin/data/interfaces/interface/linked_list.h"
+#include "plugin/types.h"
 
 /* init functionality */
 static int setup(void **state);
@@ -43,11 +48,21 @@ static void test_interface_list_element_new_ipv4_neighbor_correct(void **state);
 static void test_interface_ipv4_address_netmask2prefix_correct(void **state);
 static void test_interface_ipv4_address_netmask2prefix_incorrect(void **state);
 
+static void test_interface_ipv4_address_set_ip_correct(void **state);
+static void test_interface_ipv4_address_set_prefix_length_correct(void **state);
+static void test_interface_ipv4_address_set_netmask_correct(void **state);
+
 /*** ipv6 ***/
 static void test_interface_list_new_ipv6_address_correct(void **state);
 static void test_interface_list_new_ipv6_neighbor_correct(void **state);
 static void test_interface_list_element_new_ipv6_address_correct(void **state);
 static void test_interface_list_element_new_ipv6_neighbor_correct(void **state);
+
+static void test_interface_ipv6_address_set_ip_correct(void **state);
+static void test_interface_ipv6_address_set_prefix_length_correct(void **state);
+static void test_interface_ipv6_address_element_set_correct(void **state);
+
+
 
 /** load **/
 static void test_correct_load_interface(void **state);
@@ -75,11 +90,17 @@ int main(void)
 		cmocka_unit_test(test_interface_list_element_new_ipv4_neighbor_correct),
 		cmocka_unit_test(test_interface_ipv4_address_netmask2prefix_correct),
 		cmocka_unit_test(test_interface_ipv4_address_netmask2prefix_incorrect),
+        cmocka_unit_test(test_interface_ipv4_address_set_ip_correct),
+        cmocka_unit_test(test_interface_ipv4_address_set_prefix_length_correct),
+        cmocka_unit_test(test_interface_ipv4_address_set_netmask_correct),
         /*** ipv6 ***/
 		cmocka_unit_test(test_interface_list_new_ipv6_address_correct),
 		cmocka_unit_test(test_interface_list_new_ipv6_neighbor_correct),
 		cmocka_unit_test(test_interface_list_element_new_ipv6_address_correct),
 		cmocka_unit_test(test_interface_list_element_new_ipv6_neighbor_correct),
+        cmocka_unit_test(test_interface_ipv6_address_set_ip_correct),
+        cmocka_unit_test(test_interface_ipv6_address_set_prefix_length_correct),
+        cmocka_unit_test(test_interface_ipv6_address_element_set_correct)
 	};
 
 	return cmocka_run_group_tests(tests, setup, teardown);
@@ -436,6 +457,63 @@ static void test_interface_ipv4_address_netmask2prefix_incorrect(void **state)
     assert_int_not_equal(rc, 0);
 }
 
+static void test_interface_ipv4_address_set_ip_correct(void **state)
+{
+    (void) state;
+    const char *ip = "127.0.0.1";
+
+    interfaces_interface_ipv4_address_element_t *address;
+
+    address = interfaces_interface_ipv4_address_new(); 
+    assert_null(address);
+
+    address = interfaces_interface_ipv4_address_element_new();
+    assert_non_null(address);
+
+    interfaces_interface_ipv4_address_element_set_ip(&address, ip);
+    assert_string_equal(address->address.ip, ip);
+}
+
+static void test_interface_ipv4_address_set_prefix_length_correct(void **state)
+ {
+    (void) state;
+    uint8_t prefix_length = 16;
+
+    interfaces_interface_ipv4_address_element_t *address;
+
+    address = interfaces_interface_ipv4_address_new(); 
+    assert_null(address);
+
+    address = interfaces_interface_ipv4_address_element_new();
+    assert_non_null(address);
+
+    interfaces_interface_ipv4_address_element_set_prefix_length(&address, prefix_length);
+    assert_int_equal(address->address.subnet.prefix_length, prefix_length);
+    assert_int_equal(address->address.subnet_type, interfaces_interface_ipv4_address_subnet_prefix_length);
+    
+ }
+
+ static void test_interface_ipv4_address_set_netmask_correct(void **state)
+ {
+    (void) state;
+    int rc = 0;
+    const char *netmask = "255.255.0.0";
+
+    interfaces_interface_ipv4_address_element_t *address;
+
+    address = interfaces_interface_ipv4_address_new(); 
+    assert_null(address);
+
+    address = interfaces_interface_ipv4_address_element_new();
+    assert_non_null(address);
+
+    rc = interfaces_interface_ipv4_address_element_set_netmask(&address, netmask);
+    assert_int_equal(rc, 0);
+    assert_string_equal(address->address.subnet.netmask, netmask);
+    assert_int_equal(address->address.subnet_type, interfaces_interface_ipv4_address_subnet_netmask);
+ }
+
+
 static void test_interface_list_new_ipv6_address_correct(void **state)
 {
     (void) state;
@@ -486,4 +564,61 @@ static void test_interface_list_element_new_ipv6_neighbor_correct(void **state)
 
     interfaces_interface_ipv6_neighbor_element_free(&neighbor);
     assert_null(neighbor);
+}
+
+static void test_interface_ipv6_address_set_ip_correct(void **state)
+{
+    (void) state;
+    const char* ip = "0:0:0:0:0:0:0:1";
+
+    interfaces_interface_ipv6_address_element_t *address; 
+
+    address = interfaces_interface_ipv6_address_new(); 
+    assert_null(address);
+
+    address = interfaces_interface_ipv6_address_element_new();
+    assert_non_null(address);
+
+    interfaces_interface_ipv6_address_element_set_ip(&address, ip);
+    assert_string_equal(address->address.ip, ip);
+}
+
+static void test_interface_ipv6_address_set_prefix_length_correct(void **state)
+{
+    (void) state;
+    uint8_t prefix_length = 64;
+
+    interfaces_interface_ipv6_address_element_t *address; 
+
+    address = interfaces_interface_ipv6_address_new(); 
+    assert_null(address);
+
+    address = interfaces_interface_ipv6_address_element_new();
+    assert_non_null(address);
+
+    interfaces_interface_ipv6_address_element_set_prefix_length(&address, prefix_length);
+    assert_int_equal(address->address.prefix_length, prefix_length);
+}
+
+static void test_interface_ipv6_address_element_set_correct(void **state)
+{
+    (void) state;
+    int rc = 0;
+
+    interfaces_interface_ipv6_address_element_t *address_src;
+    interfaces_interface_ipv6_address_element_t *address_dst; 
+
+    address_src = interfaces_interface_ipv6_address_new(); 
+    assert_null(address_src);
+    address_dst = interfaces_interface_ipv6_address_new(); 
+    assert_null(address_dst);
+
+
+    address_src = interfaces_interface_ipv6_address_element_new();
+    assert_non_null(address_src);
+    address_dst = interfaces_interface_ipv6_address_element_new();
+    assert_non_null(address_dst);
+
+    rc = interfaces_interface_ipv6_address_element_set(&address_src, &address_dst);
+    assert_int_equal(rc, 0);
 }
