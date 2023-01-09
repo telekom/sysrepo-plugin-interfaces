@@ -467,6 +467,9 @@ static void test_interface_ipv4_address_set_ip_correct(void** state)
 
     interfaces_interface_ipv4_address_element_set_ip(&address, ip);
     assert_string_equal(address->address.ip, ip);
+
+    interfaces_interface_ipv4_address_element_free(&address);
+    assert_null(address);
 }
 
 static void test_interface_ipv4_address_set_prefix_length_correct(void** state)
@@ -485,6 +488,9 @@ static void test_interface_ipv4_address_set_prefix_length_correct(void** state)
     interfaces_interface_ipv4_address_element_set_prefix_length(&address, prefix_length);
     assert_int_equal(address->address.subnet.prefix_length, prefix_length);
     assert_int_equal(address->address.subnet_type, interfaces_interface_ipv4_address_subnet_prefix_length);
+
+    interfaces_interface_ipv4_address_element_free(&address);
+    assert_null(address);
 }
 
 static void test_interface_ipv4_address_set_netmask_correct(void** state)
@@ -505,6 +511,9 @@ static void test_interface_ipv4_address_set_netmask_correct(void** state)
     assert_int_equal(rc, 0);
     assert_string_equal(address->address.subnet.netmask, netmask);
     assert_int_equal(address->address.subnet_type, interfaces_interface_ipv4_address_subnet_netmask);
+
+    interfaces_interface_ipv4_address_element_free(&address);
+    assert_null(address);
 }
 
 static void test_interface_list_new_ipv6_address_correct(void** state)
@@ -514,6 +523,9 @@ static void test_interface_list_new_ipv6_address_correct(void** state)
     interfaces_interface_ipv6_address_element_t* address;
 
     address = interfaces_interface_ipv6_address_new();
+    assert_null(address);
+
+    interfaces_interface_ipv6_address_element_free(&address);
     assert_null(address);
 }
 
@@ -574,6 +586,9 @@ static void test_interface_ipv6_address_set_ip_correct(void** state)
 
     interfaces_interface_ipv6_address_element_set_ip(&address, ip);
     assert_string_equal(address->address.ip, ip);
+
+    interfaces_interface_ipv6_address_element_free(&address);
+    assert_null(address);
 }
 
 static void test_interface_ipv6_address_set_prefix_length_correct(void** state)
@@ -591,4 +606,7 @@ static void test_interface_ipv6_address_set_prefix_length_correct(void** state)
 
     interfaces_interface_ipv6_address_element_set_prefix_length(&address, prefix_length);
     assert_int_equal(address->address.prefix_length, prefix_length);
+
+    interfaces_interface_ipv6_address_element_free(&address);
+    assert_null(address);
 }
