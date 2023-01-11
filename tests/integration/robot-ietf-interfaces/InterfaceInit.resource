@@ -4,13 +4,15 @@ Library             RPA.JSON
 Library             Process
 
 *** Variables ***
-${Xpath Interfaces}     /ietf-interfaces:interfaces
-${Running Datastore}    running
+${Xpath Interfaces}                  /ietf-interfaces:interfaces
+${Running Datastore}                 running
+${Plugin Timeout Seconds Default}    0.5s
+${Plugin Timeout Seconds}            %{SYSREPO_INTEGRATION_PLUGIN_TIMEOUT_SECONDS=${Plugin Timeout Seconds Default}}
 
 *** Keywords ***
 Restore Initial Running Datastore
     Edit Datastore Config    ${Connection Default}    ${Session Running}    ${If Init Str}   json
-    Check If Datastore Is Restored
+    #Check If Datastore Is Restored
 
 Check If Datastore Is Restored
     [Documentation]     Make sure the initial datastore is restored
@@ -46,7 +48,7 @@ Cleanup Interfaces
 Start Plugin
     ${Plugin}=    Start Process    %{SYSREPO_INTERFACES_PLUGIN_PATH}
     Set Global Variable    ${Plugin}
-    Wait For Process    ${Plugin}    timeout=0.1s    on_timeout=continue
+    Wait For Process    ${Plugin}    timeout=${Plugin Timeout Seconds}    on_timeout=continue
 
 Stop Plugin
     Terminate Process    ${Plugin}

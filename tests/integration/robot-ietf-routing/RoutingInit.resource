@@ -6,7 +6,8 @@ Library             Process
 *** Variables ***
 ${Xpath Routing}            /ietf-routing:routing
 ${Running Datastore}        running
-${Plugin Timeout Seconds}   0.5s
+${Plugin Timeout Seconds Default}    0.5s
+${Plugin Timeout Seconds}            %{SYSREPO_INTEGRATION_PLUGIN_TIMEOUT_SECONDS=${Plugin Timeout Seconds Default}}
 
 *** Keywords ***
 Restore Initial Running Datastore
