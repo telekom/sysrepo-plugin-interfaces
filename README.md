@@ -41,6 +41,7 @@ Besides the usual C development environment, the following additional dependenci
 * sysrepo
 * pthreads
 * netlink
+* [sysrepo-plugins-common library](https://github.com/telekom/sysrepo-plugins-common)
 
 #### Build
 
