@@ -2,6 +2,7 @@
 #include "netlink/route/link/vlan.h"
 #include <bridging/common.h>
 #include <bridging/ly_tree.h>
+#include <bridge_netlink.h>
 
 // libyang
 #include <libyang/log.h>

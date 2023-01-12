@@ -4,6 +4,7 @@
 #include <stdbool.h>
 #include <stdint.h>
 #include <stddef.h>
+#include <linux/if_bridge.h>
 
 typedef struct bridge_vlan_info_s bridge_vlan_info_t;
 
