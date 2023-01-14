@@ -108,8 +108,12 @@ include_directories(
 )
 
 # build core library
-add_library(${PLUGIN_CORE_LIBRARY_NAME} SHARED ${CORE_SOURCES})
-install(TARGETS ${PLUGIN_CORE_LIBRARY_NAME} DESTINATION lib)
+add_library(${PLUGIN_CORE_LIBRARY_NAME} STATIC ${CORE_SOURCES})
+target_compile_options(
+    ${PLUGIN_CORE_LIBRARY_NAME}
+    PRIVATE
+    -fPIC
+)
 
 # build plugin as a module
 add_library(
@@ -118,7 +122,6 @@ add_library(
     ${PLUGIN_SOURCES}
     # ${CORE_SOURCES}
 )
-
 target_link_libraries(
     ${PLUGIN_MODULE_NAME}
 
