@@ -13,7 +13,8 @@
 #ifndef INTERFACES_PLUGIN_COMMON_H
 #define INTERFACES_PLUGIN_COMMON_H
 
-#define PLUGIN_NAME "ietf-interfaces-plugin"
+// #define PLUGIN_NAME "ietf-interfaces-plugin"
+extern const char* const PLUGIN_NAME;
 
 #define IETF_INTERFACES_YANG_MODULE "ietf-interfaces"
 #define IETF_IP_YANG_MODULE "ietf-ip"

@@ -41,6 +41,7 @@ set(
 
     # ly_tree
     src/plugin/ly_tree.c
+    src/plugin/common.c
 
     # API
     src/plugin/api/interfaces/check.c
