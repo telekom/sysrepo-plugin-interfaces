@@ -13,26 +13,20 @@
 cmake_minimum_required(VERSION 3.0)
 project(sysrepo-plugin-interfaces C)
 
-set(PLUGIN_LIBRARY_NAME srplg-interfaces)
+set(PLUGIN_CORE_LIBRARY_NAME "srplg-ietf-interfaces-core")
+set(PLUGIN_MODULE_NAME "srplg-ietf-interfaces")
+set(PLUGIN_EXECUTABLE_NAME "ietf-interfaces-plugin")
 
 include_directories(
     ${CMAKE_SOURCE_DIR}/src/interfaces/src
     ${CMAKE_SOURCE_DIR}/deps/uthash
 )
 
-set(PLUGIN 0 CACHE BOOL "Build a plugin")
+# set(PLUGIN 0 CACHE BOOL "Build a plugin")
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/CMakeModules")
 
 set(
-    SOURCES
-
-    # startup
-    src/plugin/startup/load.c
-    src/plugin/startup/store.c
-
-    # running
-    src/plugin/running/load.c
-    src/plugin/running/store.c
+    CORE_SOURCES
 
     # subscription
     src/plugin/subscription/change.c
@@ -80,8 +74,21 @@ set(
     src/plugin/data/interfaces/interface/ipv6/neighbor.c
 
     # main files
-    src/plugin.c
     ${CMAKE_SOURCE_DIR}/src/utils/memory.c
+)
+
+set(
+    PLUGIN_SOURCES
+
+    src/plugin.c
+
+    # startup
+    src/plugin/startup/load.c
+    src/plugin/startup/store.c
+
+    # running
+    src/plugin/running/load.c
+    src/plugin/running/store.c
 )
 
 # packages
@@ -92,57 +99,6 @@ find_package(SYSREPO REQUIRED)
 find_package(SRPC REQUIRED)
 find_package(NL REQUIRED)
 
-# plugin library
-add_library(
-    ${PLUGIN_LIBRARY_NAME}
-    STATIC
-    ${SOURCES}
-)
-
-# link plugin library
-target_link_libraries(
-    ${PLUGIN_LIBRARY_NAME}
-
-    ${SYSREPO_LIBRARIES}
-    ${LIBYANG_LIBRARIES}
-    ${SRPC_LIBRARIES}
-    ${NL_LIBRARIES}
-    ${PTHREAD_LIBRARIES}
-)
-
-if(PLUGIN)
-    # ignore plugin library and compile PROJECT_NAME as a module
-    add_library(
-        ${PROJECT_NAME}
-        MODULE ${SOURCES}
-    )
-    target_link_libraries(
-        ${PROJECT_NAME}
-        ${SYSREPO_LIBRARIES}
-        ${LIBYANG_LIBRARIES}
-        ${SRPC_LIBRARIES}
-        ${NL_LIBRARIES}
-        ${PTHREAD_LIBRARIES}
-    )
-else()
-    add_executable(
-        ${PROJECT_NAME}
-        src/main.c
-    )
-    target_link_libraries(
-        ${PROJECT_NAME}
-
-        # link plugin library with executable
-        ${PLUGIN_LIBRARY_NAME}
-
-        ${SYSREPO_LIBRARIES}
-        ${LIBYANG_LIBRARIES}
-        ${SRPC_LIBRARIES}
-        ${NL_LIBRARIES}
-        ${PTHREAD_LIBRARIES}
-    )
-endif()
-
 include_directories(
     ${SYSREPO_INCLUDE_DIRS}
     ${LIBYANG_INCLUDE_DIRS}
@@ -150,6 +106,57 @@ include_directories(
     ${NL_INCLUDE_DIRS}
     ${PTHREAD_INCLUDE_DIRS}
 )
+
+# build core library
+add_library(${PLUGIN_CORE_LIBRARY_NAME} SHARED ${CORE_SOURCES})
+install(TARGETS ${PLUGIN_CORE_LIBRARY_NAME} DESTINATION lib)
+
+# build plugin as a module
+add_library(
+    ${PLUGIN_MODULE_NAME}
+    MODULE
+    ${PLUGIN_SOURCES}
+    # ${CORE_SOURCES}
+)
+
+target_link_libraries(
+    ${PLUGIN_MODULE_NAME}
+
+    ${PLUGIN_CORE_LIBRARY_NAME}
+
+    # link external dependencies
+    ${SYSREPO_LIBRARIES}
+    ${LIBYANG_LIBRARIES}
+    ${SRPC_LIBRARIES}
+    ${NL_LIBRARIES}
+    ${PTHREAD_LIBRARIES}
+)
+
+# build plugin as a standalone executable
+add_executable(
+    ${PLUGIN_EXECUTABLE_NAME}
+    ${PLUGIN_SOURCES}
+
+    # add main
+    src/main.c
+)
+target_link_libraries(
+    ${PLUGIN_EXECUTABLE_NAME}
+
+    # link core lib
+    ${PLUGIN_CORE_LIBRARY_NAME}
+
+    # link external dependencies
+    ${SYSREPO_LIBRARIES}
+    ${LIBYANG_LIBRARIES}
+    ${SRPC_LIBRARIES}
+    ${NL_LIBRARIES}
+    ${PTHREAD_LIBRARIES}
+)
+
+# install to appropriate directories
+install(TARGETS ${PLUGIN_MODULE_NAME} DESTINATION lib)
+install(TARGETS ${PLUGIN_EXECUTABLE_NAME} DESTINATION bin)
 
 # augyang support
 if(AUGYANG_FOUND)
