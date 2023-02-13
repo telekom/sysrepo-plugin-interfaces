@@ -65,6 +65,8 @@ OK
 ## Robot framework
 Note the root privileges when invoking the command (datastore permission issues otherwise, item not found):
 
+The plugin wait start time can be modified via the env var `SYSREPO_INTEGRATION_PLUGIN_TIMEOUT_SECONDS`. The default value is `0.5s`. It's set in `robot-ietf-interfaces/InterfacesInit.resource` and `robot-ietf-routing/RoutingInit.resource`.
+
 To test the interfaces plugin (change env var path):
 ```
 # SYSREPO_INTERFACES_PLUGIN_PATH=/path/to/interfaces/plugin/executable robot robot-ietf-interfaces
