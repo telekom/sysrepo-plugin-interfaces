@@ -47,9 +47,10 @@ Besides the usual C development environment, the following additional dependenci
 
 First clone the repository:
 
-```sh
-# clone recursively to also clone uthash library
-$ git clone https://github.com/telekom/sysrepo-plugin-interfaces --recursive
+```
+$ git clone https://github.com/telekom/sysrepo-plugin-interfaces
+$ git submodule init
+$ git submodule update
 ```
 
 Next, create a build directory and generate the build recipes using CMake:
@@ -66,18 +67,19 @@ For example, to build only the routing plugin the following command should be ex
 $ cmake -DINTERFACES_PLUGIN=OFF ..
 ```
 
-The default configuration builds the plugins as stand-alone foreground applications.
-To build the plugins as shared object files for use with `sysrepo-plugind`, run the following instead:
-
-```
-$ cmake -DPLUGIN=ON ..
-```
-
 Lastly, invoke the build and install using `make`:
 
 ```
-$ make -j$(nproc) install
+$ make -j$(nproc)
 ```
+
+### Build artifacts
+
+Plugin will be built as a standalone application and also as a `sysrepo-plugind` module. For example, for the ietf-interfaces plugin there are two build artifacts:
+- **ietf-interfaces-plugin**: standalone application
+- **libsrplg-ietf-interfaces.so**: `sysrepo-plugind` module which exposes the plugin init and cleanup callbacks and can be installed by invoking the following command: `sysrepo-plugind -P libsrplg-ietf-interfaces.so`
+
+### Sysrepo/YANG requirements
 
 The plugins require several YANG modules to be loaded into the Sysrepo datastore and several features need to be enabled.
 For the interfaces plugin this can be achieved by invoking the following commands:
