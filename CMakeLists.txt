@@ -16,7 +16,6 @@ project(sysrepo-interfaces-plugins C)
 include(CompileOptions.cmake)
 
 set(PLUGIN 0 CACHE BOOL "Build a plugin")
-set(CMAKE_LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/lib")
 
 include_directories(
     ${CMAKE_SOURCE_DIR}/src/
