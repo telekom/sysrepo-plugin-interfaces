@@ -1,26 +1,7 @@
-image: "debian:sid"
+image: ${SYSREPO_CICD_IMAGE}
 
-before_script:
-  - apt-get update
-  - apt-get -y install clang cmake libcmocka0 libcmocka-dev valgrind libnl-3-200 libnl-3-dev libnl-genl-3-dev libnl-nf-3-dev
-
-  # prepare for building debian packages
-  - apt-get -y install git build-essential fakeroot devscripts
-
-  # TODO: when libyang2 is available in Debian unstable
-  - git clone --depth=1 https://github.com/jpetrina/libyang -b debian/v2.0.7 && cd libyang
-  - mk-build-deps --install --tool 'apt-get --yes --no-install-recommends' --remove
-  - dpkg-buildpackage -j$(nproc) --build=binary --root-command=fakeroot --unsigned-source --unsigned-changes
-  - (dpkg -i ../libyang2*.deb || apt-get -y install -f) && cd ..
-
-  # TODO: when libyang2 is available in Debian unstable
-  - git clone --depth=1 https://github.com/jpetrina/sysrepo -b debian/v2.0.1 && cd sysrepo
-  - mk-build-deps --install --tool 'apt-get --yes --no-install-recommends' --remove
-  - dpkg-buildpackage -j$(nproc) --build=binary --root-command=fakeroot --unsigned-source --unsigned-changes
-  - (dpkg -i ../sysrepo*.deb ../libsysrepo*.deb || apt-get -y install -f) && cd ..
-
-  # resolve time issues
-  - ln -snf /usr/share/zoneinfo/Europe/Zagreb /etc/localtime && echo 'Europe/Zagreb' > /etc/timezone
+variables:
+  GIT_SUBMODULE_STRATEGY: recursive
 
 stages:
   - build
@@ -28,70 +9,82 @@ stages:
 
 build:default:
   stage: build
+
   script:
-    - mkdir build && cd build
-    - CC=clang cmake -DENABLE_BUILD_TESTS=ON ..
-    - make
+    - mkdir build
+    - cmake -DCMAKE_C_COMPILER=clang -DENABLE_BUILD_TESTS=ON -DINTERFACES_PLUGIN=ON -S . -B build/
+    - cmake --build build/
+  
   artifacts:
     paths:
       - build/
 
 build:sanitized:
   stage: build
+
   script:
-    - mkdir build_sanitized && cd build_sanitized
-    - CC=clang cmake -DCMAKE_C_FLAGS=\"-fsanitize=address,undefined\" -DENABLE_SANITIZER=ON ..
-    - make
+    - mkdir build-sanitized
+    - cmake -S . -B build-sanitized/ -DCMAKE_C_COMPILER=clang -DENABLE_BUILD_TESTS=ON -DINTERFACES_PLUGIN=ON -DCMAKE_C_FLAGS=\"-fsanitize=address,undefined\"
+    - cmake --build build-sanitized/
   artifacts:
     paths:
-      - build_sanitized/
+      - build-sanitized/
 
 build:sanitized_memory:
   stage: build
+
   script:
-    - mkdir build_sanitized_memory && cd build_sanitized_memory
-    - CC=clang cmake -DCMAKE_C_FLAGS=\"-fsanitize=memory\" -DENABLE_SANITIZER=ON ..
-    - make
+    - mkdir build-sanitized-memory
+    - cmake -S . -B build-sanitized-memory/ -DCMAKE_C_COMPILER=clang -DENABLE_BUILD_TESTS=ON -DINTERFACES_PLUGIN=ON -DCMAKE_C_FLAGS=\"-fsanitize=memory\"
+    - cmake --build build-sanitized-memory/
   artifacts:
     paths:
-      - build_sanitized_memory/
+      - build-sanitized-memory/
 
 test:default:
   stage: test
+
   needs: ["build:default"]
+
   script:
     - cd build
-    - ctest -T test --output-on-failure
+    - ctest -V
   artifacts:
     paths:
       - build/
 
 test:sanitized:
   stage: test
+
   needs: ["build:sanitized"]
+
   script:
-    - cd build_sanitized
-    - ctest -T test --output-on-failure
+    - cd build-sanitized
+    - ctest -V
   artifacts:
     paths:
-      - build_sanitized/
+      - build-sanitized/
 
 test:sanitized_memory:
   stage: test
+
   needs: ["build:sanitized_memory"]
+
   script:
-    - cd build_sanitized_memory
-    - ctest -T test --output-on-failure
+    - cd build-sanitized-memory
+    - ctest -V
   artifacts:
     paths:
-      - build_sanitized_memory/
+      - build-sanitized-memory/
 
 test:valgrind:
   stage: test
+
   needs: ["build:default"]
+  
   script:
     - cd build
-    - ctest -T memcheck
+    - ctest -T memcheck -V
   artifacts:
     paths:
       - build/

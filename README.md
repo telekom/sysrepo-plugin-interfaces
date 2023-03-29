@@ -41,6 +41,7 @@ Besides the usual C development environment, the following additional dependenci
 * sysrepo
 * pthreads
 * netlink
+* [sysrepo-plugins-common library](https://github.com/telekom/sysrepo-plugins-common)
 
 #### Build
 
@@ -48,6 +49,8 @@ First clone the repository:
 
 ```
 $ git clone https://github.com/telekom/sysrepo-plugin-interfaces
+$ git submodule init
+$ git submodule update
 ```
 
 Next, create a build directory and generate the build recipes using CMake:
@@ -64,20 +67,21 @@ For example, to build only the routing plugin the following command should be ex
 $ cmake -DINTERFACES_PLUGIN=OFF ..
 ```
 
-The default configuration builds the plugins as stand-alone foreground applications.
-To build the plugins as shared object files for use with `sysrepo-plugind`, run the following instead:
-
-```
-$ cmake -DPLUGIN=ON ..
-```
-
 Lastly, invoke the build and install using `make`:
 
 ```
-$ make -j$(nproc) install
+$ make -j$(nproc)
 ```
 
-The plugins require several YANG modules to be loaded into the Sysrepo datastore.
+### Build artifacts
+
+Plugin will be built as a standalone application and also as a `sysrepo-plugind` module. For example, for the ietf-interfaces plugin there are two build artifacts:
+- **ietf-interfaces-plugin**: standalone application
+- **libsrplg-ietf-interfaces.so**: `sysrepo-plugind` module which exposes the plugin init and cleanup callbacks and can be installed by invoking the following command: `sysrepo-plugind -P libsrplg-ietf-interfaces.so`
+
+### Sysrepo/YANG requirements
+
+The plugins require several YANG modules to be loaded into the Sysrepo datastore and several features need to be enabled.
 For the interfaces plugin this can be achieved by invoking the following commands:
 
 ```
@@ -87,6 +91,8 @@ $ sysrepoctl -i ./yang/ietf-ip@2018-02-22.yang
 $ sysrepoctl -i ./yang/ietf-if-extensions@2020-07-29.yang
 $ sysrepoctl -i ./yang/ieee802-dot1q-types.yang
 $ sysrepoctl -i ./yang/ietf-if-vlan-encapsulation@2020-07-13.yang
+$ sysrepoctl --change ietf-interfaces --enable-feature if-mib
+$ sysrepoctl --change ietf-if-extensions --enable-feature sub-interfaces
 ```
 
 For the routing plugin, the following models have to be installed:
@@ -117,10 +123,10 @@ The full documentation for the Sysrepo interfaces and routing plugins can be fou
 
 The following channels are available for discussions, feedback, and support requests:
 
-| Type                     | Channel                                                |
-| ------------------------ | ------------------------------------------------------ |
-| **Issues**   | <a href="/../../issues/new/choose" title="General Discussion"><img src="https://img.shields.io/github/issues/telekom/sysrepo-plugin-interfaces?style=flat-square"></a> </a>   |
-| **Other Requests**    | <a href="mailto:opensource@telekom.de" title="Email Open Source Team"><img src="https://img.shields.io/badge/email-Open%20Source%20Team-green?logo=mail.ru&style=flat-square&logoColor=white"></a>   |
+| Type               | Channel                                                                                                                                                                                            |
+| ------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Issues**         | <a href="/../../issues/new/choose" title="General Discussion"><img src="https://img.shields.io/github/issues/telekom/sysrepo-plugin-interfaces?style=flat-square"></a> </a>                        |
+| **Other Requests** | <a href="mailto:opensource@telekom.de" title="Email Open Source Team"><img src="https://img.shields.io/badge/email-Open%20Source%20Team-green?logo=mail.ru&style=flat-square&logoColor=white"></a> |
 
 ## How to Contribute
 
