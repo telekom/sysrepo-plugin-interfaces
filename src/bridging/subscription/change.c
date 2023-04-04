@@ -351,13 +351,13 @@ int modify_filtering_database(struct nl_sock *socket, char change_path[PATH_MAX]
 	} else if (strstr(change_path, "vlan-registration-entry")) {
 		error = modify_port_vlan_entries(socket, change_path, node_name, node_value, operation);
 		if (error) {
-			SRPLG_LOG_ERR(PLUGIN_NAME, "modify_port_vlan_entries() failed (%d): %s", error);
+			SRPLG_LOG_ERR(PLUGIN_NAME, "modify_port_vlan_entries() failed (%d)", error);
 			goto error_out;
 		}
 	} else if (strstr(change_path, "filtering-entry")) {
 		error = modify_filtering_entries(socket, change_path, node_name, node_value, operation);
 		if (error) {
-			SRPLG_LOG_ERR(PLUGIN_NAME, "modify_filtering_entries() failed (%d): %s", error);
+			SRPLG_LOG_ERR(PLUGIN_NAME, "modify_filtering_entries() failed (%d)", error);
 			goto error_out;
 		}
 	}
