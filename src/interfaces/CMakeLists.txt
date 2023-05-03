@@ -14,7 +14,6 @@ find_package(LIBYANG REQUIRED)
 include_directories(
     ${SYSREPOCPP_INCLUDE_DIRS}
     ${LIBYANGCPP_INCLUDE_DIRS}
-    ${SRPCPP_INCLUDE_DIRS}
     ./src
 )
 
