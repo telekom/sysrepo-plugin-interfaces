@@ -7,7 +7,10 @@ Interface::Interface(const Interface&) = delete;
 Interface::Interface(Interface&&) = delete;
 
 Interface::Interface(int ifindex)
-    : ifindex { ifindex } {};
+    : ifindex { ifindex }
+    , ipv4_address { ifindex } {};
+
+IPV4_Address Interface::getIPV4() { return this->ipv4_address; };
 
 std::string Interface::getName()
 {

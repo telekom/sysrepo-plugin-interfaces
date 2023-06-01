@@ -57,6 +57,8 @@ set (
     src/interfaces/src/core/yang/tree.hpp
 
     src/interfaces/src/core/system/interface.hpp
+    src/interfaces/src/core/system/IPV4_Address.hpp
+    src/interfaces/src/core/system/Neighbour.hpp
 )
 
 set (
@@ -69,6 +71,8 @@ set (
     src/interfaces/src/core/yang/tree.cpp
 
     src/interfaces/src/core/system/interface.cpp
+    src/interfaces/src/core/system/IPV4_Address.cpp
+    src/interfaces/src/core/system/Neighbour.cpp
 )
 
 set(
