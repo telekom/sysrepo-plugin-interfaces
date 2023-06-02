@@ -158,4 +158,55 @@ std::vector<Neighbour> IPV4_Address::getNeighbours()
     nl_cache* cache = NULL;
 
     struct Arguments {
-        in
+        int ifindex;
+        std::vector<Neighbour>* lst;
+
+    } args;
+
+    args.ifindex = this->ifindex;
+    args.lst = &list;
+
+    socket = nl_socket_alloc();
+    if (!socket) {
+        nl_socket_free(socket);
+        throw std::runtime_error("Failed to initialize socket!");
+    }
+
+    if (nl_connect(socket, NETLINK_ROUTE) < 0) {
+        nl_socket_free(socket);
+        throw std::runtime_error("Failed to connect to socket!");
+    }
+
+    if (rtnl_neigh_alloc_cache(socket, &cache) < 0) {
+        nl_socket_free(socket);
+        throw std::runtime_error("Failed to allocate neighbor cache!");
+    }
+
+    nl_cache_foreach(
+        cache,
+        [](nl_object* obj, void* arg) {
+            Arguments* arguments = static_cast<Arguments*>(arg);
+
+            if ((rtnl_neigh_get_ifindex((rtnl_neigh*)obj) == arguments->ifindex) && (rtnl_neigh_get_family((rtnl_neigh*)obj) == AF_INET)) {
+
+                nl_addr* neigh_addr = rtnl_neigh_get_dst((rtnl_neigh*)obj);
+                nl_addr* neigh_lladdr = rtnl_neigh_get_lladdr((rtnl_neigh*)obj);
+
+                char buffer[50];
+
+                nl_addr2str(neigh_addr, buffer, sizeof(buffer));
+
+                const std::string address = buffer;
+
+                nl_addr2str(neigh_lladdr, buffer, sizeof(buffer));
+                const std::string ll_address = buffer;
+
+                arguments->lst->push_back(Neighbour(address, ll_address));
+            };
+        },
+        &args);
+
+    nl_socket_free(socket);
+    nl_cache_put(cache);
+    return list;
+}
