@@ -1,4 +1,12 @@
 #include "change.hpp"
+#include <iostream>
+#include <optional>
+#include <libyang-cpp/DataNode.hpp>
+#include <interfaces/src/core/system/interface.hpp>
+#include <sysrepo.h>
+
+using std::cout;
+using std::endl;
 
 namespace ietf::ifc {
 namespace sub::change {
@@ -8,7 +16,7 @@ namespace sub::change {
      * @param ctx Plugin module change context.
      *
      */
-    InterfaceModuleChangeCb::InterfaceModuleChangeCb(std::shared_ptr<ietf::ifc::ModuleChangeContext> ctx) { m_ctx = ctx; }
+    InterfaceModuleEnabledChangeCb::InterfaceModuleEnabledChangeCb(std::shared_ptr<ietf::ifc::ModuleChangeContext> ctx) { m_ctx = ctx; }
 
     /**
      * sysrepo-plugin-generator: Generated module change operator() for path /ietf-interfaces:interfaces/interface[name='%s'].
@@ -24,10 +32,48 @@ namespace sub::change {
      * @return Error code.
      *
      */
-    sr::ErrorCode InterfaceModuleChangeCb::operator()(sr::Session session, uint32_t subscriptionId, std::string_view moduleName,
+    sr::ErrorCode InterfaceModuleEnabledChangeCb::operator()(sr::Session session, uint32_t subscriptionId, std::string_view moduleName,
         std::optional<std::string_view> subXPath, sr::Event event, uint32_t requestId)
     {
+
         sr::ErrorCode error = sr::ErrorCode::Ok;
+
+        switch (event) {
+        case sysrepo::Event::Change:
+            for (sysrepo::Change change : session.getChanges(subXPath->data())) {
+                switch (change.operation) {
+                case sysrepo::ChangeOperation::Created:
+                case sysrepo::ChangeOperation::Modified: {
+
+                    libyang::DataNode tmp(change.node.firstSibling());
+                    std::string name = tmp.asTerm().valueStr().data();
+
+                    libyang::Value value = change.node.asTerm().value();
+                    bool enabled = std::get<bool>(value);
+                    int ifindex = getIfindexFromName(name);
+
+                    if (ifindex == 0) {
+                        SRPLG_LOG_ERR("ietf_interfaces", "non-existing ifindex at interface %s", name);
+                        return sr::ErrorCode::OperationFailed;
+                    } else {
+                        try{
+                            Interface(ifindex).setEnabled(enabled);
+                        }catch(std::runtime_error &e){
+                            SRPLG_LOG_ERR("ietf_interfaces", "Error changing interface state, reason:  %s", e.what());
+                            return sr::ErrorCode::OperationFailed;
+                        }
+                        
+                    }
+                }
+                case sysrepo::ChangeOperation::Deleted:
+                    break;
+                }
+            }
+            break;
+        default:
+            break;
+        }
+
         return error;
     }
 

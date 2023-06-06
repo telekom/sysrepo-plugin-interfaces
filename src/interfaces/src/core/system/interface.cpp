@@ -291,3 +291,35 @@ void Interface::remove()
     nl_cache_put(cache);
     rtnl_link_put(lnk);
 }
+
+//returns 0 if no ifindex is found
+int getIfindexFromName(std::string name)
+{
+    nl_sock* socket = NULL;
+    nl_cache* cache = NULL;
+
+    int ifindex;
+
+    socket = nl_socket_alloc();
+    if (!socket) {
+        nl_socket_free(socket);
+        throw std::runtime_error("Failed to initialize socket!");
+    }
+
+    if (nl_connect(socket, NETLINK_ROUTE) < 0) {
+        nl_socket_free(socket);
+        throw std::runtime_error("Failed to connect to socket!");
+    }
+
+    if (rtnl_link_alloc_cache(socket, AF_UNSPEC, &cache) < 0) {
+        nl_socket_free(socket);
+        throw std::runtime_error("Failed to allocate link cache!");
+    }
+
+    ifindex = rtnl_link_name2i(cache, name.c_str());
+
+    nl_socket_free(socket);
+    nl_cache_put(cache);
+
+    return ifindex;
+}

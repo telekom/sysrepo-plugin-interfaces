@@ -50,3 +50,5 @@ public:
 
     void remove();
 };
+
+int getIfindexFromName(std::string name);

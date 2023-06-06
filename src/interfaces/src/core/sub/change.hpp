@@ -15,7 +15,7 @@ namespace sub::change {
     /**
      * @brief sysrepo-plugin-generator: Generated module change functor for path /ietf-interfaces:interfaces/interface[name='%s'].
      */
-    class InterfaceModuleChangeCb {
+    class InterfaceModuleEnabledChangeCb {
     public:
         /**
          * sysrepo-plugin-generator: Generated default constructor.
@@ -23,7 +23,7 @@ namespace sub::change {
          * @param ctx Plugin module change context.
          *
          */
-        InterfaceModuleChangeCb(std::shared_ptr<ietf::ifc::ModuleChangeContext> ctx);
+        InterfaceModuleEnabledChangeCb(std::shared_ptr<ietf::ifc::ModuleChangeContext> ctx);
 
         /**
          * sysrepo-plugin-generator: Generated module change operator() for path /ietf-interfaces:interfaces/interface[name='%s'].
@@ -33,7 +33,7 @@ namespace sub::change {
          * @param moduleName The module name used for subscribing.
          * @param subXPath The optional xpath used at the time of subscription.
          * @param event Type of the event that has occured.
-         * @param requestId Request ID unique for the specific module_name. Connected events for one request (SR_EV_CHANGE and
+         * @param requestId Request ID unique for the specific . Connected events for one request (SR_EV_CHANGE and
          * SR_EV_DONE, for example) have the same request ID.
          *
          * @return Error code.
