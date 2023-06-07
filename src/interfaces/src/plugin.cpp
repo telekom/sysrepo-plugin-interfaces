@@ -107,6 +107,9 @@ void registerModuleChangeSubscriptions(sr::Session& sess, ietf::ifc::PluginConte
 {
     const auto change_callbacks = {
         ModuleChangeCallback { "/ietf-interfaces:interfaces/interface/enabled", ietf::ifc::sub::change::InterfaceModuleEnabledChangeCb(ctx.getModuleChangeContext()) },
+        ModuleChangeCallback { "/ietf-interfaces:interfaces/interface/type", ietf::ifc::sub::change::InterfaceModuleTypeChangeCb(ctx.getModuleChangeContext()) },
+        ModuleChangeCallback { "/ietf-interfaces:interfaces/interface/ipv4/enabled", ietf::ifc::sub::change::InterfaceModuleIPV4EnableChangeCb(ctx.getModuleChangeContext()) },
+        ModuleChangeCallback { "/ietf-interfaces:interfaces/interface/ipv4/mtu", ietf::ifc::sub::change::InterfaceModuleIPV4MtuChangeCb(ctx.getModuleChangeContext()) }
     };
 
     auto& sub_handle = ctx.getSubscriptionHandle();

@@ -48,7 +48,11 @@ public:
 
     void setName(std::string name);
 
+    void setType(std::string type);
+
     void remove();
+
+    int getOperStatus();
 };
 
 int getIfindexFromName(std::string name);

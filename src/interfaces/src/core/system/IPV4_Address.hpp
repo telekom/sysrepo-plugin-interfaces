@@ -16,6 +16,8 @@ public:
 
     int getMtu();
 
+    void setMtu(unsigned int mtu);
+
     std::string getIPWithPrefix();
 
     std::string getIPAddress();

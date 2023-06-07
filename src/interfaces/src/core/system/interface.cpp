@@ -50,6 +50,23 @@ std::string Interface::getName()
 
 bool Interface::getEnabled()
 {
+
+    bool enabled = false;
+
+    int operstate = this->getOperStatus();
+    if (operstate == 6 || operstate == 0) {
+        enabled = true;
+    } else
+        enabled = false;
+
+    return enabled;
+}
+
+int Interface::getOperStatus()
+{
+
+    int operstate = -1;
+
     nl_sock* socket = NULL;
     nl_cache* cache = NULL;
 
@@ -70,22 +87,15 @@ bool Interface::getEnabled()
         nl_socket_free(socket);
         throw std::runtime_error("Failed to allocate link cache!");
     }
-
     rtnl_link* lnk = rtnl_link_get(cache, ifindex);
 
-    if (lnk != NULL) {
-        int operstate = rtnl_link_get_operstate(lnk);
-        if (operstate == 6 || operstate == 0) {
-            enabled = true;
-        } else
-            enabled = false;
-    }
+    operstate = rtnl_link_get_operstate(lnk);
 
     nl_socket_free(socket);
     nl_cache_put(cache);
     rtnl_link_put(lnk);
 
-    return enabled;
+    return operstate;
 }
 
 std::string Interface::getType()
@@ -247,6 +257,82 @@ void Interface::setName(std::string name)
     rtnl_link_put(req_link);
 }
 
+void Interface::setType(std::string type)
+{
+    std::string iana_type;
+
+    if (type == "iana-if-type:ethernetCsmacd")
+        iana_type = "veth";
+    else if (type == "iana-if-type:softwareLoopback")
+        iana_type = "vcan";
+    else if (type == "iana-if-type:l2vlan")
+        iana_type = "vlan";
+    else if (type == "iana-if-type:other")
+        iana_type = "dummy";
+    else if (type == "iana-if-type:bridge")
+        iana_type = "bridge";
+    else
+        throw std::runtime_error("Unsuported type!");
+
+    nl_sock* socket = NULL;
+    nl_cache* cache = NULL;
+
+    socket = nl_socket_alloc();
+    if (!socket) {
+        nl_socket_free(socket);
+        throw std::runtime_error("Failed to initialize socket!");
+    }
+
+    if (nl_connect(socket, NETLINK_ROUTE) < 0) {
+        nl_socket_free(socket);
+        throw std::runtime_error("Failed to connect to socket!");
+    }
+
+    if (rtnl_link_alloc_cache(socket, AF_UNSPEC, &cache) < 0) {
+        nl_socket_free(socket);
+        throw std::runtime_error("Failed to allocate link cache!");
+    }
+
+    // current link
+    rtnl_link* lnk = rtnl_link_get(cache, ifindex);
+
+    // req link
+    rtnl_link* req_link = rtnl_link_alloc();
+
+    if (lnk != NULL && req_link != NULL) {
+        int set_err = rtnl_link_set_type(req_link, iana_type.c_str());
+        if (set_err < 0) {
+
+            nl_socket_free(socket);
+            nl_cache_put(cache);
+            rtnl_link_put(lnk);
+            rtnl_link_put(req_link);
+            throw std::runtime_error(std::string("Failed to set type, reason: ") + std::string(nl_geterror(set_err)));
+        }
+
+        int err = rtnl_link_change(socket, lnk, req_link, 0);
+        if (err < 0) {
+
+            nl_socket_free(socket);
+            nl_cache_put(cache);
+            rtnl_link_put(lnk);
+            rtnl_link_put(req_link);
+            throw std::runtime_error(std::string("Link failed to change, reason: ") + std::string(nl_geterror(err)));
+        }
+    } else {
+        nl_socket_free(socket);
+        nl_cache_put(cache);
+        rtnl_link_put(lnk);
+        rtnl_link_put(req_link);
+        throw std::runtime_error("Failed to obtain link!");
+    }
+
+    nl_socket_free(socket);
+    nl_cache_put(cache);
+    rtnl_link_put(lnk);
+    rtnl_link_put(req_link);
+}
+
 void Interface::remove()
 {
     nl_sock* socket = NULL;
@@ -292,7 +378,7 @@ void Interface::remove()
     rtnl_link_put(lnk);
 }
 
-//returns 0 if no ifindex is found
+// returns 0 if no ifindex is found
 int getIfindexFromName(std::string name)
 {
     nl_sock* socket = NULL;

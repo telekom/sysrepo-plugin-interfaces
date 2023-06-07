@@ -86,6 +86,60 @@ int IPV4_Address::getMtu()
     return mtu;
 }
 
+void IPV4_Address::setMtu(unsigned int mtu)
+{
+
+    nl_sock* socket = NULL;
+    nl_cache* cache = NULL;
+
+    socket = nl_socket_alloc();
+    if (!socket) {
+        nl_socket_free(socket);
+        throw std::runtime_error("Failed to initialize socket!");
+    }
+
+    if (nl_connect(socket, NETLINK_ROUTE) < 0) {
+        nl_socket_free(socket);
+        throw std::runtime_error("Failed to connect to socket!");
+    }
+
+    if (rtnl_link_alloc_cache(socket, AF_UNSPEC, &cache) < 0) {
+        nl_socket_free(socket);
+        throw std::runtime_error("Failed to allocate link cache!");
+    }
+
+    rtnl_link* lnk = rtnl_link_get(cache, this->ifindex);
+
+    // req link
+    rtnl_link* req_link = rtnl_link_alloc();
+
+    if (lnk != NULL && req_link != NULL) {
+        rtnl_link_set_mtu(req_link, mtu);
+
+        int err = rtnl_link_change(socket, lnk, req_link, 0);
+
+        if (err < 0) {
+
+            nl_socket_free(socket);
+            nl_cache_put(cache);
+            rtnl_link_put(lnk);
+            rtnl_link_put(req_link);
+            throw std::runtime_error(std::string("Link failed to change, reason: ") + std::string(nl_geterror(err)));
+        }
+    } else {
+        nl_socket_free(socket);
+        nl_cache_put(cache);
+        rtnl_link_put(lnk);
+        rtnl_link_put(req_link);
+        throw std::runtime_error("Failed to obtain link!");
+    }
+
+    nl_socket_free(socket);
+    nl_cache_put(cache);
+    rtnl_link_put(lnk);
+    rtnl_link_put(req_link);
+}
+
 std::string IPV4_Address::getIPWithPrefix()
 {
     nl_sock* socket = NULL;

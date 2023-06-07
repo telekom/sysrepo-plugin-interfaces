@@ -32,6 +32,11 @@ namespace sub::change {
      * @return Error code.
      *
      */
+
+    InterfaceModuleTypeChangeCb::InterfaceModuleTypeChangeCb(std::shared_ptr<ietf::ifc::ModuleChangeContext> ctx) { m_ctx = ctx; }
+    InterfaceModuleIPV4EnableChangeCb::InterfaceModuleIPV4EnableChangeCb(std::shared_ptr<ietf::ifc::ModuleChangeContext> ctx) { m_ctx = ctx; }
+    InterfaceModuleIPV4MtuChangeCb::InterfaceModuleIPV4MtuChangeCb(std::shared_ptr<ietf::ifc::ModuleChangeContext> ctx) { m_ctx = ctx; }
+    ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
     sr::ErrorCode InterfaceModuleEnabledChangeCb::operator()(sr::Session session, uint32_t subscriptionId, std::string_view moduleName,
         std::optional<std::string_view> subXPath, sr::Event event, uint32_t requestId)
     {
@@ -56,14 +61,153 @@ namespace sub::change {
                         SRPLG_LOG_ERR("ietf_interfaces", "non-existing ifindex at interface %s", name);
                         return sr::ErrorCode::OperationFailed;
                     } else {
-                        try{
+                        try {
                             Interface(ifindex).setEnabled(enabled);
-                        }catch(std::runtime_error &e){
+                        } catch (std::runtime_error& e) {
                             SRPLG_LOG_ERR("ietf_interfaces", "Error changing interface state, reason:  %s", e.what());
                             return sr::ErrorCode::OperationFailed;
                         }
-                        
                     }
+                }
+                case sysrepo::ChangeOperation::Deleted:
+                    break;
+                }
+            }
+            break;
+        default:
+            break;
+        }
+
+        return error;
+    }
+
+    sr::ErrorCode InterfaceModuleTypeChangeCb::operator()(sr::Session session, uint32_t subscriptionId, std::string_view moduleName,
+        std::optional<std::string_view> subXPath, sr::Event event, uint32_t requestId)
+    {
+
+        sr::ErrorCode error = sr::ErrorCode::Ok;
+
+        switch (event) {
+        case sysrepo::Event::Change:
+            for (sysrepo::Change change : session.getChanges(subXPath->data())) {
+                switch (change.operation) {
+                case sysrepo::ChangeOperation::Created:
+                case sysrepo::ChangeOperation::Modified: {
+
+                    libyang::DataNode tmp(change.node.firstSibling());
+                    std::string name = tmp.asTerm().valueStr().data();
+
+                    std::string value = change.node.asTerm().valueStr().data();
+
+                    // libyang::Value value = change.node.asTerm().value();
+                    // int type = std::get<int>(value);
+
+                    int ifindex = getIfindexFromName(name);
+
+                    if (ifindex == 0) {
+                        SRPLG_LOG_ERR("ietf_interfaces", "non-existing ifindex at interface %s", name.c_str());
+                        return sr::ErrorCode::OperationFailed;
+                    } else {
+                        try {
+                            cout << "Previous: " << Interface(ifindex).getType() << endl;
+                            Interface(ifindex).setType(value);
+                            cout << "After change: " << Interface(ifindex).getType() << endl;
+                        } catch (std::runtime_error& e) {
+                            SRPLG_LOG_ERR("ietf_interfaces", "Error changing interface type, reason:  %s", e.what());
+                            return sr::ErrorCode::OperationFailed;
+                        }
+                    }
+                }
+                case sysrepo::ChangeOperation::Deleted:
+                    break;
+                }
+            }
+            break;
+        default:
+            break;
+        }
+
+        return error;
+    }
+
+    sr::ErrorCode InterfaceModuleIPV4EnableChangeCb::operator()(sr::Session session, uint32_t subscriptionId, std::string_view moduleName,
+        std::optional<std::string_view> subXPath, sr::Event event, uint32_t requestId)
+    {
+
+        sr::ErrorCode error = sr::ErrorCode::Ok;
+
+        switch (event) {
+        case sysrepo::Event::Change:
+            for (sysrepo::Change change : session.getChanges(subXPath->data())) {
+                switch (change.operation) {
+                case sysrepo::ChangeOperation::Created:
+                case sysrepo::ChangeOperation::Modified: {
+
+                    libyang::DataNode tmp(change.node);
+                    while (std::string(tmp.schema().name().data()) != "interface") {
+
+                        if (tmp.parent().has_value()) {
+                            tmp = tmp.parent().value();
+                        } else {
+                            break;
+                        }
+                    }
+                    std::string name_path = tmp.path().append("/name");
+                    std::optional<libyang::DataNode> name_node = tmp.findPath(name_path);
+                    if (!name_node.has_value()) {
+                        SRPLG_LOG_ERR("ietf_interfaces", "Error traversing node! ");
+                        return sr::ErrorCode::OperationFailed;
+                    };
+
+                    std::string name = name_node.value().asTerm().valueStr().data();
+                    // set the enable disable ipv4 here
+                }
+                case sysrepo::ChangeOperation::Deleted:
+                    break;
+                }
+            }
+            break;
+        default:
+            break;
+        }
+
+        return error;
+    }
+
+    sr::ErrorCode InterfaceModuleIPV4MtuChangeCb::operator()(sr::Session session, uint32_t subscriptionId, std::string_view moduleName,
+        std::optional<std::string_view> subXPath, sr::Event event, uint32_t requestId)
+    {
+
+        sr::ErrorCode error = sr::ErrorCode::Ok;
+
+        switch (event) {
+        case sysrepo::Event::Change:
+            for (sysrepo::Change change : session.getChanges(subXPath->data())) {
+                switch (change.operation) {
+                case sysrepo::ChangeOperation::Created:
+                case sysrepo::ChangeOperation::Modified: {
+
+                    libyang::DataNode tmp(change.node);
+                    while (std::string(tmp.schema().name().data()) != "interface") {
+
+                        if (tmp.parent().has_value()) {
+                            tmp = tmp.parent().value();
+                        } else {
+                            break;
+                        }
+                    }
+                    std::string name_path = tmp.path().append("/name");
+                    std::optional<libyang::DataNode> name_node = tmp.findPath(name_path);
+                    if (!name_node.has_value()) {
+                        SRPLG_LOG_ERR("ietf_interfaces", "Error traversing node! ");
+                        return sr::ErrorCode::OperationFailed;
+                    };
+
+                    std::string name = name_node.value().asTerm().valueStr().data();
+                    libyang::Value value = change.node.asTerm().value();
+                    int mtu = std::get<uint16_t>(value);
+                    IPV4_Address(getIfindexFromName(name)).setMtu(mtu);
+                    
                 }
                 case sysrepo::ChangeOperation::Deleted:
                     break;
