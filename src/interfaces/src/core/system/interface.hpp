@@ -1,7 +1,7 @@
 #include <string>
 #include <stdexcept>
 #include <netlink/route/link.h>
-#include "IPV4_Address.hpp"
+#include "IPV4.hpp"
 
 
 //all previous headers in case something is missing
@@ -23,7 +23,7 @@
 class Interface {
 private:
     int ifindex;
-    IPV4_Address ipv4_address;
+    IPV4 ipv4_address;
 
 public:
     // disable copy and move constructors
@@ -42,7 +42,7 @@ public:
 
     std::string getType();
 
-    IPV4_Address getIPV4();
+    IPV4 getIPV4();
 
     void setEnabled(bool enabled);
 

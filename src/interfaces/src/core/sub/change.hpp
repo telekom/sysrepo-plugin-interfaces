@@ -79,5 +79,31 @@ namespace sub::change {
         std::shared_ptr<ietf::ifc::ModuleChangeContext> m_ctx;
     };
 
+    class  InterfaceModuleIPV4AddressChangeCb {
+    public:
+         InterfaceModuleIPV4AddressChangeCb(std::shared_ptr<ietf::ifc::ModuleChangeContext> ctx);
+
+        sr::ErrorCode operator()(sr::Session session, uint32_t subscriptionId, std::string_view moduleName, std::optional<std::string_view> subXPath,
+            sr::Event event, uint32_t requestId);
+
+    private:
+        std::shared_ptr<ietf::ifc::ModuleChangeContext> m_ctx;
+    };
+
+    
+
+    class  InterfaceModuleIPV4PrefixChangeCb {
+    public:
+         InterfaceModuleIPV4PrefixChangeCb(std::shared_ptr<ietf::ifc::ModuleChangeContext> ctx);
+
+        sr::ErrorCode operator()(sr::Session session, uint32_t subscriptionId, std::string_view moduleName, std::optional<std::string_view> subXPath,
+            sr::Event event, uint32_t requestId);
+
+    private:
+        std::shared_ptr<ietf::ifc::ModuleChangeContext> m_ctx;
+    };
+
+   
+
 }
 }

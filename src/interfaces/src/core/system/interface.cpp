@@ -10,7 +10,7 @@ Interface::Interface(int ifindex)
     : ifindex { ifindex }
     , ipv4_address { ifindex } {};
 
-IPV4_Address Interface::getIPV4() { return this->ipv4_address; };
+IPV4 Interface::getIPV4() { return this->ipv4_address; };
 
 std::string Interface::getName()
 {

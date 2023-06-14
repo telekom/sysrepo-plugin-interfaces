@@ -1,9 +1,10 @@
-#include "IPV4_Address.hpp"
+#include "IPV4.hpp"
+#include <iostream>
 
-IPV4_Address::IPV4_Address(int ifindex)
+IPV4::IPV4(int ifindex)
     : ifindex { ifindex } {};
 
-bool IPV4_Address::getEnabled()
+bool IPV4::getEnabled()
 {
     struct nl_sock* socket;
     struct nl_cache* addr_cache;
@@ -50,7 +51,7 @@ bool IPV4_Address::getEnabled()
     return args.enabled;
 }
 
-int IPV4_Address::getMtu()
+int IPV4::getMtu()
 {
     nl_sock* socket = NULL;
     nl_cache* cache = NULL;
@@ -86,61 +87,63 @@ int IPV4_Address::getMtu()
     return mtu;
 }
 
-void IPV4_Address::setMtu(unsigned int mtu)
+void IPV4::setMtu(unsigned int mtu)
 {
-
     nl_sock* socket = NULL;
     nl_cache* cache = NULL;
+    rtnl_link* lnk = NULL;
+    rtnl_link* req_link = NULL;
+
+    auto clean = [&]() {
+        if (socket != NULL)
+            nl_socket_free(socket);
+        if (cache != NULL)
+            nl_cache_put(cache);
+        if (lnk != NULL)
+            rtnl_link_put(lnk);
+        if (req_link != NULL)
+            rtnl_link_put(req_link);
+    };
 
     socket = nl_socket_alloc();
     if (!socket) {
-        nl_socket_free(socket);
+        clean();
         throw std::runtime_error("Failed to initialize socket!");
     }
 
     if (nl_connect(socket, NETLINK_ROUTE) < 0) {
-        nl_socket_free(socket);
+        clean();
         throw std::runtime_error("Failed to connect to socket!");
     }
 
     if (rtnl_link_alloc_cache(socket, AF_UNSPEC, &cache) < 0) {
-        nl_socket_free(socket);
+        clean();
         throw std::runtime_error("Failed to allocate link cache!");
     }
 
-    rtnl_link* lnk = rtnl_link_get(cache, this->ifindex);
+    lnk = rtnl_link_get(cache, this->ifindex);
 
     // req link
-    rtnl_link* req_link = rtnl_link_alloc();
+    req_link = rtnl_link_alloc();
 
     if (lnk != NULL && req_link != NULL) {
-        rtnl_link_set_mtu(req_link, mtu);
+        clean();
 
         int err = rtnl_link_change(socket, lnk, req_link, 0);
 
         if (err < 0) {
-
-            nl_socket_free(socket);
-            nl_cache_put(cache);
-            rtnl_link_put(lnk);
-            rtnl_link_put(req_link);
+            clean();
             throw std::runtime_error(std::string("Link failed to change, reason: ") + std::string(nl_geterror(err)));
         }
     } else {
-        nl_socket_free(socket);
-        nl_cache_put(cache);
-        rtnl_link_put(lnk);
-        rtnl_link_put(req_link);
+        clean();
         throw std::runtime_error("Failed to obtain link!");
     }
 
-    nl_socket_free(socket);
-    nl_cache_put(cache);
-    rtnl_link_put(lnk);
-    rtnl_link_put(req_link);
+    clean();
 }
 
-std::string IPV4_Address::getIPWithPrefix()
+std::string IPV4::getIPWithPrefix()
 {
     nl_sock* socket = NULL;
     nl_cache* cache = NULL;
@@ -179,6 +182,7 @@ std::string IPV4_Address::getIPWithPrefix()
                 char buffer[50];
                 nl_addr2str(local_addr, buffer, 50);
                 arguments->ip_address = buffer;
+                std::cout << "Address " << buffer << std::endl;
             }
         },
         &args);
@@ -188,13 +192,13 @@ std::string IPV4_Address::getIPWithPrefix()
     return args.ip_address;
 }
 
-std::string IPV4_Address::getIPAddress()
+std::string IPV4::getIPAddress()
 {
     std::string full_ip = this->getIPWithPrefix();
     return std::string(full_ip.substr(0, full_ip.find('/')));
 }
 
-int IPV4_Address::getPrefixLen()
+int IPV4::getPrefixLen()
 {
     std::string full_ip = this->getIPWithPrefix();
 
@@ -204,7 +208,7 @@ int IPV4_Address::getPrefixLen()
     return std::stoi(std::string(full_ip.substr(full_ip.find('/') + 1, full_ip.size())).c_str());
 }
 
-std::vector<Neighbour> IPV4_Address::getNeighbours()
+std::vector<Neighbour> IPV4::getNeighbours()
 {
     std::vector<Neighbour> list;
 
@@ -214,7 +218,6 @@ std::vector<Neighbour> IPV4_Address::getNeighbours()
     struct Arguments {
         int ifindex;
         std::vector<Neighbour>* lst;
-
     } args;
 
     args.ifindex = this->ifindex;
@@ -264,3 +267,152 @@ std::vector<Neighbour> IPV4_Address::getNeighbours()
     nl_cache_put(cache);
     return list;
 }
+
+void IPV4::addAddress(const Address& address) { removeOrAddAddress(address, false); };
+
+std::vector<Address> IPV4::getAdressList()
+{
+
+    nl_sock* socket = NULL;
+    nl_cache* cache = NULL;
+
+    std::vector<Address> list;
+
+    auto clean = [&]() {
+        if (socket != NULL)
+            nl_socket_free(socket);
+        if (cache != NULL)
+            nl_cache_put(cache);
+    };
+
+    struct Arguments {
+        std::vector<Address>* lst;
+        int ifindex;
+    } args;
+
+    args.ifindex = this->ifindex;
+    args.lst = &list;
+
+    socket = nl_socket_alloc();
+    if (!socket) {
+        clean();
+        throw std::runtime_error("Failed to initialize socket!");
+    }
+
+    if (nl_connect(socket, NETLINK_ROUTE) < 0) {
+        clean();
+        throw std::runtime_error("Failed to connect to socket!");
+    }
+
+    if (rtnl_addr_alloc_cache(socket, &cache) < 0) {
+        clean();
+        throw std::runtime_error("Failed to allocate address cache!");
+    }
+
+    nl_cache_foreach(
+        cache,
+        [](nl_object* obj, void* arg) {
+            Arguments* arguments = static_cast<Arguments*>(arg);
+
+            if ((rtnl_addr_get_ifindex((rtnl_addr*)obj) == arguments->ifindex) && (rtnl_addr_get_family((rtnl_addr*)obj) == AF_INET)) {
+                nl_addr* local_addr = rtnl_addr_get_local((rtnl_addr*)obj);
+                char buffer[50];
+                nl_addr2str(local_addr, buffer, 50);
+                arguments->lst->push_back(Address(buffer));
+            }
+        },
+        &args);
+
+    clean();
+    return list;
+};
+
+void IPV4::removeAddress(const Address& address) const { removeOrAddAddress(address, true); };
+
+void IPV4::removeOrAddAddress(const Address& address, bool remove) const
+{
+    nl_sock* socket = NULL;
+    nl_cache* link_cache = NULL;
+    rtnl_addr* addr = NULL;
+    nl_addr* lo_addr = NULL;
+
+    auto clean = [&]() {
+        if (socket != NULL)
+            nl_socket_free(socket);
+        if (link_cache != NULL)
+            nl_cache_put(link_cache);
+        if (addr != NULL)
+            rtnl_addr_put(addr);
+        if (lo_addr != NULL)
+            nl_addr_put(lo_addr);
+    };
+
+    socket = nl_socket_alloc();
+    if (!socket) {
+        clean();
+        throw std::runtime_error("Failed to initialize socket!");
+    }
+
+    if (nl_connect(socket, NETLINK_ROUTE) < 0) {
+        clean();
+        throw std::runtime_error("Failed to connect to socket!");
+    }
+
+    if (rtnl_link_alloc_cache(socket, AF_UNSPEC, &link_cache) < 0) {
+        clean();
+        throw std::runtime_error("Failed to allocate link cache!");
+    }
+
+    rtnl_link* link = rtnl_link_get(link_cache, ifindex);
+    if (link == NULL) {
+        clean();
+        throw std::runtime_error("Failed to get link from cache!");
+    }
+
+    addr = rtnl_addr_alloc();
+
+    if (addr == NULL) {
+        clean();
+        throw std::runtime_error("Failed to allocate address!");
+    }
+
+    rtnl_addr_set_link(addr, link);
+    rtnl_addr_set_family(addr, AF_INET);
+    rtnl_addr_set_prefixlen(addr, address.getPrefixLen());
+    rtnl_addr_set_ifindex(addr, ifindex);
+
+    int err = nl_addr_parse(address.getAddressAndPrefix().c_str(), AF_INET, &lo_addr);
+
+    if (err < 0) {
+
+        clean();
+        throw std::runtime_error("Failed to parse address! reason: " + std::string(nl_geterror(err)));
+    }
+    int locl_err = rtnl_addr_set_local(addr, lo_addr);
+
+    if (locl_err < 0) {
+        clean();
+        throw std::runtime_error("Failed to set local address! reason: " + std::string(nl_geterror(locl_err)));
+    }
+
+    int add_err;
+
+    if (remove) {
+        add_err = rtnl_addr_delete(socket, addr, 0);
+    } else {
+        add_err = rtnl_addr_add(socket, addr, 0);
+    }
+
+    if (add_err < 0) {
+
+        clean();
+        throw std::runtime_error("Failed to add address! reason: " + std::string(nl_geterror(add_err)));
+    }
+
+    clean();
+}
+
+void IPV4::modifyPrefixLength(std::string address, int prefixlen)
+{
+  
+};
