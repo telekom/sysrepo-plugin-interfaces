@@ -101,9 +101,6 @@ namespace sub::change {
 
                     std::string value = change.node.asTerm().valueStr().data();
 
-                    // libyang::Value value = change.node.asTerm().value();
-                    // int type = std::get<int>(value);
-
                     int ifindex = getIfindexFromName(name);
 
                     if (ifindex == 0) {
@@ -366,9 +363,7 @@ namespace sub::change {
             for (sysrepo::Change change : session.getChanges(subXPath->data())) {
                 switch (change.operation) {
                 case sysrepo::ChangeOperation::Created:
-                    // cout << "created subnode" << change.previousDefault << endl;
-                    // int ifindex = getIfindexFromName(name);
-                    // IPV4(ifindex).addAddress() break;
+                    break;
                 case sysrepo::ChangeOperation::Modified:
                     // cout << "modified subnode " << endl;
 
@@ -416,7 +411,7 @@ namespace sub::change {
                         IPV4(ifindex).addAddress(Address(address, std::stoi(value)));
 
                     } catch (std::runtime_error& e) {
-                        SRPLG_LOG_ERR("ietf-interfaces-plugin: ","Modify prefix length error: %s ", e.what());
+                        SRPLG_LOG_ERR("ietf-interfaces-plugin: ", "Modify prefix length error: %s ", e.what());
                         return sr::ErrorCode::OperationFailed;
                     }
 
