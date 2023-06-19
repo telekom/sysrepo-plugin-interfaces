@@ -202,7 +202,7 @@ int interfaces_ly_tree_create_interfaces_interface_ipv4_enabled(const struct ly_
 
 int interfaces_ly_tree_create_interfaces_interface_parent_interface(const struct ly_ctx* ly_ctx, struct lyd_node* interface_node, const char* parent_interface)
 {
-    return srpc_ly_tree_create_leaf(ly_ctx, interface_node, NULL, "parent-interface", parent_interface);
+    return srpc_ly_tree_create_leaf(ly_ctx, interface_node, NULL, "ietf-if-extensions:parent-interface", parent_interface);
 }
 
 int interfaces_ly_tree_create_interfaces_interface_forwarding_mode(const struct ly_ctx* ly_ctx, struct lyd_node* interface_node, const char* forwarding_mode)

@@ -361,11 +361,17 @@ int interfaces_interface_hash_to_ly(const struct ly_ctx* ly_ctx, interfaces_inte
         // name added via list creation
         SRPC_SAFE_CALL_ERR(error, interfaces_ly_tree_create_interfaces_interface(ly_ctx, *interfaces_container_node, &interface_list_node, if_iter->interface.name), error_out);
 
+	// create ietf-if-extensions:parent-interface if required
+	if(strcmp(if_iter->interface.type, "iana-if-type:l2vlan") == 0) {
+            SRPC_SAFE_CALL_ERR(error, interfaces_ly_tree_create_interfaces_interface_parent_interface(ly_ctx, interface_list_node, if_iter->interface.parent_interface), error_out);
+	}
+
         // enabled
         SRPC_SAFE_CALL_ERR(error, interfaces_ly_tree_create_interfaces_interface_enabled(ly_ctx, interface_list_node, if_iter->interface.enabled ? "true" : "false"), error_out);
 
         // type
         SRPC_SAFE_CALL_ERR(error, interfaces_ly_tree_create_interfaces_interface_type(ly_ctx, interface_list_node, if_iter->interface.type), error_out);
+
 
         // IPv4
         SRPC_SAFE_CALL_ERR(error, interfaces_ly_tree_create_interfaces_interface_ipv4(ly_ctx, interface_list_node, &ipv4_container_node), error_out);
