@@ -77,6 +77,9 @@ int interfaces_load_interface(interfaces_ctx_t* ctx, interfaces_interface_hash_e
         SRPC_SAFE_CALL_PTR(new_element, interfaces_interface_hash_element_new(), error_out);
         element_added = 0;
 
+	// load parent interface
+        SRPC_SAFE_CALL_ERR(error, interfaces_interface_load_parent_interface(ctx, &new_element, link_iter), error_out);
+
         // load interface data
         SRPC_SAFE_CALL_ERR(error, interfaces_interface_load_name(ctx, &new_element, link_iter), error_out);
         SRPC_SAFE_CALL_ERR(error, interfaces_interface_load_type(ctx, &new_element, link_iter), error_out);
