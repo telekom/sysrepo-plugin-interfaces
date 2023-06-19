@@ -335,6 +335,7 @@ void IPV4::removeOrAddAddress(const Address& address, bool remove) const
     nl_cache* link_cache = NULL;
     rtnl_addr* addr = NULL;
     nl_addr* lo_addr = NULL;
+    rtnl_link* link = NULL;
 
     auto clean = [&]() {
         if (socket != NULL)
@@ -345,6 +346,8 @@ void IPV4::removeOrAddAddress(const Address& address, bool remove) const
             rtnl_addr_put(addr);
         if (lo_addr != NULL)
             nl_addr_put(lo_addr);
+        if (link != NULL)
+            rtnl_link_put(link);
     };
 
     socket = nl_socket_alloc();
@@ -363,7 +366,7 @@ void IPV4::removeOrAddAddress(const Address& address, bool remove) const
         throw std::runtime_error("Failed to allocate link cache!");
     }
 
-    rtnl_link* link = rtnl_link_get(link_cache, ifindex);
+    link = rtnl_link_get(link_cache, ifindex);
     if (link == NULL) {
         clean();
         throw std::runtime_error("Failed to get link from cache!");
@@ -412,7 +415,123 @@ void IPV4::removeOrAddAddress(const Address& address, bool remove) const
     clean();
 }
 
-void IPV4::modifyPrefixLength(std::string address, int prefixlen)
+void IPV4::createOrModifyNeighbour(const Neighbour& neigh, int flags) const
 {
-  
+    nl_sock* socket = NULL;
+    rtnl_neigh* neighbour = NULL;
+    nl_addr* lo_addr = NULL;
+    nl_addr* addr = NULL;
+
+    auto clean = [&]() {
+        if (socket != NULL)
+            nl_socket_free(socket);
+        if (neighbour != NULL)
+            rtnl_neigh_put(neighbour);
+        if (lo_addr != NULL)
+            nl_addr_put(lo_addr);
+        if (addr != NULL)
+            nl_addr_put(addr);
+    };
+
+    socket = nl_socket_alloc();
+    if (!socket) {
+        clean();
+        throw std::runtime_error("Failed to initialize socket!");
+    }
+
+    if (nl_connect(socket, NETLINK_ROUTE) < 0) {
+        clean();
+        throw std::runtime_error("Failed to connect to socket!");
+    }
+
+    neighbour = rtnl_neigh_alloc();
+    if (neighbour == NULL) {
+        clean();
+        throw std::runtime_error("Failed to allocate address!");
+    }
+
+    int err = nl_addr_parse(neigh.getLinkLayer().c_str(), AF_LLC, &lo_addr);
+    int addr_err = nl_addr_parse(neigh.getAddress().c_str(), AF_INET, &addr);
+
+    if (addr_err < 0) {
+        clean();
+        throw std::runtime_error("Failed to parse address! reason: " + std::string(nl_geterror(err)));
+    }
+
+    if (err < 0) {
+        clean();
+        throw std::runtime_error("Failed to parse address! reason: " + std::string(nl_geterror(err)));
+    }
+    rtnl_neigh_set_lladdr(neighbour, lo_addr);
+    rtnl_neigh_set_ifindex(neighbour, ifindex);
+    rtnl_neigh_set_state(neighbour, NUD_PERMANENT);
+    rtnl_neigh_set_family(neighbour, AF_INET);
+    rtnl_neigh_set_dst(neighbour, addr);
+
+    int locl_err = rtnl_neigh_add(socket, neighbour, flags);
+
+    if (locl_err < 0) {
+        clean();
+        throw std::runtime_error("Failed to add neighbour! reason: " + std::string(nl_geterror(locl_err)));
+    };
+
+    clean();
 };
+void IPV4::addNeighbour(const Neighbour& neigh) { createOrModifyNeighbour(neigh, NLM_F_CREATE | NLM_F_MATCH); };
+
+void IPV4::modifyNeighbourLinkLayer(const Neighbour& neigh) { createOrModifyNeighbour(neigh, NLM_F_REPLACE | NLM_F_MATCH); };
+
+void IPV4::removeNeighbor(const std::string& neigh)
+{
+    nl_sock* socket = NULL;
+    rtnl_neigh* neighbour = NULL;
+    nl_addr* lo_addr = NULL;
+    nl_addr* addr = NULL;
+
+    auto clean = [&]() {
+        if (socket != NULL)
+            nl_socket_free(socket);
+        if (neighbour != NULL)
+            rtnl_neigh_put(neighbour);
+        if (lo_addr != NULL)
+            nl_addr_put(lo_addr);
+        if (addr != NULL)
+            nl_addr_put(addr);
+    };
+
+    socket = nl_socket_alloc();
+    if (!socket) {
+        clean();
+        throw std::runtime_error("Failed to initialize socket!");
+    }
+
+    if (nl_connect(socket, NETLINK_ROUTE) < 0) {
+        clean();
+        throw std::runtime_error("Failed to connect to socket!");
+    }
+
+    neighbour = rtnl_neigh_alloc();
+    if (neighbour == NULL) {
+        clean();
+        throw std::runtime_error("Failed to allocate address!");
+    }
+
+    int addr_err = nl_addr_parse(neigh.c_str(), AF_INET, &addr);
+
+    if (addr_err < 0) {
+        clean();
+        throw std::runtime_error(nl_geterror(addr_err));
+    }
+
+    rtnl_neigh_set_ifindex(neighbour, ifindex);
+    rtnl_neigh_set_dst(neighbour, addr);
+
+    int locl_err = rtnl_neigh_delete(socket, neighbour, NLM_F_NONREC | NLM_F_MATCH);
+
+    if (locl_err < 0) {
+        clean();
+        throw std::runtime_error(nl_geterror(locl_err));
+    };
+
+    clean();
+}

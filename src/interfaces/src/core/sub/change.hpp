@@ -46,6 +46,28 @@ namespace sub::change {
         std::shared_ptr<ietf::ifc::ModuleChangeContext> m_ctx;
     };
 
+    class InterfaceModuleChangeCb {
+    public:
+        InterfaceModuleChangeCb(std::shared_ptr<ietf::ifc::ModuleChangeContext> ctx);
+
+        sr::ErrorCode operator()(sr::Session session, uint32_t subscriptionId, std::string_view moduleName, std::optional<std::string_view> subXPath,
+            sr::Event event, uint32_t requestId);
+
+    private:
+        std::shared_ptr<ietf::ifc::ModuleChangeContext> m_ctx;
+    };
+
+    class InterfaceModuleNameChangeCb {
+    public:
+        InterfaceModuleNameChangeCb(std::shared_ptr<ietf::ifc::ModuleChangeContext> ctx);
+
+        sr::ErrorCode operator()(sr::Session session, uint32_t subscriptionId, std::string_view moduleName, std::optional<std::string_view> subXPath,
+            sr::Event event, uint32_t requestId);
+
+    private:
+        std::shared_ptr<ietf::ifc::ModuleChangeContext> m_ctx;
+    };
+
     class InterfaceModuleTypeChangeCb {
     public:
         InterfaceModuleTypeChangeCb(std::shared_ptr<ietf::ifc::ModuleChangeContext> ctx);
@@ -79,9 +101,9 @@ namespace sub::change {
         std::shared_ptr<ietf::ifc::ModuleChangeContext> m_ctx;
     };
 
-    class  InterfaceModuleIPV4AddressChangeCb {
+    class InterfaceModuleIPV4AddressChangeCb {
     public:
-         InterfaceModuleIPV4AddressChangeCb(std::shared_ptr<ietf::ifc::ModuleChangeContext> ctx);
+        InterfaceModuleIPV4AddressChangeCb(std::shared_ptr<ietf::ifc::ModuleChangeContext> ctx);
 
         sr::ErrorCode operator()(sr::Session session, uint32_t subscriptionId, std::string_view moduleName, std::optional<std::string_view> subXPath,
             sr::Event event, uint32_t requestId);
@@ -90,11 +112,9 @@ namespace sub::change {
         std::shared_ptr<ietf::ifc::ModuleChangeContext> m_ctx;
     };
 
-    
-
-    class  InterfaceModuleIPV4PrefixChangeCb {
+    class InterfaceModuleIPV4PrefixChangeCb {
     public:
-         InterfaceModuleIPV4PrefixChangeCb(std::shared_ptr<ietf::ifc::ModuleChangeContext> ctx);
+        InterfaceModuleIPV4PrefixChangeCb(std::shared_ptr<ietf::ifc::ModuleChangeContext> ctx);
 
         sr::ErrorCode operator()(sr::Session session, uint32_t subscriptionId, std::string_view moduleName, std::optional<std::string_view> subXPath,
             sr::Event event, uint32_t requestId);
@@ -103,7 +123,16 @@ namespace sub::change {
         std::shared_ptr<ietf::ifc::ModuleChangeContext> m_ctx;
     };
 
-   
+    class InterfaceModuleIPV4NeighbourIpChangeCb {
+    public:
+        InterfaceModuleIPV4NeighbourIpChangeCb(std::shared_ptr<ietf::ifc::ModuleChangeContext> ctx);
+
+        sr::ErrorCode operator()(sr::Session session, uint32_t subscriptionId, std::string_view moduleName, std::optional<std::string_view> subXPath,
+            sr::Event event, uint32_t requestId);
+
+    private:
+        std::shared_ptr<ietf::ifc::ModuleChangeContext> m_ctx;
+    };
 
 }
 }

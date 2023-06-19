@@ -12,6 +12,72 @@ Interface::Interface(int ifindex)
 
 IPV4 Interface::getIPV4() { return this->ipv4_address; };
 
+void Interface::create(std::string name, std::string type, bool enabled)
+{
+    // limit the name size
+    if (name.size() > 15)
+        throw std::runtime_error("Name to long!");
+
+    std::string iana_type;
+    if (type == "iana-if-type:ethernetCsmacd")
+        iana_type = "veth";
+    else if (type == "iana-if-type:softwareLoopback")
+        iana_type = "vcan";
+    else if (type == "iana-if-type:l2vlan")
+        iana_type = "vlan";
+    else if (type == "iana-if-type:other")
+        iana_type = "dummy";
+    else if (type == "iana-if-type:bridge")
+        iana_type = "bridge";
+    else
+        throw std::runtime_error("Unsuported type!");
+
+    rtnl_link* link = NULL;
+    nl_sock* socket = NULL;
+
+    auto clean = [&]() {
+        if (link != NULL)
+            rtnl_link_put(link);
+        if (socket != NULL)
+            nl_socket_free(socket);
+    };
+
+    socket = nl_socket_alloc();
+    if (socket == NULL) {
+        throw std::runtime_error("Failed to allocate socket!");
+    }
+
+    link = rtnl_link_alloc();
+    if (link == NULL) {
+        clean();
+        throw std::runtime_error("Failed to allocate Link!");
+    }
+
+    if (nl_connect(socket, NETLINK_ROUTE) < 0) {
+        clean();
+        throw std::runtime_error("Socket failed to connect!");
+    }
+
+    rtnl_link_set_name(link, name.c_str());
+
+    enabled ? rtnl_link_set_flags(link, rtnl_link_str2flags("up")) : rtnl_link_unset_flags(link, rtnl_link_str2flags("up"));
+
+    int type_err = rtnl_link_set_type(link, iana_type.c_str());
+
+    if (type_err < 0) {
+        clean();
+        throw std::runtime_error(nl_geterror(type_err));
+    };
+
+    int link_err = rtnl_link_add(socket, link, NLM_F_CREATE);
+
+    if (link_err < 0) {
+        clean();
+        throw std::runtime_error(nl_geterror(link_err));
+    };
+    clean();
+}
+
 std::string Interface::getName()
 {
     nl_sock* socket = NULL;
@@ -203,7 +269,7 @@ void Interface::setEnabled(bool enabled)
 
 void Interface::setName(std::string name)
 {
-    if (name.size() > 20) {
+    if (name.size() > 15) {
         throw std::runtime_error("Name cannot be more than 20 characters!");
     }
 

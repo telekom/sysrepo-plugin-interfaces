@@ -9,6 +9,8 @@ class IPV4 {
 private:
     int ifindex;
     void removeOrAddAddress(const Address& address, bool remove) const;
+    void createOrModifyNeighbour(const Neighbour& neigh, int flags) const;
+
 public:
     IPV4(int ifindex);
     IPV4() = delete;
@@ -28,9 +30,12 @@ public:
     std::vector<Neighbour> getNeighbours();
     std::vector<Address> getAdressList();
 
-    void addAddress(const Address& address) ;
+    void addAddress(const Address& address);
 
     void removeAddress(const Address& address) const;
 
-    void modifyPrefixLength(std::string address, int prefixlen);
+    void addNeighbour(const Neighbour& neigh);
+
+    void modifyNeighbourLinkLayer(const Neighbour& neigh);
+    void removeNeighbor(const std::string& neigh);
 };

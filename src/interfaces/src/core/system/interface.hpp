@@ -26,6 +26,8 @@ private:
     IPV4 ipv4_address;
 
 public:
+    //creation of a new interface
+    static void create(std::string name, std::string type, bool enabled = true);
     // disable copy and move constructors
     Interface();
 
