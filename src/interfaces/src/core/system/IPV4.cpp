@@ -399,17 +399,20 @@ void IPV4::removeOrAddAddress(const Address& address, bool remove) const
     }
 
     int add_err;
+    std::string add_or_remove;
 
     if (remove) {
         add_err = rtnl_addr_delete(socket, addr, 0);
+        add_or_remove = "remove";
     } else {
         add_err = rtnl_addr_add(socket, addr, 0);
+        add_or_remove = "add";
     }
 
     if (add_err < 0) {
 
         clean();
-        throw std::runtime_error("Failed to add address! reason: " + std::string(nl_geterror(add_err)));
+        throw std::runtime_error("Failed to "+add_or_remove+" address! reason: " + std::string(nl_geterror(add_err)));
     }
 
     clean();

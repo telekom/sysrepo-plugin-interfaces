@@ -106,6 +106,7 @@ void sr_plugin_cleanup_cb(sr_session_ctx_t* session, void* priv)
 void registerModuleChangeSubscriptions(sr::Session& sess, ietf::ifc::PluginContext& ctx)
 {
     const auto change_callbacks = {
+        ModuleChangeCallback { "/ietf-interfaces:interfaces/interface", ietf::ifc::sub::change::InterfaceModuleChangeCb(ctx.getModuleChangeContext()) },
         ModuleChangeCallback { "/ietf-interfaces:interfaces/interface/enabled", ietf::ifc::sub::change::InterfaceModuleEnabledChangeCb(ctx.getModuleChangeContext()) },
         ModuleChangeCallback { "/ietf-interfaces:interfaces/interface/type", ietf::ifc::sub::change::InterfaceModuleTypeChangeCb(ctx.getModuleChangeContext()) },
         ModuleChangeCallback { "/ietf-interfaces:interfaces/interface/ipv4/enabled", ietf::ifc::sub::change::InterfaceModuleIPV4EnableChangeCb(ctx.getModuleChangeContext()) },
@@ -113,9 +114,6 @@ void registerModuleChangeSubscriptions(sr::Session& sess, ietf::ifc::PluginConte
         ModuleChangeCallback { "/ietf-interfaces:interfaces/interface/ipv4/address/ip", ietf::ifc::sub::change::InterfaceModuleIPV4AddressChangeCb(ctx.getModuleChangeContext()) },
         ModuleChangeCallback { "/ietf-interfaces:interfaces/interface/ipv4/address/prefix-length", ietf::ifc::sub::change::InterfaceModuleIPV4PrefixChangeCb(ctx.getModuleChangeContext()) },
         ModuleChangeCallback { "/ietf-interfaces:interfaces/interface/ipv4/neighbor/ip", ietf::ifc::sub::change::InterfaceModuleIPV4NeighbourIpChangeCb(ctx.getModuleChangeContext()) },
-        ModuleChangeCallback { "/ietf-interfaces:interfaces/interface", ietf::ifc::sub::change::InterfaceModuleChangeCb(ctx.getModuleChangeContext()) },
-        //ModuleChangeCallback { "/ietf-interfaces:interfaces/interface/name", ietf::ifc::sub::change::InterfaceModuleNameChangeCb(ctx.getModuleChangeContext()) }
-
     };
 
     auto& sub_handle = ctx.getSubscriptionHandle();

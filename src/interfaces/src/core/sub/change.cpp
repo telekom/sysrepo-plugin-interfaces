@@ -237,6 +237,7 @@ namespace sub::change {
             for (sysrepo::Change change : session.getChanges(subXPath->data())) {
                 switch (change.operation) {
                 case sysrepo::ChangeOperation::Created: {
+
                     // changed value
                     std::string val = change.node.asTerm().valueStr().data();
 
@@ -280,7 +281,7 @@ namespace sub::change {
                     std::string ip_prefix = ip_node.value().asTerm().valueStr().data();
 
                     // uncomment for debug
-                    // cout << "Created prefix " << ip_prefix << " Created if_name " << if_name << " Created addr " << val << endl;
+                    // std::cout << "Created prefix " << ip_prefix << " Created if_name " << if_name << " Created addr " << val << std::endl;
 
                     try {
                         int ifindex = getIfindexFromName(if_name);
@@ -292,6 +293,7 @@ namespace sub::change {
 
                     break;
                 }
+
                 case sysrepo::ChangeOperation::Deleted: {
 
                     // changed value
@@ -338,10 +340,19 @@ namespace sub::change {
 
                     // uncomment for debug
                     // cout << "Created prefix " << ip_prefix << " Created if_name " << if_name << " Created addr " << val << endl;
+                    bool if_has_changes = false;
+                    for (auto&& i : session.getChanges("/ietf-interfaces:interfaces/interface")) {
+                        if_has_changes = true;
+                        break;
+                    }
 
                     try {
                         int ifindex = getIfindexFromName(if_name);
-                        IPV4(ifindex).removeAddress(Address(val, std::stoi(ip_prefix)));
+                        if (!if_has_changes) {
+                            // no point of deleting address since its allredy deleted
+                            IPV4(ifindex).removeAddress(Address(val, std::stoi(ip_prefix)));
+                        }
+
                     } catch (std::runtime_error& e) {
                         SRPLG_LOG_ERR("ietf_interfaces", "%s", e.what());
                         return sr::ErrorCode::OperationFailed;
@@ -563,6 +574,8 @@ namespace sub::change {
             for (sysrepo::Change change : session.getChanges(subXPath->data())) {
                 switch (change.operation) {
                 case sysrepo::ChangeOperation::Created: {
+                    // debug
+                    std::cout << "Enter the module change " << std::endl;
                     std::string path = change.node.path().data();
                     std::optional<libyang::DataNode> node;
 
@@ -598,7 +611,6 @@ namespace sub::change {
                     break;
                 }
                 case sysrepo::ChangeOperation::Modified:
-
                     break;
                 case sysrepo::ChangeOperation::Deleted:
 
@@ -629,36 +641,5 @@ namespace sub::change {
         return error;
     }
 
-    sr::ErrorCode InterfaceModuleNameChangeCb::operator()(sr::Session session, uint32_t subscriptionId, std::string_view moduleName,
-        std::optional<std::string_view> subXPath, sr::Event event, uint32_t requestId)
-    {
-
-        sr::ErrorCode error = sr::ErrorCode::Ok;
-
-        switch (event) {
-        case sysrepo::Event::Change:
-            for (sysrepo::Change change : session.getChanges(subXPath->data())) {
-                switch (change.operation) {
-                case sysrepo::ChangeOperation::Created: {
-
-                    DEBUG("Created interface name");
-
-                    break;
-                }
-                case sysrepo::ChangeOperation::Modified:
-                    DEBUG("Modified interface name");
-                    break;
-                case sysrepo::ChangeOperation::Deleted:
-                    DEBUG("Deleted interface name");
-                    break;
-                }
-            }
-            break;
-        default:
-            break;
-        }
-
-        return error;
-    }
 }
 }
