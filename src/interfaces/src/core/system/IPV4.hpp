@@ -9,7 +9,7 @@ class IPV4 {
 private:
     int ifindex;
     void removeOrAddAddress(const Address& address, bool remove) const;
-    void createOrModifyNeighbour(const Neighbour& neigh, int flags) const;
+    void createOrModifyNeighbour(const Neighbour& neigh, int flags = 0) const;
 
 public:
     IPV4(int ifindex);

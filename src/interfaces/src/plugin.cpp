@@ -109,11 +109,13 @@ void registerModuleChangeSubscriptions(sr::Session& sess, ietf::ifc::PluginConte
         ModuleChangeCallback { "/ietf-interfaces:interfaces/interface", ietf::ifc::sub::change::InterfaceModuleChangeCb(ctx.getModuleChangeContext()) },
         ModuleChangeCallback { "/ietf-interfaces:interfaces/interface/enabled", ietf::ifc::sub::change::InterfaceModuleEnabledChangeCb(ctx.getModuleChangeContext()) },
         ModuleChangeCallback { "/ietf-interfaces:interfaces/interface/type", ietf::ifc::sub::change::InterfaceModuleTypeChangeCb(ctx.getModuleChangeContext()) },
-        ModuleChangeCallback { "/ietf-interfaces:interfaces/interface/ipv4/enabled", ietf::ifc::sub::change::InterfaceModuleIPV4EnableChangeCb(ctx.getModuleChangeContext()) },
-        ModuleChangeCallback { "/ietf-interfaces:interfaces/interface/ipv4/mtu", ietf::ifc::sub::change::InterfaceModuleIPV4MtuChangeCb(ctx.getModuleChangeContext()) },
         ModuleChangeCallback { "/ietf-interfaces:interfaces/interface/ipv4/address/ip", ietf::ifc::sub::change::InterfaceModuleIPV4AddressChangeCb(ctx.getModuleChangeContext()) },
         ModuleChangeCallback { "/ietf-interfaces:interfaces/interface/ipv4/address/prefix-length", ietf::ifc::sub::change::InterfaceModuleIPV4PrefixChangeCb(ctx.getModuleChangeContext()) },
+        ModuleChangeCallback { "/ietf-interfaces:interfaces/interface/ipv4/enabled", ietf::ifc::sub::change::InterfaceModuleIPV4EnableChangeCb(ctx.getModuleChangeContext()) },
+        ModuleChangeCallback { "/ietf-interfaces:interfaces/interface/ipv4/mtu", ietf::ifc::sub::change::InterfaceModuleIPV4MtuChangeCb(ctx.getModuleChangeContext()) },
         ModuleChangeCallback { "/ietf-interfaces:interfaces/interface/ipv4/neighbor/ip", ietf::ifc::sub::change::InterfaceModuleIPV4NeighbourIpChangeCb(ctx.getModuleChangeContext()) },
+        ModuleChangeCallback { "/ietf-interfaces:interfaces/interface/ipv4/neighbor/link-layer-address", ietf::ifc::sub::change::InterfaceModuleIPV4NeighbourLLAddressChangeCb(ctx.getModuleChangeContext()) }
+
     };
 
     auto& sub_handle = ctx.getSubscriptionHandle();

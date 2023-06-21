@@ -44,6 +44,10 @@ namespace sub::change {
     {
         m_ctx = ctx;
     }
+    InterfaceModuleIPV4NeighbourLLAddressChangeCb::InterfaceModuleIPV4NeighbourLLAddressChangeCb(std::shared_ptr<ietf::ifc::ModuleChangeContext> ctx)
+    {
+        m_ctx = ctx;
+    }
     ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
     sr::ErrorCode InterfaceModuleEnabledChangeCb::operator()(sr::Session session, uint32_t subscriptionId, std::string_view moduleName,
         std::optional<std::string_view> subXPath, sr::Event event, uint32_t requestId)
@@ -502,10 +506,11 @@ namespace sub::change {
 
                     // add the neighbour
                     try {
+                        usleep(3000);
                         ifindex = getIfindexFromName(if_name);
                         IPV4(ifindex).addNeighbour(Neighbour(neigh_addr, ll_addr));
                     } catch (std::runtime_error& e) {
-                        SRPLG_LOG_ERR("ietf_interfaces", "Failed to add neighbour, reason: %s", e.what());
+                        SRPLG_LOG_ERR("ietf_interfaces", "Neighbor Add failed: %s", e.what());
                         return sr::ErrorCode::OperationFailed;
                     }
 
@@ -513,6 +518,7 @@ namespace sub::change {
                 }
                 case sysrepo::ChangeOperation::Modified:
                     // key node cannot be modified
+
                     break;
                 case sysrepo::ChangeOperation::Deleted: {
 
@@ -540,14 +546,24 @@ namespace sub::change {
                     };
 
                     std::string name = name_node.value().asTerm().valueStr().data();
-                    DEBUG(name);
                     std::string val = change.node.asTerm().valueStr().data();
                     int ifindex = 0;
                     // for the removal of neighbour, you just need the address
 
+                    // check if interface node has changes, or only neighbour node
+                    bool if_has_changes = false;
+                    for (auto&& i : session.getChanges("/ietf-interfaces:interfaces/interface")) {
+                        if_has_changes = true;
+                        break;
+                    }
+
                     try {
                         ifindex = getIfindexFromName(name);
-                        IPV4(ifindex).removeNeighbor(val);
+                        if (!if_has_changes) {
+
+                            IPV4(ifindex).removeNeighbor(val);
+                        }
+
                     } catch (std::runtime_error& e) {
                         SRPLG_LOG_ERR("ietf_interfaces", "Failed to remove neighbour, reason: %s", e.what());
                         return sr::ErrorCode::OperationFailed;
@@ -574,8 +590,7 @@ namespace sub::change {
             for (sysrepo::Change change : session.getChanges(subXPath->data())) {
                 switch (change.operation) {
                 case sysrepo::ChangeOperation::Created: {
-                    // debug
-                    std::cout << "Enter the module change " << std::endl;
+
                     std::string path = change.node.path().data();
                     std::optional<libyang::DataNode> node;
 
@@ -630,6 +645,72 @@ namespace sub::change {
                         SRPLG_LOG_ERR("ietf_interfaces", "Cannot remove interface, reason: %s", e.what());
                         return sr::ErrorCode::OperationFailed;
                     }
+                    break;
+                }
+            }
+            break;
+        default:
+            break;
+        }
+
+        return error;
+    }
+
+    sr::ErrorCode InterfaceModuleIPV4NeighbourLLAddressChangeCb::operator()(sr::Session session, uint32_t subscriptionId, std::string_view moduleName,
+        std::optional<std::string_view> subXPath, sr::Event event, uint32_t requestId)
+    {
+
+        sr::ErrorCode error = sr::ErrorCode::Ok;
+
+        switch (event) {
+        case sysrepo::Event::Change:
+            for (sysrepo::Change change : session.getChanges(subXPath->data())) {
+                switch (change.operation) {
+                case sysrepo::ChangeOperation::Created:
+                    break;
+                case sysrepo::ChangeOperation::Modified: {
+
+                    // create a node from changed node
+                    libyang::DataNode tmp(change.node);
+
+                    // traverse till interface
+                    while (std::string(tmp.schema().name().data()) != "interface") {
+
+                        if (tmp.parent().has_value()) {
+                            tmp = tmp.parent().value();
+                        } else {
+                            break;
+                        }
+                    }
+
+                    // set path
+                    std::string name_path = tmp.path().append("/name");
+
+                    // find name value
+                    std::optional<libyang::DataNode> name_node = tmp.findPath(name_path);
+                    if (!name_node.has_value()) {
+                        SRPLG_LOG_ERR("ietf_interfaces", "Error traversing node! ");
+                        return sr::ErrorCode::OperationFailed;
+                    };
+
+                    std::string if_name = name_node.value().asTerm().valueStr().data();
+
+                    libyang::DataNode ip_node = change.node.firstSibling();
+
+                    std::string addr = ip_node.asTerm().valueStr().data();
+                    std::string ll_addr = change.node.asTerm().valueStr().data();
+                    try {
+
+                        int ifindex = getIfindexFromName(if_name);
+                        IPV4(ifindex).modifyNeighbourLinkLayer(Neighbour(addr, ll_addr));
+
+                    } catch (std::runtime_error& e) {
+                        SRPLG_LOG_ERR("ietf_interfaces", "Error modifying ll address! %s ", e.what());
+                        return sr::ErrorCode::OperationFailed;
+                    }
+                    break;
+                }
+                case sysrepo::ChangeOperation::Deleted:
                     break;
                 }
             }

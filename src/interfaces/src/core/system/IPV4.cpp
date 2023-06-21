@@ -182,7 +182,6 @@ std::string IPV4::getIPWithPrefix()
                 char buffer[50];
                 nl_addr2str(local_addr, buffer, 50);
                 arguments->ip_address = buffer;
-                std::cout << "Address " << buffer << std::endl;
             }
         },
         &args);
@@ -412,7 +411,7 @@ void IPV4::removeOrAddAddress(const Address& address, bool remove) const
     if (add_err < 0) {
 
         clean();
-        throw std::runtime_error("Failed to "+add_or_remove+" address! reason: " + std::string(nl_geterror(add_err)));
+        throw std::runtime_error("Failed to " + add_or_remove + " address! reason: " + std::string(nl_geterror(add_err)));
     }
 
     clean();
@@ -458,7 +457,7 @@ void IPV4::createOrModifyNeighbour(const Neighbour& neigh, int flags) const
 
     if (addr_err < 0) {
         clean();
-        throw std::runtime_error("Failed to parse address! reason: " + std::string(nl_geterror(err)));
+        throw std::runtime_error("Failed to parse address! reason: " + std::string(nl_geterror(addr_err)));
     }
 
     if (err < 0) {
@@ -469,20 +468,23 @@ void IPV4::createOrModifyNeighbour(const Neighbour& neigh, int flags) const
     rtnl_neigh_set_ifindex(neighbour, ifindex);
     rtnl_neigh_set_state(neighbour, NUD_PERMANENT);
     rtnl_neigh_set_family(neighbour, AF_INET);
-    rtnl_neigh_set_dst(neighbour, addr);
+    int dst_err = rtnl_neigh_set_dst(neighbour, addr);
+
+    if (dst_err < 0) {
+        throw std::runtime_error("Failed to set destination! reason: " + std::string(nl_geterror(dst_err)));
+    }
 
     int locl_err = rtnl_neigh_add(socket, neighbour, flags);
-
     if (locl_err < 0) {
         clean();
-        throw std::runtime_error("Failed to add neighbour! reason: " + std::string(nl_geterror(locl_err)));
+        throw std::runtime_error("Failed to add/modify neighbour! reason: " + std::string(nl_geterror(locl_err)));
     };
 
     clean();
 };
-void IPV4::addNeighbour(const Neighbour& neigh) { createOrModifyNeighbour(neigh, NLM_F_CREATE | NLM_F_MATCH); };
+void IPV4::addNeighbour(const Neighbour& neigh) { createOrModifyNeighbour(neigh, NLM_F_CREATE ); };
 
-void IPV4::modifyNeighbourLinkLayer(const Neighbour& neigh) { createOrModifyNeighbour(neigh, NLM_F_REPLACE | NLM_F_MATCH); };
+void IPV4::modifyNeighbourLinkLayer(const Neighbour& neigh) { createOrModifyNeighbour(neigh, NLM_F_REPLACE ); };
 
 void IPV4::removeNeighbor(const std::string& neigh)
 {
