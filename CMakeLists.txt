@@ -60,6 +60,7 @@ set (
     src/interfaces/src/core/system/IPV4.hpp
     src/interfaces/src/core/system/Neighbour.hpp
     src/interfaces/src/core/system/Address.hpp
+    src/interfaces/src/core/system/IPV6.hpp
 )
 
 set (
@@ -75,6 +76,8 @@ set (
     src/interfaces/src/core/system/IPV4.cpp
     src/interfaces/src/core/system/Neighbour.cpp
     src/interfaces/src/core/system/Address.cpp
+    src/interfaces/src/core/system/IPV6.cpp
+    src/interfaces/src/core/system/ChangeMethods.cpp
 )
 
 set(

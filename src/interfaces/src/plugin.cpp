@@ -114,8 +114,8 @@ void registerModuleChangeSubscriptions(sr::Session& sess, ietf::ifc::PluginConte
         ModuleChangeCallback { "/ietf-interfaces:interfaces/interface/ipv4/enabled", ietf::ifc::sub::change::InterfaceModuleIPV4EnableChangeCb(ctx.getModuleChangeContext()) },
         ModuleChangeCallback { "/ietf-interfaces:interfaces/interface/ipv4/mtu", ietf::ifc::sub::change::InterfaceModuleIPV4MtuChangeCb(ctx.getModuleChangeContext()) },
         ModuleChangeCallback { "/ietf-interfaces:interfaces/interface/ipv4/neighbor/ip", ietf::ifc::sub::change::InterfaceModuleIPV4NeighbourIpChangeCb(ctx.getModuleChangeContext()) },
-        ModuleChangeCallback { "/ietf-interfaces:interfaces/interface/ipv4/neighbor/link-layer-address", ietf::ifc::sub::change::InterfaceModuleIPV4NeighbourLLAddressChangeCb(ctx.getModuleChangeContext()) }
-
+        ModuleChangeCallback { "/ietf-interfaces:interfaces/interface/ipv4/neighbor/link-layer-address", ietf::ifc::sub::change::InterfaceModuleIPV4NeighbourLLAddressChangeCb(ctx.getModuleChangeContext()) },
+        ModuleChangeCallback { "/ietf-interfaces:interfaces/interface/ipv6//*", ietf::ifc::sub::change::InterfaceModuleIPV6ChangeCb(ctx.getModuleChangeContext()) }
     };
 
     auto& sub_handle = ctx.getSubscriptionHandle();

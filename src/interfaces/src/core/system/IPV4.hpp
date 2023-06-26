@@ -1,3 +1,5 @@
+#pragma once
+
 #include <string>
 #include <netlink/route/addr.h>
 #include <stdexcept>

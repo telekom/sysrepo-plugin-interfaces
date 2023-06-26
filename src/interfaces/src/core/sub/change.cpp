@@ -4,6 +4,7 @@
 #include <libyang-cpp/DataNode.hpp>
 #include <interfaces/src/core/system/interface.hpp>
 #include <sysrepo.h>
+#include <interfaces/src/core/system/ChangeMethods.cpp>
 
 // just for debug- delete after
 
@@ -48,6 +49,7 @@ namespace sub::change {
     {
         m_ctx = ctx;
     }
+    InterfaceModuleIPV6ChangeCb::InterfaceModuleIPV6ChangeCb(std::shared_ptr<ietf::ifc::ModuleChangeContext> ctx) { m_ctx = ctx; }
     ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
     sr::ErrorCode InterfaceModuleEnabledChangeCb::operator()(sr::Session session, uint32_t subscriptionId, std::string_view moduleName,
         std::optional<std::string_view> subXPath, sr::Event event, uint32_t requestId)
@@ -722,5 +724,173 @@ namespace sub::change {
         return error;
     }
 
+    sr::ErrorCode InterfaceModuleIPV6ChangeCb::operator()(sr::Session session, uint32_t subscriptionId, std::string_view moduleName,
+        std::optional<std::string_view> subXPath, sr::Event event, uint32_t requestId)
+    {
+
+        sr::ErrorCode error = sr::ErrorCode::Ok;
+
+        switch (event) {
+        case sysrepo::Event::Change:
+            for (sysrepo::Change change : session.getChanges(subXPath->data())) {
+                switch (change.operation) {
+                case sysrepo::ChangeOperation::Created: {
+
+                    // create a node from changed node
+                    libyang::DataNode tmp(change.node);
+
+                    // traverse till interface
+                    while (std::string(tmp.schema().name().data()) != "interface") {
+
+                        if (tmp.parent().has_value()) {
+                            tmp = tmp.parent().value();
+                        } else {
+                            break;
+                        }
+                    }
+
+                    // set path
+                    std::string name_path = tmp.path().append("/name");
+
+                    // find name value
+                    std::optional<libyang::DataNode> name_node = tmp.findPath(name_path);
+                    if (!name_node.has_value()) {
+                        SRPLG_LOG_ERR("ietf_interfaces", "Error traversing node! ");
+                        return sr::ErrorCode::OperationFailed;
+                    };
+
+                    std::string if_name = name_node.value().asTerm().valueStr().data();
+                    std::string node_name = change.node.schema().name().data();
+
+                    try {
+                        int ifindex = getIfindexFromName(if_name);
+                        if (node_name == "address") {
+                            changeMethods::createdIPV6AddressNode(change.node, ifindex);
+                        } else if (node_name == "neighbor") {
+                            usleep(3000);
+                            changeMethods::createdIPV6NeighborNode(change.node, ifindex);
+                        };
+                    } catch (std::runtime_error& e) {
+                        SRPLG_LOG_ERR("ietf_interfaces", e.what());
+                        return sr::ErrorCode::OperationFailed;
+                    }
+                    break;
+                }
+                case sysrepo::ChangeOperation::Modified: {
+
+                    // create a node from changed node
+                    libyang::DataNode tmp(change.node);
+
+                    // traverse till interface
+                    while (std::string(tmp.schema().name().data()) != "interface") {
+
+                        if (tmp.parent().has_value()) {
+                            tmp = tmp.parent().value();
+                        } else {
+                            break;
+                        }
+                    }
+
+                    // set path
+                    std::string name_path = tmp.path().append("/name");
+
+                    // find name value
+                    std::optional<libyang::DataNode> name_node = tmp.findPath(name_path);
+                    if (!name_node.has_value()) {
+                        SRPLG_LOG_ERR("ietf_interfaces", "Error traversing node! ");
+                        return sr::ErrorCode::OperationFailed;
+                    };
+
+                    std::string if_name = name_node.value().asTerm().valueStr().data();
+                    std::string node_name = change.node.schema().name().data();
+
+                    try {
+                        int ifindex = getIfindexFromName(if_name);
+                        if (node_name == "prefix-length") {
+                            int previous_prefix_len = std::stoi(change.previousValue.value().data());
+                            changeMethods::modifiedPrefixLength(change.node, ifindex, previous_prefix_len);
+                        } else if (node_name == "link-layer-address") {
+                            changeMethods::modifiedLinkLayerAddr(change.node, ifindex);
+                        };
+                    } catch (std::runtime_error& e) {
+                        SRPLG_LOG_ERR("ietf_interfaces", e.what());
+                        return sr::ErrorCode::OperationFailed;
+                    }
+
+                    break;
+                }
+                case sysrepo::ChangeOperation::Deleted:
+
+                    // create a node from changed node
+                    libyang::DataNode tmp(change.node);
+
+                    // traverse till interface
+                    while (std::string(tmp.schema().name().data()) != "interface") {
+
+                        if (tmp.parent().has_value()) {
+                            tmp = tmp.parent().value();
+                        } else {
+                            break;
+                        }
+                    }
+
+                    // set path
+                    std::string name_path = tmp.path().append("/name");
+
+                    // find name value
+                    std::optional<libyang::DataNode> name_node = tmp.findPath(name_path);
+                    if (!name_node.has_value()) {
+                        SRPLG_LOG_ERR("ietf_interfaces", "Error traversing node! ");
+                        return sr::ErrorCode::OperationFailed;
+                    };
+
+                    std::string if_name = name_node.value().asTerm().valueStr().data();
+                    std::string node_name = change.node.schema().name().data();
+
+                    try {
+                        int ifindex = getIfindexFromName(if_name);
+                        if (node_name == "address") {
+
+                            // this checks if interface node has changes
+                            bool if_has_changes = false;
+                            for (auto&& i : session.getChanges("/ietf-interfaces:interfaces/interface")) {
+                                if_has_changes = true;
+                                break;
+                            }
+
+                            // Interface node is not changed, so address node exists
+                            if (!if_has_changes) {
+                                changeMethods::deletedIPV6AddressNode(change.node, ifindex);
+                            }
+
+                        } else if (node_name == "neighbor") {
+
+                            // this checks if interface node has changes
+                            bool if_has_changes = false;
+                            for (auto&& i : session.getChanges("/ietf-interfaces:interfaces/interface")) {
+                                if_has_changes = true;
+                                break;
+                            }
+
+                            // Interface node is not changed, so neighbor node exists
+                            if (!if_has_changes) {
+                                changeMethods::deletedIPV6NeighborNode(change.node, ifindex);
+                            }
+                        };
+                    } catch (std::runtime_error& e) {
+                        SRPLG_LOG_ERR("ietf_interfaces", e.what());
+                        return sr::ErrorCode::OperationFailed;
+                    }
+
+                    break;
+                }
+            }
+            break;
+        default:
+            break;
+        }
+
+        return error;
+    }
 }
 }
