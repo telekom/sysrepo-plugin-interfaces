@@ -31,7 +31,11 @@ public:
 
     void removeAddress(const Address& address);
 
+    //to be implemented
     int getMTU();
+    //to be implemented
+    void setMTU(unsigned int mtu);
 
-    void setMTU();
+    std::vector<Address> getAddressList();
+    std::vector<Neighbour> getNeighborList();
 };

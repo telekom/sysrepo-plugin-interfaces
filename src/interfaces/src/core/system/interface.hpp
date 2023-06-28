@@ -5,8 +5,7 @@
 #include <netlink/route/link.h>
 #include "IPV4.hpp"
 
-
-//all previous headers in case something is missing
+// all previous headers in case something is missing
 /*
 #include <stdio.h>
 #include <stdlib.h>
@@ -25,10 +24,9 @@
 class Interface {
 private:
     int ifindex;
-    IPV4 ipv4_address;
 
 public:
-    //creation of a new interface
+    // creation of a new interface
     static void create(std::string name, std::string type, bool enabled = true);
     // disable copy and move constructors
     Interface();
@@ -48,6 +46,10 @@ public:
 
     IPV4 getIPV4();
 
+    void setMTU(unsigned int mtu);
+
+    int getMTU();
+
     void setEnabled(bool enabled);
 
     void setName(std::string name);
@@ -60,3 +62,5 @@ public:
 };
 
 int getIfindexFromName(std::string name);
+
+std::vector<int> getInterfaces();

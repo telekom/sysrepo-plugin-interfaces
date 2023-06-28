@@ -1,4 +1,5 @@
 #include "interface.hpp"
+#include <iostream>
 
 Interface::Interface() = delete;
 
@@ -7,10 +8,7 @@ Interface::Interface(const Interface&) = delete;
 Interface::Interface(Interface&&) = delete;
 
 Interface::Interface(int ifindex)
-    : ifindex { ifindex }
-    , ipv4_address { ifindex } {};
-
-IPV4 Interface::getIPV4() { return this->ipv4_address; };
+    : ifindex { ifindex } {};
 
 void Interface::create(std::string name, std::string type, bool enabled)
 {
@@ -475,3 +473,141 @@ int getIfindexFromName(std::string name)
 
     return ifindex;
 }
+
+std::vector<int> getInterfaces()
+{
+
+    std::vector<int> vec;
+
+    std::vector<int>* vec_ptr = &vec;
+
+    nl_sock* socket = NULL;
+    nl_cache* cache = NULL;
+
+    auto clean = [&]() {
+        if (socket != NULL)
+            nl_socket_free(socket);
+        if (cache != NULL)
+            nl_cache_put(cache);
+    };
+
+    socket = nl_socket_alloc();
+    if (!socket) {
+        clean();
+        throw std::runtime_error("Failed to initialize socket!");
+    }
+
+    if (nl_connect(socket, NETLINK_ROUTE) < 0) {
+        clean();
+        throw std::runtime_error("Failed to connect to socket!");
+    }
+
+    if (rtnl_link_alloc_cache(socket, AF_UNSPEC, &cache) < 0) {
+        clean();
+        throw std::runtime_error("Failed to allocate link cache!");
+    }
+
+    nl_cache_foreach(
+        cache,
+        [](nl_object* obj, void* vector) {
+            std::vector<int>* vc = static_cast<std::vector<int>*>(vector);
+            int ifindex = rtnl_link_get_ifindex((rtnl_link*)obj);
+            vc->push_back(ifindex);
+        },
+        vec_ptr);
+    clean();
+
+    return vec;
+};
+
+void Interface::setMTU(unsigned int mtu)
+{
+
+    nl_sock* socket = NULL;
+    nl_cache* cache = NULL;
+    rtnl_link* lnk = NULL;
+    rtnl_link* req_link = NULL;
+
+    auto clean = [&]() {
+        if (socket != NULL)
+            nl_socket_free(socket);
+        if (cache != NULL)
+            nl_cache_put(cache);
+        if (lnk != NULL)
+            rtnl_link_put(lnk);
+        if (req_link != NULL)
+            rtnl_link_put(req_link);
+    };
+
+    socket = nl_socket_alloc();
+    if (!socket) {
+        clean();
+        throw std::runtime_error("Failed to initialize socket!");
+    }
+
+    if (nl_connect(socket, NETLINK_ROUTE) < 0) {
+        clean();
+        throw std::runtime_error("Failed to connect to socket!");
+    }
+
+    if (rtnl_link_alloc_cache(socket, AF_UNSPEC, &cache) < 0) {
+        clean();
+        throw std::runtime_error("Failed to allocate link cache!");
+    }
+
+    lnk = rtnl_link_get(cache, this->ifindex);
+
+    // req link
+    req_link = rtnl_link_alloc();
+
+    if (lnk != NULL && req_link != NULL) {
+        clean();
+
+        int err = rtnl_link_change(socket, lnk, req_link, 0);
+
+        if (err < 0) {
+            clean();
+            throw std::runtime_error(std::string("Link failed to change, reason: ") + std::string(nl_geterror(err)));
+        }
+    } else {
+        clean();
+        throw std::runtime_error("Failed to obtain link!");
+    }
+
+    clean();
+}
+int Interface::getMTU()
+{
+    nl_sock* socket = NULL;
+    nl_cache* cache = NULL;
+
+    int mtu = 0;
+
+    socket = nl_socket_alloc();
+    if (!socket) {
+        nl_socket_free(socket);
+        throw std::runtime_error("Failed to initialize socket!");
+    }
+
+    if (nl_connect(socket, NETLINK_ROUTE) < 0) {
+        nl_socket_free(socket);
+        throw std::runtime_error("Failed to connect to socket!");
+    }
+
+    if (rtnl_link_alloc_cache(socket, AF_UNSPEC, &cache) < 0) {
+        nl_socket_free(socket);
+        throw std::runtime_error("Failed to allocate link cache!");
+    }
+
+    rtnl_link* lnk = rtnl_link_get(cache, this->ifindex);
+
+    if (lnk != NULL) {
+        mtu = rtnl_link_get_mtu(lnk);
+    };
+
+    nl_socket_free(socket);
+    nl_cache_put(cache);
+    rtnl_link_put(lnk);
+
+    return mtu;
+};

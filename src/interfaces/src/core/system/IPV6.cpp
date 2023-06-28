@@ -1,4 +1,5 @@
 #include "IPV6.hpp"
+#include <iostream>
 
 IPV6::IPV6(int ifindex)
     : m_ifindex { ifindex }
@@ -9,6 +10,125 @@ void IPV6::addAddress(const Address& address) { removeOrAddAddress(address, fals
 void IPV6::addNeighbor(const Neighbour& neigh) { createOrModifyNeighbour(neigh, NLM_F_CREATE); }
 void IPV6::modifyNetworkLinkLayer(const Neighbour& neigh) { createOrModifyNeighbour(neigh, NLM_F_REPLACE); };
 void IPV6::removeAddress(const Address& address) { removeOrAddAddress(address, true); }
+
+std::vector<Address> IPV6::getAddressList()
+{
+
+    nl_sock* socket = NULL;
+    nl_cache* cache = NULL;
+
+    std::vector<Address> list;
+
+    auto clean = [&]() {
+        if (socket != NULL)
+            nl_socket_free(socket);
+        if (cache != NULL)
+            nl_cache_put(cache);
+    };
+
+    struct Arguments {
+        std::vector<Address>* lst;
+        int ifindex;
+    } args;
+
+    args.ifindex = this->m_ifindex;
+    args.lst = &list;
+
+    socket = nl_socket_alloc();
+    if (!socket) {
+        clean();
+        throw std::runtime_error("Failed to initialize socket!");
+    }
+
+    if (nl_connect(socket, NETLINK_ROUTE) < 0) {
+        clean();
+        throw std::runtime_error("Failed to connect to socket!");
+    }
+
+    if (rtnl_addr_alloc_cache(socket, &cache) < 0) {
+        clean();
+        throw std::runtime_error("Failed to allocate address cache!");
+    }
+
+    nl_cache_foreach(
+        cache,
+        [](nl_object* obj, void* arg) {
+            Arguments* arguments = static_cast<Arguments*>(arg);
+
+            if ((rtnl_addr_get_ifindex((rtnl_addr*)obj) == arguments->ifindex) && (rtnl_addr_get_family((rtnl_addr*)obj) == AF_INET6)) {
+                nl_addr* local_addr = rtnl_addr_get_local((rtnl_addr*)obj);
+                char buffer[50];
+                nl_addr2str(local_addr, buffer, 50);
+                int prefix_length = rtnl_addr_get_prefixlen((rtnl_addr*)obj);
+
+                arguments->lst->push_back(Address(buffer, prefix_length));
+            }
+        },
+        &args);
+
+    clean();
+    return list;
+}
+
+std::vector<Neighbour> IPV6::getNeighborList()
+{
+    std::vector<Neighbour> list;
+
+    nl_sock* socket = NULL;
+    nl_cache* cache = NULL;
+
+    struct Arguments {
+        int ifindex;
+        std::vector<Neighbour>* lst;
+    } args;
+
+    args.ifindex = this->m_ifindex;
+    args.lst = &list;
+
+    socket = nl_socket_alloc();
+    if (!socket) {
+        nl_socket_free(socket);
+        throw std::runtime_error("Failed to initialize socket!");
+    }
+
+    if (nl_connect(socket, NETLINK_ROUTE) < 0) {
+        nl_socket_free(socket);
+        throw std::runtime_error("Failed to connect to socket!");
+    }
+
+    if (rtnl_neigh_alloc_cache(socket, &cache) < 0) {
+        nl_socket_free(socket);
+        throw std::runtime_error("Failed to allocate neighbor cache!");
+    }
+
+    nl_cache_foreach(
+        cache,
+        [](nl_object* obj, void* arg) {
+            Arguments* arguments = static_cast<Arguments*>(arg);
+
+            if ((rtnl_neigh_get_ifindex((rtnl_neigh*)obj) == arguments->ifindex) && (rtnl_neigh_get_family((rtnl_neigh*)obj) == AF_INET6)) {
+
+                nl_addr* neigh_addr = rtnl_neigh_get_dst((rtnl_neigh*)obj);
+                nl_addr* neigh_lladdr = rtnl_neigh_get_lladdr((rtnl_neigh*)obj);
+
+                char buffer[50];
+
+                nl_addr2str(neigh_addr, buffer, sizeof(buffer));
+
+                const std::string address = buffer;
+
+                nl_addr2str(neigh_lladdr, buffer, sizeof(buffer));
+                const std::string ll_address = buffer;
+
+                arguments->lst->push_back(Neighbour(address, ll_address));
+            };
+        },
+        &args);
+
+    nl_socket_free(socket);
+    nl_cache_put(cache);
+    return list;
+}
 
 void IPV6::removeOrAddAddress(const Address& address, bool remove)
 {

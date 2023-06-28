@@ -7,8 +7,17 @@ Address::Address()
 }
 
 Address::Address(std::string address, int prefix_len)
-    : m_address { address }
-    , m_prefix_len { prefix_len } {};
+    : m_prefix_len { prefix_len }
+{
+
+    size_t delimiter_pos = address.find("/");
+    if(delimiter_pos == std::string::npos){
+        this->m_address = address;
+    }else{
+        this->m_address = address.substr(0,delimiter_pos);
+    }
+    
+};
 Address::Address(std::string address_with_prefix)
 {
     size_t delimiter_pos = address_with_prefix.find("/");
@@ -24,4 +33,4 @@ void Address::setPrefixLength(int prefix_len) { this->m_prefix_len = prefix_len;
 void Address::setAddressString(std::string address) { this->m_address = address; };
 int Address::getPrefixLen() const { return this->m_prefix_len; };
 std::string Address::getAddressString() const { return this->m_address; };
-std::string Address::getAddressAndPrefix() const { return std::string(m_address + "/" + std::to_string(m_prefix_len)); } ;
+std::string Address::getAddressAndPrefix() const { return std::string(m_address + "/" + std::to_string(m_prefix_len)); };
