@@ -1,0 +1,25 @@
+<bridges xmlns="urn:ieee:std:802.1Q:yang:ieee802-dot1q-bridge">
+  <bridge>
+    <name>br0</name>
+    <bridge-type xmlns:dot1q="urn:ieee:std:802.1Q:yang:ieee802-dot1q-bridge">dot1q:customer-vlan-bridge</bridge-type>
+  <component>
+    <name>br0</name>
+    <type xmlns:dot1q="urn:ieee:std:802.1Q:yang:ieee802-dot1q-bridge">dot1q:c-vlan-component</type>
+    <filtering-database>
+      <aging-time>10000</aging-time>
+      <filtering-entry>
+        <database-id>0</database-id>
+        <vids>20</vids>
+        <address>3e-85-b9-17-9b-04</address>
+        <entry-type>static</entry-type>
+        <port-map xmlns:dot1qtypes="urn:ieee:std:802.1Q:yang:ieee802-dot1q-types">
+          <port-ref>${VETH1_BPORT}</port-ref>
+          <static-filtering-entries>
+            <control-element>forward</control-element>
+          </static-filtering-entries>
+        </port-map>
+      </filtering-entry>
+    </filtering-database>
+  </component>
+  </bridge>
+</bridges>
