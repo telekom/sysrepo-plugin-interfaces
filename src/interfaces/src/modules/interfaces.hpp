@@ -4,6 +4,10 @@
 
 #include "core/context.hpp"
 
+// subs API
+#include "interfaces/oper.hpp"
+#include "interfaces/change.hpp"
+
 /**
  * Operational context for the interfaces module.
  */

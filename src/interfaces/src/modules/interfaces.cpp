@@ -1,4 +1,5 @@
 #include "interfaces.hpp"
+#include "modules/interfaces/oper.hpp"
 
 #include <memory>
 
@@ -31,7 +32,12 @@ std::shared_ptr<srpc::IModuleContext> InterfacesModule::getRpcContext() { return
 /**
  * Get all operational callbacks which the module should use.
  */
-std::list<srpc::OperationalCallback> InterfacesModule::getOperationalCallbacks() { return {}; }
+std::list<srpc::OperationalCallback> InterfacesModule::getOperationalCallbacks()
+{
+    return {
+        srpc::OperationalCallback { "/ietf-interfaces:interfaces/interface", InterfaceOperGetCb(m_operContext) },
+    };
+}
 
 /**
  * Get all module change callbacks which the module should use.
