@@ -1,7 +1,5 @@
 #include "oper.hpp"
 
-#include "modules/interfaces.hpp"
-
 /**
  * sysrepo-plugin-generator: Generated default constructor.
  *

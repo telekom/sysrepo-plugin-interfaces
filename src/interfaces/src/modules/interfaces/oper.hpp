@@ -1,16 +1,13 @@
 #pragma once
 
+#include "context.hpp"
+
 #include <memory>
 #include <optional>
 #include <sysrepo-cpp/Session.hpp>
 
 namespace sr = sysrepo;
 namespace ly = libyang;
-
-/**
- * @breif Predefine class for usage in all callbacks.
- */
-class InterfacesOperationalContext;
 
 /**
  * @brief sysrepo-plugin-generator: Generated operational get functor for path /ietf-interfaces:interfaces/interface[name='%s']/name.
