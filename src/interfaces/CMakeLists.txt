@@ -46,6 +46,7 @@ set(
     MODULE_SOURCES
 
     src/modules/interfaces.cpp
+    src/modules/interfaces/oper.cpp
 )
 
 set(
