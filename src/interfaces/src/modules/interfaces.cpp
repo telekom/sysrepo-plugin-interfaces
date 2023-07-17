@@ -36,6 +36,8 @@ std::list<srpc::OperationalCallback> InterfacesModule::getOperationalCallbacks()
 {
     return {
         srpc::OperationalCallback { "ietf-interfaces", "/ietf-interfaces:interfaces/interface", InterfaceOperGetCb(m_operContext) },
+        srpc::OperationalCallback {
+            "ietf-interfaces", "/ietf-interfaces:interfaces/interface/oper-status", InterfaceOperStatusOperGetCb(m_operContext) },
     };
 }
 
