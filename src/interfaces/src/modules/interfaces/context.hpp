@@ -1,11 +1,19 @@
 #pragma once
 
+#include "api/nl.hpp"
+
 #include <srpcpp.hpp>
 
 /**
  * Operational context for the interfaces module.
  */
-class InterfacesOperationalContext : public srpc::IModuleContext { };
+class InterfacesOperationalContext : public srpc::IModuleContext {
+public:
+    NLContext& getNetlinkContext() { return m_nlContext; }
+
+private:
+    NLContext m_nlContext;
+};
 
 /**
  * Module changes context for the interfaces module.
