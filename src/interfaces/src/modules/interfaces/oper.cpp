@@ -1,6 +1,15 @@
 #include "oper.hpp"
-#include "sysrepo.h"
+#include "common.hpp"
 #include <sstream>
+#include <stdexcept>
+
+#include <sysrepo.h>
+
+#include "api/nl.hpp"
+#include "api/interface.hpp"
+
+// [TODO]: Discuss libnl direct dependency - used for example in oper-status
+#include <linux/if.h>
 
 /**
  * sysrepo-plugin-generator: Generated default constructor.
@@ -195,6 +204,38 @@ sr::ErrorCode InterfaceOperStatusOperGetCb::operator()(sr::Session session, uint
     std::optional<std::string_view> subXPath, std::optional<std::string_view> requestXPath, uint32_t requestId, std::optional<ly::DataNode>& output)
 {
     sr::ErrorCode error = sr::ErrorCode::Ok;
+
+    std::map<uint32_t, std::string> oper_status_map = {
+        { IF_OPER_UNKNOWN, "unknown" },
+        { IF_OPER_NOTPRESENT, "not-present" },
+        { IF_OPER_DOWN, "down" },
+        { IF_OPER_LOWERLAYERDOWN, "lower-layer-down" },
+        { IF_OPER_TESTING, "testing" },
+        { IF_OPER_DORMANT, "dormant" },
+        { IF_OPER_UP, "up" },
+    };
+
+    auto& nl_ctx = m_ctx->getNetlinkContext();
+    SRPLG_LOG_INF(getModuleLogPrefix(), "Running callback for /ietf-interfaces:interfaces/interface/oper-status");
+    SRPLG_LOG_INF(getModuleLogPrefix(), "Current XPath: %s", output->path().c_str());
+
+    try {
+        auto interface_name = srpc::extractListKeyFromXPath("interface", "name", output->path());
+        SRPLG_LOG_INF(getModuleLogPrefix(), "Extracted interface name %s", interface_name.c_str());
+
+        // get the interface
+        auto interface = nl_ctx.getInterfaceByName(interface_name);
+
+        if (interface) {
+            auto oper_status = interface->getOperationalStatus();
+            auto oper_status_str = oper_status_map.at(oper_status);
+
+            output->newPath("oper-status", oper_status_str);
+        }
+    } catch (const std::runtime_error& err) {
+        SRPLG_LOG_INF(getModuleLogPrefix(), "Unable to extract interface name from XPath: %s", err.what());
+    }
+
     return error;
 }
 
@@ -1790,13 +1831,11 @@ sr::ErrorCode InterfaceOperGetCb::operator()(sr::Session session, uint32_t subsc
     auto& nl_ctx = m_ctx->getNetlinkContext();
     auto link_names = nl_ctx.getLinkNames();
 
-    SRPLG_LOG_INF("InterfacesModule", "Hello from callback");
-
     for (auto& link_name : link_names) {
         std::stringstream path_buffer;
         path_buffer << "interface[name=\'" << link_name << "\']";
 
-        SRPLG_LOG_INF("InterfacesModule", "path: %s", path_buffer.str().c_str());
+        SRPLG_LOG_INF(getModuleLogPrefix(), "Creating node with path %s", path_buffer.str().c_str());
 
         auto interface_node = output->newPath(path_buffer.str());
         if (interface_node.has_value()) {
@@ -1839,8 +1878,5 @@ sr::ErrorCode InterfacesOperGetCb::operator()(sr::Session session, uint32_t subs
     std::optional<std::string_view> subXPath, std::optional<std::string_view> requestXPath, uint32_t requestId, std::optional<ly::DataNode>& output)
 {
     sr::ErrorCode error = sr::ErrorCode::Ok;
-
-    SRPLG_LOG_INF("INTERFACES", "HELLO");
-
     return error;
 }
