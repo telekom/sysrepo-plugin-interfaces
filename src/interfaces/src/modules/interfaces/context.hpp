@@ -9,10 +9,10 @@
  */
 class InterfacesOperationalContext : public srpc::IModuleContext {
 public:
-    NLContext& getNetlinkContext() { return m_nlContext; }
+    NlContext& getNetlinkContext() { return m_nlContext; }
 
 private:
-    NLContext m_nlContext;
+    NlContext m_nlContext;
 };
 
 /**
