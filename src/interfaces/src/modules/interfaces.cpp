@@ -55,6 +55,11 @@ std::list<srpc::OperationalCallback> InterfacesModule::getOperationalCallbacks()
             "/ietf-interfaces:interfaces/interface/if-index",
             InterfaceIfIndexOperGetCb(m_operContext),
         },
+        srpc::OperationalCallback {
+            "ietf-interfaces",
+            "/ietf-interfaces:interfaces/interface/phys-address",
+            InterfacePhysAddressOperGetCb(m_operContext),
+        },
     };
 }
 

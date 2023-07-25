@@ -7,6 +7,7 @@
 
 #include "api/nl.hpp"
 #include "api/interface.hpp"
+#include "api/address.hpp"
 
 // [TODO]: Discuss libnl direct dependency - used for example in oper-status
 #include <linux/if.h>
@@ -395,6 +396,30 @@ sr::ErrorCode InterfacePhysAddressOperGetCb::operator()(sr::Session session, uin
     std::optional<std::string_view> subXPath, std::optional<std::string_view> requestXPath, uint32_t requestId, std::optional<ly::DataNode>& output)
 {
     sr::ErrorCode error = sr::ErrorCode::Ok;
+
+    auto& nl_ctx = m_ctx->getNetlinkContext();
+    SRPLG_LOG_INF(getModuleLogPrefix(), "Running callback for /ietf-interfaces:interfaces/interface/phys-address");
+    SRPLG_LOG_INF(getModuleLogPrefix(), "Current XPath: %s", output->path().c_str());
+
+    try {
+        auto interface_name = srpc::extractListKeyFromXPath("interface", "name", output->path());
+        SRPLG_LOG_INF(getModuleLogPrefix(), "Extracted interface name %s", interface_name.c_str());
+
+        // get the interface
+        auto interface = nl_ctx.getInterfaceByName(interface_name);
+
+        if (interface) {
+            auto address = interface->getAddress();
+            auto address_str = address.toString();
+
+            SRPLG_LOG_INF(getModuleLogPrefix(), "phys-address(%s) = %s", interface_name.c_str(), address_str.c_str());
+
+            output->newPath("phys-address", address_str);
+        }
+    } catch (const std::runtime_error& err) {
+        SRPLG_LOG_INF(getModuleLogPrefix(), "Unable to extract phys-address from interface: %s", err.what());
+    }
+
     return error;
 }
 

@@ -1,12 +1,14 @@
 #include "address.hpp"
+#include "modules/interfaces/api/nl.hpp"
 #include "netlink/addr.h"
+#include "sysrepo.h"
 #include <stdexcept>
 
 /**
  * @brief Private constructor accessible only to friend classes. Stores a reference to nl_addr for later access of address members.
  */
 Address::Address(struct nl_addr* addr)
-    : m_addr(addr)
+    : m_addr(addr, NLEmptyDeleter<NlAddr>)
 {
 }
 
