@@ -1,4 +1,6 @@
 #include "interface.hpp"
+#include "address.hpp"
+#include "netlink/route/link.h"
 #include <memory>
 
 /**
@@ -50,3 +52,8 @@ std::uint8_t Interface::getOperationalStatus() const { return rtnl_link_get_oper
  * @breif Wrapper function for rtnl_link_get_linkmode().
  */
 std::uint8_t Interface::getLinkMode() const { return rtnl_link_get_linkmode(m_link.get()); }
+
+/**
+ * @brief Returns address of the interface.
+ */
+Address Interface::getAddress() const { return Address(rtnl_link_get_addr(m_link.get())); }
