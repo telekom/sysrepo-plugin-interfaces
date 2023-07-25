@@ -176,6 +176,56 @@ sr::ErrorCode InterfaceAdminStatusOperGetCb::operator()(sr::Session session, uin
     std::optional<std::string_view> subXPath, std::optional<std::string_view> requestXPath, uint32_t requestId, std::optional<ly::DataNode>& output)
 {
     sr::ErrorCode error = sr::ErrorCode::Ok;
+
+    enum class AdminStatus {
+        None = 0,
+        Up,
+        Down,
+        Testing,
+    };
+
+    AdminStatus admin_status = AdminStatus::None;
+
+    std::map<AdminStatus, std::string> admin_status_map = {
+        { AdminStatus::None, "none" },
+        { AdminStatus::Up, "up" },
+        { AdminStatus::Down, "down" },
+        { AdminStatus::Testing, "testing" },
+    };
+
+    auto& nl_ctx = m_ctx->getNetlinkContext();
+    SRPLG_LOG_INF(getModuleLogPrefix(), "Running callback for /ietf-interfaces:interfaces/interface/admin-status");
+    SRPLG_LOG_INF(getModuleLogPrefix(), "Current XPath: %s", output->path().c_str());
+
+    try {
+        auto interface_name = srpc::extractListKeyFromXPath("interface", "name", output->path());
+        SRPLG_LOG_INF(getModuleLogPrefix(), "Extracted interface name %s", interface_name.c_str());
+
+        // get the interface
+        auto interface = nl_ctx.getInterfaceByName(interface_name);
+
+        if (interface) {
+            auto flags = interface->getFlags();
+
+            if ((flags & IFF_UP) || (flags & IFF_RUNNING)) {
+                admin_status = AdminStatus::Up;
+            } else {
+                admin_status = AdminStatus::Down;
+            }
+
+            if (admin_status != AdminStatus::None) {
+                // set admin-status
+                auto admin_status_str = admin_status_map.at(admin_status);
+                output->newPath("admin-status", admin_status_str);
+            } else {
+                SRPLG_LOG_ERR(getModuleLogPrefix(), "Unable to determine admin-status for interface %s", interface->getName().c_str());
+                error = sr::ErrorCode::OperationFailed;
+            }
+        }
+    } catch (const std::runtime_error& err) {
+        SRPLG_LOG_INF(getModuleLogPrefix(), "Unable to extract interface name from XPath: %s", err.what());
+    }
+
     return error;
 }
 
