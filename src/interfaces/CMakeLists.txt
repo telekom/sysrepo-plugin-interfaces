@@ -51,6 +51,7 @@ set(
     src/modules/interfaces/common.cpp
     src/modules/interfaces/api/nl.cpp
     src/modules/interfaces/api/interface.cpp
+    src/modules/interfaces/api/address.cpp
 )
 
 set(
