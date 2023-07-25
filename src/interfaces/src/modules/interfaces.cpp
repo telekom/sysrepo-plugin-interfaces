@@ -60,6 +60,11 @@ std::list<srpc::OperationalCallback> InterfacesModule::getOperationalCallbacks()
             "/ietf-interfaces:interfaces/interface/phys-address",
             InterfacePhysAddressOperGetCb(m_operContext),
         },
+        srpc::OperationalCallback {
+            "ietf-interfaces",
+            "/ietf-interfaces:interfaces/interface/higher-layer-if",
+            InterfaceHigherLayerIfOperGetCb(m_operContext),
+        },
     };
 }
 

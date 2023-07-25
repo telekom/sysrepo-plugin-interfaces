@@ -7,7 +7,7 @@ class Address;
 
 class Interface {
 public:
-    friend class NLContext; ///< Allow NLContext to use the private constructor.
+    friend class NlContext; ///< Allow NlContext to use the private constructor.
 
     /**
      * @brief Wrapper function for rtnl_link_get_name().

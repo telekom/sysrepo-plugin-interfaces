@@ -17,12 +17,12 @@ class Interface;
 /**
  * @brief Netlink context using the libnl library. Used for updating system networking configuration.
  */
-class NLContext {
+class NlContext {
 public:
     /**
      * @brief Default constructor. Allocates each member of the class.
      */
-    NLContext();
+    NlContext();
 
     /**
      * @brief Refill each cache.
@@ -40,6 +40,11 @@ public:
      * @brief Return an interface found in cache by name.
      */
     std::optional<Interface> getInterfaceByName(const std::string& name);
+
+    /**
+     * @brief Return an interface found in cache by its index.
+     */
+    std::optional<Interface> getInterfaceByIndex(const uint32_t index);
 
 private:
     std::unique_ptr<struct nl_sock, NLDeleter<struct nl_sock>> m_sock; ///< Netlink socket.

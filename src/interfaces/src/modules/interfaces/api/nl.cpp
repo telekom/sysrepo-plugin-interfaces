@@ -12,7 +12,7 @@
 /**
  * @brief Default constructor. Allocates each member of the class.
  */
-NLContext::NLContext()
+NlContext::NlContext()
 {
     int error = 0;
     struct nl_sock* sock = nullptr;
@@ -50,7 +50,7 @@ NLContext::NLContext()
 /**
  * @brief Refill each cache.
  */
-void NLContext::refillCache(void)
+void NlContext::refillCache(void)
 {
     nl_cache_refill(m_sock.get(), m_linkCache.get());
     nl_cache_refill(m_sock.get(), m_addressCache.get());
@@ -61,7 +61,7 @@ void NLContext::refillCache(void)
  *
  * @return Names of links in the cache.
  */
-std::vector<std::string> NLContext::getLinkNames()
+std::vector<std::string> NlContext::getLinkNames()
 {
     std::vector<std::string> names;
     struct rtnl_link* iter = (struct rtnl_link*)nl_cache_get_first(m_linkCache.get());
@@ -80,7 +80,7 @@ std::vector<std::string> NLContext::getLinkNames()
 /**
  * @brief Return an interface found in cache by name.
  */
-std::optional<Interface> NLContext::getInterfaceByName(const std::string& name)
+std::optional<Interface> NlContext::getInterfaceByName(const std::string& name)
 {
     struct rtnl_link* iter = (struct rtnl_link*)nl_cache_get_first(m_linkCache.get());
 
@@ -92,6 +92,21 @@ std::optional<Interface> NLContext::getInterfaceByName(const std::string& name)
         }
 
         iter = (struct rtnl_link*)nl_cache_get_next((struct nl_object*)iter);
+    }
+
+    return std::nullopt;
+}
+
+/**
+ * @brief Return an interface found in cache by its index.
+ */
+std::optional<Interface> NlContext::getInterfaceByIndex(const uint32_t index)
+{
+    auto link = rtnl_link_get(m_linkCache.get(), index);
+
+    // can return NULL - check for invalid link ptr
+    if (link) {
+        return Interface(link);
     }
 
     return std::nullopt;
