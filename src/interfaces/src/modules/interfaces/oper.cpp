@@ -195,7 +195,6 @@ sr::ErrorCode InterfaceAdminStatusOperGetCb::operator()(sr::Session session, uin
     };
 
     auto& nl_ctx = m_ctx->getNetlinkContext();
-    SRPLG_LOG_INF(getModuleLogPrefix(), "Callback XPath = %s", output->path().c_str());
 
     try {
         auto interface_name = srpc::extractListKeyFromXPath("interface", "name", output->path());
@@ -216,6 +215,7 @@ sr::ErrorCode InterfaceAdminStatusOperGetCb::operator()(sr::Session session, uin
             if (admin_status != AdminStatus::None) {
                 // set admin-status
                 auto admin_status_str = admin_status_map.at(admin_status);
+                SRPLG_LOG_DBG(getModuleLogPrefix(), "admin-status(%s) = %s", interface_name.c_str(), admin_status_str.c_str());
                 output->newPath("admin-status", admin_status_str);
             } else {
                 SRPLG_LOG_ERR(getModuleLogPrefix(), "Unable to determine admin-status for interface %s", interface->getName().c_str());
@@ -266,11 +266,10 @@ sr::ErrorCode InterfaceOperStatusOperGetCb::operator()(sr::Session session, uint
     };
 
     auto& nl_ctx = m_ctx->getNetlinkContext();
-    SRPLG_LOG_INF(getModuleLogPrefix(), "Callback XPath = %s", output->path().c_str());
 
     try {
         auto interface_name = srpc::extractListKeyFromXPath("interface", "name", output->path());
-        SRPLG_LOG_INF(getModuleLogPrefix(), "name(interface) = %s", interface_name.c_str());
+        SRPLG_LOG_DBG(getModuleLogPrefix(), "name(interface) = %s", interface_name.c_str());
 
         // get the interface
         auto interface = nl_ctx.getInterfaceByName(interface_name);
@@ -278,6 +277,8 @@ sr::ErrorCode InterfaceOperStatusOperGetCb::operator()(sr::Session session, uint
         if (interface) {
             auto oper_status = interface->getOperationalStatus();
             auto oper_status_str = oper_status_map.at(oper_status);
+
+            SRPLG_LOG_DBG(getModuleLogPrefix(), "oper-status(%s) = %s", interface_name.c_str(), oper_status_str.c_str());
 
             output->newPath("oper-status", oper_status_str);
         }
@@ -345,11 +346,10 @@ sr::ErrorCode InterfaceIfIndexOperGetCb::operator()(sr::Session session, uint32_
     std::stringstream ifindex_buffer;
 
     auto& nl_ctx = m_ctx->getNetlinkContext();
-    SRPLG_LOG_INF(getModuleLogPrefix(), "Callback XPath = %s", output->path().c_str());
 
     try {
         auto interface_name = srpc::extractListKeyFromXPath("interface", "name", output->path());
-        SRPLG_LOG_INF(getModuleLogPrefix(), "name(interface) = %s", interface_name.c_str());
+        SRPLG_LOG_DBG(getModuleLogPrefix(), "name(interface) = %s", interface_name.c_str());
 
         // get the interface
         auto interface = nl_ctx.getInterfaceByName(interface_name);
@@ -358,6 +358,8 @@ sr::ErrorCode InterfaceIfIndexOperGetCb::operator()(sr::Session session, uint32_
             auto ifindex = interface->getIndex();
 
             ifindex_buffer << ifindex;
+
+            SRPLG_LOG_DBG(getModuleLogPrefix(), "if-index(%s) = %s", interface_name.c_str(), ifindex_buffer.str().c_str());
 
             output->newPath("if-index", ifindex_buffer.str());
         }
@@ -395,11 +397,10 @@ sr::ErrorCode InterfacePhysAddressOperGetCb::operator()(sr::Session session, uin
     sr::ErrorCode error = sr::ErrorCode::Ok;
 
     auto& nl_ctx = m_ctx->getNetlinkContext();
-    SRPLG_LOG_INF(getModuleLogPrefix(), "Callback XPath = %s", output->path().c_str());
 
     try {
         auto interface_name = srpc::extractListKeyFromXPath("interface", "name", output->path());
-        SRPLG_LOG_INF(getModuleLogPrefix(), "name(interface) = %s", interface_name.c_str());
+        SRPLG_LOG_DBG(getModuleLogPrefix(), "name(interface) = %s", interface_name.c_str());
 
         // get the interface
         auto interface = nl_ctx.getInterfaceByName(interface_name);
@@ -408,7 +409,7 @@ sr::ErrorCode InterfacePhysAddressOperGetCb::operator()(sr::Session session, uin
             auto address = interface->getAddress();
             auto address_str = address.toString();
 
-            SRPLG_LOG_INF(getModuleLogPrefix(), "phys-address(%s) = %s", interface_name.c_str(), address_str.c_str());
+            SRPLG_LOG_DBG(getModuleLogPrefix(), "phys-address(%s) = %s", interface_name.c_str(), address_str.c_str());
 
             output->newPath("phys-address", address_str);
         }
@@ -446,11 +447,10 @@ sr::ErrorCode InterfaceHigherLayerIfOperGetCb::operator()(sr::Session session, u
     sr::ErrorCode error = sr::ErrorCode::Ok;
 
     auto& nl_ctx = m_ctx->getNetlinkContext();
-    SRPLG_LOG_INF(getModuleLogPrefix(), "Callback XPath = %s", output->path().c_str());
 
     try {
         auto interface_name = srpc::extractListKeyFromXPath("interface", "name", output->path());
-        SRPLG_LOG_INF(getModuleLogPrefix(), "name(interface) = %s", interface_name.c_str());
+        SRPLG_LOG_DBG(getModuleLogPrefix(), "name(interface) = %s", interface_name.c_str());
 
         // get the interface
         auto interface = nl_ctx.getInterfaceByName(interface_name);
@@ -461,9 +461,10 @@ sr::ErrorCode InterfaceHigherLayerIfOperGetCb::operator()(sr::Session session, u
 
             if (master) {
                 auto master_name = master->getName();
+                SRPLG_LOG_DBG(getModuleLogPrefix(), "higher-layer-if(%s) = %s", interface_name.c_str(), master_name.c_str());
                 output->newPath("higher-layer-if", master_name);
             } else {
-                SRPLG_LOG_INF(getModuleLogPrefix(), "higher-layer-if(%s) = none", interface_name.c_str());
+                SRPLG_LOG_DBG(getModuleLogPrefix(), "higher-layer-if(%s) = none", interface_name.c_str());
             }
         }
     } catch (const std::runtime_error& err) {
