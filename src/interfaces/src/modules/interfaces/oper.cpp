@@ -195,12 +195,11 @@ sr::ErrorCode InterfaceAdminStatusOperGetCb::operator()(sr::Session session, uin
     };
 
     auto& nl_ctx = m_ctx->getNetlinkContext();
-    SRPLG_LOG_INF(getModuleLogPrefix(), "Running callback for /ietf-interfaces:interfaces/interface/admin-status");
-    SRPLG_LOG_INF(getModuleLogPrefix(), "Current XPath: %s", output->path().c_str());
+    SRPLG_LOG_INF(getModuleLogPrefix(), "Callback XPath = %s", output->path().c_str());
 
     try {
         auto interface_name = srpc::extractListKeyFromXPath("interface", "name", output->path());
-        SRPLG_LOG_INF(getModuleLogPrefix(), "Extracted interface name %s", interface_name.c_str());
+        SRPLG_LOG_INF(getModuleLogPrefix(), "name(interface) = %s", interface_name.c_str());
 
         // get the interface
         auto interface = nl_ctx.getInterfaceByName(interface_name);
@@ -267,12 +266,11 @@ sr::ErrorCode InterfaceOperStatusOperGetCb::operator()(sr::Session session, uint
     };
 
     auto& nl_ctx = m_ctx->getNetlinkContext();
-    SRPLG_LOG_INF(getModuleLogPrefix(), "Running callback for /ietf-interfaces:interfaces/interface/oper-status");
-    SRPLG_LOG_INF(getModuleLogPrefix(), "Current XPath: %s", output->path().c_str());
+    SRPLG_LOG_INF(getModuleLogPrefix(), "Callback XPath = %s", output->path().c_str());
 
     try {
         auto interface_name = srpc::extractListKeyFromXPath("interface", "name", output->path());
-        SRPLG_LOG_INF(getModuleLogPrefix(), "Extracted interface name %s", interface_name.c_str());
+        SRPLG_LOG_INF(getModuleLogPrefix(), "name(interface) = %s", interface_name.c_str());
 
         // get the interface
         auto interface = nl_ctx.getInterfaceByName(interface_name);
@@ -347,12 +345,11 @@ sr::ErrorCode InterfaceIfIndexOperGetCb::operator()(sr::Session session, uint32_
     std::stringstream ifindex_buffer;
 
     auto& nl_ctx = m_ctx->getNetlinkContext();
-    SRPLG_LOG_INF(getModuleLogPrefix(), "Running callback for /ietf-interfaces:interfaces/interface/ifindex");
-    SRPLG_LOG_INF(getModuleLogPrefix(), "Current XPath: %s", output->path().c_str());
+    SRPLG_LOG_INF(getModuleLogPrefix(), "Callback XPath = %s", output->path().c_str());
 
     try {
         auto interface_name = srpc::extractListKeyFromXPath("interface", "name", output->path());
-        SRPLG_LOG_INF(getModuleLogPrefix(), "Extracted interface name %s", interface_name.c_str());
+        SRPLG_LOG_INF(getModuleLogPrefix(), "name(interface) = %s", interface_name.c_str());
 
         // get the interface
         auto interface = nl_ctx.getInterfaceByName(interface_name);
@@ -398,12 +395,11 @@ sr::ErrorCode InterfacePhysAddressOperGetCb::operator()(sr::Session session, uin
     sr::ErrorCode error = sr::ErrorCode::Ok;
 
     auto& nl_ctx = m_ctx->getNetlinkContext();
-    SRPLG_LOG_INF(getModuleLogPrefix(), "Running callback for /ietf-interfaces:interfaces/interface/phys-address");
-    SRPLG_LOG_INF(getModuleLogPrefix(), "Current XPath: %s", output->path().c_str());
+    SRPLG_LOG_INF(getModuleLogPrefix(), "Callback XPath = %s", output->path().c_str());
 
     try {
         auto interface_name = srpc::extractListKeyFromXPath("interface", "name", output->path());
-        SRPLG_LOG_INF(getModuleLogPrefix(), "Extracted interface name %s", interface_name.c_str());
+        SRPLG_LOG_INF(getModuleLogPrefix(), "name(interface) = %s", interface_name.c_str());
 
         // get the interface
         auto interface = nl_ctx.getInterfaceByName(interface_name);
