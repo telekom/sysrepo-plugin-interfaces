@@ -14,6 +14,7 @@ template <typename T> void NlEmptyDeleter(T*) { }
 // Predefined classes
 class InterfaceRef;
 class AddressRef;
+class RouteAddressRef;
 template <typename T> class CacheRef;
 
 /**
@@ -56,7 +57,7 @@ public:
     /**
      * @brief Get the address cache.
      */
-    CacheRef<AddressRef> getAddressCache();
+    CacheRef<RouteAddressRef> getAddressCache();
 
 private:
     std::unique_ptr<struct nl_sock, NlDeleter<struct nl_sock>> m_sock; ///< Netlink socket.

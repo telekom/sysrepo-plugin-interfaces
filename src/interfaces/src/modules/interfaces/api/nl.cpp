@@ -118,3 +118,8 @@ std::optional<InterfaceRef> NlContext::getInterfaceByIndex(const uint32_t index)
  * @brief Get the links cache.
  */
 CacheRef<InterfaceRef> NlContext::getLinkCache() { return CacheRef<InterfaceRef>(m_linkCache.get()); }
+
+/**
+ * @brief Get the address cache.
+ */
+CacheRef<RouteAddressRef> NlContext::getAddressCache() { return CacheRef<RouteAddressRef>(m_addressCache.get()); }
