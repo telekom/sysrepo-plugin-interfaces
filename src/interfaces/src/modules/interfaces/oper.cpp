@@ -557,6 +557,29 @@ sr::ErrorCode InterfaceSpeedOperGetCb::operator()(sr::Session session, uint32_t 
     std::optional<std::string_view> subXPath, std::optional<std::string_view> requestXPath, uint32_t requestId, std::optional<ly::DataNode>& output)
 {
     sr::ErrorCode error = sr::ErrorCode::Ok;
+
+    auto& nl_ctx = m_ctx->getNetlinkContext();
+    std::stringstream speed_buffer;
+
+    try {
+        auto interface_name = srpc::extractListKeyFromXPath("interface", "name", output->path());
+        SRPLG_LOG_DBG(getModuleLogPrefix(), "name(interface) = %s", interface_name.c_str());
+
+        // get the interface
+        auto interface = nl_ctx.getInterfaceByName(interface_name);
+
+        if (interface) {
+            auto speed = interface->getSpeed();
+            speed_buffer << speed;
+
+            SRPLG_LOG_DBG(getModuleLogPrefix(), "speed(%s) = %s", interface_name.c_str(), speed_buffer.str().c_str());
+
+            output->newPath("speed", speed_buffer.str());
+        }
+    } catch (const std::runtime_error& err) {
+        SRPLG_LOG_INF(getModuleLogPrefix(), "Unable to extract phys-address from interface: %s", err.what());
+    }
+
     return error;
 }
 
