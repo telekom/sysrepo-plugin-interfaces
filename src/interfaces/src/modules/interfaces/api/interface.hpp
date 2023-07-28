@@ -1,6 +1,7 @@
 #pragma once
 
 #include "nl.hpp"
+#include "cache.hpp"
 #include <memory>
 
 class Address;
@@ -8,6 +9,7 @@ class Address;
 class Interface {
 public:
     friend class NlContext; ///< Allow NlContext to use the private constructor.
+    friend class Cache<Interface>; ///< Allow Cache to use the private constructor.
 
     /**
      * @brief Wrapper function for rtnl_link_get_name().
@@ -61,13 +63,18 @@ public:
 
 private:
     using RtnlLink = struct rtnl_link; ///< Route link type alias.
-    using RtnlLinkDeleter = NLDeleter<RtnlLink>; ///< Deleter type alias.
+    using RtnlLinkDeleter = NlDeleter<RtnlLink>; ///< Deleter type alias.
     using RtnlLinkPtr = std::unique_ptr<RtnlLink, RtnlLinkDeleter>; ///< Unique pointer type alias.
 
     /**
      * @brief Private constructor accessible only to netlink context. Stores a reference to a link for later access of link members.
      */
     Interface(struct rtnl_link* link);
+
+    /**
+     * @brief Private constructor accessible only to netlink context. Stores a reference to a link for later access of link members.
+     */
+    Interface(struct nl_object* link);
 
     RtnlLinkPtr m_link; ///< Link reference.
 };

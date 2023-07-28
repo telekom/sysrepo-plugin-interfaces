@@ -14,7 +14,7 @@ public:
 
 private:
     using NlAddr = struct nl_addr; ///< NL address type alias;
-    using NlAddrDeleter = NLDeleter<NlAddr>; ///< Deleter type alias.
+    using NlAddrDeleter = NlDeleter<NlAddr>; ///< Deleter type alias.
     using NlAddrPtr = std::unique_ptr<NlAddr, NlAddrDeleter>; ///< Unique pointer type alias.
 
     /**

@@ -65,6 +65,11 @@ std::list<srpc::OperationalCallback> InterfacesModule::getOperationalCallbacks()
             "/ietf-interfaces:interfaces/interface/higher-layer-if",
             InterfaceHigherLayerIfOperGetCb(m_operContext),
         },
+        srpc::OperationalCallback {
+            "ietf-interfaces",
+            "/ietf-interfaces:interfaces/interface/lower-layer-if",
+            InterfaceLowerLayerIfOperGetCb(m_operContext),
+        },
     };
 }
 
