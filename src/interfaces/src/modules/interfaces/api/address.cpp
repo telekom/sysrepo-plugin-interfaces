@@ -7,7 +7,7 @@
 /**
  * @brief Private constructor accessible only to friend classes. Stores a reference to nl_addr for later access of address members.
  */
-Address::Address(struct nl_addr* addr)
+AddressRef::AddressRef(struct nl_addr* addr)
     : m_addr(addr, NlEmptyDeleter<NlAddr>)
 {
 }
@@ -15,7 +15,7 @@ Address::Address(struct nl_addr* addr)
 /**
  * @breif Convert the address to string.
  */
-std::string Address::toString() const
+std::string AddressRef::toString() const
 {
     char buffer[100] = { 0 };
     void* error = 0;

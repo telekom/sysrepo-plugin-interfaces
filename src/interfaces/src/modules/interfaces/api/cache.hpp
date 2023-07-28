@@ -5,7 +5,7 @@
 
 #include <optional>
 
-template <typename T> class Cache {
+template <typename T> class CacheRef {
 public:
     friend class NlContext; ///< Allow NlContext to use the private constructor.
 
@@ -28,7 +28,7 @@ private:
     /**
      * @brief Private constructor accessible only to friend classes. Stores a reference to nl_cache for later access of cache data.
      */
-    Cache(struct nl_cache* cache)
+    CacheRef(struct nl_cache* cache)
         : m_cache(cache, NlEmptyDeleter<NlCache>)
     {
         auto iter = nl_cache_get_first(cache);
