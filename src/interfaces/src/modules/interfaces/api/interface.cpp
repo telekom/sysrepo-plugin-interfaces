@@ -1,7 +1,8 @@
 #include "interface.hpp"
 #include "address.hpp"
-#include "modules/interfaces/api/nl.hpp"
-#include "netlink/route/link.h"
+#include <netlink/route/link.h>
+#include <netlink/route/qdisc.h>
+#include <netlink/route/tc.h>
 #include <memory>
 
 /**
@@ -63,3 +64,26 @@ std::uint8_t Interface::getLinkMode() const { return rtnl_link_get_linkmode(m_li
  * @brief Returns address of the interface.
  */
 Address Interface::getAddress() const { return Address(rtnl_link_get_addr(m_link.get())); }
+
+/**
+ * @brief Returns the speed of the interface.
+ */
+uint64_t Interface::getSpeed() const
+{
+    struct rtnl_qdisc* qdisc = NULL;
+    struct rtnl_tc* tc = NULL;
+    uint64_t speed = 0;
+
+    // setup traffic control
+    qdisc = rtnl_qdisc_alloc();
+    tc = TC_CAST(qdisc);
+    rtnl_tc_set_link(tc, m_link.get());
+
+    // get speed
+    speed = rtnl_tc_get_stat(tc, RTNL_TC_RATE_BPS);
+
+    // free memory
+    rtnl_qdisc_put(qdisc);
+
+    return speed;
+}

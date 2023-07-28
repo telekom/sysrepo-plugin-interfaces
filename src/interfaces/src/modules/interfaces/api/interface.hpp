@@ -61,6 +61,11 @@ public:
      */
     Address getAddress() const;
 
+    /**
+     * @brief Returns the speed of the interface.
+     */
+    uint64_t getSpeed() const;
+
 private:
     using RtnlLink = struct rtnl_link; ///< Route link type alias.
     using RtnlLinkDeleter = NlDeleter<RtnlLink>; ///< Deleter type alias.
