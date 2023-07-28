@@ -1000,6 +1000,116 @@ sr::ErrorCode InterfaceStatsOperGetCb::operator()(sr::Session session, uint32_t 
     std::optional<std::string_view> subXPath, std::optional<std::string_view> requestXPath, uint32_t requestId, std::optional<ly::DataNode>& output)
 {
     sr::ErrorCode error = sr::ErrorCode::Ok;
+
+    auto& nl_ctx = m_ctx->getNetlinkContext();
+
+    auto buffer = std::stringstream();
+
+    try {
+        auto interface_name = srpc::extractListKeyFromXPath("interface", "name", output->path());
+        SRPLG_LOG_DBG(getModuleLogPrefix(), "name(interface) = %s", interface_name.c_str());
+
+        // get the interface
+        auto interface = nl_ctx.getInterfaceByName(interface_name);
+
+        if (interface) {
+            auto stats = interface->getStatistics();
+
+            // in-octets
+            buffer << stats.InOctets;
+            SRPLG_LOG_DBG(getModuleLogPrefix(), "stats:in-octets(%s) = %s", interface_name.c_str(), buffer.str().c_str());
+            output->newPath("statistics/in-octets", buffer.str());
+            buffer.clear();
+            buffer.str("");
+
+            // in-unicast-pkts
+            buffer << stats.InUnicastPkts;
+            SRPLG_LOG_DBG(getModuleLogPrefix(), "stats:in-unicast-pkts(%s) = %s", interface_name.c_str(), buffer.str().c_str());
+            output->newPath("statistics/in-unicast-pkts", buffer.str());
+            buffer.clear();
+            buffer.str("");
+
+            // in-broadcast-pkts
+            buffer << stats.InBroadcastPkts;
+            SRPLG_LOG_DBG(getModuleLogPrefix(), "stats:in-broadcast-pkts(%s) = %s", interface_name.c_str(), buffer.str().c_str());
+            output->newPath("statistics/in-broadcast-pkts", buffer.str());
+            buffer.clear();
+            buffer.str("");
+
+            // in-multicast-pkts
+            buffer << stats.InMulticastPkts;
+            SRPLG_LOG_DBG(getModuleLogPrefix(), "stats:in-multicast-pkts(%s) = %s", interface_name.c_str(), buffer.str().c_str());
+            output->newPath("statistics/in-multicast-pkts", buffer.str());
+            buffer.clear();
+            buffer.str("");
+
+            // in-discards
+            buffer << stats.InDiscards;
+            SRPLG_LOG_DBG(getModuleLogPrefix(), "stats:in-discards(%s) = %s", interface_name.c_str(), buffer.str().c_str());
+            output->newPath("statistics/in-discards", buffer.str());
+            buffer.clear();
+            buffer.str("");
+
+            // in-errors
+            buffer << stats.InErrors;
+            SRPLG_LOG_DBG(getModuleLogPrefix(), "stats:in-errors(%s) = %s", interface_name.c_str(), buffer.str().c_str());
+            output->newPath("statistics/in-errors", buffer.str());
+            buffer.clear();
+            buffer.str("");
+
+            // in-unknown-protos
+            buffer << stats.InUnknownProtos;
+            SRPLG_LOG_DBG(getModuleLogPrefix(), "stats:in-unknown-protos(%s) = %s", interface_name.c_str(), buffer.str().c_str());
+            output->newPath("statistics/in-unknown-protos", buffer.str());
+            buffer.clear();
+            buffer.str("");
+
+            // out-octets
+            buffer << stats.OutOctets;
+            SRPLG_LOG_DBG(getModuleLogPrefix(), "stats:out-octets(%s) = %s", interface_name.c_str(), buffer.str().c_str());
+            output->newPath("statistics/out-octets", buffer.str());
+            buffer.clear();
+            buffer.str("");
+
+            // out-unicast-pkts
+            buffer << stats.OutUnicastPkts;
+            SRPLG_LOG_DBG(getModuleLogPrefix(), "stats:out-unicast-pkts(%s) = %s", interface_name.c_str(), buffer.str().c_str());
+            output->newPath("statistics/out-unicast-pkts", buffer.str());
+            buffer.clear();
+            buffer.str("");
+
+            // out-broadcast-pkts
+            buffer << stats.OutBroadcastPkts;
+            SRPLG_LOG_DBG(getModuleLogPrefix(), "stats:out-broadcast-pkts(%s) = %s", interface_name.c_str(), buffer.str().c_str());
+            output->newPath("statistics/out-broadcast-pkts", buffer.str());
+            buffer.clear();
+            buffer.str("");
+
+            // out-multicast-pkts
+            buffer << stats.OutMulticastPkts;
+            SRPLG_LOG_DBG(getModuleLogPrefix(), "stats:out-multicast-pkts(%s) = %s", interface_name.c_str(), buffer.str().c_str());
+            output->newPath("statistics/out-multicast-pkts", buffer.str());
+            buffer.clear();
+            buffer.str("");
+
+            // out-discards
+            buffer << stats.OutDiscards;
+            SRPLG_LOG_DBG(getModuleLogPrefix(), "stats:out-discards(%s) = %s", interface_name.c_str(), buffer.str().c_str());
+            output->newPath("statistics/out-discards", buffer.str());
+            buffer.clear();
+            buffer.str("");
+
+            // out-errors
+            buffer << stats.OutErrors;
+            SRPLG_LOG_DBG(getModuleLogPrefix(), "stats:out-errors(%s) = %s", interface_name.c_str(), buffer.str().c_str());
+            output->newPath("statistics/out-errors", buffer.str());
+            buffer.clear();
+            buffer.str("");
+        }
+    } catch (const std::runtime_error& err) {
+        SRPLG_LOG_INF(getModuleLogPrefix(), "Unable to extract interface name from XPath: %s", err.what());
+    }
+
     return error;
 }
 

@@ -2,9 +2,29 @@
 
 #include "nl.hpp"
 #include "cache.hpp"
+#include <cstdint>
 #include <memory>
 
 class Address;
+
+/**
+ * @brief Interface operational statistics container data structure.
+ */
+struct InterfaceStats {
+    uint64_t InOctets;
+    uint64_t InUnicastPkts;
+    uint64_t InBroadcastPkts;
+    uint64_t InMulticastPkts;
+    uint32_t InDiscards;
+    uint32_t InErrors;
+    uint32_t InUnknownProtos;
+    uint64_t OutOctets;
+    uint64_t OutUnicastPkts;
+    uint64_t OutBroadcastPkts;
+    uint64_t OutMulticastPkts;
+    uint32_t OutDiscards;
+    uint32_t OutErrors;
+};
 
 class Interface {
 public:
@@ -65,6 +85,11 @@ public:
      * @brief Returns the speed of the interface.
      */
     uint64_t getSpeed() const;
+
+    /**
+     * @brief Get interface statistics.
+     */
+    InterfaceStats getStatistics() const;
 
 private:
     using RtnlLink = struct rtnl_link; ///< Route link type alias.
