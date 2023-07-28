@@ -3,9 +3,9 @@
 #include "interface.hpp"
 #include <string>
 
-class Address {
+class AddressRef {
 public:
-    friend class Interface; ///< Allow Interface class to use the private constructor.
+    friend class InterfaceRef; ///< Allow Interface class to use the private constructor.
 
     /**
      * @breif Convert the address to string.
@@ -20,7 +20,7 @@ private:
     /**
      * @brief Private constructor accessible only to friend classes. Stores a reference to nl_addr for later access of address members.
      */
-    Address(struct nl_addr* addr);
+    AddressRef(struct nl_addr* addr);
 
     NlAddrPtr m_addr; ///< Addr reference.
 };

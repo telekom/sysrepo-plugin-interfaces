@@ -82,7 +82,7 @@ std::vector<std::string> NlContext::getLinkNames()
 /**
  * @brief Return an interface found in cache by name.
  */
-std::optional<Interface> NlContext::getInterfaceByName(const std::string& name)
+std::optional<InterfaceRef> NlContext::getInterfaceByName(const std::string& name)
 {
     struct rtnl_link* iter = (struct rtnl_link*)nl_cache_get_first(m_linkCache.get());
 
@@ -90,7 +90,7 @@ std::optional<Interface> NlContext::getInterfaceByName(const std::string& name)
         const char* link_name = rtnl_link_get_name(iter);
 
         if (name == link_name) {
-            return Interface(iter);
+            return InterfaceRef(iter);
         }
 
         iter = (struct rtnl_link*)nl_cache_get_next((struct nl_object*)iter);
@@ -102,13 +102,13 @@ std::optional<Interface> NlContext::getInterfaceByName(const std::string& name)
 /**
  * @brief Return an interface found in cache by its index.
  */
-std::optional<Interface> NlContext::getInterfaceByIndex(const uint32_t index)
+std::optional<InterfaceRef> NlContext::getInterfaceByIndex(const uint32_t index)
 {
     auto link = rtnl_link_get(m_linkCache.get(), index);
 
     // can return NULL - check for invalid link ptr
     if (link) {
-        return Interface(link);
+        return InterfaceRef(link);
     }
 
     return std::nullopt;
@@ -117,4 +117,4 @@ std::optional<Interface> NlContext::getInterfaceByIndex(const uint32_t index)
 /**
  * @brief Get the links cache.
  */
-Cache<Interface> NlContext::getLinkCache() { return Cache<Interface>(m_linkCache.get()); }
+CacheRef<InterfaceRef> NlContext::getLinkCache() { return CacheRef<InterfaceRef>(m_linkCache.get()); }

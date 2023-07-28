@@ -5,7 +5,7 @@
 #include <cstdint>
 #include <memory>
 
-class Address;
+class AddressRef;
 
 /**
  * @brief Interface operational statistics container data structure.
@@ -26,10 +26,10 @@ struct InterfaceStats {
     uint32_t OutErrors;
 };
 
-class Interface {
+class InterfaceRef {
 public:
     friend class NlContext; ///< Allow NlContext to use the private constructor.
-    friend class Cache<Interface>; ///< Allow Cache to use the private constructor.
+    friend class CacheRef<InterfaceRef>; ///< Allow Cache to use the private constructor.
 
     /**
      * @brief Wrapper function for rtnl_link_get_name().
@@ -79,7 +79,7 @@ public:
     /**
      * @brief Returns address of the interface.
      */
-    Address getAddress() const;
+    AddressRef getAddress() const;
 
     /**
      * @brief Returns the speed of the interface.
@@ -99,12 +99,12 @@ private:
     /**
      * @brief Private constructor accessible only to netlink context. Stores a reference to a link for later access of link members.
      */
-    Interface(struct rtnl_link* link);
+    InterfaceRef(struct rtnl_link* link);
 
     /**
      * @brief Private constructor accessible only to netlink context. Stores a reference to a link for later access of link members.
      */
-    Interface(struct nl_object* link);
+    InterfaceRef(struct nl_object* link);
 
     RtnlLinkPtr m_link; ///< Link reference.
 };

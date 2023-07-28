@@ -12,9 +12,9 @@ template <typename T> using NlDeleter = std::function<void(T*)>;
 template <typename T> void NlEmptyDeleter(T*) { }
 
 // Predefined classes
-class Interface;
-class Address;
-template <typename T> class Cache;
+class InterfaceRef;
+class AddressRef;
+template <typename T> class CacheRef;
 
 /**
  * @brief Netlink context using the libnl library. Used for updating system networking configuration.
@@ -41,17 +41,22 @@ public:
     /**
      * @brief Return an interface found in cache by name.
      */
-    std::optional<Interface> getInterfaceByName(const std::string& name);
+    std::optional<InterfaceRef> getInterfaceByName(const std::string& name);
 
     /**
      * @brief Return an interface found in cache by its index.
      */
-    std::optional<Interface> getInterfaceByIndex(const uint32_t index);
+    std::optional<InterfaceRef> getInterfaceByIndex(const uint32_t index);
 
     /**
      * @brief Get the links cache.
      */
-    Cache<Interface> getLinkCache();
+    CacheRef<InterfaceRef> getLinkCache();
+
+    /**
+     * @brief Get the address cache.
+     */
+    CacheRef<AddressRef> getAddressCache();
 
 private:
     std::unique_ptr<struct nl_sock, NlDeleter<struct nl_sock>> m_sock; ///< Netlink socket.
