@@ -8,6 +8,8 @@
 
 // include types
 #include "interface.hpp"
+#include "address.hpp"
+#include "cache.hpp"
 
 /**
  * @brief Default constructor. Allocates each member of the class.
@@ -25,7 +27,7 @@ NlContext::NlContext()
     }
 
     // connect to netlink route and get all links and addresses
-    m_sock = std::unique_ptr<struct nl_sock, NLDeleter<struct nl_sock>>(sock, nl_socket_free);
+    m_sock = std::unique_ptr<struct nl_sock, NlDeleter<struct nl_sock>>(sock, nl_socket_free);
 
     error = nl_connect(m_sock.get(), NETLINK_ROUTE);
     if (error != 0) {
@@ -37,14 +39,14 @@ NlContext::NlContext()
         throw std::runtime_error("Unable to alloc link cache");
     }
 
-    m_linkCache = std::unique_ptr<struct nl_cache, NLDeleter<struct nl_cache>>(link_cache, nl_cache_free);
+    m_linkCache = std::unique_ptr<struct nl_cache, NlDeleter<struct nl_cache>>(link_cache, nl_cache_free);
 
     error = rtnl_addr_alloc_cache(m_sock.get(), &addr_cache);
     if (error != 0) {
         throw std::runtime_error("Unable to alloc addr cache");
     }
 
-    m_addressCache = std::unique_ptr<struct nl_cache, NLDeleter<struct nl_cache>>(addr_cache, nl_cache_free);
+    m_addressCache = std::unique_ptr<struct nl_cache, NlDeleter<struct nl_cache>>(addr_cache, nl_cache_free);
 }
 
 /**
@@ -111,3 +113,8 @@ std::optional<Interface> NlContext::getInterfaceByIndex(const uint32_t index)
 
     return std::nullopt;
 }
+
+/**
+ * @brief Get the links cache.
+ */
+Cache<Interface> NlContext::getLinkCache() { return Cache<Interface>(m_linkCache.get()); }

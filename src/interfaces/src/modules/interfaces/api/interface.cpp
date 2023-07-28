@@ -1,12 +1,18 @@
 #include "interface.hpp"
 #include "address.hpp"
+#include "modules/interfaces/api/nl.hpp"
 #include "netlink/route/link.h"
 #include <memory>
 
 /**
  * @brief Private constructor accessible only to netlink context. Stores a reference to a link for later access of link members.
  */
-Interface::Interface(struct rtnl_link* link) { m_link = RtnlLinkPtr(link, NLEmptyDeleter<RtnlLink>); }
+Interface::Interface(struct rtnl_link* link) { m_link = RtnlLinkPtr(link, NlEmptyDeleter<RtnlLink>); }
+
+/**
+ * @brief Private constructor accessible only to netlink context. Stores a reference to a link for later access of link members.
+ */
+Interface::Interface(struct nl_object* link) { m_link = RtnlLinkPtr(reinterpret_cast<RtnlLink*>(link), NlEmptyDeleter<RtnlLink>); }
 
 /**
  * @breif Wrapper function for rtnl_link_get_name().

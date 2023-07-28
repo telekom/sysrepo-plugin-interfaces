@@ -8,7 +8,7 @@
  * @brief Private constructor accessible only to friend classes. Stores a reference to nl_addr for later access of address members.
  */
 Address::Address(struct nl_addr* addr)
-    : m_addr(addr, NLEmptyDeleter<NlAddr>)
+    : m_addr(addr, NlEmptyDeleter<NlAddr>)
 {
 }
 

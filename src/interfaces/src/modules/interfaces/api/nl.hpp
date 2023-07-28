@@ -6,13 +6,15 @@
 #include <optional>
 
 ///< Type used for deleting libnl allocated structs
-template <typename T> using NLDeleter = std::function<void(T*)>;
+template <typename T> using NlDeleter = std::function<void(T*)>;
 
 ///< Empty deleter which does nothing with the type. Used for storing shared pointers.
-template <typename T> void NLEmptyDeleter(T*) { }
+template <typename T> void NlEmptyDeleter(T*) { }
 
 // Predefined classes
 class Interface;
+class Address;
+template <typename T> class Cache;
 
 /**
  * @brief Netlink context using the libnl library. Used for updating system networking configuration.
@@ -46,9 +48,14 @@ public:
      */
     std::optional<Interface> getInterfaceByIndex(const uint32_t index);
 
+    /**
+     * @brief Get the links cache.
+     */
+    Cache<Interface> getLinkCache();
+
 private:
-    std::unique_ptr<struct nl_sock, NLDeleter<struct nl_sock>> m_sock; ///< Netlink socket.
-    std::unique_ptr<struct nl_cache, NLDeleter<struct nl_cache>> m_linkCache; ///< Links cache.
-    std::unique_ptr<struct nl_cache, NLDeleter<struct nl_cache>> m_addressCache; ///< Addresses cache.
-    std::unique_ptr<struct nl_cache, NLDeleter<struct nl_cache>> m_neighCache; ///< Neighbors cache.
+    std::unique_ptr<struct nl_sock, NlDeleter<struct nl_sock>> m_sock; ///< Netlink socket.
+    std::unique_ptr<struct nl_cache, NlDeleter<struct nl_cache>> m_linkCache; ///< Links cache.
+    std::unique_ptr<struct nl_cache, NlDeleter<struct nl_cache>> m_addressCache; ///< Addresses cache.
+    std::unique_ptr<struct nl_cache, NlDeleter<struct nl_cache>> m_neighCache; ///< Neighbors cache.
 };

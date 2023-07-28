@@ -8,6 +8,7 @@
 #include "api/nl.hpp"
 #include "api/interface.hpp"
 #include "api/address.hpp"
+#include "api/cache.hpp"
 
 // [TODO]: Discuss libnl direct dependency - used for example in oper-status
 #include <linux/if.h>
@@ -28,9 +29,7 @@ InterfaceNameOperGetCb::InterfaceNameOperGetCb(std::shared_ptr<InterfacesOperati
  * @param moduleName The module name used for subscribing.
  * @param subXPath The optional xpath used at the time of subscription.
  * @param requestId Request ID unique for the specific module_name. Connected events for one request (SR_EV_CHANGE and
- * @param output A handle to a tree. The callback is supposed to fill this tree with the requested data.
- *
- * @return Error code.
+ * @param output A handle to a tree. The callback is supposed to fill this tree with the requested data. * @return Error code.
  *
  */
 sr::ErrorCode InterfaceNameOperGetCb::operator()(sr::Session session, uint32_t subscriptionId, std::string_view moduleName,
@@ -499,6 +498,37 @@ sr::ErrorCode InterfaceLowerLayerIfOperGetCb::operator()(sr::Session session, ui
     std::optional<std::string_view> subXPath, std::optional<std::string_view> requestXPath, uint32_t requestId, std::optional<ly::DataNode>& output)
 {
     sr::ErrorCode error = sr::ErrorCode::Ok;
+
+    auto& nl_ctx = m_ctx->getNetlinkContext();
+
+    try {
+        auto interface_name = srpc::extractListKeyFromXPath("interface", "name", output->path());
+        SRPLG_LOG_DBG(getModuleLogPrefix(), "name(interface) = %s", interface_name.c_str());
+
+        // get the interface
+        auto interface = nl_ctx.getInterfaceByName(interface_name);
+
+        if (interface) {
+            // iterate over all links and check for ones which have a master equal to the current link
+            auto links_cache = nl_ctx.getLinkCache();
+            auto link_index = interface->getIndex();
+
+            for (auto& link : links_cache) {
+                SRPLG_LOG_DBG(getModuleLogPrefix(), "Link: %s", link.getName().c_str());
+                auto master = link.getMaster();
+                auto name = link.getName();
+
+                if (master == link_index) {
+                    // found lower-layer-if
+                    SRPLG_LOG_DBG(getModuleLogPrefix(), "lower-layer-if(%s) = %s", interface_name.c_str(), name.c_str());
+                    output->newPath("lower-layer-if", link.getName());
+                }
+            }
+        }
+    } catch (const std::runtime_error& err) {
+        SRPLG_LOG_INF(getModuleLogPrefix(), "Unable to extract lower-layer-if from interface: %s", err.what());
+    }
+
     return error;
 }
 
