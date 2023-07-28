@@ -80,6 +80,11 @@ std::list<srpc::OperationalCallback> InterfacesModule::getOperationalCallbacks()
             "/ietf-interfaces:interfaces/interface/statistics",
             InterfaceStatsOperGetCb(m_operContext),
         },
+        srpc::OperationalCallback {
+            "ietf-interfaces",
+            "/ietf-interfaces:interfaces/interface/ipv4/address",
+            Ipv4AddrOperGetCb(m_operContext),
+        },
     };
 }
 
