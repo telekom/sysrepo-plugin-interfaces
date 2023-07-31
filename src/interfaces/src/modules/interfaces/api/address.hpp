@@ -38,6 +38,18 @@ enum class AddressFamily {
     Other,
 };
 
+enum class AddressOrigin {
+    Static,
+    Dhcp,
+    LinkLayer,
+    Random,
+};
+
+/**
+ * @brief Convert address origin to string.
+ */
+std::string originToString(AddressOrigin origin);
+
 class RouteAddressRef {
 public:
     using Self = RouteAddressRef;
@@ -52,6 +64,11 @@ public:
      * @brief Return the address family.
      */
     AddressFamily getFamily() const;
+
+    /**
+     * @brief Return the origin of the address.
+     */
+    AddressOrigin getOrigin() const;
 
     /**
      * @brief Get the IP address portion of the route address.

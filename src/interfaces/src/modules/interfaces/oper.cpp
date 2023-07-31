@@ -1360,6 +1360,8 @@ sr::ErrorCode Ipv4AddrOperGetCb::operator()(sr::Session session, uint32_t subscr
                     auto prefix_buffer = std::stringstream();
                     auto ip_addr = addr.getIPAddress();
                     auto prefix = addr.getPrefix();
+                    auto origin = addr.getOrigin();
+                    auto origin_str = originToString(origin);
 
                     prefix_buffer << prefix;
 
@@ -1370,6 +1372,9 @@ sr::ErrorCode Ipv4AddrOperGetCb::operator()(sr::Session session, uint32_t subscr
 
                     // append prefix to the address node
                     addr_node->newPath("prefix-length", prefix_buffer.str());
+
+                    // set origin
+                    addr_node->newPath("origin", origin_str);
                 }
             }
         }

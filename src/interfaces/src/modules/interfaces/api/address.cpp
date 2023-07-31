@@ -3,7 +3,33 @@
 #include "netlink/addr.h"
 #include "netlink/route/addr.h"
 #include "sysrepo.h"
+#include <linux/if_addr.h>
 #include <stdexcept>
+
+/**
+ * @brief Convert address origin to string.
+ */
+std::string originToString(AddressOrigin origin)
+{
+    auto str = std::string();
+
+    switch (origin) {
+    case AddressOrigin::Static:
+        str = "static";
+        break;
+    case AddressOrigin::Dhcp:
+        str = "dhcp";
+        break;
+    case AddressOrigin::LinkLayer:
+        str = "link-layer";
+        break;
+    case AddressOrigin::Random:
+        str = "random";
+        break;
+    }
+
+    return str;
+}
 
 /**
  * @brief Private constructor accessible only to friend classes. Stores a reference to nl_addr for later access of address members.
@@ -63,6 +89,20 @@ AddressFamily RouteAddressRef::getFamily() const
         return AddressFamily::V6;
     }
     return AddressFamily::Other;
+}
+
+/**
+ * @brief Return the origin of the address.
+ */
+AddressOrigin RouteAddressRef::getOrigin() const
+{
+    auto flags = rtnl_addr_get_flags(m_addr.get());
+
+    if ((flags & IFA_F_PERMANENT) > 0) {
+        return AddressOrigin::Static;
+    }
+
+    return AddressOrigin::Dhcp;
 }
 
 /**
