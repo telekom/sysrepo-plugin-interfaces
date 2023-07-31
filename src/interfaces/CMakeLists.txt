@@ -52,6 +52,7 @@ set(
     src/modules/interfaces/api/nl.cpp
     src/modules/interfaces/api/interface.cpp
     src/modules/interfaces/api/address.cpp
+    src/modules/interfaces/api/neighbor.cpp
 )
 
 set(

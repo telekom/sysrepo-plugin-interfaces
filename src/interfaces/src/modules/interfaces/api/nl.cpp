@@ -9,7 +9,9 @@
 // include types
 #include "interface.hpp"
 #include "address.hpp"
+#include "neighbor.hpp"
 #include "cache.hpp"
+#include "netlink/route/neighbour.h"
 
 /**
  * @brief Default constructor. Allocates each member of the class.
@@ -20,6 +22,7 @@ NlContext::NlContext()
     struct nl_sock* sock = nullptr;
     struct nl_cache* link_cache = nullptr;
     struct nl_cache* addr_cache = nullptr;
+    struct nl_cache* neigh_cache = nullptr;
 
     sock = nl_socket_alloc();
     if (!sock) {
@@ -47,6 +50,13 @@ NlContext::NlContext()
     }
 
     m_addressCache = std::unique_ptr<struct nl_cache, NlDeleter<struct nl_cache>>(addr_cache, nl_cache_free);
+
+    error = rtnl_neigh_alloc_cache(m_sock.get(), &neigh_cache);
+    if (error != 0) {
+        throw std::runtime_error("Unable to alloc neighbor cache");
+    }
+
+    m_neighCache = std::unique_ptr<struct nl_cache, NlDeleter<struct nl_cache>>(neigh_cache, nl_cache_free);
 }
 
 /**
@@ -123,3 +133,8 @@ CacheRef<InterfaceRef> NlContext::getLinkCache() { return CacheRef<InterfaceRef>
  * @brief Get the address cache.
  */
 CacheRef<RouteAddressRef> NlContext::getAddressCache() { return CacheRef<RouteAddressRef>(m_addressCache.get()); }
+
+/**
+ * @brief Get the neighbors cache.
+ */
+CacheRef<NeighborRef> NlContext::getNeighborCache() { return CacheRef<NeighborRef>(m_neighCache.get()); }

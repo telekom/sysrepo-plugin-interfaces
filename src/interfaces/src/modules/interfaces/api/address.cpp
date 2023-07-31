@@ -1,8 +1,6 @@
 #include "address.hpp"
-#include "modules/interfaces/api/nl.hpp"
 #include "netlink/addr.h"
 #include "netlink/route/addr.h"
-#include "sysrepo.h"
 #include <linux/if_addr.h>
 #include <stdexcept>
 
