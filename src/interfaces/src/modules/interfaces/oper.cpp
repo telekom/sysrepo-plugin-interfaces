@@ -1362,7 +1362,7 @@ sr::ErrorCode Ipv4AddrOperGetCb::operator()(sr::Session session, uint32_t subscr
                     auto ip_addr = addr.getIPAddress();
                     auto prefix = addr.getPrefix();
                     auto origin = addr.getOrigin();
-                    auto origin_str = originToString(origin);
+                    auto origin_str = addressOriginToString(origin);
 
                     prefix_buffer << prefix;
 
