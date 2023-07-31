@@ -30,6 +30,44 @@ std::string addressOriginToString(AddressOrigin origin)
 }
 
 /**
+ * @brief Convert address status to string.
+ */
+std::string addressStatusToString(AddressStatus status)
+{
+    auto str = std::string();
+
+    switch (status) {
+    case AddressStatus::Preferred:
+        str = "preferred";
+        break;
+    case AddressStatus::Deprecated:
+        str = "deprecated";
+        break;
+    case AddressStatus::Invalid:
+        str = "invalid";
+        break;
+    case AddressStatus::Inaccessible:
+        str = "inaccessible";
+        break;
+    case AddressStatus::Unknown:
+        str = "unknown";
+        break;
+    case AddressStatus::Tentative:
+        str = "tentative";
+        break;
+    case AddressStatus::Duplicate:
+        str = "duplicate";
+        break;
+    case AddressStatus::Optimistic:
+        str = "optimistic";
+        break;
+        break;
+    }
+
+    return str;
+}
+
+/**
  * @brief Private constructor accessible only to friend classes. Stores a reference to nl_addr for later access of address members.
  */
 AddressRef::AddressRef(struct nl_addr* addr)
@@ -102,6 +140,11 @@ AddressOrigin RouteAddressRef::getOrigin() const
 
     return AddressOrigin::Dhcp;
 }
+
+/**
+ * @brief Return the status of the address.
+ */
+AddressStatus RouteAddressRef::getStatus() const { return AddressStatus::Preferred; }
 
 /**
  * @brief Get the IP address portion of the route address.

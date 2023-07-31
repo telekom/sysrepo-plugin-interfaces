@@ -52,6 +52,22 @@ enum class AddressOrigin {
  */
 std::string addressOriginToString(AddressOrigin origin);
 
+enum class AddressStatus {
+    Preferred,
+    Deprecated,
+    Invalid,
+    Inaccessible,
+    Unknown,
+    Tentative,
+    Duplicate,
+    Optimistic,
+};
+
+/**
+ * @brief Convert address status to string.
+ */
+std::string addressStatusToString(AddressStatus status);
+
 class RouteAddressRef {
 public:
     using Self = RouteAddressRef;
@@ -71,6 +87,11 @@ public:
      * @brief Return the origin of the address.
      */
     AddressOrigin getOrigin() const;
+
+    /**
+     * @brief Return the status of the address.
+     */
+    AddressStatus getStatus() const;
 
     /**
      * @brief Get the IP address portion of the route address.

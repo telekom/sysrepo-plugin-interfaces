@@ -1792,6 +1792,58 @@ sr::ErrorCode Ipv6AddrOperGetCb::operator()(sr::Session session, uint32_t subscr
     std::optional<std::string_view> subXPath, std::optional<std::string_view> requestXPath, uint32_t requestId, std::optional<ly::DataNode>& output)
 {
     sr::ErrorCode error = sr::ErrorCode::Ok;
+
+    auto& nl_ctx = m_ctx->getNetlinkContext();
+
+    try {
+        auto interface_name = srpc::extractListKeyFromXPath("interface", "name", output->path());
+        SRPLG_LOG_DBG(getModuleLogPrefix(), "name(interface) = %s", interface_name.c_str());
+
+        // get the interface
+        auto interface = nl_ctx.getInterfaceByName(interface_name);
+
+        if (interface) {
+            // get the address cache and list out all addresses from this interface
+            auto addr_cache = nl_ctx.getAddressCache();
+            auto if_index = interface->getIndex();
+
+            for (auto& addr : addr_cache) {
+                auto addr_ifindex = addr.getInterfaceIndex();
+                auto addr_family = addr.getFamily();
+
+                if (if_index == addr_ifindex && addr_family == AddressFamily::V6) {
+                    // add IPv4 address to the output tree
+                    auto addr_path_buffer = std::stringstream();
+                    auto prefix_buffer = std::stringstream();
+                    auto ip_addr = addr.getIPAddress();
+                    auto prefix = addr.getPrefix();
+                    auto origin = addr.getOrigin();
+                    auto status = addr.getStatus();
+                    auto origin_str = addressOriginToString(origin);
+                    auto status_str = addressStatusToString(status);
+
+                    prefix_buffer << prefix;
+
+                    addr_path_buffer << "address[ip=\'" << ip_addr << "\']";
+                    SRPLG_LOG_DBG(getModuleLogPrefix(), "ipv6:address(%s) = %s/%s %s %s", interface->getName().c_str(), ip_addr.c_str(),
+                        prefix_buffer.str().c_str(), origin_str.c_str(), status_str.c_str());
+                    auto addr_node = output->newPath(addr_path_buffer.str());
+
+                    // append prefix to the address node
+                    addr_node->newPath("prefix-length", prefix_buffer.str());
+
+                    // set origin
+                    addr_node->newPath("origin", origin_str);
+
+                    // set status
+                    addr_node->newPath("status", status_str);
+                }
+            }
+        }
+    } catch (const std::runtime_error& err) {
+        SRPLG_LOG_INF(getModuleLogPrefix(), "Unable to extract phys-address from interface: %s", err.what());
+    }
+
     return error;
 }
 
