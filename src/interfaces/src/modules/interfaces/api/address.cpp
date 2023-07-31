@@ -7,7 +7,7 @@
 /**
  * @brief Convert address origin to string.
  */
-std::string originToString(AddressOrigin origin)
+std::string addressOriginToString(AddressOrigin origin)
 {
     auto str = std::string();
 
