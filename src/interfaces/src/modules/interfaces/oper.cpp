@@ -1366,8 +1366,8 @@ sr::ErrorCode Ipv4AddrOperGetCb::operator()(sr::Session session, uint32_t subscr
                     prefix_buffer << prefix;
 
                     addr_path_buffer << "address[ip=\'" << ip_addr << "\']";
-                    SRPLG_LOG_DBG(
-                        getModuleLogPrefix(), "ipv4:address(%s) = %s/%s", interface->getName().c_str(), ip_addr.c_str(), prefix_buffer.str().c_str());
+                    SRPLG_LOG_DBG(getModuleLogPrefix(), "ipv4:address(%s) = %s/%s %s", interface->getName().c_str(), ip_addr.c_str(),
+                        prefix_buffer.str().c_str(), origin_str.c_str());
                     auto addr_node = output->newPath(addr_path_buffer.str());
 
                     // append prefix to the address node
