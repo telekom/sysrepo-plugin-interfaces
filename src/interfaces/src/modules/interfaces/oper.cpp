@@ -2014,6 +2014,60 @@ sr::ErrorCode Ipv6NeighOperGetCb::operator()(sr::Session session, uint32_t subsc
     std::optional<std::string_view> subXPath, std::optional<std::string_view> requestXPath, uint32_t requestId, std::optional<ly::DataNode>& output)
 {
     sr::ErrorCode error = sr::ErrorCode::Ok;
+
+    auto& nl_ctx = m_ctx->getNetlinkContext();
+
+    try {
+        auto interface_name = srpc::extractListKeyFromXPath("interface", "name", output->path());
+        SRPLG_LOG_DBG(getModuleLogPrefix(), "name(interface) = %s", interface_name.c_str());
+
+        // get the interface
+        auto interface = nl_ctx.getInterfaceByName(interface_name);
+
+        if (interface) {
+            auto neigh_cache = nl_ctx.getNeighborCache();
+            auto if_index = interface->getIndex();
+
+            for (auto& neigh : neigh_cache) {
+                auto neigh_ifindex = neigh.getInterfaceIndex();
+                auto addr_family = neigh.getAddressFamily();
+
+                if (if_index == neigh_ifindex && addr_family == AddressFamily::V6) {
+                    auto neigh_path_buffer = std::stringstream();
+                    auto prefix_buffer = std::stringstream();
+                    auto dst_addr = neigh.getDestinationIP();
+                    auto ll_addr = neigh.getLinkLayerAddress();
+                    auto origin = neigh.getOrigin();
+                    auto origin_str = neighborOriginToString(origin);
+                    auto state = neigh.getState();
+                    auto state_str = neighborStateToString(state);
+                    auto is_router = neigh.isRouter();
+
+                    neigh_path_buffer << "neighbor[ip=\'" << dst_addr << "\']";
+                    SRPLG_LOG_DBG(getModuleLogPrefix(), "ipv6:neighbor(%s) = %s %s %s %s", interface->getName().c_str(), dst_addr.c_str(),
+                        origin_str.c_str(), ll_addr.c_str(), state_str.c_str());
+                    auto neigh_node = output->newPath(neigh_path_buffer.str());
+
+                    // set origin
+                    neigh_node->newPath("origin", origin_str);
+
+                    // set link-layer-address
+                    neigh_node->newPath("link-layer-address", ll_addr);
+
+                    // set is-router
+                    if (is_router) {
+                        neigh_node->newPath("is-router");
+                    }
+
+                    // set state
+                    neigh_node->newPath("state", state_str);
+                }
+            }
+        }
+    } catch (const std::runtime_error& err) {
+        SRPLG_LOG_INF(getModuleLogPrefix(), "Unable to extract phys-address from interface: %s", err.what());
+    }
+
     return error;
 }
 
