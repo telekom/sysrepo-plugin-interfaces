@@ -3,6 +3,7 @@
 #include "cache.hpp"
 #include "address.hpp"
 #include <netlink/route/neighbour.h>
+#include <linux/neighbour.h>
 
 enum class NeighborOrigin {
     Other,
@@ -14,6 +15,19 @@ enum class NeighborOrigin {
  * @brief Convert neighbor origin to string.
  */
 std::string neighborOriginToString(NeighborOrigin origin);
+
+enum class NeighborState {
+    Incomplete = NUD_INCOMPLETE,
+    Reachable = NUD_REACHABLE,
+    Stale = NUD_STALE,
+    Delay = NUD_DELAY,
+    Probe = NUD_PROBE,
+};
+
+/**
+ * @brief Convert neighbor state to string.
+ */
+std::string neighborStateToString(NeighborState state);
 
 class NeighborRef {
 public:
@@ -36,6 +50,11 @@ public:
     NeighborOrigin getOrigin() const;
 
     /**
+     * @brief Get the state of a neighbor.
+     */
+    NeighborState getState() const;
+
+    /**
      * @brief Get the destination IP address of a neighbor.
      */
     std::string getDestinationIP() const;
@@ -44,6 +63,11 @@ public:
      * @brief Get the link-layer address of a neighbor.
      */
     std::string getLinkLayerAddress() const;
+
+    /**
+     * @brief Returns true if the neighbor acts as a router.
+     */
+    bool isRouter() const;
 
 private:
     using RtnlNeigh = struct rtnl_neigh; ///< Route NL neighbor type alias;

@@ -25,6 +25,34 @@ std::string neighborOriginToString(NeighborOrigin origin)
 }
 
 /**
+ * @brief Convert neighbor state to string.
+ */
+std::string neighborStateToString(NeighborState state)
+{
+    auto str = std::string();
+
+    switch (state) {
+    case NeighborState::Incomplete:
+        str = "incomplete";
+        break;
+    case NeighborState::Reachable:
+        str = "reachable";
+        break;
+    case NeighborState::Stale:
+        str = "stale";
+        break;
+    case NeighborState::Delay:
+        str = "delay";
+        break;
+    case NeighborState::Probe:
+        str = "probe";
+        break;
+    }
+
+    return str;
+}
+
+/**
  * @brief Private constructor accessible only to friend classes. Stores a reference to rtnl_neigh for later access of address members.
  */
 NeighborRef::NeighborRef(struct rtnl_neigh* neigh)
@@ -76,6 +104,11 @@ NeighborOrigin NeighborRef::getOrigin() const
 }
 
 /**
+ * @brief Get the state of a neighbor.
+ */
+NeighborState NeighborRef::getState() const { return (NeighborState)rtnl_neigh_get_state(m_neigh.get()); }
+
+/**
  * @brief Get the destination IP address of a neighbor.
  */
 std::string NeighborRef::getDestinationIP() const
@@ -100,3 +133,8 @@ std::string NeighborRef::getLinkLayerAddress() const
     auto ll_addr = AddressRef(rtnl_neigh_get_lladdr(m_neigh.get()));
     return ll_addr.toString();
 }
+
+/**
+ * @brief Returns true if the neighbor acts as a router.
+ */
+bool NeighborRef::isRouter() const { return (rtnl_neigh_get_flags(m_neigh.get()) & NTF_ROUTER) > 0; }
