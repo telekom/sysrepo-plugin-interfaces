@@ -1,6 +1,5 @@
 #pragma once
 
-#include <netlink/route/link.h>
 #include <memory>
 #include <functional>
 #include <optional>
@@ -15,6 +14,7 @@ template <typename T> void NlEmptyDeleter(T*) { }
 class InterfaceRef;
 class AddressRef;
 class RouteAddressRef;
+class NeighborRef;
 template <typename T> class CacheRef;
 
 /**
@@ -58,6 +58,11 @@ public:
      * @brief Get the address cache.
      */
     CacheRef<RouteAddressRef> getAddressCache();
+
+    /**
+     * @brief Get the neighbors cache.
+     */
+    CacheRef<NeighborRef> getNeighborCache();
 
 private:
     std::unique_ptr<struct nl_sock, NlDeleter<struct nl_sock>> m_sock; ///< Netlink socket.

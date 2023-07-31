@@ -8,11 +8,13 @@
 #include <sys/socket.h>
 
 class RouteAddressRef;
+class NeighborRef;
 
 class AddressRef {
 public:
     friend class InterfaceRef; ///< Allow Interface class to use the private constructor.
     friend class RouteAddressRef; ///< Allow RouteAddressRef to use the private constructor.
+    friend class NeighborRef; ///< Allow NeighborRef to use the private constructor.
 
     /**
      * @breif Convert the address to string.
