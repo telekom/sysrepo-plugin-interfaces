@@ -47,6 +47,7 @@ set(
 
     src/modules/interfaces.cpp
     src/modules/interfaces/oper.cpp
+    src/modules/interfaces/change.cpp
     src/modules/interfaces/context.cpp
     src/modules/interfaces/common.cpp
     src/modules/interfaces/api/nl.cpp
