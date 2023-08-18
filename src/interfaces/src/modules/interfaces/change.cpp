@@ -1,4 +1,8 @@
 #include "change.hpp"
+#include "modules/interfaces/common.hpp"
+#include "sysrepo-cpp/Enum.hpp"
+
+#include <sysrepo.h>
 
 /**
  * sysrepo-plugin-generator: Generated default constructor.
@@ -26,6 +30,22 @@ sr::ErrorCode InterfaceNameModuleChangeCb::operator()(sr::Session session, uint3
     std::optional<std::string_view> subXPath, sr::Event event, uint32_t requestId)
 {
     sr::ErrorCode error = sr::ErrorCode::Ok;
+
+    switch (event) {
+    case sysrepo::Event::Change:
+        // apply interface changes to the netlink context received from module changes context
+        for (auto& change : session.getChanges("/ietf-interfaces:interfaces/interface/name")) {
+            SRPLG_LOG_DBG(getModuleLogPrefix(), "Value of %s modified.", change.node.path().c_str());
+            SRPLG_LOG_DBG(getModuleLogPrefix(), "Value of %s modified.", change.node.schema().name().data());
+        }
+        break;
+    default:
+        break;
+    }
+
+    // disable callback until implemented
+    error = sr::ErrorCode::OperationFailed;
+
     return error;
 }
 
