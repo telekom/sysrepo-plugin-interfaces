@@ -2,6 +2,7 @@
 #include "modules/interfaces/common.hpp"
 #include "sysrepo-cpp/Enum.hpp"
 
+#include <stdexcept>
 #include <sysrepo.h>
 
 /**
@@ -31,6 +32,17 @@ sr::ErrorCode InterfaceNameModuleChangeCb::operator()(sr::Session session, uint3
 {
     sr::ErrorCode error = sr::ErrorCode::Ok;
 
+    // use netlink context to
+    auto& nl_ctx = m_ctx->getNetlinkContext();
+
+    try {
+        // update cache
+        nl_ctx.refillCache();
+    } catch (const std::runtime_error& err) {
+        SRPLG_LOG_ERR(getModuleLogPrefix(), "Error refilling cache: %s", err.what());
+        return sr::ErrorCode::OperationFailed;
+    }
+
     switch (event) {
     case sysrepo::Event::Change:
         // apply interface changes to the netlink context received from module changes context
@@ -47,8 +59,8 @@ sr::ErrorCode InterfaceNameModuleChangeCb::operator()(sr::Session session, uint3
                 SRPLG_LOG_DBG(getModuleLogPrefix(), "Creating interface %s", name_value.c_str());
                 break;
             case sysrepo::ChangeOperation::Deleted:
+                // delete interface with 'name' = 'name_value'
                 SRPLG_LOG_DBG(getModuleLogPrefix(), "Deleting interface %s", name_value.c_str());
-                // delete given interface
                 break;
             default:
                 // other options not needed
