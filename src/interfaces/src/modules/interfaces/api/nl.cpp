@@ -64,8 +64,17 @@ NlContext::NlContext()
  */
 void NlContext::refillCache(void)
 {
-    nl_cache_refill(m_sock.get(), m_linkCache.get());
-    nl_cache_refill(m_sock.get(), m_addressCache.get());
+    if (nl_cache_refill(m_sock.get(), m_linkCache.get()) < 0) {
+        throw std::runtime_error("Unable to refill links cache");
+    }
+
+    if (nl_cache_refill(m_sock.get(), m_addressCache.get())) {
+        throw std::runtime_error("Unable to refill address cache");
+    }
+
+    if (nl_cache_refill(m_sock.get(), m_neighCache.get())) {
+        throw std::runtime_error("Unable to refill neighbors cache");
+    }
 }
 
 /**
