@@ -163,7 +163,7 @@ sr::ErrorCode InterfaceEnabledModuleChangeCb::operator()(sr::Session session, ui
             const auto& interface_name = srpc::extractListKeyFromXPath("interface", "name", change.node.path());
 
             SRPLG_LOG_DBG(getModuleLogPrefix(), "Interface name: %s", interface_name.c_str());
-            SRPLG_LOG_DBG(getModuleLogPrefix(), "Interface enabled: %s", enabled_value);
+            SRPLG_LOG_DBG(getModuleLogPrefix(), "Interface enabled: %s", enabled_value ? "true" : "false");
 
             switch (change.operation) {
             case sysrepo::ChangeOperation::Created:
