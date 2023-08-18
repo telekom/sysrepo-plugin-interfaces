@@ -115,6 +115,11 @@ std::list<srpc::ModuleChangeCallback> InterfacesModule::getModuleChangeCallbacks
             "/ietf-interfaces:interfaces/interface/name",
             InterfaceNameModuleChangeCb(this->m_changeContext),
         },
+        srpc::ModuleChangeCallback {
+            "ietf-interfaces",
+            "/ietf-interfaces:interfaces/interface/enabled",
+            InterfaceEnabledModuleChangeCb(this->m_changeContext),
+        },
     };
 }
 
