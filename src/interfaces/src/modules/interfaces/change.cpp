@@ -133,6 +133,44 @@ sr::ErrorCode InterfaceEnabledModuleChangeCb::operator()(sr::Session session, ui
     std::optional<std::string_view> subXPath, sr::Event event, uint32_t requestId)
 {
     sr::ErrorCode error = sr::ErrorCode::Ok;
+
+    switch (event) {
+    case sysrepo::Event::Change:
+        // apply enabled leaf changes to the netlink context for a specific interface
+        for (auto& change : session.getChanges("/ietf-interfaces:interfaces/interface/enabled")) {
+            SRPLG_LOG_DBG(getModuleLogPrefix(), "Value of %s modified.", change.node.path().c_str());
+            SRPLG_LOG_DBG(getModuleLogPrefix(), "Value of %s modified.", change.node.schema().name().data());
+
+            SRPLG_LOG_DBG(getModuleLogPrefix(), "\n%s", change.node.printStr(libyang::DataFormat::XML, libyang::PrintFlags::WithDefaultsAll)->data());
+
+            // extract value
+            const auto& value = change.node.asTerm().value();
+            const auto& enabled_value = std::get<bool>(value);
+            const auto& interface_name = srpc::extractListKeyFromXPath("interface", "name", change.node.path());
+
+            SRPLG_LOG_DBG(getModuleLogPrefix(), "Interface name: %s", interface_name.c_str());
+            SRPLG_LOG_DBG(getModuleLogPrefix(), "Interface enabled: %s", enabled_value);
+
+            switch (change.operation) {
+            case sysrepo::ChangeOperation::Created:
+            case sysrepo::ChangeOperation::Modified:
+                // apply 'enabled_value' value for interface 'interface_name'
+                break;
+            case sysrepo::ChangeOperation::Deleted:
+                // apply default 'enabled_value' value for interface 'interface_name'
+                break;
+            case sysrepo::ChangeOperation::Moved:
+                break;
+            }
+        }
+        break;
+    default:
+        break;
+    }
+
+    // disable callback until implemented
+    error = sr::ErrorCode::OperationFailed;
+
     return error;
 }
 
