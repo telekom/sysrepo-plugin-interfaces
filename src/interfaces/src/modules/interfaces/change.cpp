@@ -37,14 +37,28 @@ sr::ErrorCode InterfaceNameModuleChangeCb::operator()(sr::Session session, uint3
         for (auto& change : session.getChanges("/ietf-interfaces:interfaces/interface/name")) {
             SRPLG_LOG_DBG(getModuleLogPrefix(), "Value of %s modified.", change.node.path().c_str());
             SRPLG_LOG_DBG(getModuleLogPrefix(), "Value of %s modified.", change.node.schema().name().data());
+
+            const auto& value = change.node.asTerm().value();
+            const auto& name_value = std::get<std::string>(value);
+
+            switch (change.operation) {
+            case sysrepo::ChangeOperation::Created:
+                // create a new interface using the NetlinkContext API
+                SRPLG_LOG_DBG(getModuleLogPrefix(), "Creating interface %s", name_value.c_str());
+                break;
+            case sysrepo::ChangeOperation::Deleted:
+                SRPLG_LOG_DBG(getModuleLogPrefix(), "Deleting interface %s", name_value.c_str());
+                // delete given interface
+                break;
+            default:
+                // other options not needed
+                break;
+            }
         }
         break;
     default:
         break;
     }
-
-    // disable callback until implemented
-    error = sr::ErrorCode::OperationFailed;
 
     return error;
 }
@@ -155,9 +169,12 @@ sr::ErrorCode InterfaceEnabledModuleChangeCb::operator()(sr::Session session, ui
             case sysrepo::ChangeOperation::Created:
             case sysrepo::ChangeOperation::Modified:
                 // apply 'enabled_value' value for interface 'interface_name'
+                SRPLG_LOG_DBG(
+                    getModuleLogPrefix(), "Setting enabled value for interface %s to %s", interface_name.c_str(), enabled_value ? "true" : "false");
                 break;
             case sysrepo::ChangeOperation::Deleted:
-                // apply default 'enabled_value' value for interface 'interface_name'
+                // apply default 'enabled_value' value for interface 'interface_name' from YANG model
+                SRPLG_LOG_DBG(getModuleLogPrefix(), "Deleting enabled value for interface %s", interface_name.c_str());
                 break;
             case sysrepo::ChangeOperation::Moved:
                 break;

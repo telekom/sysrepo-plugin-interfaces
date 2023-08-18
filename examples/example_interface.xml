@@ -8,5 +8,6 @@
         <name>example_if</name>
         <description>Test Interface</description>
         <type>ianaift:other</type>
+        <enabled>false</enabled>
     </interface>
 </interfaces>
