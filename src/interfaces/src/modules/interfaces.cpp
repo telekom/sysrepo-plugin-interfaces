@@ -1,4 +1,5 @@
 #include "interfaces.hpp"
+#include "modules/interfaces/change.hpp"
 #include "modules/interfaces/oper.hpp"
 
 #include <memory>
@@ -106,7 +107,16 @@ std::list<srpc::OperationalCallback> InterfacesModule::getOperationalCallbacks()
 /**
  * Get all module change callbacks which the module should use.
  */
-std::list<srpc::ModuleChangeCallback> InterfacesModule::getModuleChangeCallbacks() { return {}; }
+std::list<srpc::ModuleChangeCallback> InterfacesModule::getModuleChangeCallbacks()
+{
+    return {
+        srpc::ModuleChangeCallback {
+            "ietf-interfaces",
+            "/ietf-interfaces:interfaces/interface/name",
+            InterfaceNameModuleChangeCb(this->m_changeContext),
+        },
+    };
+}
 
 /**
  * Get all RPC callbacks which the module should use.
