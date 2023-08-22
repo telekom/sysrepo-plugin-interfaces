@@ -32,7 +32,12 @@ Finally install the packages.
 $ python3 -m venv sysrepolibrary-venv
 $ source sysrepolibrary-venv/bin/activate
 $ python3 -m pip install --upgrade pip setuptools wheel
-$ python3 -m pip install rpaframework SysrepoLibrary robotframework-tidy
+$ python3 -m pip install robotframework-sysrepolibrary robotframework-tidy
+```
+
+Optionally for autoformatting install:
+```
+$ python3 -m pip install robotframework-tidy
 ```
 
 To autoformat the robot code:
