@@ -70,8 +70,9 @@ std::string addressStatusToString(AddressStatus status)
 /**
  * @brief Private constructor accessible only to friend classes. Stores a reference to nl_addr for later access of address members.
  */
-AddressRef::AddressRef(struct nl_addr* addr)
+AddressRef::AddressRef(struct nl_addr* addr, struct nl_sock* socket)
     : m_addr(addr, NlEmptyDeleter<NlAddr>)
+    , m_socket(socket, NlEmptyDeleter<struct nl_sock>)
 {
 }
 
@@ -94,16 +95,18 @@ std::string AddressRef::toString() const
 /**
  * @brief Private constructor accessible only to friend classes. Stores a reference to rtnl_addr for later access of address members.
  */
-RouteAddressRef::RouteAddressRef(struct rtnl_addr* addr)
+RouteAddressRef::RouteAddressRef(struct rtnl_addr* addr, struct nl_sock* socket)
     : m_addr(addr, NlEmptyDeleter<RtnlAddr>)
+    , m_socket(socket, NlEmptyDeleter<struct nl_sock>)
 {
 }
 
 /**
  * @brief Private constructor accessible only to friend classes. Stores a reference to rtnl_addr for later access of address members.
  */
-RouteAddressRef::RouteAddressRef(struct nl_object* addr)
+RouteAddressRef::RouteAddressRef(struct nl_object* addr, struct nl_sock* socket)
     : m_addr(reinterpret_cast<RtnlAddr*>(addr), NlEmptyDeleter<RtnlAddr>)
+    , m_socket(reinterpret_cast<struct nl_sock*>(socket), NlEmptyDeleter<struct nl_sock>)
 {
 }
 
@@ -151,7 +154,7 @@ AddressStatus RouteAddressRef::getStatus() const { return AddressStatus::Preferr
  */
 std::string RouteAddressRef::getIPAddress() const
 {
-    auto local = AddressRef(rtnl_addr_get_local(m_addr.get()));
+    auto local = AddressRef(rtnl_addr_get_local(m_addr.get()),m_socket.get());
     auto str = local.toString();
     auto slash_pos = str.find('/');
     auto ip_address = str;
