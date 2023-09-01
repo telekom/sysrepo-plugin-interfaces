@@ -90,7 +90,7 @@ std::vector<std::string> NlContext::getLinkNames()
     while (iter != nullptr) {
         const char* name = rtnl_link_get_name(iter);
 
-        names.push_back(name);
+        names.push_back(std::string(name));
 
         iter = (struct rtnl_link*)nl_cache_get_next((struct nl_object*)iter);
     }
@@ -109,7 +109,7 @@ std::optional<InterfaceRef> NlContext::getInterfaceByName(const std::string& nam
         const char* link_name = rtnl_link_get_name(iter);
 
         if (name == link_name) {
-            return InterfaceRef(iter);
+            return InterfaceRef(iter,m_sock.get());
         }
 
         iter = (struct rtnl_link*)nl_cache_get_next((struct nl_object*)iter);
@@ -127,23 +127,22 @@ std::optional<InterfaceRef> NlContext::getInterfaceByIndex(const uint32_t index)
 
     // can return NULL - check for invalid link ptr
     if (link) {
-        return InterfaceRef(link);
+        return InterfaceRef(link, m_sock.get());
     }
-
     return std::nullopt;
 }
 
 /**
  * @brief Get the links cache.
  */
-CacheRef<InterfaceRef> NlContext::getLinkCache() { return CacheRef<InterfaceRef>(m_linkCache.get()); }
+CacheRef<InterfaceRef> NlContext::getLinkCache() { return CacheRef<InterfaceRef>(m_linkCache.get(),m_sock.get()); }
 
 /**
  * @brief Get the address cache.
  */
-CacheRef<RouteAddressRef> NlContext::getAddressCache() { return CacheRef<RouteAddressRef>(m_addressCache.get()); }
+CacheRef<RouteAddressRef> NlContext::getAddressCache() { return CacheRef<RouteAddressRef>(m_addressCache.get(),m_sock.get()); }
 
 /**
  * @brief Get the neighbors cache.
  */
-CacheRef<NeighborRef> NlContext::getNeighborCache() { return CacheRef<NeighborRef>(m_neighCache.get()); }
+CacheRef<NeighborRef> NlContext::getNeighborCache() { return CacheRef<NeighborRef>(m_neighCache.get(),m_sock.get()); }

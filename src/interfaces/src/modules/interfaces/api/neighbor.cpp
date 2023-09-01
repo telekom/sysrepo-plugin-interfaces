@@ -55,16 +55,18 @@ std::string neighborStateToString(NeighborState state)
 /**
  * @brief Private constructor accessible only to friend classes. Stores a reference to rtnl_neigh for later access of address members.
  */
-NeighborRef::NeighborRef(struct rtnl_neigh* neigh)
+NeighborRef::NeighborRef(struct rtnl_neigh* neigh, struct nl_sock* socket)
     : m_neigh(neigh, NlEmptyDeleter<RtnlNeigh>)
+    , m_socket(socket, NlEmptyDeleter<struct nl_sock>)
 {
 }
 
 /**
  * @brief Private constructor accessible only to friend classes. Stores a reference to rtnl_neigh for later access of address members.
  */
-NeighborRef::NeighborRef(struct nl_object* neigh)
+NeighborRef::NeighborRef(struct nl_object* neigh, nl_sock* socket)
     : m_neigh(reinterpret_cast<RtnlNeigh*>(neigh), NlEmptyDeleter<RtnlNeigh>)
+    , m_socket(reinterpret_cast<struct nl_sock*>(socket), NlEmptyDeleter<nl_sock>)
 {
 }
 
@@ -113,7 +115,7 @@ NeighborState NeighborRef::getState() const { return (NeighborState)rtnl_neigh_g
  */
 std::string NeighborRef::getDestinationIP() const
 {
-    auto dst = AddressRef(rtnl_neigh_get_dst(m_neigh.get()));
+    auto dst = AddressRef(rtnl_neigh_get_dst(m_neigh.get()),m_socket.get());
     auto str = dst.toString();
     auto slash_pos = str.find('/');
     auto ip_address = str;
@@ -130,7 +132,7 @@ std::string NeighborRef::getDestinationIP() const
  */
 std::string NeighborRef::getLinkLayerAddress() const
 {
-    auto ll_addr = AddressRef(rtnl_neigh_get_lladdr(m_neigh.get()));
+    auto ll_addr = AddressRef(rtnl_neigh_get_lladdr(m_neigh.get()),m_socket.get());
     return ll_addr.toString();
 }
 

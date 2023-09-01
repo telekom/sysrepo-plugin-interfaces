@@ -8,6 +8,12 @@
 
 #include <sysrepo-cpp/Session.hpp>
 
+#include "api/nl.hpp"
+#include "api/interface.hpp"
+#include "api/address.hpp"
+#include "api/neighbor.hpp"
+#include "api/cache.hpp"
+
 namespace sr = sysrepo;
 
 /**
