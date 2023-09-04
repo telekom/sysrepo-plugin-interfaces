@@ -74,11 +74,11 @@ Config data:
     <name>br0</name>
     <address>42-50-a1-c4-23-78</address>
     <bridge-type xmlns:dot1q="urn:ieee:std:802.1Q:yang:ieee802-dot1q-bridge">dot1q:customer-vlan-bridge</bridge-type>
-  <component>
-    <name>br0</name>
-    <address>42-50-a1-c4-23-78</address>
-    <type xmlns:dot1q="urn:ieee:std:802.1Q:yang:ieee802-dot1q-bridge">dot1q:c-vlan-component</type>
-  </component>
+    <component>
+      <name>br0</name>
+      <address>42-50-a1-c4-23-78</address>
+      <type xmlns:dot1q="urn:ieee:std:802.1Q:yang:ieee802-dot1q-bridge">dot1q:c-vlan-component</type>
+    </component>
   </bridge>
 </bridges>
 ```
@@ -184,44 +184,44 @@ The following config data adds `veth1_bport` and `veth2_bport` to VLAN 20, and a
   <bridge>
     <name>br0</name>
     <bridge-type xmlns:dot1q="urn:ieee:std:802.1Q:yang:ieee802-dot1q-bridge">dot1q:customer-vlan-bridge</bridge-type>
-  <component>
-    <name>br0</name>
-    <type xmlns:dot1q="urn:ieee:std:802.1Q:yang:ieee802-dot1q-bridge">dot1q:c-vlan-component</type>
-    <filtering-database>
-      <vlan-registration-entry>
-        <database-id>0</database-id>
-        <vids>20</vids>
-        <port-map xmlns:dot1qtypes="urn:ieee:std:802.1Q:yang:ieee802-dot1q-types">
-          <port-ref>${VETH1_BPORT}</port-ref>
-          <static-vlan-registration-entries>
-            <vlan-transmitted>untagged</vlan-transmitted>
-          </static-vlan-registration-entries>
-        </port-map>
-        <port-map xmlns:dot1qtypes="urn:ieee:std:802.1Q:yang:ieee802-dot1q-types">
-          <port-ref>${VETH2_BPORT}</port-ref>
-          <static-vlan-registration-entries>
-            <vlan-transmitted>tagged</vlan-transmitted>
-          </static-vlan-registration-entries>
-        </port-map>
-      </vlan-registration-entry>
-      <vlan-registration-entry>
-        <database-id>0</database-id>
-        <vids>8-10</vids>
-        <port-map xmlns:dot1qtypes="urn:ieee:std:802.1Q:yang:ieee802-dot1q-types">
-          <port-ref>${VETH2_BPORT}</port-ref>
-          <static-vlan-registration-entries>
-            <vlan-transmitted>tagged</vlan-transmitted>
-          </static-vlan-registration-entries>
-        </port-map>
-      </vlan-registration-entry>
-    </filtering-database>
-    <bridge-vlan>
-      <vlan>
-        <vid>20</vid>
-        <name>veth-test-vlan</name>
-      </vlan>
-    </bridge-vlan>
-  </component>
+    <component>
+      <name>br0</name>
+      <type xmlns:dot1q="urn:ieee:std:802.1Q:yang:ieee802-dot1q-bridge">dot1q:c-vlan-component</type>
+      <filtering-database>
+        <vlan-registration-entry>
+          <database-id>0</database-id>
+          <vids>20</vids>
+          <port-map xmlns:dot1qtypes="urn:ieee:std:802.1Q:yang:ieee802-dot1q-types">
+            <port-ref>${VETH1_BPORT}</port-ref>
+            <static-vlan-registration-entries>
+              <vlan-transmitted>untagged</vlan-transmitted>
+            </static-vlan-registration-entries>
+          </port-map>
+          <port-map xmlns:dot1qtypes="urn:ieee:std:802.1Q:yang:ieee802-dot1q-types">
+            <port-ref>${VETH2_BPORT}</port-ref>
+            <static-vlan-registration-entries>
+              <vlan-transmitted>tagged</vlan-transmitted>
+            </static-vlan-registration-entries>
+          </port-map>
+        </vlan-registration-entry>
+        <vlan-registration-entry>
+          <database-id>0</database-id>
+          <vids>8-10</vids>
+          <port-map xmlns:dot1qtypes="urn:ieee:std:802.1Q:yang:ieee802-dot1q-types">
+            <port-ref>${VETH2_BPORT}</port-ref>
+            <static-vlan-registration-entries>
+              <vlan-transmitted>tagged</vlan-transmitted>
+            </static-vlan-registration-entries>
+          </port-map>
+        </vlan-registration-entry>
+      </filtering-database>
+      <bridge-vlan>
+        <vlan>
+          <vid>20</vid>
+          <name>veth-test-vlan</name>
+        </vlan>
+      </bridge-vlan>
+    </component>
   </bridge>
 </bridges>
 ```
@@ -269,25 +269,25 @@ learned MAC entries to 10000 seconds:
   <bridge>
     <name>br0</name>
     <bridge-type xmlns:dot1q="urn:ieee:std:802.1Q:yang:ieee802-dot1q-bridge">dot1q:customer-vlan-bridge</bridge-type>
-  <component>
-    <name>br0</name>
-    <type xmlns:dot1q="urn:ieee:std:802.1Q:yang:ieee802-dot1q-bridge">dot1q:c-vlan-component</type>
-    <filtering-database>
-      <aging-time>10000</aging-time>
-      <filtering-entry>
-        <database-id>0</database-id>
-        <vids>20</vids>
-        <address>3e-85-b9-17-9b-04</address>
-        <entry-type>static</entry-type>
-        <port-map xmlns:dot1qtypes="urn:ieee:std:802.1Q:yang:ieee802-dot1q-types">
-          <port-ref>${VETH1_BPORT}</port-ref>
-          <static-filtering-entries>
-            <control-element>forward</control-element>
-          </static-filtering-entries>
-        </port-map>
-      </filtering-entry>
-    </filtering-database>
-  </component>
+    <component>
+      <name>br0</name>
+      <type xmlns:dot1q="urn:ieee:std:802.1Q:yang:ieee802-dot1q-bridge">dot1q:c-vlan-component</type>
+      <filtering-database>
+        <aging-time>10000</aging-time>
+        <filtering-entry>
+          <database-id>0</database-id>
+          <vids>20</vids>
+          <address>3e-85-b9-17-9b-04</address>
+          <entry-type>static</entry-type>
+          <port-map xmlns:dot1qtypes="urn:ieee:std:802.1Q:yang:ieee802-dot1q-types">
+            <port-ref>${VETH1_BPORT}</port-ref>
+            <static-filtering-entries>
+              <control-element>forward</control-element>
+            </static-filtering-entries>
+          </port-map>
+        </filtering-entry>
+      </filtering-database>
+    </component>
   </bridge>
 </bridges>
 ```

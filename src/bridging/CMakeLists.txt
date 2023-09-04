@@ -1,59 +1,67 @@
-cmake_minimum_required(VERSION 2.8)
+#
+# telekom / sysrepo-plugin-interfaces
+#
+# This program is made available under the terms of the
+# BSD 3-Clause license which is available at
+# https://opensource.org/licenses/BSD-3-Clause
+#
+# SPDX-FileCopyrightText: 2023 Deutsche Telekom AG
+# SPDX-FileContributor: Sartura Ltd.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+#
+
 project(sysrepo-plugin-bridging C)
 
-include_directories(${PROJECT_SOURCE_DIR})
+# set(PLUGIN_CORE_LIBRARY_NAME "srplg-bridging-core")
+# set(PLUGIN_MODULE_NAME "srplg-bridging")
+# set(PLUGIN_EXECUTABLE_NAME "bridging-plugin")
+
+set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/CMakeModules")
+find_package(NL REQUIRED)
 
 set(SOURCES
-    bridging.c
-    startup.c
-    ly_tree.c
-    common.c
-    # bridge
-    bridge.c
-    bridge_netlink.c
-    # component
-    bridge/component.c
-    bridge/component/list.c
-    # vlan list
-    bridge/vlan/list.c
-    # subs
-    subscription/operational.c
-    subscription/change.c
+    plugin/api/bridge_netlink.c
+    plugin/data/component/list.c
+    plugin/data/vlan/list.c
+    plugin/data/bridge.c
+    plugin/data/component.c
+    plugin/data/list.c
+    plugin/startup/load.c
+    plugin/subscription/change.c
+    plugin/subscription/operational.c
+    plugin/common.c
+    plugin/ly_tree.c
+    plugin.c
+
     # utils
     ${CMAKE_SOURCE_DIR}/src/utils/memory.c)
-
-# get sysrepo version
-find_package(PkgConfig)
-if(PKG_CONFIG_FOUND)
-    execute_process(COMMAND ${PKG_CONFIG_EXECUTABLE} "--modversion" "sysrepo" OUTPUT_VARIABLE SYSREPO_VERSION)
-    if(SYSREPO_VERSION)
-        # strip new line from string
-        string(STRIP ${SYSREPO_VERSION} SYSREPO_VERSION)
-        if(${SYSREPO_VERSION} VERSION_LESS "1.0.0")
-            message(FATAL_ERROR "${PROJECT_NAME} requires at least libsysrepo verision 1.0.0")
-        endif()
-    endif()
-endif()
-
-add_library(${PROJECT_NAME}-static STATIC ${SOURCES})
 
 if(PLUGIN)
     add_library(${PROJECT_NAME} MODULE ${SOURCES})
     install(TARGETS ${PROJECT_NAME} DESTINATION lib)
 else()
-    add_executable(${PROJECT_NAME} main.c)
-    target_link_libraries(${PROJECT_NAME} ${PROJECT_NAME}-static)
+    set(SOURCES ${SOURCES} main.c)
+    add_executable(${PROJECT_NAME} ${SOURCES})
     install(TARGETS ${PROJECT_NAME} DESTINATION bin)
 endif()
 
-set_target_properties(${PROJECT_NAME} PROPERTIES OUTPUT_NAME ${PROJECT_NAME} PREFIX "")
-
-find_package(NL REQUIRED)
+# set_target_properties(${PROJECT_NAME} PROPERTIES OUTPUT_NAME ${PROJECT_NAME} PREFIX "")
 
 target_link_libraries(
     ${PROJECT_NAME}
+    ${SRPC_LIBRARIES}
     ${SYSREPO_LIBRARIES}
     ${LIBYANG_LIBRARIES}
     ${NL_LIBRARIES})
 
-include_directories(${SYSREPO_INCLUDE_DIRS} ${LIBYANG_INCLUDE_DIRS} ${NL_INCLUDE_DIRS})
+target_include_directories(
+    ${PROJECT_NAME}
+    PUBLIC ${SYSREPO_INCLUDE_DIRS}
+    PUBLIC ${SRPC_INCLUDE_DIRS}
+    PUBLIC ${LIBYANG_INCLUDE_DIRS}
+    PUBLIC ${NL_INCLUDE_DIRS}
+    PUBLIC ${CMAKE_SOURCE_DIR}/src/
+    PUBLIC ${CMAKE_SOURCE_DIR}/src/bridging
+    PUBLIC ${CMAKE_SOURCE_DIR}/src/utils
+    PRIVATE ${CMAKE_SOURCE_DIR}/deps)

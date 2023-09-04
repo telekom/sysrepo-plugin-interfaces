@@ -1,12 +1,13 @@
 #include <stdarg.h>
-#include <setjmp.h>
 #include <stddef.h>
-#include <cmocka.h>
+#include <stdint.h>
+#include <setjmp.h>
 #include <string.h>
 #include <errno.h>
 #include <unistd.h>
+#include <cmocka.h>
 
-#include <bridging/common.h>
+#include "plugin/common.h"
 
 static void test_correct_mac_ly_to_nl(void **state);
 static void test_correct_mac_nl_to_ly(void **state);

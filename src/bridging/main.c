@@ -1,8 +1,9 @@
 #include <sysrepo.h>
 #include <signal.h>
 #include <unistd.h>
-#include <bridging/bridging.h>
-#include <bridging/common.h>
+
+#include "plugin.h"
+#include "plugin/common.h"
 
 volatile int exit_application = 0;
 
@@ -15,7 +16,7 @@ int main(void)
 	sr_session_ctx_t *session = NULL;
 	void *private_data = NULL;
 
-	sr_log_stderr(SR_LL_DBG);
+	sr_log_stderr(SR_LL_INF);
 
 	/* connect to sysrepo */
 	error = sr_connect(SR_CONN_DEFAULT, &connection);
