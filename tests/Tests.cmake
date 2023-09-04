@@ -28,7 +28,6 @@ target_link_libraries(
 	${CMOCKA_LIBRARIES}
 	${SYSREPO_LIBRARIES}
 	${LIBYANG_LIBRARIES}
-    sysrepo-plugin-bridging-static
 )
 add_test(
     NAME bridging_utest

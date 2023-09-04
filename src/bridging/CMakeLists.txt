@@ -1,40 +1,30 @@
 cmake_minimum_required(VERSION 2.8)
 project(sysrepo-plugin-bridging C)
 
-include_directories(
-	${PROJECT_SOURCE_DIR}
-)
+include_directories(${PROJECT_SOURCE_DIR})
 
-set(
-    SOURCES
+set(SOURCES
     bridging.c
     startup.c
     ly_tree.c
     common.c
-
     # bridge
     bridge.c
-
     bridge_netlink.c
-    
     # component
     bridge/component.c
     bridge/component/list.c
-
     # vlan list
     bridge/vlan/list.c
-
     # subs
     subscription/operational.c
     subscription/change.c
-
     # utils
-    ${CMAKE_SOURCE_DIR}/src/utils/memory.c
-)
+    ${CMAKE_SOURCE_DIR}/src/utils/memory.c)
 
 # get sysrepo version
 find_package(PkgConfig)
-if (PKG_CONFIG_FOUND)
+if(PKG_CONFIG_FOUND)
     execute_process(COMMAND ${PKG_CONFIG_EXECUTABLE} "--modversion" "sysrepo" OUTPUT_VARIABLE SYSREPO_VERSION)
     if(SYSREPO_VERSION)
         # strip new line from string
@@ -64,11 +54,6 @@ target_link_libraries(
     ${PROJECT_NAME}
     ${SYSREPO_LIBRARIES}
     ${LIBYANG_LIBRARIES}
-    ${NL_LIBRARIES}
-)
+    ${NL_LIBRARIES})
 
-include_directories(
-    ${SYSREPO_INCLUDE_DIRS}
-    ${LIBYANG_INCLUDE_DIRS}
-    ${NL_INCLUDE_DIRS}
-)
+include_directories(${SYSREPO_INCLUDE_DIRS} ${LIBYANG_INCLUDE_DIRS} ${NL_INCLUDE_DIRS})
