@@ -58,6 +58,7 @@ int sr_plugin_init_cb(sr_session_ctx_t *running_session, void **private_data)
 	error = sr_session_start(connection, SR_DS_STARTUP, &startup_session);
 	if (error) {
 		SRPLG_LOG_ERR(PLUGIN_NAME, "sr_session_start() error (%d): %s", error, sr_strerror(error));
+		goto error_out;
 	}
 
 	ctx->startup_session = startup_session;
@@ -87,7 +88,7 @@ int sr_plugin_init_cb(sr_session_ctx_t *running_session, void **private_data)
 
 		// in case of work on a specific callback set it to NULL
 		if (op->cb) {
-			error = sr_oper_get_subscribe(running_session, op->module, op->path, op->cb, *private_data, SR_SUBSCR_DEFAULT, &subscription);
+			error = sr_oper_get_subscribe(running_session, op->module, op->path, op->cb, *private_data, SR_SUBSCR_DEFAULT | SR_SUBSCR_OPER_MERGE, &subscription);
 			if (error) {
 				SRPLG_LOG_ERR(PLUGIN_NAME, "sr_oper_get_subscribe() error for \"%s\" (%d): %s", op->path, error, sr_strerror(error));
 				goto error_out;
