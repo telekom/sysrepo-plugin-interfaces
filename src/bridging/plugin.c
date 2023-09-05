@@ -53,6 +53,14 @@ int sr_plugin_init_cb(sr_session_ctx_t *running_session, void **private_data)
 				bridge_port_change_cb,
 			},
 		},
+		{
+			// bridge filtering-database change subscription
+			BASE_YANG_MODEL,
+			{
+				BRIDGING_BRIDGE_COMPONENT_FILTERING_DATABASE_YANG_PATH,
+				bridging_bridge_list_change_cb,
+			},
+		},
 	};
 
 	// operational getters
