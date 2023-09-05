@@ -14,16 +14,24 @@
 #ifndef BRIDGING_PLUGIN_TYPES_H
 #define BRIDGING_PLUGIN_TYPES_H
 
+#include <srpc.h>
+
 #include <stdint.h>
 #include <linux/if_bridge.h>
 
 // typedefs
+typedef struct bridging_module_change_s bridging_module_change_t;
 typedef struct bridge_s bridge_t;
 typedef struct bridge_component_s bridge_component_t;
 typedef struct bridge_component_list_element_s bridge_component_list_element_t;
 typedef struct bridge_list_element_s bridge_list_element_t;
 typedef struct bridge_vlan_info_s bridge_vlan_info_t;
 typedef struct bridge_vlan_list_element_s bridge_vlan_list_element_t;
+
+struct bridging_module_change_s {
+	char *				module_name;
+	srpc_module_change_t sub;
+};
 
 struct bridge_s {
 	char *name;

@@ -2,6 +2,7 @@
 #include "plugin.h"
 #include "plugin/common.h"
 #include "plugin/context.h"
+#include "plugin/types.h"
 #include "plugin/startup/load.h"
 
 // subs
@@ -33,6 +34,26 @@ int sr_plugin_init_cb(sr_session_ctx_t *running_session, void **private_data)
 
 	// plugin
 	bridging_ctx_t *ctx = NULL;
+
+	// first entry has highest priority, last lowest priority
+	bridging_module_change_t module_changes[] = {
+		{
+			// bridge change subscription
+			BASE_YANG_MODEL,
+			{
+				BRIDGING_BRIDGE_LIST_YANG_PATH,
+				bridging_bridge_list_change_cb,
+			},
+		},
+		{
+			// bridge-port change subscription
+			INTERFACES_YANG_MODEL,
+			{
+				INTERFACES_LIST_PATH,
+				bridge_port_change_cb,
+			},
+		},
+	};
 
 	// operational getters
 	srpc_operational_t oper[] = {
@@ -80,8 +101,24 @@ int sr_plugin_init_cb(sr_session_ctx_t *running_session, void **private_data)
 		}
 	}
 
+	// subscribe every module change with priority set
+	for (uint32_t i = 0; i < ARRAY_SIZE(module_changes); i++) {
+		const bridging_module_change_t* change = &module_changes[i];
+
+		SRPLG_LOG_DBG(PLUGIN_NAME, "Subscribing module change callback %s", change->sub.path);
+
+		// in case of work on a specific callback set it to NULL
+		if (change->sub.cb) {
+			error = sr_module_change_subscribe(running_session, change->module_name, change->sub.path, change->sub.cb, *private_data, ARRAY_SIZE(module_changes) - i, SR_SUBSCR_DEFAULT, &subscription);
+			if (error) {
+				SRPLG_LOG_ERR(PLUGIN_NAME, "sr_module_change_subscribe() error for \"%s\" (%d): %s", change->sub.path, error, sr_strerror(error));
+				goto error_out;
+			}
+		}
+	}
+
 	// operational subscriptions - merge with existing data (SR_SUBSCR_OPER_MERGE flag)
-	for (size_t i = 0; i < ARRAY_SIZE(oper); i++) {
+	for (uint32_t i = 0; i < ARRAY_SIZE(oper); i++) {
 		const srpc_operational_t* op = &oper[i];
 
 		SRPLG_LOG_DBG(PLUGIN_NAME, "Subscribing operational callback %s:%s", op->module, op->path);
@@ -96,19 +133,6 @@ int sr_plugin_init_cb(sr_session_ctx_t *running_session, void **private_data)
 		}
 	}
 
-	// bridge change subscription
-	error = sr_module_change_subscribe(running_session, BASE_YANG_MODEL, BRIDGING_BRIDGE_LIST_YANG_PATH, bridging_bridge_list_change_cb, *private_data, 0, SR_SUBSCR_DEFAULT, &subscription);
-	if (error) {
-		SRPLG_LOG_ERR(PLUGIN_NAME, "sr_module_change_subscribe() error (%d): %s", error, sr_strerror(error));
-		goto error_out;
-	}
-
-	// bridge-port change subscription
-	error = sr_module_change_subscribe(running_session, INTERFACES_YANG_MODEL, INTERFACES_LIST_PATH, bridge_port_change_cb, *private_data, 0, SR_SUBSCR_DEFAULT, &subscription);
-	if (error) {
-		SRPLG_LOG_ERR(PLUGIN_NAME, "sr_module_change_subscribe() error (%d): %s", error, sr_strerror(error));
-		goto error_out;
-	}
 	goto out;
 
 error_out:

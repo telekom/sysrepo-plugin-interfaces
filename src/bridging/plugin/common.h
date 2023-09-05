@@ -1,8 +1,6 @@
 #ifndef BRIDGING_PLUGIN_COMMON_H
 #define BRIDGING_PLUGIN_COMMON_H
 
-#include <srpc.h>
-
 #define PLUGIN_NAME "bridging-plugin"
 
 #define BASE_YANG_MODEL "ieee802-dot1q-bridge"
