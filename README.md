@@ -4,6 +4,8 @@
 
 <p align="center">
     <a href="/../../commits/" title="Last Commit"><img src="https://img.shields.io/github/last-commit/telekom/sysrepo-plugin-interfaces?style=flat"></a>
+    <a href="https://github.com/andreiosg/sysrepo-plugin-interfaces/actions/workflows/ci.yml" title="sysrepo-plugin-interfaces CI"><img src="https://github.com/andreiosg/sysrepo-plugin-interfaces/workflows/sysrepo-plugin-interfaces%20CI/badge.svg"></a>
+    <a href="https://github.com/andreiosg/sysrepo-plugin-interfaces/actions/workflows/ci.yml" title="clang-format all"><img src="https://github.com/andreiosg/sysrepo-plugin-interfaces/workflows/clang-format%20all/badge.svg"></a>
     <a href="/../../issues" title="Open Issues"><img src="https://img.shields.io/github/issues/telekom/sysrepo-plugin-interfaces?style=flat"></a>
     <a href="./LICENSE" title="License"><img src="https://img.shields.io/badge/License-BSD%203--Clause-blue.svg?style=flat"></a>
 </p>
