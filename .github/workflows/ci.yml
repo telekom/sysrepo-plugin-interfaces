@@ -9,7 +9,7 @@ on:
 jobs:
   build:
     name: ${{matrix.config.name}}
-    runs-on: ubuntu-20.04 
+    runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
@@ -146,7 +146,7 @@ jobs:
 
   sonarcloud:
     name: sonarcloud
-    runs-on: ubuntu-20.04 
+    runs-on: ubuntu-latest
     env:
       BUILD_WRAPPER_OUT_DIR: build_wrapper_output_directory # Directory where build-wrapper output will be placed
     steps:
