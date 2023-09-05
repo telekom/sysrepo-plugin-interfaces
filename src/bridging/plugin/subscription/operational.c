@@ -75,6 +75,12 @@ int bridging_oper_get_bridges(sr_session_ctx_t *session, uint32_t sub_id, const 
 				SRPLG_LOG_ERR(PLUGIN_NAME, "bridging_ly_tree_add_bridge_ports() failed (%d)", error);
 				goto error_out;
 			}
+
+			error = bridging_ly_tree_add_bridge_components(ly_ctx, bridge_node, link_iter, link_cache);
+			if (error) {
+				SRPLG_LOG_ERR(PLUGIN_NAME, "bridging_ly_tree_add_bridge_components() failed (%d)", error);
+				goto error_out;
+			}
 		}
 		link_iter = (struct rtnl_link *) nl_cache_get_next((struct nl_object *) link_iter);
 	}
