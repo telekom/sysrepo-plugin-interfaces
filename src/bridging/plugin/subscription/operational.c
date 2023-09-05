@@ -151,7 +151,6 @@ int bridging_oper_get_bridge_vlan(sr_session_ctx_t *session, uint32_t sub_id, co
 	if (br_component_name == NULL) {
 		SRPLG_LOG_ERR(PLUGIN_NAME, "sr_xpath_key_value() error: %d", error);
 		goto error_out;
-
 	}
 
 	conn_ctx = sr_session_get_connection(session);
