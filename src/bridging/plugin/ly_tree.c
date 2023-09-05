@@ -46,7 +46,7 @@ int bridging_ly_tree_add_bridge_address(const struct ly_ctx *ly_ctx, struct lyd_
 {
 	LY_ERR ly_error = LY_SUCCESS;
 
-	char mac_addr_buffer[100] = {0};
+	char mac_addr_buffer[18] = {0};
 
 	// get mac address and convert libnl format to libyang format
 	nl_addr2str(rtnl_link_get_addr(bridge_link), mac_addr_buffer, sizeof(mac_addr_buffer));
@@ -81,11 +81,13 @@ int bridging_ly_tree_add_bridge_type(const struct ly_ctx *ly_ctx, struct lyd_nod
 
 int bridging_ly_tree_add_bridge_ports(const struct ly_ctx *ly_ctx, struct lyd_node *bridge_node, struct rtnl_link *bridge_link, struct nl_cache *link_cache)
 {
+	int error = 0;
 	LY_ERR ly_error = LY_SUCCESS;
 
 	struct rtnl_link *link_iter = NULL;
 	uint16_t ports = 0;
 
+	// max 4095 = 4 chars + null terminator; but make sure UINT16_MAX (65535) + null terminator fits
 	char str_buffer[6] = {0};
 
 	// count number of interfaces whose master is the bridge link
@@ -97,7 +99,14 @@ int bridging_ly_tree_add_bridge_ports(const struct ly_ctx *ly_ctx, struct lyd_no
 		link_iter = (struct rtnl_link *) nl_cache_get_next((struct nl_object *) link_iter);
 	}
 
-	snprintf(str_buffer, sizeof(str_buffer), "%d", ports);
+	if (ports == 0)
+		return 0;
+
+	error = snprintf(str_buffer, sizeof(str_buffer), "%hu", ports);
+	if (error < 0) {
+		SRPLG_LOG_ERR(PLUGIN_NAME, "snprintf() failed (%d)", error);
+		return -1;
+	}
 
 	SRPLG_LOG_DBG(PLUGIN_NAME, "Bridge ports = %s", str_buffer);
 	ly_error = lyd_new_path(bridge_node, ly_ctx, "ports", str_buffer, 0, NULL);
@@ -117,8 +126,8 @@ int bridging_ly_tree_add_bridge_components(const struct ly_ctx *ly_ctx, struct l
 	struct rtnl_link *link_iter = NULL;
 	uint32_t components = 0;
 
-	// max 4096 = 4 chars + null terminator
-	char str_buffer[100] = {0};
+	// max 4294967295 = 10 chars + null terminator
+	char str_buffer[11] = {0};
 
 	// count number of interfaces whose master is the bridge link
 	link_iter = (struct rtnl_link *) nl_cache_get_first(link_cache);
@@ -129,7 +138,7 @@ int bridging_ly_tree_add_bridge_components(const struct ly_ctx *ly_ctx, struct l
 		link_iter = (struct rtnl_link *) nl_cache_get_next((struct nl_object *) link_iter);
 	}
 
-	error = snprintf(str_buffer, sizeof(str_buffer), "%d", components);
+	error = snprintf(str_buffer, sizeof(str_buffer), "%u", components);
 	if (error < 0) {
 		SRPLG_LOG_ERR(PLUGIN_NAME, "snprintf() failed (%d)", error);
 		return -1;
@@ -172,7 +181,8 @@ int bridging_ly_tree_add_bridge_component_id(const struct ly_ctx *ly_ctx, struct
 	int error = 0;
 	LY_ERR ly_error = LY_SUCCESS;
 
-	char id_buffer[100] = {0};
+	// max 4294967295 = 10 chars + null terminator
+	char id_buffer[10] = {0};
 	uint32_t component_id = (uint32_t) rtnl_link_vlan_get_id(component_link);
 
 	error = snprintf(id_buffer, sizeof(id_buffer), "%u", component_id);
@@ -212,7 +222,7 @@ int bridging_ly_tree_add_bridge_component_address(const struct ly_ctx *ly_ctx, s
 {
 	LY_ERR ly_error = LY_SUCCESS;
 
-	char mac_addr_buffer[100] = {0};
+	char mac_addr_buffer[18] = {0};
 
 	// get mac address and convert libnl format to libyang format
 	nl_addr2str(rtnl_link_get_addr(component_link), mac_addr_buffer, sizeof(mac_addr_buffer));
