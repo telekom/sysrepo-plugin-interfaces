@@ -50,6 +50,11 @@ public:
     std::optional<InterfaceRef> getInterfaceByIndex(const uint32_t index);
 
     /**
+     * @brief Create interface.
+     */
+    void createInterface(std::string name, std::string type, bool enabled);
+
+    /**
      * @brief Get the links cache.
      */
     CacheRef<InterfaceRef> getLinkCache();

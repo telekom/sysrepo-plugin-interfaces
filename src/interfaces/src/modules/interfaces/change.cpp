@@ -46,20 +46,31 @@ sr::ErrorCode InterfaceNameModuleChangeCb::operator()(sr::Session session, uint3
     switch (event) {
     case sysrepo::Event::Change:
         // apply interface changes to the netlink context received from module changes context
-        for (auto& change : session.getChanges("/ietf-interfaces:interfaces/interface/name")) {
+        for (sysrepo::Change change : session.getChanges("/ietf-interfaces:interfaces/interface/name")) {
             SRPLG_LOG_DBG(getModuleLogPrefix(), "Value of %s modified.", change.node.path().c_str());
             SRPLG_LOG_DBG(getModuleLogPrefix(), "Value of %s modified.", change.node.schema().name().data());
 
             const auto& value = change.node.asTerm().value();
             const auto& name_value = std::get<std::string>(value);
-            NlContext ctx;
-            std::vector names = ctx.getLinkNames();
+
+            std::string type_xpath = "/ietf-interfaces:interfaces/interface[name='" + name_value + "']/type";
 
             switch (change.operation) {
-            case sysrepo::ChangeOperation::Created:
+            case sysrepo::ChangeOperation::Created: {
+
+                std::string type_str = change.node.findPath(type_xpath)->asTerm().valueStr().data();
+
                 // create a new interface using the NetlinkContext API
+                try {
+                    nl_ctx.createInterface(name_value, type_str, false);
+                } catch (std::exception& e) {
+                    SRPLG_LOG_ERR(getModuleLogPrefix(), "Error creating interface: %s", e.what());
+                }
+
                 SRPLG_LOG_DBG(getModuleLogPrefix(), "Creating interface %s", name_value.c_str());
                 break;
+            }
+
             case sysrepo::ChangeOperation::Deleted:
                 // delete interface with 'name' = 'name_value'
                 SRPLG_LOG_DBG(getModuleLogPrefix(), "Deleting interface %s", name_value.c_str());
@@ -176,7 +187,7 @@ sr::ErrorCode InterfaceTypeModuleChangeCb::operator()(sr::Session session, uint3
     switch (event) {
     case sysrepo::Event::Change:
         // apply interface changes to the netlink context received from module changes context
-        for (auto& change : session.getChanges("/ietf-interfaces:interfaces/interface/type")) {
+        for (sysrepo::Change change : session.getChanges("/ietf-interfaces:interfaces/interface/type")) {
             SRPLG_LOG_DBG(getModuleLogPrefix(), "Value of %s modified.", change.node.path().c_str());
             SRPLG_LOG_DBG(getModuleLogPrefix(), "Value of %s modified.", change.node.schema().name().data());
 
@@ -236,40 +247,38 @@ sr::ErrorCode InterfaceEnabledModuleChangeCb::operator()(sr::Session session, ui
         for (sysrepo::Change change : session.getChanges("/ietf-interfaces:interfaces/interface/enabled")) {
             SRPLG_LOG_DBG(getModuleLogPrefix(), "Value of %s modified.", change.node.path().c_str());
             SRPLG_LOG_DBG(getModuleLogPrefix(), "Value of %s modified.", change.node.schema().name().data());
-
             SRPLG_LOG_DBG(getModuleLogPrefix(), "\n%s", change.node.printStr(libyang::DataFormat::XML, libyang::PrintFlags::WithDefaultsAll)->data());
 
-            // extract value
             const auto& value = change.node.asTerm().value();
             const bool enabled_value = std::get<bool>(value);
             const auto& interface_name = srpc::extractListKeyFromXPath("interface", "name", change.node.path());
 
-            SRPLG_LOG_DBG(getModuleLogPrefix(), "Interface name: %s", interface_name.c_str());
-            SRPLG_LOG_DBG(getModuleLogPrefix(), "Interface enabled: %s", enabled_value ? "true" : "false");
+            std::optional<InterfaceRef> if_ref = std::nullopt;
 
-            // Netlink context
-            NlContext& nl_ctx = m_ctx->getNetlinkContext();
+            try {
 
-            // get interface reference
-            std::optional<InterfaceRef> if_ref = nl_ctx.getInterfaceByName(interface_name);
+                // Netlink context
+                NlContext& nl_ctx = m_ctx->getNetlinkContext();
+                nl_ctx.refillCache();
+
+                // get interface reference
+                if_ref = nl_ctx.getInterfaceByName(interface_name);
+            } catch (std::exception& e) {
+                SRPLG_LOG_ERR(getModuleLogPrefix(), "Error: %s", e.what());
+            }
 
             switch (change.operation) {
             case sysrepo::ChangeOperation::Created:
             case sysrepo::ChangeOperation::Modified:
                 // apply 'enabled_value' value for interface 'interface_name'
                 SRPLG_LOG_DBG(getModuleLogPrefix(), "Setting enabled value for interface %s to %s", interface_name.c_str(), enabled_value ? "true" : "false");
+
                 try {
-
-                    if (if_ref) {
-                        InterfaceRef& interface = if_ref.value();
-                        interface.setEnabled(enabled_value);
-                    }
-
+                    if_ref.has_value() ? if_ref->setEnabled(enabled_value) : throw std::bad_optional_access();
                 } catch (std::exception& e) {
-                    SRPLG_LOG_DBG(getModuleLogPrefix(), "Error setting default value for enabled node: %s", e.what());
+                    SRPLG_LOG_ERR(getModuleLogPrefix(), "Cannot change Enabled: %s", e.what());
                     return sr::ErrorCode::OperationFailed;
                 }
-
                 break;
             case sysrepo::ChangeOperation::Deleted:
                 // when deleting this node, the plugin will automaticaly modify this node to default value
@@ -505,17 +514,31 @@ sr::ErrorCode Ipv4MtuModuleChangeCb::operator()(sr::Session session, uint32_t su
             SRPLG_LOG_DBG(getModuleLogPrefix(), "Value of %s modified.", change.node.schema().name().data());
 
             const auto& value = change.node.asTerm().value();
-            const auto& name_value = std::get<uint32_t>(value);
+            const auto& mtu_value = std::get<uint16_t>(value);
+            const auto& interface_name = srpc::extractListKeyFromXPath("interface", "name", change.node.path());
+
+            // Netlink context
+            NlContext& nl_ctx = m_ctx->getNetlinkContext();
+
+            // get interface reference
+            std::optional<InterfaceRef> if_ref = nl_ctx.getInterfaceByName(interface_name);
 
             switch (change.operation) {
             case sysrepo::ChangeOperation::Created:
             case sysrepo::ChangeOperation::Modified:
 
-                SRPLG_LOG_DBG(getModuleLogPrefix(), "Mtu: %d", name_value);
+                SRPLG_LOG_DBG(getModuleLogPrefix(), "Mtu: %d", mtu_value);
+
+                try {
+                    if_ref ? if_ref->setMtu(mtu_value) : throw std::bad_optional_access();
+                } catch (std::exception& e) {
+                    SRPLG_LOG_ERR(getModuleLogPrefix(), "Cannot change MTU: %s", e.what());
+                }
+
                 break;
             case sysrepo::ChangeOperation::Deleted:
-                // delete interface with 'name' = 'name_value'
-                SRPLG_LOG_DBG(getModuleLogPrefix(), "Deleted Mtu %d", name_value);
+
+                SRPLG_LOG_DBG(getModuleLogPrefix(), "Deleted Mtu %d", mtu_value);
                 break;
             default:
                 // other options not needed

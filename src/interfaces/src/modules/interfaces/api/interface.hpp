@@ -4,6 +4,7 @@
 #include "cache.hpp"
 #include <cstdint>
 #include <memory>
+#include <unordered_map>
 
 class AddressRef;
 
@@ -25,6 +26,15 @@ struct InterfaceStats {
     uint32_t OutDiscards;
     uint32_t OutErrors;
 };
+
+const std::unordered_map<std::string,std::string> InterfaceTypes = {
+    {"iana-if-type:ethernetCsmacd", "veth"},
+    {"iana-if-type:softwareLoopback", "vcan"},
+    {"iana-if-type:l2vlan", "vlan"}, 
+    {"iana-if-type:other", "dummy"},
+    {"iana-if-type:bridge", "bridge"}
+};
+
 
 class InterfaceRef {
 public:
@@ -95,6 +105,13 @@ public:
      * @brief Enable and disable an interface.
      */
     void setEnabled(bool enabled);
+
+    /**
+     * @brief Changes the MTU of an interface.
+     */
+    void setMtu(uint16_t mtu);
+    
+
 
 private:
     using RtnlLink = struct rtnl_link; ///< Route link type alias.
