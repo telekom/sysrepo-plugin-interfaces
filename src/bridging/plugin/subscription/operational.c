@@ -201,6 +201,7 @@ int bridging_oper_get_bridge_vlan(sr_session_ctx_t *session, uint32_t sub_id, co
 				untagged = port_vlan_list[i].flags & BRIDGE_VLAN_INFO_UNTAGGED;
 				port_type = untagged ? "untagged" : "egress";
 				SRPC_SAFE_CALL_ERR_COND(error, error < 0, snprintf(vlan_port_path, PATH_MAX, "bridge-vlan/vlan[vid='%d']/%s-ports", port_vlan_list[i].vid, port_type), error_out);
+				error = 0;
 
 				ly_err = lyd_new_path(*parent, ly_ctx, vlan_port_path, rtnl_link_get_name(link_iter), 0, NULL);
 				if (ly_err != LY_SUCCESS) {
