@@ -55,6 +55,11 @@ public:
     void createInterface(std::string name, std::string type, bool enabled);
 
     /**
+     * @brief Delete existing interface, if not existant, throws an exception.
+     */
+    void deleteInterface(const std::string& name);
+
+    /**
      * @brief Get the links cache.
      */
     CacheRef<InterfaceRef> getLinkCache();

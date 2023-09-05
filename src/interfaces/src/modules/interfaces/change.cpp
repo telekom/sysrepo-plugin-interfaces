@@ -65,6 +65,7 @@ sr::ErrorCode InterfaceNameModuleChangeCb::operator()(sr::Session session, uint3
                     nl_ctx.createInterface(name_value, type_str, false);
                 } catch (std::exception& e) {
                     SRPLG_LOG_ERR(getModuleLogPrefix(), "Error creating interface: %s", e.what());
+                    return sr::ErrorCode::OperationFailed;
                 }
 
                 SRPLG_LOG_DBG(getModuleLogPrefix(), "Creating interface %s", name_value.c_str());
@@ -73,6 +74,13 @@ sr::ErrorCode InterfaceNameModuleChangeCb::operator()(sr::Session session, uint3
 
             case sysrepo::ChangeOperation::Deleted:
                 // delete interface with 'name' = 'name_value'
+                try {
+                    nl_ctx.deleteInterface(name_value);
+                } catch (std::exception& e) {
+                    SRPLG_LOG_ERR(getModuleLogPrefix(), "Cannot remove %s, reason: %s", name_value.c_str(), e.what());
+                    return sr::ErrorCode::OperationFailed;
+                }
+
                 SRPLG_LOG_DBG(getModuleLogPrefix(), "Deleting interface %s", name_value.c_str());
                 break;
             default:
@@ -271,7 +279,8 @@ sr::ErrorCode InterfaceEnabledModuleChangeCb::operator()(sr::Session session, ui
             case sysrepo::ChangeOperation::Created:
             case sysrepo::ChangeOperation::Modified:
                 // apply 'enabled_value' value for interface 'interface_name'
-                SRPLG_LOG_DBG(getModuleLogPrefix(), "Setting enabled value for interface %s to %s", interface_name.c_str(), enabled_value ? "true" : "false");
+                SRPLG_LOG_DBG(
+                    getModuleLogPrefix(), "Setting enabled value for interface %s to %s", interface_name.c_str(), enabled_value ? "true" : "false");
 
                 try {
                     if_ref.has_value() ? if_ref->setEnabled(enabled_value) : throw std::bad_optional_access();
@@ -592,9 +601,7 @@ sr::ErrorCode Ipv4AddrIpModuleChangeCb::operator()(sr::Session session, uint32_t
 
             switch (change.operation) {
             case sysrepo::ChangeOperation::Created:
-            case sysrepo::ChangeOperation::Modified:
 
-                SRPLG_LOG_DBG(getModuleLogPrefix(), "Ip address: %s", name_value.c_str());
                 break;
             case sysrepo::ChangeOperation::Deleted:
                 // delete interface with 'name' = 'name_value'

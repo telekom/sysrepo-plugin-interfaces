@@ -109,7 +109,7 @@ std::optional<InterfaceRef> NlContext::getInterfaceByName(const std::string& nam
     while (iter != nullptr) {
         const char* link_name = rtnl_link_get_name(iter);
 
-        if (name == link_name) {
+        if (name == std::string(link_name)) {
             return InterfaceRef(iter, m_sock.get());
         }
 
@@ -160,13 +160,36 @@ void NlContext::createInterface(std::string name, std::string type, bool enabled
         throw std::runtime_error("rtnl_link_set_type error");
     };
 
-    enabled ? rtnl_link_set_flags(link, IFF_UP ) : rtnl_link_unset_flags(link, IFF_UP );
+    enabled ? rtnl_link_set_flags(link, IFF_UP) : rtnl_link_unset_flags(link, IFF_UP);
 
     // add link to socket
     if (rtnl_link_add(m_sock.get(), link, NLM_F_CREATE) < 0) {
         rtnl_link_put(link);
         throw std::runtime_error("rtnl_link_add error");
     };
+}
+
+/**
+ * @brief Delete existing interface, if not existant, throws an exception.
+ */
+void NlContext::deleteInterface(const std::string& name)
+{
+    refillCache();
+    struct rtnl_link* iter = (struct rtnl_link*)nl_cache_get_first(m_linkCache.get());
+
+    while (iter != nullptr) {
+        const char* link_name = rtnl_link_get_name(iter);
+
+        if (name == std::string(link_name)) {
+            int error = rtnl_link_delete(m_sock.get(),iter);
+            error < 0 ? throw std::runtime_error(nl_geterror(error)) : NULL;
+            break;
+        }
+
+        iter = (struct rtnl_link*)nl_cache_get_next((struct nl_object*)iter);
+    };
+
+    throw std::runtime_error("Interface not found!");
 }
 
 /**
