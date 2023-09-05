@@ -256,7 +256,42 @@ veth2_bport       1 PVID Egress Untagged
                   20
 ```
 
-TODO: `bridge-vlan` container operational ds output
+### `bridge-vlan` container operational ds output
+
+```bash
+$ sudo sysrepocfg -v3 -X -fxml -x '/ieee802-dot1q-bridge:bridges/bridge/component/bridge-vlan' -d operational
+```
+
+```xml
+<bridges xmlns="urn:ieee:std:802.1Q:yang:ieee802-dot1q-bridge">
+  <bridge>
+    <name>br0</name>
+    <component>
+      <name>br0</name>
+      <bridge-vlan>
+        <version>2</version>
+        <max-vids>4094</max-vids>
+        <override-default-pvid>true</override-default-pvid>
+        <vlan>
+          <vid>20</vid>
+          <name>veth-test-vlan</name>
+          <untagged-ports>veth1_bport</untagged-ports>
+          <egress-ports>veth2_bport</egress-ports>
+        </vlan>
+        <vlan>
+          <vid>1</vid>
+          <untagged-ports>veth1_bport</untagged-ports>
+          <untagged-ports>veth2_bport</untagged-ports>
+        </vlan>
+        <vlan>
+          <vid>8</vid>
+          <egress-ports>veth2_bport</egress-ports>
+        </vlan>
+      </bridge-vlan>
+    </component>
+  </bridge>
+</bridges>
+```
 
 ## Add a MAC address filtering entry & configure filtering database aging time
 
