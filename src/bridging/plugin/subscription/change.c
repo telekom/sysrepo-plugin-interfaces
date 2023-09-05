@@ -30,12 +30,13 @@ int bridge_port_component_name_change_cb(bridging_ctx_t *ctx, sr_session_ctx_t *
 // common functionality for iterating changes specified by the given xpath - calls callback function for each iterated node
 int apply_change(bridging_ctx_t *ctx, sr_session_ctx_t *session, const char *xpath, bridging_change_cb cb);
 
-int apply_bridge_list_config_changes(bridging_ctx_t *ctx, sr_session_ctx_t *session, sr_change_iter_t *changes_iterator);
+int apply_bridge_list_config_changes(bridging_ctx_t *ctx, sr_session_ctx_t *session, sr_change_iter_t *changes_iterator, const char *sub_xpath);
 int modify_bridge_component(struct nl_sock *socket, char change_path[PATH_MAX], const char *node_name, const char *node_value, sr_change_oper_t operation);
 int modify_filtering_database(struct nl_sock *socket, char change_path[PATH_MAX], const char *node_name, const char *node_value, sr_change_oper_t operation);
 int modify_filtering_entries(struct nl_sock *socket, char change_path[PATH_MAX], const char *node_name, const char *node_value, sr_change_oper_t operation);
 int modify_port_vlan_entries(struct nl_sock *socket, char change_path[PATH_MAX], const char *node_name, const char *node_value, sr_change_oper_t operation);
 
+int delete_bridge(struct nl_sock *socket, const char *node_value);
 
 int bridging_bridge_list_change_cb(sr_session_ctx_t *session, uint32_t subscription_id, const char *module_name, const char *xpath, sr_event_t event, uint32_t request_id, void *private_data)
 {
@@ -63,9 +64,10 @@ int bridging_bridge_list_change_cb(sr_session_ctx_t *session, uint32_t subscript
 			SRPLG_LOG_ERR(PLUGIN_NAME, "sr_get_changes_iter() failed (%d): %s", error, sr_strerror(error));
 			goto error_out;
 		}
-		error = apply_bridge_list_config_changes(ctx, session, changes_iterator);
+		error = apply_bridge_list_config_changes(ctx, session, changes_iterator, xpath);
 		if (error) {
 			SRPLG_LOG_ERR(PLUGIN_NAME, "apply_bridge_list_config_changes() failed (%d)", error);
+			goto error_out;
 		}
 	}
 	goto out;
@@ -75,16 +77,18 @@ error_out:
 	error = -1;
 
 out:
+	sr_free_change_iter(changes_iterator);
 	return error ? SR_ERR_CALLBACK_FAILED : SR_ERR_OK;
 }
 
 int get_changed_node_info(const struct lyd_node *node, char change_path[PATH_MAX], const char **node_name, const char **node_value, sr_change_oper_t operation)
 {
 	int error = 0;
+
 	error = (lyd_path(node, LYD_PATH_STD, change_path, PATH_MAX) == NULL);
 	if (error) {
 		SRPLG_LOG_ERR(PLUGIN_NAME, "lyd_path() error: %d", error);
-		goto out;
+		return error;
 	}
 
 	*node_name = sr_xpath_node_name(change_path);
@@ -107,11 +111,11 @@ int get_changed_node_info(const struct lyd_node *node, char change_path[PATH_MAX
 			break;
 	}
 	SRPLG_LOG_DBG(PLUGIN_NAME, "Node name: %s, Value: %s; Operation: %s", *node_name, *node_value, operation_str);
-out:
+
 	return error;
 }
 
-int apply_bridge_list_config_changes(bridging_ctx_t *ctx, sr_session_ctx_t *session, sr_change_iter_t *changes_iterator)
+int apply_bridge_list_config_changes(bridging_ctx_t *ctx, sr_session_ctx_t *session, sr_change_iter_t *changes_iterator, const char *sub_xpath)
 {
 	int error = 0;
 
@@ -123,6 +127,9 @@ int apply_bridge_list_config_changes(bridging_ctx_t *ctx, sr_session_ctx_t *sess
 	char change_path[PATH_MAX] = {0};
 	const char *node_name = NULL;
 	const char *node_value = NULL;
+
+	uint16_t num_created_bridges = 0;
+	char created_bridge_name[BRIDGING_MAX_BR_PORTS][IFNAMSIZ + 1] = { 0 };
 
 	// open netlink socket for applying configuration
 	struct nl_sock *socket = nl_socket_alloc();
@@ -162,7 +169,16 @@ int apply_bridge_list_config_changes(bridging_ctx_t *ctx, sr_session_ctx_t *sess
 				// ignore
 			} else if (strstr(change_path, "bridge-mst")) {
 				// ignore
-			} else {
+			} else if (!strcmp(sub_xpath, BRIDGING_BRIDGE_LIST_YANG_PATH)) {
+				if ((strcmp(node_name, "name") == 0) && (operation == SR_OP_CREATED)) {
+					if (num_created_bridges > BRIDGING_MAX_BR_PORTS) {
+						SRPLG_LOG_ERR(PLUGIN_NAME, "Trying to create more bridges than supported (%d)", BRIDGING_MAX_BR_PORTS);
+						goto error_out;
+					}
+					strncpy(created_bridge_name[num_created_bridges], node_value, IFNAMSIZ);
+					num_created_bridges++;
+				}
+
 				// modify general bridge component configuration
 				error = modify_bridge_component(socket, change_path, node_name, node_value, operation);
 				if (error) {
@@ -176,11 +192,19 @@ int apply_bridge_list_config_changes(bridging_ctx_t *ctx, sr_session_ctx_t *sess
 	goto out;
 
 error_out:
+	// if there is an error and we just created bridge interface(s), we have to remove it to get consistent state
+	for (uint16_t i = 0; i < num_created_bridges; i++) {
+		SRPLG_LOG_INF(PLUGIN_NAME, "Delete bridge (%s) due to error", created_bridge_name[i]);
+		// this could also fail and system ends up in an incosistent state...
+		error = delete_bridge(socket, created_bridge_name[i]);
+		if (error) {
+			SRPLG_LOG_ERR(PLUGIN_NAME, "delete_bridge() failed, incosistent state on system!");
+		}
+	}
 	error = -1;
 out:
 	if (socket)
 		nl_socket_free(socket);
-	sr_free_change_iter(changes_iterator);
 
 	return error;
 }
@@ -739,5 +763,36 @@ out:
 		rtnl_link_put(bridge);
 	if (bridge_port)
 		rtnl_link_put(bridge_port);
+	return error;
+}
+
+int delete_bridge(struct nl_sock *socket, const char *node_value)
+{
+	int error = 0;
+	struct rtnl_link *bridge = NULL;
+
+	// delete bridge whose name matches the given node value
+	bridge = rtnl_link_bridge_alloc();
+	if (bridge == NULL) {
+		SRPLG_LOG_ERR(PLUGIN_NAME, "rtnl_link_bridge_alloc() failed");
+		goto error_out;
+	}
+	rtnl_link_set_name(bridge, node_value);
+
+	// delete bridge
+	error = rtnl_link_delete(socket, bridge);
+	if (error) {
+		SRPLG_LOG_ERR(PLUGIN_NAME, "rtnl_link_delete() failed (%d): %s", error, nl_geterror(error));
+		goto error_out;
+	}
+
+	goto out;
+
+error_out:
+	error = -1;
+out:
+	if (bridge)
+		rtnl_link_put(bridge);
+
 	return error;
 }
