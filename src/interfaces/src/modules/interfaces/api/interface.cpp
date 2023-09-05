@@ -5,16 +5,24 @@
 #include <netlink/route/tc.h>
 #include <memory>
 #include <stdexcept>
+#include <linux/if.h>
 
 /**
  * @brief Private constructor accessible only to netlink context. Stores a reference to a link for later access of link members.
  */
-InterfaceRef::InterfaceRef(struct rtnl_link* link, struct nl_sock* socket) { m_link = RtnlLinkPtr(link, NlEmptyDeleter<RtnlLink>), m_socket = NlSocketPtr(socket,NlEmptyDeleter<struct nl_sock>); }
+InterfaceRef::InterfaceRef(struct rtnl_link* link, struct nl_sock* socket)
+{
+    m_link = RtnlLinkPtr(link, NlEmptyDeleter<RtnlLink>), m_socket = NlSocketPtr(socket, NlEmptyDeleter<struct nl_sock>);
+}
 
 /**
  * @brief Private constructor accessible only to netlink context. Stores a reference to a link for later access of link members.
  */
-InterfaceRef::InterfaceRef(struct nl_object* link, struct nl_sock* socket) { m_link = RtnlLinkPtr(reinterpret_cast<RtnlLink*>(link), NlEmptyDeleter<RtnlLink>), m_socket = NlSocketPtr(reinterpret_cast<struct nl_sock*>(socket), NlEmptyDeleter<struct nl_sock>); };
+InterfaceRef::InterfaceRef(struct nl_object* link, struct nl_sock* socket)
+{
+    m_link = RtnlLinkPtr(reinterpret_cast<RtnlLink*>(link), NlEmptyDeleter<RtnlLink>),
+    m_socket = NlSocketPtr(reinterpret_cast<struct nl_sock*>(socket), NlEmptyDeleter<struct nl_sock>);
+};
 
 /**
  * @breif Wrapper function for rtnl_link_get_name().
@@ -64,7 +72,7 @@ std::uint8_t InterfaceRef::getLinkMode() const { return rtnl_link_get_linkmode(m
 /**
  * @brief Returns address of the interface.
  */
-AddressRef InterfaceRef::getAddress() const { return AddressRef(rtnl_link_get_addr(m_link.get()),m_socket.get()); }
+AddressRef InterfaceRef::getAddress() const { return AddressRef(rtnl_link_get_addr(m_link.get()), m_socket.get()); }
 
 /**
  * @brief Returns the speed of the interface.
@@ -141,22 +149,48 @@ void InterfaceRef::setEnabled(bool enabled)
 
     RtnlLink* current_link = m_link.get();
 
-    //allocate change link
+    // allocate change link
     RtnlLink* change_link = rtnl_link_alloc();
 
-    //set enabled flags to link
-    enabled ? rtnl_link_set_flags(change_link, rtnl_link_str2flags("up")) : rtnl_link_unset_flags(change_link, rtnl_link_str2flags("up"));
+    // set enabled flags to link
+    enabled ? rtnl_link_set_flags(change_link, IFF_UP) : rtnl_link_unset_flags(change_link, IFF_UP);
 
-    //change link
-    int err = rtnl_link_change(m_socket.get(),current_link,change_link,0);
-    
-    if(err<0){
+    // change link
+    int err = rtnl_link_change(m_socket.get(), current_link, change_link, 0);
+
+    if (err < 0) {
         rtnl_link_put(change_link);
         throw std::runtime_error(std::string(nl_geterror(err)));
     }
 
-    //deallocate change link
+    // deallocate change link
     rtnl_link_put(change_link);
-
-    
 }
+
+/**
+ * @brief Changes the MTU of an interface.
+ */
+void InterfaceRef::setMtu(uint16_t mtu)
+{
+
+    RtnlLink* current_link = m_link.get();
+
+    // allocate change link
+    RtnlLink* change_link = rtnl_link_alloc();
+
+    // set mtu
+    rtnl_link_set_mtu(change_link, mtu);
+
+    // change link
+    int err = rtnl_link_change(m_socket.get(), current_link, change_link, 0);
+
+    if (err < 0) {
+        rtnl_link_put(change_link);
+        throw std::runtime_error(std::string(nl_geterror(err)));
+    }
+
+    // deallocate change link
+    rtnl_link_put(change_link);
+}
+
+

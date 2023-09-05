@@ -5,6 +5,7 @@
 // libnl
 #include <netlink/route/addr.h>
 #include <netlink/route/link.h>
+#include <linux/if.h>
 
 // include types
 #include "interface.hpp"
@@ -109,7 +110,7 @@ std::optional<InterfaceRef> NlContext::getInterfaceByName(const std::string& nam
         const char* link_name = rtnl_link_get_name(iter);
 
         if (name == link_name) {
-            return InterfaceRef(iter,m_sock.get());
+            return InterfaceRef(iter, m_sock.get());
         }
 
         iter = (struct rtnl_link*)nl_cache_get_next((struct nl_object*)iter);
@@ -133,16 +134,52 @@ std::optional<InterfaceRef> NlContext::getInterfaceByIndex(const uint32_t index)
 }
 
 /**
+ * @brief Create interface.
+ */
+void NlContext::createInterface(std::string name, std::string type, bool enabled)
+{
+
+    // name cannot be more than 15 characters
+    if (name.size() > 15)
+        throw std::runtime_error("Name to long!");
+    // check if type exists
+    if (InterfaceTypes.find(type) == InterfaceTypes.end())
+        throw std::runtime_error("Unsupported type");
+
+    // allocate link
+    rtnl_link* link = rtnl_link_alloc();
+    if (link == NULL)
+        throw std::runtime_error("link alloc error!");
+
+    // set name to link
+    rtnl_link_set_name(link, name.c_str());
+
+    // set type to link
+    if (rtnl_link_set_type(link, InterfaceTypes.at(type).c_str()) < 0) {
+        rtnl_link_put(link);
+        throw std::runtime_error("rtnl_link_set_type error");
+    };
+
+    enabled ? rtnl_link_set_flags(link, IFF_UP ) : rtnl_link_unset_flags(link, IFF_UP );
+
+    // add link to socket
+    if (rtnl_link_add(m_sock.get(), link, NLM_F_CREATE) < 0) {
+        rtnl_link_put(link);
+        throw std::runtime_error("rtnl_link_add error");
+    };
+}
+
+/**
  * @brief Get the links cache.
  */
-CacheRef<InterfaceRef> NlContext::getLinkCache() { return CacheRef<InterfaceRef>(m_linkCache.get(),m_sock.get()); }
+CacheRef<InterfaceRef> NlContext::getLinkCache() { return CacheRef<InterfaceRef>(m_linkCache.get(), m_sock.get()); }
 
 /**
  * @brief Get the address cache.
  */
-CacheRef<RouteAddressRef> NlContext::getAddressCache() { return CacheRef<RouteAddressRef>(m_addressCache.get(),m_sock.get()); }
+CacheRef<RouteAddressRef> NlContext::getAddressCache() { return CacheRef<RouteAddressRef>(m_addressCache.get(), m_sock.get()); }
 
 /**
  * @brief Get the neighbors cache.
  */
-CacheRef<NeighborRef> NlContext::getNeighborCache() { return CacheRef<NeighborRef>(m_neighCache.get(),m_sock.get()); }
+CacheRef<NeighborRef> NlContext::getNeighborCache() { return CacheRef<NeighborRef>(m_neighCache.get(), m_sock.get()); }
