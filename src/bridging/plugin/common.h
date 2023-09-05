@@ -17,7 +17,11 @@
 #define INTERFACES_YANG_MODEL "ietf-interfaces"
 #define INTERFACES_LIST_PATH "/ietf-interfaces:interfaces/interface"
 
+#define BRIDGING_BRIDGE_COMPONENT_BRIDGE_VLAN_YANG_PATH BRIDGING_BRIDGE_LIST_YANG_PATH "/component/bridge-vlan"
+
 #define APPLY_DATASTORE_CHANGES
+
+#define ARRAY_SIZE(arr) (sizeof(arr) / sizeof(arr[0]))
 
 void mac_address_ly_to_nl(char *addr);
 void mac_address_nl_to_ly(char *addr);

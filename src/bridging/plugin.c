@@ -34,6 +34,20 @@ int sr_plugin_init_cb(sr_session_ctx_t *running_session, void **private_data)
 	// plugin
 	bridging_ctx_t *ctx = NULL;
 
+	// operational getters
+	srpc_operational_t oper[] = {
+		{
+			BASE_YANG_MODEL,
+			BRIDGING_BRIDGE_LIST_YANG_PATH,
+			bridging_oper_get_bridges,
+		},
+		{
+			BASE_YANG_MODEL,
+			BRIDGING_BRIDGE_COMPONENT_BRIDGE_VLAN_YANG_PATH,
+			bridging_oper_get_bridge_vlan,
+		},
+	};
+
 	// init context
 	ctx = xmalloc(sizeof(*ctx));
 	*ctx = (bridging_ctx_t){0};
@@ -66,15 +80,19 @@ int sr_plugin_init_cb(sr_session_ctx_t *running_session, void **private_data)
 	}
 
 	// operational subscriptions - merge with existing data (SR_SUBSCR_OPER_MERGE flag)
-	error = sr_oper_get_subscribe(running_session, BASE_YANG_MODEL, BRIDGING_BRIDGE_LIST_YANG_PATH, bridging_oper_get_bridges, NULL, SR_SUBSCR_OPER_MERGE, &subscription);
-	if (error) {
-		SRPLG_LOG_ERR(PLUGIN_NAME, "sr_oper_get_items_subscribe() error (%d): %s", error, sr_strerror(error));
-		goto error_out;
-	}
-	error = sr_oper_get_subscribe(running_session, BASE_YANG_MODEL, "/ieee802-dot1q-bridge:bridges/bridge/component/bridge-vlan", bridging_oper_get_bridge_vlan, NULL,SR_SUBSCR_OPER_MERGE, &subscription);
-	if (error) {
-		SRPLG_LOG_ERR(PLUGIN_NAME, "sr_oper_get_items_subscribe() error (%d): %s", error, sr_strerror(error));
-		goto error_out;
+	for (size_t i = 0; i < ARRAY_SIZE(oper); i++) {
+		const srpc_operational_t* op = &oper[i];
+
+		SRPLG_LOG_DBG(PLUGIN_NAME, "Subscribing operational callback %s:%s", op->module, op->path);
+
+		// in case of work on a specific callback set it to NULL
+		if (op->cb) {
+			error = sr_oper_get_subscribe(running_session, op->module, op->path, op->cb, *private_data, SR_SUBSCR_DEFAULT, &subscription);
+			if (error) {
+				SRPLG_LOG_ERR(PLUGIN_NAME, "sr_oper_get_subscribe() error for \"%s\" (%d): %s", op->path, error, sr_strerror(error));
+				goto error_out;
+			}
+		}
 	}
 
 	// bridge change subscription
@@ -95,7 +113,6 @@ int sr_plugin_init_cb(sr_session_ctx_t *running_session, void **private_data)
 error_out:
 	error = -1;
 	SRPLG_LOG_ERR(PLUGIN_NAME, "Error occured while initializing the plugin (%d)", error);
-
 out:
 	return error ? SR_ERR_CALLBACK_FAILED : SR_ERR_OK;
 }
