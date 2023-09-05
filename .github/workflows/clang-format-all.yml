@@ -20,12 +20,4 @@ jobs:
         # only C source and header files
         extensions: 'h,c'
         clangFormatVersion: 16
-        inplace: True
-        
-    - uses: EndBug/add-and-commit@v9
-      with:
-        author_name: clang-format robot
-        # conventional commits standard
-        message: 'style(src): clang-format all'
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        inplace: False
