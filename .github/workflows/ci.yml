@@ -1,0 +1,205 @@
+name: sysrepo-plugin-interfaces CI
+
+on:
+  push:
+    branches: [ "main", "devel" ]
+  pull_request:
+    branches: [ "main", "devel" ]
+
+jobs:
+  build:
+    name: ${{matrix.config.name}}
+    runs-on: ubuntu-20.04 
+    strategy:
+      fail-fast: false
+      matrix:
+        config:
+          - {
+            name: "Release, gcc",
+            build-type: "Release",
+            cc: "gcc",
+            options: "-DENABLE_BUILD_TESTS=ON -DINTERFACES_PLUGIN=ON -DROUTING_PLUGIN=ON",
+            packager: "sudo apt-get",
+            # no expect because stdout seems to be redirected
+            packages: "libnl-3-dev libnl-route-3-dev libnl-nf-3-dev libnl-genl-3-dev libcmocka-dev",
+          }
+          - {
+            name: "Release, clang",
+            build-type: "Release",
+            cc: "clang",
+            options: "-DENABLE_BUILD_TESTS=ON -DINTERFACES_PLUGIN=ON -DROUTING_PLUGIN=ON",
+            packager: "sudo apt-get",
+            packages: "libnl-3-dev libnl-route-3-dev libnl-nf-3-dev libnl-genl-3-dev libcmocka-dev",
+          }
+          - {
+            name: "Debug, gcc",
+            build-type: "Debug",
+            cc: "gcc",
+            options: "-DENABLE_BUILD_TESTS=ON -DINTERFACES_PLUGIN=ON -DROUTING_PLUGIN=ON",
+            packager: "sudo apt-get",
+            packages: "libnl-3-dev libnl-route-3-dev libnl-nf-3-dev libnl-genl-3-dev libcmocka-dev",
+          }
+          - {
+            name: "Debug, clang",
+            build-type: "Debug",
+            cc: "clang",
+            options: "-DENABLE_BUILD_TESTS=ON -DINTERFACES_PLUGIN=ON -DROUTING_PLUGIN=ON",
+            packager: "sudo apt-get",
+            packages: "libnl-3-dev libnl-route-3-dev libnl-nf-3-dev libnl-genl-3-dev libcmocka-dev",
+          }
+          - {
+            name: "ASAN and UBSAN",
+            build-type: "Debug",
+            cc: "clang",
+            options: "-DCMAKE_C_FLAGS=-fsanitize=address,undefined -DENABLE_BUILD_TESTS=ON -DINTERFACES_PLUGIN=ON -DROUTING_PLUGIN=ON",
+            packager: "sudo apt-get",
+            packages: "libnl-3-dev libnl-route-3-dev libnl-nf-3-dev libnl-genl-3-dev libcmocka-dev",
+          }
+
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          submodules: 'recursive'
+
+      - name: Deps-packages
+        shell: bash
+        run: |
+          ${{matrix.config.packager}} update
+          if ${{matrix.config.packages != ''}}
+            then ${{matrix.config.packager}} install ${{matrix.config.packages}}
+          fi
+
+      - name: Deps-libyang
+        shell: bash
+        run: |
+          git clone https://github.com/cesnet/libyang
+          cd libyang
+          CC=${{matrix.config.cc}} cmake -B build
+          cmake --build build
+          sudo cmake --install build
+          sudo ldconfig
+
+      - name: Deps-sysrepo
+        shell: bash
+        run: |
+          git clone https://github.com/sysrepo/sysrepo
+          cd sysrepo 
+          CC=${{matrix.config.cc}} cmake -B build
+          cmake --build build
+          sudo cmake --install build
+          sudo ldconfig
+
+      - name: Deps-srpc
+        shell: bash
+        run: |
+          git clone --recurse-submodules https://github.com/telekom/sysrepo-plugins-common
+          cd sysrepo-plugins-common
+          CC=${{matrix.config.cc}} cmake -B build
+          cmake --build build
+          sudo cmake --install build
+          sudo ldconfig
+
+      - name: Deps-robot
+        shell: bash
+        run: |
+          python3 -m pip install --upgrade pip setuptools wheel build
+          python3 -m pip install rpaframework robotframework-sysrepolibrary
+
+      - name: Configure
+        shell: bash
+        working-directory: ${{github.workspace}}
+        run: |
+          CC=${{matrix.config.cc}} cmake -B ${{github.workspace}}/build -DCMAKE_BUILD_TYPE=${{matrix.config.build-type}} ${{matrix.config.options}}
+
+      - name: Build
+        shell: bash
+        working-directory: ${{github.workspace}}
+        run: |
+          cmake --build ${{github.workspace}}/build
+          sysrepoctl -i yang/ietf-interfaces@2018-02-20.yang
+          sysrepoctl -i yang/iana-if-type@2017-01-19.yang
+          sysrepoctl -i yang/ieee802-dot1q-types.yang
+          sysrepoctl -i yang/ietf-if-extensions@2020-07-29.yang
+          sysrepoctl -i yang/ietf-if-vlan-encapsulation@2020-07-13.yang
+          sysrepoctl -i yang/ietf-ip@2018-02-22.yang
+          sysrepoctl -i yang/ietf-routing@2018-03-13.yang
+          sysrepoctl -i yang/ietf-ipv4-unicast-routing@2018-03-13.yang
+
+      - name: Test
+        shell: bash
+        working-directory: ${{github.workspace}}/build
+        run: ctest --output-on-failure
+
+      - name: Integration test
+        shell: bash
+        working-directory: ${{github.workspace}}/tests/integration
+        env:
+          SYSREPO_INTERFACES_PLUGIN_PATH: ${{github.workspace}}/build/src/interfaces/ietf-interfaces-plugin
+        run: |
+          ./run_robot_interfaces_tests.sh
+
+      - name: Setup tmate on any previous step fail
+        if: ${{ failure() }}
+        # will keep outputing due to a workaround for a GitHub log display bug
+        uses: mxschmitt/action-tmate@v3
+        timeout-minutes: 16
+
+  sonarcloud:
+    name: sonarcloud
+    runs-on: ubuntu-20.04 
+    env:
+      BUILD_WRAPPER_OUT_DIR: build_wrapper_output_directory # Directory where build-wrapper output will be placed
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          submodules: 'recursive'
+          fetch-depth: 0 # Shallow clones should be disabled for a better relevancy of analysis
+      - name: Deps-packages
+        shell: bash
+        run: |
+            sudo apt install libnl-3-dev libnl-route-3-dev libnl-nf-3-dev libnl-genl-3-dev libcmocka-dev
+
+      - name: Deps-libyang
+        shell: bash
+        run: |
+          git clone https://github.com/cesnet/libyang
+          cd libyang
+          CC=gcc cmake -B build
+          cmake --build build
+          sudo cmake --install build
+          sudo ldconfig
+
+      - name: Deps-sysrepo
+        shell: bash
+        run: |
+          git clone https://github.com/sysrepo/sysrepo
+          cd sysrepo 
+          CC=gcc cmake -B build
+          cmake --build build
+          sudo cmake --install build
+          sudo ldconfig
+
+      - name: Deps-srpc
+        shell: bash
+        run: |
+          git clone --recurse-submodules https://github.com/telekom/sysrepo-plugins-common
+          cd sysrepo-plugins-common
+          CC=gcc cmake -B build
+          cmake --build build
+          sudo cmake --install build
+          sudo ldconfig
+
+      - name: Install sonar-scanner and build-wrapper
+        uses: SonarSource/sonarcloud-github-c-cpp@v1
+      - name: Run build-wrapper
+        run: |
+          mkdir build
+          cmake -S . -B build -DINTERFACES_PLUGIN=ON -DROUTING_PLUGIN=ON
+          build-wrapper-linux-x86-64 --out-dir ${{ env.BUILD_WRAPPER_OUT_DIR }} cmake --build build/ --config Release
+      - name: Run sonar-scanner
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SONAR_TOKEN: ${{ secrets.SONARCLOUD_TOKEN }}
+        run: |
+          sonar-scanner -X --define sonar.cfamily.build-wrapper-output="${{ env.BUILD_WRAPPER_OUT_DIR }}"
+

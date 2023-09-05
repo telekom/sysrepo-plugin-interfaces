@@ -1,0 +1,31 @@
+name: clang-format all
+
+on:
+  push:
+    branches: [ "main", "devel" ]
+  pull_request:
+    branches: [ "main", "devel" ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v2
+    
+    - uses: DoozyX/clang-format-lint-action@v0.16.2
+      with:
+        source: './src/'
+        exclude: './deps/'
+        # only C source and header files
+        extensions: 'h,c'
+        clangFormatVersion: 16
+        inplace: True
+        
+    - uses: EndBug/add-and-commit@v9
+      with:
+        author_name: clang-format robot
+        # conventional commits standard
+        message: 'style(src): clang-format all'
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
