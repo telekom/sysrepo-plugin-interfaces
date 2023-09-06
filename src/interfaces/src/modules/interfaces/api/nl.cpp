@@ -240,6 +240,56 @@ void NlContext::createAddress(std::string interface_name, std::string address, i
 }
 
 /**
+ * @brief Delete existing Address, if not existant, throws an exception.
+ */
+void NlContext::deleteAddress(std::string interface_name, std::string address, int prefix_length, AddressFamily fam)
+{
+
+    auto interface = getInterfaceByName(interface_name);
+
+    rtnl_addr* rtnl_address = NULL;
+    nl_addr* nl_address = NULL;
+    int err = 0;
+
+    auto clean = [&]() {
+        if (rtnl_address != NULL)
+            rtnl_addr_put(rtnl_address);
+        if (nl_address != NULL)
+            nl_addr_put(nl_address);
+    };
+
+    if (!interface.has_value())
+        throw std::bad_optional_access();
+
+    rtnl_address = rtnl_addr_alloc();
+    err = nl_addr_parse(address.c_str(), (int)fam, &nl_address);
+
+    if (err < 0) {
+        clean();
+        throw std::runtime_error(nl_geterror(err));
+    }
+
+    err = rtnl_addr_set_local(rtnl_address, nl_address);
+
+    if (err < 0) {
+        clean();
+        throw std::runtime_error(nl_geterror(err));
+    }
+
+    rtnl_addr_set_link(rtnl_address, interface->m_link.get());
+    rtnl_addr_set_family(rtnl_address, (int)fam);
+    rtnl_addr_set_prefixlen(rtnl_address, prefix_length);
+
+    err = rtnl_addr_delete(m_sock.get(), rtnl_address, 0);
+
+    if (err < 0) {
+        clean();
+        throw std::runtime_error(nl_geterror(err));
+    }
+    clean();
+}
+
+/**
  * @brief Get the links cache.
  */
 CacheRef<InterfaceRef> NlContext::getLinkCache() { return CacheRef<InterfaceRef>(m_linkCache.get(), m_sock.get()); }
