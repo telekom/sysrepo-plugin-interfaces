@@ -1,6 +1,4 @@
 #include "nl.hpp"
-#include <memory>
-#include <stdexcept>
 
 // libnl
 #include <netlink/route/addr.h>
@@ -181,7 +179,7 @@ void NlContext::deleteInterface(const std::string& name)
         const char* link_name = rtnl_link_get_name(iter);
 
         if (name == std::string(link_name)) {
-            int error = rtnl_link_delete(m_sock.get(),iter);
+            int error = rtnl_link_delete(m_sock.get(), iter);
             error < 0 ? throw std::runtime_error(nl_geterror(error)) : NULL;
             break;
         }
@@ -190,6 +188,55 @@ void NlContext::deleteInterface(const std::string& name)
     };
 
     throw std::runtime_error("Interface not found!");
+}
+
+/**
+ * @brief Create new address.
+ */
+void NlContext::createAddress(std::string interface_name, std::string address, int prefix_length, AddressFamily fam)
+{
+    auto interface = getInterfaceByName(interface_name);
+
+    rtnl_addr* rtnl_address = NULL;
+    nl_addr* nl_address = NULL;
+    int err = 0;
+
+    auto clean = [&]() {
+        if (rtnl_address != NULL)
+            rtnl_addr_put(rtnl_address);
+        if (nl_address != NULL)
+            nl_addr_put(nl_address);
+    };
+
+    if (!interface.has_value())
+        throw std::bad_optional_access();
+
+    rtnl_address = rtnl_addr_alloc();
+    err = nl_addr_parse(address.c_str(), (int)fam, &nl_address);
+
+    if (err < 0) {
+        clean();
+        throw std::runtime_error(nl_geterror(err));
+    }
+
+    err = rtnl_addr_set_local(rtnl_address, nl_address);
+
+    if (err < 0) {
+        clean();
+        throw std::runtime_error(nl_geterror(err));
+    }
+
+    rtnl_addr_set_link(rtnl_address, interface->m_link.get());
+    rtnl_addr_set_family(rtnl_address, (int)fam);
+    rtnl_addr_set_prefixlen(rtnl_address, prefix_length);
+
+    err = rtnl_addr_add(m_sock.get(), rtnl_address, 0);
+
+    if (err < 0) {
+        clean();
+        throw std::runtime_error(nl_geterror(err));
+    }
+    clean();
 }
 
 /**

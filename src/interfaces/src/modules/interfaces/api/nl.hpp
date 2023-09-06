@@ -3,6 +3,7 @@
 #include <memory>
 #include <functional>
 #include <optional>
+#include <stdexcept>
 
 ///< Type used for deleting libnl allocated structs
 template <typename T> using NlDeleter = std::function<void(T*)>;
@@ -15,6 +16,7 @@ class InterfaceRef;
 class AddressRef;
 class RouteAddressRef;
 class NeighborRef;
+enum class AddressFamily;
 template <typename T> class CacheRef;
 
 /**
@@ -53,6 +55,11 @@ public:
      * @brief Create interface.
      */
     void createInterface(std::string name, std::string type, bool enabled);
+
+    /**
+     * @brief Create new address.
+     */
+    void createAddress(std::string interface_name, std::string address, int prefix_length, AddressFamily fam);
 
     /**
      * @brief Delete existing interface, if not existant, throws an exception.

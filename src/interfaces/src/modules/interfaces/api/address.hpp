@@ -25,8 +25,7 @@ private:
     using NlAddr = struct nl_addr; ///< NL address type alias;
     using NlAddrDeleter = NlDeleter<NlAddr>; ///< Deleter type alias.
     using NlAddrPtr = std::unique_ptr<NlAddr, NlAddrDeleter>; ///< Unique pointer type alias.
-    using NlSocketPtr = std::unique_ptr<struct nl_sock, NlDeleter<struct nl_sock>>; //Socket type alias.
-
+    using NlSocketPtr = std::unique_ptr<struct nl_sock, NlDeleter<struct nl_sock>>; // Socket type alias.
 
     /**
      * @brief Private constructor accessible only to friend classes. Stores a reference to nl_addr for later access of address members.
@@ -34,7 +33,7 @@ private:
     AddressRef(struct nl_addr* addr, struct nl_sock* socket);
 
     NlAddrPtr m_addr; ///< Addr reference.
-    NlSocketPtr m_socket; ///socket reference.
+    NlSocketPtr m_socket; /// socket reference.
 };
 
 enum class AddressFamily {
@@ -110,7 +109,7 @@ private:
     using RtnlAddr = struct rtnl_addr; ///< Rout NL address type alias;
     using RtnlAddrDeleter = NlDeleter<RtnlAddr>; ///< Deleter type alias.
     using RtnlAddrPtr = std::unique_ptr<RtnlAddr, RtnlAddrDeleter>; ///< Unique pointer type alias.
-    using NlSocketPtr = std::unique_ptr<struct nl_sock, NlDeleter<struct nl_sock>>; //Socket type alias.
+    using NlSocketPtr = std::unique_ptr<struct nl_sock, NlDeleter<struct nl_sock>>; // Socket type alias.
 
     /**
      * @brief Private constructor accessible only to friend classes. Stores a reference to rtnl_addr for later access of address members.
@@ -123,5 +122,5 @@ private:
     RouteAddressRef(struct nl_object* addr, struct nl_sock* socket);
 
     RtnlAddrPtr m_addr; ///< Addr reference.
-    NlSocketPtr m_socket; ///socket reference.
+    NlSocketPtr m_socket; /// socket reference.
 };
