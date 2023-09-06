@@ -35,8 +35,7 @@ int bridge_set_ageing_time(struct nl_sock *socket, int bridge_link_idx, unsigned
  * - BRIDGE_VLAN_INFO_PVID - this VLAN (vid) is primary (assumed if no VLAN tag is present)
  * - BRIDGE_VLAN_INFO_UNTAGGED - remove VLAN tag on egress for this vid on link
  */
-int bridge_add_vlan(struct nl_sock *socket, struct rtnl_link *link, uint16_t vid, uint16_t flags);
-
+// int bridge_add_vlan(struct nl_sock *socket, struct rtnl_link *link, uint16_t vid, uint16_t flags);
 
 /* for adding multiple vlans to a port in a single netlink command */
 int bridge_vlan_msg_open(struct nl_msg **msg, struct rtnl_link *link, bool delete);

@@ -95,6 +95,7 @@ int bridge_get_vlan_info(struct nl_sock *socket, struct rtnl_link *bridge_link, 
 
 	SRPLG_LOG_DBG(PLUGIN_NAME, "vlan_info for %s:", rtnl_link_get_name(bridge_link));
 	SRPLG_LOG_DBG(PLUGIN_NAME, "  vlan_info->vlan_filtering == %d", vlan_info->vlan_filtering);
+
 	if (vlan_info->vlan_proto == htons(ETH_P_8021Q)) {
 		SRPLG_LOG_DBG(PLUGIN_NAME, "  vlan_info->vlan_proto == htons(ETH_P_8021Q)");
 	} else if (vlan_info->vlan_proto == htons(ETH_P_8021AD)) {
@@ -120,7 +121,7 @@ int send_nl_request_and_error_check(struct nl_sock *socket, struct nl_msg *msg)
 	int len = nl_send_sync(socket, msg);
 	if (len < 0) {
 		error = len;
-		SRPLG_LOG_ERR(PLUGIN_NAME, "nl_send_auto() failed (%d)", error);
+		SRPLG_LOG_ERR(PLUGIN_NAME, "nl_send_sync() failed (%d)", error);
 		goto out;
 	}
 out:
@@ -143,7 +144,7 @@ int bridge_set_vlan_config(struct nl_sock *socket, int bridge_link_idx, bridge_v
 	}
 	msg = nlmsg_alloc_simple(RTM_NEWLINK, NLM_F_REQUEST | NLM_F_ACK);
 	if (msg == NULL) {
-		SRPLG_LOG_ERR(PLUGIN_NAME, "nlmsg_alloc() failed");
+		SRPLG_LOG_ERR(PLUGIN_NAME, "nlmsg_alloc_simple() failed");
 		goto out;
 	}
 	// fill RTM_NEWLINK message header
@@ -156,13 +157,13 @@ int bridge_set_vlan_config(struct nl_sock *socket, int bridge_link_idx, bridge_v
 	};
 	error = nlmsg_append(msg, &ifinfo, sizeof(ifinfo), nlmsg_padlen(sizeof(ifinfo)));
 	if (error) {
-		SRPLG_LOG_ERR(PLUGIN_NAME, "nl_append() failed (%d)", error);
+		SRPLG_LOG_ERR(PLUGIN_NAME, "nlmsg_append() failed (%d)", error);
 		goto out;
 	}
 	// open nested attributes IFLA_LINKINFO->IFLA_INFO_DATA
 	link_info = nla_nest_start(msg, IFLA_LINKINFO);
 	if (link_info == NULL) {
-		SRPLG_LOG_ERR(PLUGIN_NAME, "nlmsg_nest_start() failed");
+		SRPLG_LOG_ERR(PLUGIN_NAME, "nla_nest_start() failed");
 		error = -1;
 		goto out;
 	}
@@ -173,7 +174,7 @@ int bridge_set_vlan_config(struct nl_sock *socket, int bridge_link_idx, bridge_v
 	}
 	info_data = nla_nest_start(msg, IFLA_INFO_DATA);
 	if (info_data == NULL) {
-		SRPLG_LOG_ERR(PLUGIN_NAME, "nlmsg_nest_start() failed");
+		SRPLG_LOG_ERR(PLUGIN_NAME, "nla_nest_start() failed");
 		error = -1;
 		goto out;
 	}
@@ -206,10 +207,6 @@ int bridge_set_vlan_config(struct nl_sock *socket, int bridge_link_idx, bridge_v
 		SRPLG_LOG_ERR(PLUGIN_NAME, "send_nl_request_and_error_check() failed");
 	}
 out:
-	// TODO: check?
-	//if (msg != NULL) {
-	//	nlmsg_free(msg);
-	//}
 	return error;
 }
 
@@ -222,7 +219,7 @@ int bridge_set_ageing_time(struct nl_sock *socket, int bridge_link_idx, unsigned
 
 	msg = nlmsg_alloc_simple(RTM_NEWLINK, NLM_F_REQUEST | NLM_F_ACK);
 	if (msg == NULL) {
-		SRPLG_LOG_ERR(PLUGIN_NAME, "nlmsg_alloc() failed");
+		SRPLG_LOG_ERR(PLUGIN_NAME, "nlmsg_alloc_simple() failed");
 		goto out;
 	}
 	// fill RTM_NEWLINK message header
@@ -235,13 +232,13 @@ int bridge_set_ageing_time(struct nl_sock *socket, int bridge_link_idx, unsigned
 	};
 	error = nlmsg_append(msg, &ifinfo, sizeof(ifinfo), nlmsg_padlen(sizeof(ifinfo)));
 	if (error) {
-		SRPLG_LOG_ERR(PLUGIN_NAME, "nl_append() failed (%d)", error);
+		SRPLG_LOG_ERR(PLUGIN_NAME, "nlmsg_append() failed (%d)", error);
 		goto out;
 	}
 	// open nested attributes IFLA_LINKINFO->IFLA_INFO_DATA
 	link_info = nla_nest_start(msg, IFLA_LINKINFO);
 	if (link_info == NULL) {
-		SRPLG_LOG_ERR(PLUGIN_NAME, "nlmsg_nest_start() failed");
+		SRPLG_LOG_ERR(PLUGIN_NAME, "nla_nest_start() failed");
 		error = -1;
 		goto out;
 	}
@@ -252,14 +249,14 @@ int bridge_set_ageing_time(struct nl_sock *socket, int bridge_link_idx, unsigned
 	}
 	info_data = nla_nest_start(msg, IFLA_INFO_DATA);
 	if (info_data == NULL) {
-		SRPLG_LOG_ERR(PLUGIN_NAME, "nlmsg_nest_start() failed");
+		SRPLG_LOG_ERR(PLUGIN_NAME, "nla_nest_start() failed");
 		error = -1;
 		goto out;
 	}
 	// add bridge vlan attributes
 	error = nla_put_u32(msg, IFLA_BR_AGEING_TIME, ageing_time);
 	if (error) {
-		SRPLG_LOG_ERR(PLUGIN_NAME, "nla_put_u8() failed");
+		SRPLG_LOG_ERR(PLUGIN_NAME, "nla_put_u32() failed");
 		goto out;
 	}
 
@@ -278,7 +275,6 @@ int bridge_set_ageing_time(struct nl_sock *socket, int bridge_link_idx, unsigned
 	if (error) {
 		SRPLG_LOG_ERR(PLUGIN_NAME, "send_nl_request_and_error_check() failed");
 	}
-
 out:
 	return error;
 }
@@ -294,7 +290,7 @@ int bridge_vlan_msg_open(struct nl_msg **msg, struct rtnl_link *link, bool delet
 	}
 	*msg = nlmsg_alloc_simple(request_type, NLM_F_REQUEST | NLM_F_ACK);
 	if (*msg == NULL) {
-		SRPLG_LOG_ERR(PLUGIN_NAME, "nlmsg_alloc() failed");
+		SRPLG_LOG_ERR(PLUGIN_NAME, "nlmsg_alloc_simple() failed");
 		goto out;
 	}
 	// fill message header
@@ -307,7 +303,7 @@ int bridge_vlan_msg_open(struct nl_msg **msg, struct rtnl_link *link, bool delet
 	};
 	error = nlmsg_append(*msg, &ifinfo, sizeof(ifinfo), nlmsg_padlen(sizeof(ifinfo)));
 	if (error) {
-		SRPLG_LOG_ERR(PLUGIN_NAME, "nl_append() failed (%d)", error);
+		SRPLG_LOG_ERR(PLUGIN_NAME, "nlmsg_append() failed (%d)", error);
 		goto out;
 	}
 
@@ -325,7 +321,7 @@ int bridge_vlan_msg_open(struct nl_msg **msg, struct rtnl_link *link, bool delet
 
 	afspec = nla_nest_start(*msg, IFLA_AF_SPEC);
 	if (afspec == NULL) {
-		SRPLG_LOG_ERR(PLUGIN_NAME, "nlmsg_nest_start() failed");
+		SRPLG_LOG_ERR(PLUGIN_NAME, "nla_nest_start() failed");
 		error = -1;
 		goto out;
 	}
@@ -382,7 +378,7 @@ int bridge_get_vlan_list(struct nl_sock *socket, struct rtnl_link *link, struct 
 
 	msg = nlmsg_alloc_simple(RTM_GETVLAN, NLM_F_REQUEST | NLM_F_DUMP);
 	if (msg == NULL) {
-		SRPLG_LOG_ERR(PLUGIN_NAME, "nlmsg_alloc() failed");
+		SRPLG_LOG_ERR(PLUGIN_NAME, "nlmsg_alloc_simple() failed");
 		goto error_out;
 	}
 	// fill RTM_GETVLAN message header
@@ -392,7 +388,7 @@ int bridge_get_vlan_list(struct nl_sock *socket, struct rtnl_link *link, struct 
 	};
 	error = nlmsg_append(msg, &vlan_msg, sizeof(vlan_msg), nlmsg_padlen(sizeof(vlan_msg)));
 	if (error) {
-		SRPLG_LOG_ERR(PLUGIN_NAME, "nl_append() failed (%d)", error);
+		SRPLG_LOG_ERR(PLUGIN_NAME, "nlmsg_append() failed (%d)", error);
 		goto error_out;
 	}
 	len = nl_send_auto(socket, msg);

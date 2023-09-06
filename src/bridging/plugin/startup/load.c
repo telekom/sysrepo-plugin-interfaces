@@ -94,9 +94,7 @@ static int bridging_startup_load_bridges(sr_session_ctx_t *session, struct lyd_n
 
 	// libyang
 	struct lyd_node *bridge_node = NULL;
-	struct ly_out *ly_output = NULL;
 	const struct ly_ctx *ly_ctx = NULL;
-	LY_ERR ly_error = LY_SUCCESS;
 
 	conn_ctx = sr_session_get_connection(session);
 	ly_ctx = sr_acquire_context(conn_ctx);
@@ -161,18 +159,6 @@ static int bridging_startup_load_bridges(sr_session_ctx_t *session, struct lyd_n
 		link_iter = (struct rtnl_link *) nl_cache_get_next((struct nl_object *) link_iter);
 	}
 
-	ly_error = ly_out_new_file(stdout, &ly_output);
-	if (ly_error != LY_SUCCESS) {
-		SRPLG_LOG_DBG(PLUGIN_NAME, "ly_out_new_file() failed: %d");
-		goto error_out;
-	}
-
-	ly_error = lyd_print_tree(ly_output, bridges_container, LYD_XML, 0);
-	if (ly_error != LY_SUCCESS) {
-		SRPLG_LOG_DBG(PLUGIN_NAME, "lyd_print_tree() failed: %d");
-		goto error_out;
-	}
-
 	goto out;
 
 error_out:
@@ -181,9 +167,6 @@ error_out:
 out:
 	nl_cache_free(link_cache);
 	nl_socket_free(socket);
-	if (ly_output) {
-		ly_out_free(ly_output, NULL, 1);
-	}
 	sr_release_context(conn_ctx);
 
 	return error;
@@ -196,10 +179,8 @@ static int bridging_startup_load_bridge_component_list(sr_session_ctx_t *session
 	sr_conn_ctx_t *conn_ctx = NULL;
 
 	// libyang
-	struct ly_out *ly_output = NULL;
 	struct lyd_node *component_node = NULL;
 	const struct ly_ctx *ly_ctx = NULL;
-	// LY_ERR ly_error = LY_SUCCESS;
 
 	// libnl
 	struct rtnl_link *link_iter = NULL;
@@ -250,9 +231,6 @@ error_out:
 	error = -1;
 
 out:
-	if (ly_output) {
-		ly_out_free(ly_output, NULL, 1);
-	}
 	sr_release_context(conn_ctx);
 
 	return error;
