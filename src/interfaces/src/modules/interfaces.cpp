@@ -220,7 +220,6 @@ std::list<srpc::ModuleChangeCallback> InterfacesModule::getModuleChangeCallbacks
             "/ietf-interfaces:interfaces/interface/ipv6/autoconf/create-global-addresses",
             Ipv6AutoconfCreateGlobalAddressesModuleChangeCb(this->m_changeContext),
         },
-        //if-feature ipv6-privacy-autoconf;
         srpc::ModuleChangeCallback {
             "ietf-interfaces",
             "/ietf-interfaces:interfaces/interface/ipv6/autoconf/create-temporary-addresses",
