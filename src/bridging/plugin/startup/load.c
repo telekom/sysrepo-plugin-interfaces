@@ -53,8 +53,6 @@ int bridging_startup_load_data(bridging_ctx_t *ctx, sr_session_ctx_t *session)
 		goto error_out;
 	}
 
-#ifdef APPLY_DATASTORE_CHANGES
-
 	error = sr_edit_batch(session, bridges_container_node, "merge");
 	if (error != SR_ERR_OK) {
 		SRPLG_LOG_ERR(PLUGIN_NAME, "sr_edit_batch() error (%d): %s", error, sr_strerror(error));
@@ -66,8 +64,6 @@ int bridging_startup_load_data(bridging_ctx_t *ctx, sr_session_ctx_t *session)
 		SRPLG_LOG_ERR(PLUGIN_NAME, "sr_apply_changes() error (%d): %s", error, sr_strerror(error));
 		goto error_out;
 	}
-
-#endif
 
 	goto out;
 

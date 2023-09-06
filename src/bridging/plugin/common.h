@@ -22,8 +22,6 @@
 // equivalent to '#define BR_MAX_PORTS (1<<BR_PORT_BITS)' whereas '#define BR_PORT_BITS 10' - see /net/bridge/br_private.h
 #define BRIDGING_MAX_BR_PORTS (1<<10)
 
-#define APPLY_DATASTORE_CHANGES
-
 #define ARRAY_SIZE(arr) (sizeof(arr) / sizeof(arr[0]))
 
 void mac_address_ly_to_nl(char *addr);
