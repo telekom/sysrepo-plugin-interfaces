@@ -67,6 +67,12 @@ public:
     void deleteInterface(const std::string& name);
 
     /**
+     * @brief Delete existing Address, if not existant, throws an exception.
+     */
+    void deleteAddress(std::string interface_name, std::string address, int prefix_length, AddressFamily fam);
+
+
+    /**
      * @brief Get the links cache.
      */
     CacheRef<InterfaceRef> getLinkCache();

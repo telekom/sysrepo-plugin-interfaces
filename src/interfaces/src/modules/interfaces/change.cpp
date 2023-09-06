@@ -597,8 +597,8 @@ sr::ErrorCode Ipv4AddrIpModuleChangeCb::operator()(sr::Session session, uint32_t
             const auto& address_value = std::get<std::string>(value);
             const auto& interface_name = srpc::extractListKeyFromXPath("interface", "name", change.node.path());
 
-            std::string prefix_len_xpath
-                = "/ietf-interfaces:interfaces/interface[name='" + interface_name + "']/ietf-ip:ipv4/address[ip='" + address_value + "']/prefix-length";
+            std::string prefix_len_xpath = "/ietf-interfaces:interfaces/interface[name='" + interface_name + "']/ietf-ip:ipv4/address[ip='"
+                + address_value + "']/prefix-length";
 
             auto& ctx = m_ctx->getNetlinkContext();
             ctx.refillCache();
@@ -619,8 +619,18 @@ sr::ErrorCode Ipv4AddrIpModuleChangeCb::operator()(sr::Session session, uint32_t
 
                 break;
             case sysrepo::ChangeOperation::Deleted:
-                // delete interface with 'name' = 'name_value'
-                // SRPLG_LOG_DBG(getModuleLogPrefix(), "Deleted Ip address %s", name_value.c_str());
+
+                try {
+                    const auto& prefix_len_val = change.node.findPath(prefix_len_xpath)->asTerm().value();
+                    int prefix_len = std::get<uint8_t>(prefix_len_val);
+
+                    ctx.deleteAddress(interface_name, address_value, prefix_len, AddressFamily::V4);
+
+                } catch (std::exception& e) {
+                    SRPLG_LOG_ERR(getModuleLogPrefix(), "Cannot delete address: %s", e.what());
+                    return sr::ErrorCode::OperationFailed;
+                }
+
                 break;
             default:
                 // other options not needed
