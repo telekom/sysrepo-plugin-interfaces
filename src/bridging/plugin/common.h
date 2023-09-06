@@ -5,6 +5,10 @@
 
 #define BASE_YANG_MODEL "ieee802-dot1q-bridge"
 
+#define IEEE802_DOT1Q_BRIDGE "ieee802-dot1q-bridge"
+#define IEEE802_DOT1Q_BRIDGE_C_VLAN IEEE802_DOT1Q_BRIDGE ":c-vlan-component"
+#define IEEE802_DOT1Q_BRIDGE_S_VLAN IEEE802_DOT1Q_BRIDGE ":s-vlan-component"
+
 // bridges container
 #define BRIDGING_BRIDGES_CONTAINER_YANG_PATH "/" BASE_YANG_MODEL ":bridges"
 
@@ -13,7 +17,7 @@
 
 // for bridge-port callbacks
 #define INTERFACES_YANG_MODEL "ietf-interfaces"
-#define INTERFACES_LIST_PATH "/ietf-interfaces:interfaces/interface"
+#define INTERFACES_LIST_PATH "/" INTERFACES_YANG_MODEL ":interfaces/interface"
 
 #define BRIDGING_BRIDGE_COMPONENT_YANG_PATH BRIDGING_BRIDGE_LIST_YANG_PATH "/component"
 #define BRIDGING_BRIDGE_COMPONENT_BRIDGE_VLAN_YANG_PATH BRIDGING_BRIDGE_COMPONENT_YANG_PATH "/bridge-vlan"

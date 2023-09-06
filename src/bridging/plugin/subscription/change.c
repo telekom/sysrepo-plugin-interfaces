@@ -268,10 +268,10 @@ int modify_bridge_component(struct nl_sock *socket, char change_path[PATH_MAX], 
 				}
 				int bridge_link_idx = rtnl_link_get_ifindex(bridge);
 				bridge_vlan_info_t vlan_config = {0}; // vlan_filtering off (0) by default
-				if (strcmp(node_value, "ieee802-dot1q-bridge:c-vlan-component") == 0) {
+				if (strcmp(node_value, IEEE802_DOT1Q_BRIDGE_C_VLAN) == 0) {
 					vlan_config.vlan_filtering = 1;
 					vlan_config.vlan_proto = htons(ETH_P_8021Q);
-				} else if (strcmp(node_value, "ieee802-dot1q-bridge:s-vlan-component") == 0) {
+				} else if (strcmp(node_value, IEEE802_DOT1Q_BRIDGE_S_VLAN) == 0) {
 					vlan_config.vlan_filtering = 1;
 					vlan_config.vlan_proto = htons(ETH_P_8021AD);
 				}
