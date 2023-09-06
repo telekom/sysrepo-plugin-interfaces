@@ -14,13 +14,11 @@ module: ieee802-dot1q-bridge
         +--rw address        ieee:mac-address
         +--rw bridge-type    identityref (partial - only the customer-vlan-bridge type)
         +--ro ports?         uint16
+        +--ro components?    uint32
         +--rw component* [name]
            +--rw name                     string
-           +--rw id?                      uint32
            +--rw type                     identityref (partial - d-bridge-component and edge-relay-component missing)
-           +--rw address?                 ieee:mac-address (note: used as
-           +--ro ports?                   uint16
-           +--ro bridge-port*             if:interface-ref
+           +--rw address?                 ieee:mac-address
            +--rw filtering-database
            |  +--rw aging-time?                          uint32
            |  +--rw filtering-entry* [database-id vids address]
@@ -57,9 +55,6 @@ module: ieee802-dot1q-bridge
   augment /if:interfaces/if:interface:
     +--rw bridge-port
        +--rw component-name?                        string
-       +--rw port-type?                             identityref
-       +--rw pvid?                                  dot1qtypes:vlan-index-type
-       +--ro port-number?                           dot1qtypes:port-number-type (currently set to the interface index)
 ```
 
 ## Create bridge & bridge component
