@@ -676,22 +676,48 @@ sr::ErrorCode Ipv4AddrPrefixLengthModuleChangeCb::operator()(sr::Session session
     switch (event) {
     case sysrepo::Event::Change:
         // apply interface changes to the netlink context received from module changes context
-        for (auto& change : session.getChanges("/ietf-interfaces:interfaces/interface/ipv4/address/prefix-length")) {
+        for (sysrepo::Change change : session.getChanges("/ietf-interfaces:interfaces/interface/ipv4/address/prefix-length")) {
             SRPLG_LOG_DBG(getModuleLogPrefix(), "Value of %s modified.", change.node.path().c_str());
             SRPLG_LOG_DBG(getModuleLogPrefix(), "Value of %s modified.", change.node.schema().name().data());
 
             const auto& value = change.node.asTerm().value();
-            const auto& name_value = std::get<uint8_t>(value);
+            const auto& prefix_value = std::get<uint8_t>(value);
+            const auto& interface_name = srpc::extractListKeyFromXPath("interface", "name", change.node.path());
+            const auto& ip_addr = srpc::extractListKeyFromXPath("address", "ip", change.node.path());
+
+            // Netlink context
+            NlContext& nl_ctx = m_ctx->getNetlinkContext();
 
             switch (change.operation) {
-            case sysrepo::ChangeOperation::Created:
             case sysrepo::ChangeOperation::Modified:
+                // prefix len is mandatory, can only be modified
+                try {
+                    nl_ctx.refillCache();
+                    int old_prefix_len = std::stoi(change.previousValue->data());
+                    bool found = false;
 
-                SRPLG_LOG_DBG(getModuleLogPrefix(), "Prefix length: %d", name_value);
-                break;
-            case sysrepo::ChangeOperation::Deleted:
-                // delete interface with 'name' = 'name_value'
-                SRPLG_LOG_DBG(getModuleLogPrefix(), "Deleted Prefix length %d", name_value);
+                    for (auto&& addr : nl_ctx.getAddressCache()) {
+                        if ((addr.getFamily() == AddressFamily::V4) && (addr.getIPAddress() == ip_addr) && (addr.getPrefix() == old_prefix_len)) {
+
+                            addr.setPrefix(prefix_value);
+                            found = true;
+                            break;
+                        };
+                    };
+
+                    if (!found) {
+                        SRPLG_LOG_INF(
+                            getModuleLogPrefix(), "Address %s not found", std::string(ip_addr + "/" + change.previousValue->data()).c_str());
+                        return sr::ErrorCode::NotFound;
+                    }
+
+                } catch (std::exception& e) {
+                    SRPLG_LOG_ERR(getModuleLogPrefix(), "Cannot modify prefix-length: %s", e.what());
+                    return sr::ErrorCode::OperationFailed;
+                }
+
+                SRPLG_LOG_DBG(getModuleLogPrefix(), "Prefix length: %d", prefix_value);
+
                 break;
             default:
                 // other options not needed

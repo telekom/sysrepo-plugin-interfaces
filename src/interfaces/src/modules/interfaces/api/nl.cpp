@@ -212,6 +212,7 @@ void NlContext::createAddress(std::string interface_name, std::string address, i
         throw std::bad_optional_access();
 
     rtnl_address = rtnl_addr_alloc();
+
     err = nl_addr_parse(address.c_str(), (int)fam, &nl_address);
 
     if (err < 0) {
