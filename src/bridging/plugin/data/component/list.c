@@ -1,6 +1,6 @@
 #include "list.h"
 #include "memory.h"
-#include "plugin/data/component.h"
+#include "plugin/data/component/component.h"
 
 #include <stdlib.h>
 

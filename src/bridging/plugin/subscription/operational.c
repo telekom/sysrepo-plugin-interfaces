@@ -14,7 +14,7 @@
 #include <netlink/route/link/bridge.h>
 
 #include "operational.h"
-#include "plugin/api/bridge_netlink.h"
+#include "plugin/api/store.h"
 #include "plugin/ly_tree.h"
 #include "plugin/common.h"
 

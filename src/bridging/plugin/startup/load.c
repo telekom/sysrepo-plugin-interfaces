@@ -2,7 +2,7 @@
 #include "plugin/common.h"
 #include "plugin/ly_tree.h"
 #include "plugin/types.h"
-#include "plugin/api/bridge_netlink.h"
+#include "plugin/api/store.h"
 
 // libyang
 #include <libyang/log.h>

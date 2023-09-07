@@ -21,12 +21,12 @@ set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/CMakeModules")
 find_package(NL REQUIRED)
 
 set(SOURCES
-    plugin/api/bridge_netlink.c
+    plugin/api/store.c
+    plugin/data/bridge/bridge.c
+    plugin/data/bridge/list.c
+    plugin/data/component/component.c
     plugin/data/component/list.c
     plugin/data/vlan/list.c
-    plugin/data/bridge.c
-    plugin/data/component.c
-    plugin/data/list.c
     plugin/startup/load.c
     plugin/subscription/change.c
     plugin/subscription/operational.c

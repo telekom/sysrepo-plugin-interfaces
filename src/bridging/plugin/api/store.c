@@ -10,7 +10,7 @@
 #include <sysrepo.h>
 
 #include "plugin/common.h"
-#include "bridge_netlink.h"
+#include "store.h"
 
 #include "memory.h"
 

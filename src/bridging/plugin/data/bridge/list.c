@@ -1,6 +1,6 @@
 #include "list.h"
 #include "memory.h"
-#include "plugin/data/bridge.h"
+#include "plugin/data/bridge/bridge.h"
 
 #include <uthash/include/utlist.h>
 

@@ -19,7 +19,7 @@
 #include "change.h"
 #include "plugin/common.h"
 #include "plugin/context.h"
-#include "plugin/api/bridge_netlink.h"
+#include "plugin/api/store.h"
 #include "plugin/data/vlan/list.h"
 
 // change callback type
