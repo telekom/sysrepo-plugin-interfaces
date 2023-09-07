@@ -1213,3 +1213,687 @@ public:
 private:
     std::shared_ptr<InterfacesModuleChangesContext> m_ctx;
 };
+
+/**
+ * @brief sysrepo-plugin-generator: Generated module change functor for path
+ * /ietf-interfaces:interfaces/interface[name='%s']/ietf-if-extensions:carrier-delay/down.
+ */
+class InterfaceCarrierDelayDownModuleChangeCb {
+public:
+    /**
+     * sysrepo-plugin-generator: Generated default constructor.
+     *
+     * @param ctx Plugin module change context.
+     *
+     */
+    InterfaceCarrierDelayDownModuleChangeCb(std::shared_ptr<InterfacesModuleChangesContext> ctx);
+
+    /**
+     * sysrepo-plugin-generator: Generated module change operator() for path
+     * /ietf-interfaces:interfaces/interface[name='%s']/ietf-if-extensions:carrier-delay/down.
+     *
+     * @param session An implicit session for the callback.
+     * @param subscriptionId ID the subscription associated with the callback.
+     * @param moduleName The module name used for subscribing.
+     * @param subXPath The optional xpath used at the time of subscription.
+     * @param event Type of the event that has occured.
+     * @param requestId Request ID unique for the specific module_name. Connected events for one request (SR_EV_CHANGE and
+     * SR_EV_DONE, for example) have the same request ID.
+     *
+     * @return Error code.
+     *
+     */
+    sr::ErrorCode operator()(sr::Session session, uint32_t subscriptionId, std::string_view moduleName, std::optional<std::string_view> subXPath,
+        sr::Event event, uint32_t requestId);
+
+private:
+    std::shared_ptr<InterfacesModuleChangesContext> m_ctx;
+};
+
+/**
+ * @brief sysrepo-plugin-generator: Generated module change functor for path
+ * /ietf-interfaces:interfaces/interface[name='%s']/ietf-if-extensions:carrier-delay/up.
+ */
+class InterfaceCarrierDelayUpModuleChangeCb {
+public:
+    /**
+     * sysrepo-plugin-generator: Generated default constructor.
+     *
+     * @param ctx Plugin module change context.
+     *
+     */
+    InterfaceCarrierDelayUpModuleChangeCb(std::shared_ptr<InterfacesModuleChangesContext> ctx);
+
+    /**
+     * sysrepo-plugin-generator: Generated module change operator() for path
+     * /ietf-interfaces:interfaces/interface[name='%s']/ietf-if-extensions:carrier-delay/up.
+     *
+     * @param session An implicit session for the callback.
+     * @param subscriptionId ID the subscription associated with the callback.
+     * @param moduleName The module name used for subscribing.
+     * @param subXPath The optional xpath used at the time of subscription.
+     * @param event Type of the event that has occured.
+     * @param requestId Request ID unique for the specific module_name. Connected events for one request (SR_EV_CHANGE and
+     * SR_EV_DONE, for example) have the same request ID.
+     *
+     * @return Error code.
+     *
+     */
+    sr::ErrorCode operator()(sr::Session session, uint32_t subscriptionId, std::string_view moduleName, std::optional<std::string_view> subXPath,
+        sr::Event event, uint32_t requestId);
+
+private:
+    std::shared_ptr<InterfacesModuleChangesContext> m_ctx;
+};
+
+/**
+ * @brief sysrepo-plugin-generator: Generated module change functor for path
+ * /ietf-interfaces:interfaces/interface[name='%s']/ietf-if-extensions:carrier-delay.
+ */
+class InterfaceCarrierDelayModuleChangeCb {
+public:
+    /**
+     * sysrepo-plugin-generator: Generated default constructor.
+     *
+     * @param ctx Plugin module change context.
+     *
+     */
+    InterfaceCarrierDelayModuleChangeCb(std::shared_ptr<InterfacesModuleChangesContext> ctx);
+
+    /**
+     * sysrepo-plugin-generator: Generated module change operator() for path
+     * /ietf-interfaces:interfaces/interface[name='%s']/ietf-if-extensions:carrier-delay.
+     *
+     * @param session An implicit session for the callback.
+     * @param subscriptionId ID the subscription associated with the callback.
+     * @param moduleName The module name used for subscribing.
+     * @param subXPath The optional xpath used at the time of subscription.
+     * @param event Type of the event that has occured.
+     * @param requestId Request ID unique for the specific module_name. Connected events for one request (SR_EV_CHANGE and
+     * SR_EV_DONE, for example) have the same request ID.
+     *
+     * @return Error code.
+     *
+     */
+    sr::ErrorCode operator()(sr::Session session, uint32_t subscriptionId, std::string_view moduleName, std::optional<std::string_view> subXPath,
+        sr::Event event, uint32_t requestId);
+
+private:
+    std::shared_ptr<InterfacesModuleChangesContext> m_ctx;
+};
+
+/**
+ * @brief sysrepo-plugin-generator: Generated module change functor for path
+ * /ietf-interfaces:interfaces/interface[name='%s']/ietf-if-extensions:dampening/half-life.
+ */
+class InterfaceDampeningHalfLifeModuleChangeCb {
+public:
+    /**
+     * sysrepo-plugin-generator: Generated default constructor.
+     *
+     * @param ctx Plugin module change context.
+     *
+     */
+    InterfaceDampeningHalfLifeModuleChangeCb(std::shared_ptr<InterfacesModuleChangesContext> ctx);
+
+    /**
+     * sysrepo-plugin-generator: Generated module change operator() for path
+     * /ietf-interfaces:interfaces/interface[name='%s']/ietf-if-extensions:dampening/half-life.
+     *
+     * @param session An implicit session for the callback.
+     * @param subscriptionId ID the subscription associated with the callback.
+     * @param moduleName The module name used for subscribing.
+     * @param subXPath The optional xpath used at the time of subscription.
+     * @param event Type of the event that has occured.
+     * @param requestId Request ID unique for the specific module_name. Connected events for one request (SR_EV_CHANGE and
+     * SR_EV_DONE, for example) have the same request ID.
+     *
+     * @return Error code.
+     *
+     */
+    sr::ErrorCode operator()(sr::Session session, uint32_t subscriptionId, std::string_view moduleName, std::optional<std::string_view> subXPath,
+        sr::Event event, uint32_t requestId);
+
+private:
+    std::shared_ptr<InterfacesModuleChangesContext> m_ctx;
+};
+
+/**
+ * @brief sysrepo-plugin-generator: Generated module change functor for path
+ * /ietf-interfaces:interfaces/interface[name='%s']/ietf-if-extensions:dampening/reuse.
+ */
+class InterfaceDampeningReuseModuleChangeCb {
+public:
+    /**
+     * sysrepo-plugin-generator: Generated default constructor.
+     *
+     * @param ctx Plugin module change context.
+     *
+     */
+    InterfaceDampeningReuseModuleChangeCb(std::shared_ptr<InterfacesModuleChangesContext> ctx);
+
+    /**
+     * sysrepo-plugin-generator: Generated module change operator() for path
+     * /ietf-interfaces:interfaces/interface[name='%s']/ietf-if-extensions:dampening/reuse.
+     *
+     * @param session An implicit session for the callback.
+     * @param subscriptionId ID the subscription associated with the callback.
+     * @param moduleName The module name used for subscribing.
+     * @param subXPath The optional xpath used at the time of subscription.
+     * @param event Type of the event that has occured.
+     * @param requestId Request ID unique for the specific module_name. Connected events for one request (SR_EV_CHANGE and
+     * SR_EV_DONE, for example) have the same request ID.
+     *
+     * @return Error code.
+     *
+     */
+    sr::ErrorCode operator()(sr::Session session, uint32_t subscriptionId, std::string_view moduleName, std::optional<std::string_view> subXPath,
+        sr::Event event, uint32_t requestId);
+
+private:
+    std::shared_ptr<InterfacesModuleChangesContext> m_ctx;
+};
+
+/**
+ * @brief sysrepo-plugin-generator: Generated module change functor for path
+ * /ietf-interfaces:interfaces/interface[name='%s']/ietf-if-extensions:dampening/suppress.
+ */
+class InterfaceDampeningSuppressModuleChangeCb {
+public:
+    /**
+     * sysrepo-plugin-generator: Generated default constructor.
+     *
+     * @param ctx Plugin module change context.
+     *
+     */
+    InterfaceDampeningSuppressModuleChangeCb(std::shared_ptr<InterfacesModuleChangesContext> ctx);
+
+    /**
+     * sysrepo-plugin-generator: Generated module change operator() for path
+     * /ietf-interfaces:interfaces/interface[name='%s']/ietf-if-extensions:dampening/suppress.
+     *
+     * @param session An implicit session for the callback.
+     * @param subscriptionId ID the subscription associated with the callback.
+     * @param moduleName The module name used for subscribing.
+     * @param subXPath The optional xpath used at the time of subscription.
+     * @param event Type of the event that has occured.
+     * @param requestId Request ID unique for the specific module_name. Connected events for one request (SR_EV_CHANGE and
+     * SR_EV_DONE, for example) have the same request ID.
+     *
+     * @return Error code.
+     *
+     */
+    sr::ErrorCode operator()(sr::Session session, uint32_t subscriptionId, std::string_view moduleName, std::optional<std::string_view> subXPath,
+        sr::Event event, uint32_t requestId);
+
+private:
+    std::shared_ptr<InterfacesModuleChangesContext> m_ctx;
+};
+
+/**
+ * @brief sysrepo-plugin-generator: Generated module change functor for path
+ * /ietf-interfaces:interfaces/interface[name='%s']/ietf-if-extensions:dampening/max-suppress-time.
+ */
+class InterfaceDampeningMaxSuppressTimeModuleChangeCb {
+public:
+    /**
+     * sysrepo-plugin-generator: Generated default constructor.
+     *
+     * @param ctx Plugin module change context.
+     *
+     */
+    InterfaceDampeningMaxSuppressTimeModuleChangeCb(std::shared_ptr<InterfacesModuleChangesContext> ctx);
+
+    /**
+     * sysrepo-plugin-generator: Generated module change operator() for path
+     * /ietf-interfaces:interfaces/interface[name='%s']/ietf-if-extensions:dampening/max-suppress-time.
+     *
+     * @param session An implicit session for the callback.
+     * @param subscriptionId ID the subscription associated with the callback.
+     * @param moduleName The module name used for subscribing.
+     * @param subXPath The optional xpath used at the time of subscription.
+     * @param event Type of the event that has occured.
+     * @param requestId Request ID unique for the specific module_name. Connected events for one request (SR_EV_CHANGE and
+     * SR_EV_DONE, for example) have the same request ID.
+     *
+     * @return Error code.
+     *
+     */
+    sr::ErrorCode operator()(sr::Session session, uint32_t subscriptionId, std::string_view moduleName, std::optional<std::string_view> subXPath,
+        sr::Event event, uint32_t requestId);
+
+private:
+    std::shared_ptr<InterfacesModuleChangesContext> m_ctx;
+};
+
+/**
+ * @brief sysrepo-plugin-generator: Generated module change functor for path
+ * /ietf-interfaces:interfaces/interface[name='%s']/ietf-if-extensions:dampening.
+ */
+class InterfaceDampeningModuleChangeCb {
+public:
+    /**
+     * sysrepo-plugin-generator: Generated default constructor.
+     *
+     * @param ctx Plugin module change context.
+     *
+     */
+    InterfaceDampeningModuleChangeCb(std::shared_ptr<InterfacesModuleChangesContext> ctx);
+
+    /**
+     * sysrepo-plugin-generator: Generated module change operator() for path
+     * /ietf-interfaces:interfaces/interface[name='%s']/ietf-if-extensions:dampening.
+     *
+     * @param session An implicit session for the callback.
+     * @param subscriptionId ID the subscription associated with the callback.
+     * @param moduleName The module name used for subscribing.
+     * @param subXPath The optional xpath used at the time of subscription.
+     * @param event Type of the event that has occured.
+     * @param requestId Request ID unique for the specific module_name. Connected events for one request (SR_EV_CHANGE and
+     * SR_EV_DONE, for example) have the same request ID.
+     *
+     * @return Error code.
+     *
+     */
+    sr::ErrorCode operator()(sr::Session session, uint32_t subscriptionId, std::string_view moduleName, std::optional<std::string_view> subXPath,
+        sr::Event event, uint32_t requestId);
+
+private:
+    std::shared_ptr<InterfacesModuleChangesContext> m_ctx;
+};
+
+/**
+ * @brief sysrepo-plugin-generator: Generated module change functor for path
+ * /ietf-interfaces:interfaces/interface[name='%s']/ietf-if-extensions:encapsulation/ietf-if-vlan-encapsulation:dot1q-vlan/outer-tag/tag-type.
+ */
+class InterfaceEncapsulationDot1QVlanOuterTagTagTypeModuleChangeCb {
+public:
+    /**
+     * sysrepo-plugin-generator: Generated default constructor.
+     *
+     * @param ctx Plugin module change context.
+     *
+     */
+    InterfaceEncapsulationDot1QVlanOuterTagTagTypeModuleChangeCb(std::shared_ptr<InterfacesModuleChangesContext> ctx);
+
+    /**
+     * sysrepo-plugin-generator: Generated module change operator() for path
+     * /ietf-interfaces:interfaces/interface[name='%s']/ietf-if-extensions:encapsulation/ietf-if-vlan-encapsulation:dot1q-vlan/outer-tag/tag-type.
+     *
+     * @param session An implicit session for the callback.
+     * @param subscriptionId ID the subscription associated with the callback.
+     * @param moduleName The module name used for subscribing.
+     * @param subXPath The optional xpath used at the time of subscription.
+     * @param event Type of the event that has occured.
+     * @param requestId Request ID unique for the specific module_name. Connected events for one request (SR_EV_CHANGE and
+     * SR_EV_DONE, for example) have the same request ID.
+     *
+     * @return Error code.
+     *
+     */
+    sr::ErrorCode operator()(sr::Session session, uint32_t subscriptionId, std::string_view moduleName, std::optional<std::string_view> subXPath,
+        sr::Event event, uint32_t requestId);
+
+private:
+    std::shared_ptr<InterfacesModuleChangesContext> m_ctx;
+};
+
+/**
+ * @brief sysrepo-plugin-generator: Generated module change functor for path
+ * /ietf-interfaces:interfaces/interface[name='%s']/ietf-if-extensions:encapsulation/ietf-if-vlan-encapsulation:dot1q-vlan/outer-tag/vlan-id.
+ */
+class InterfaceEncapsulationDot1QVlanOuterTagVlanIdModuleChangeCb {
+public:
+    /**
+     * sysrepo-plugin-generator: Generated default constructor.
+     *
+     * @param ctx Plugin module change context.
+     *
+     */
+    InterfaceEncapsulationDot1QVlanOuterTagVlanIdModuleChangeCb(std::shared_ptr<InterfacesModuleChangesContext> ctx);
+
+    /**
+     * sysrepo-plugin-generator: Generated module change operator() for path
+     * /ietf-interfaces:interfaces/interface[name='%s']/ietf-if-extensions:encapsulation/ietf-if-vlan-encapsulation:dot1q-vlan/outer-tag/vlan-id.
+     *
+     * @param session An implicit session for the callback.
+     * @param subscriptionId ID the subscription associated with the callback.
+     * @param moduleName The module name used for subscribing.
+     * @param subXPath The optional xpath used at the time of subscription.
+     * @param event Type of the event that has occured.
+     * @param requestId Request ID unique for the specific module_name. Connected events for one request (SR_EV_CHANGE and
+     * SR_EV_DONE, for example) have the same request ID.
+     *
+     * @return Error code.
+     *
+     */
+    sr::ErrorCode operator()(sr::Session session, uint32_t subscriptionId, std::string_view moduleName, std::optional<std::string_view> subXPath,
+        sr::Event event, uint32_t requestId);
+
+private:
+    std::shared_ptr<InterfacesModuleChangesContext> m_ctx;
+};
+
+/**
+ * @brief sysrepo-plugin-generator: Generated module change functor for path
+ * /ietf-interfaces:interfaces/interface[name='%s']/ietf-if-extensions:encapsulation/ietf-if-vlan-encapsulation:dot1q-vlan/outer-tag.
+ */
+class InterfaceEncapsulationDot1QVlanOuterTagModuleChangeCb {
+public:
+    /**
+     * sysrepo-plugin-generator: Generated default constructor.
+     *
+     * @param ctx Plugin module change context.
+     *
+     */
+    InterfaceEncapsulationDot1QVlanOuterTagModuleChangeCb(std::shared_ptr<InterfacesModuleChangesContext> ctx);
+
+    /**
+     * sysrepo-plugin-generator: Generated module change operator() for path
+     * /ietf-interfaces:interfaces/interface[name='%s']/ietf-if-extensions:encapsulation/ietf-if-vlan-encapsulation:dot1q-vlan/outer-tag.
+     *
+     * @param session An implicit session for the callback.
+     * @param subscriptionId ID the subscription associated with the callback.
+     * @param moduleName The module name used for subscribing.
+     * @param subXPath The optional xpath used at the time of subscription.
+     * @param event Type of the event that has occured.
+     * @param requestId Request ID unique for the specific module_name. Connected events for one request (SR_EV_CHANGE and
+     * SR_EV_DONE, for example) have the same request ID.
+     *
+     * @return Error code.
+     *
+     */
+    sr::ErrorCode operator()(sr::Session session, uint32_t subscriptionId, std::string_view moduleName, std::optional<std::string_view> subXPath,
+        sr::Event event, uint32_t requestId);
+
+private:
+    std::shared_ptr<InterfacesModuleChangesContext> m_ctx;
+};
+
+/**
+ * @brief sysrepo-plugin-generator: Generated module change functor for path
+ * /ietf-interfaces:interfaces/interface[name='%s']/ietf-if-extensions:encapsulation/ietf-if-vlan-encapsulation:dot1q-vlan/second-tag/tag-type.
+ */
+class InterfaceEncapsulationDot1QVlanSecondTagTagTypeModuleChangeCb {
+public:
+    /**
+     * sysrepo-plugin-generator: Generated default constructor.
+     *
+     * @param ctx Plugin module change context.
+     *
+     */
+    InterfaceEncapsulationDot1QVlanSecondTagTagTypeModuleChangeCb(std::shared_ptr<InterfacesModuleChangesContext> ctx);
+
+    /**
+     * sysrepo-plugin-generator: Generated module change operator() for path
+     * /ietf-interfaces:interfaces/interface[name='%s']/ietf-if-extensions:encapsulation/ietf-if-vlan-encapsulation:dot1q-vlan/second-tag/tag-type.
+     *
+     * @param session An implicit session for the callback.
+     * @param subscriptionId ID the subscription associated with the callback.
+     * @param moduleName The module name used for subscribing.
+     * @param subXPath The optional xpath used at the time of subscription.
+     * @param event Type of the event that has occured.
+     * @param requestId Request ID unique for the specific module_name. Connected events for one request (SR_EV_CHANGE and
+     * SR_EV_DONE, for example) have the same request ID.
+     *
+     * @return Error code.
+     *
+     */
+    sr::ErrorCode operator()(sr::Session session, uint32_t subscriptionId, std::string_view moduleName, std::optional<std::string_view> subXPath,
+        sr::Event event, uint32_t requestId);
+
+private:
+    std::shared_ptr<InterfacesModuleChangesContext> m_ctx;
+};
+
+/**
+ * @brief sysrepo-plugin-generator: Generated module change functor for path
+ * /ietf-interfaces:interfaces/interface[name='%s']/ietf-if-extensions:encapsulation/ietf-if-vlan-encapsulation:dot1q-vlan/second-tag/vlan-id.
+ */
+class InterfaceEncapsulationDot1QVlanSecondTagVlanIdModuleChangeCb {
+public:
+    /**
+     * sysrepo-plugin-generator: Generated default constructor.
+     *
+     * @param ctx Plugin module change context.
+     *
+     */
+    InterfaceEncapsulationDot1QVlanSecondTagVlanIdModuleChangeCb(std::shared_ptr<InterfacesModuleChangesContext> ctx);
+
+    /**
+     * sysrepo-plugin-generator: Generated module change operator() for path
+     * /ietf-interfaces:interfaces/interface[name='%s']/ietf-if-extensions:encapsulation/ietf-if-vlan-encapsulation:dot1q-vlan/second-tag/vlan-id.
+     *
+     * @param session An implicit session for the callback.
+     * @param subscriptionId ID the subscription associated with the callback.
+     * @param moduleName The module name used for subscribing.
+     * @param subXPath The optional xpath used at the time of subscription.
+     * @param event Type of the event that has occured.
+     * @param requestId Request ID unique for the specific module_name. Connected events for one request (SR_EV_CHANGE and
+     * SR_EV_DONE, for example) have the same request ID.
+     *
+     * @return Error code.
+     *
+     */
+    sr::ErrorCode operator()(sr::Session session, uint32_t subscriptionId, std::string_view moduleName, std::optional<std::string_view> subXPath,
+        sr::Event event, uint32_t requestId);
+
+private:
+    std::shared_ptr<InterfacesModuleChangesContext> m_ctx;
+};
+
+/**
+ * @brief sysrepo-plugin-generator: Generated module change functor for path
+ * /ietf-interfaces:interfaces/interface[name='%s']/ietf-if-extensions:encapsulation/ietf-if-vlan-encapsulation:dot1q-vlan/second-tag.
+ */
+class InterfaceEncapsulationDot1QVlanSecondTagModuleChangeCb {
+public:
+    /**
+     * sysrepo-plugin-generator: Generated default constructor.
+     *
+     * @param ctx Plugin module change context.
+     *
+     */
+    InterfaceEncapsulationDot1QVlanSecondTagModuleChangeCb(std::shared_ptr<InterfacesModuleChangesContext> ctx);
+
+    /**
+     * sysrepo-plugin-generator: Generated module change operator() for path
+     * /ietf-interfaces:interfaces/interface[name='%s']/ietf-if-extensions:encapsulation/ietf-if-vlan-encapsulation:dot1q-vlan/second-tag.
+     *
+     * @param session An implicit session for the callback.
+     * @param subscriptionId ID the subscription associated with the callback.
+     * @param moduleName The module name used for subscribing.
+     * @param subXPath The optional xpath used at the time of subscription.
+     * @param event Type of the event that has occured.
+     * @param requestId Request ID unique for the specific module_name. Connected events for one request (SR_EV_CHANGE and
+     * SR_EV_DONE, for example) have the same request ID.
+     *
+     * @return Error code.
+     *
+     */
+    sr::ErrorCode operator()(sr::Session session, uint32_t subscriptionId, std::string_view moduleName, std::optional<std::string_view> subXPath,
+        sr::Event event, uint32_t requestId);
+
+private:
+    std::shared_ptr<InterfacesModuleChangesContext> m_ctx;
+};
+
+/**
+ * @brief sysrepo-plugin-generator: Generated module change functor for path
+ * /ietf-interfaces:interfaces/interface[name='%s']/ietf-if-extensions:encapsulation/ietf-if-vlan-encapsulation:dot1q-vlan.
+ */
+class InterfaceEncapsulationDot1QVlanModuleChangeCb {
+public:
+    /**
+     * sysrepo-plugin-generator: Generated default constructor.
+     *
+     * @param ctx Plugin module change context.
+     *
+     */
+    InterfaceEncapsulationDot1QVlanModuleChangeCb(std::shared_ptr<InterfacesModuleChangesContext> ctx);
+
+    /**
+     * sysrepo-plugin-generator: Generated module change operator() for path
+     * /ietf-interfaces:interfaces/interface[name='%s']/ietf-if-extensions:encapsulation/ietf-if-vlan-encapsulation:dot1q-vlan.
+     *
+     * @param session An implicit session for the callback.
+     * @param subscriptionId ID the subscription associated with the callback.
+     * @param moduleName The module name used for subscribing.
+     * @param subXPath The optional xpath used at the time of subscription.
+     * @param event Type of the event that has occured.
+     * @param requestId Request ID unique for the specific module_name. Connected events for one request (SR_EV_CHANGE and
+     * SR_EV_DONE, for example) have the same request ID.
+     *
+     * @return Error code.
+     *
+     */
+    sr::ErrorCode operator()(sr::Session session, uint32_t subscriptionId, std::string_view moduleName, std::optional<std::string_view> subXPath,
+        sr::Event event, uint32_t requestId);
+
+private:
+    std::shared_ptr<InterfacesModuleChangesContext> m_ctx;
+};
+
+/**
+ * @brief sysrepo-plugin-generator: Generated module change functor for path
+ * /ietf-interfaces:interfaces/interface[name='%s']/ietf-if-extensions:encapsulation.
+ */
+class InterfaceEncapsulationModuleChangeCb {
+public:
+    /**
+     * sysrepo-plugin-generator: Generated default constructor.
+     *
+     * @param ctx Plugin module change context.
+     *
+     */
+    InterfaceEncapsulationModuleChangeCb(std::shared_ptr<InterfacesModuleChangesContext> ctx);
+
+    /**
+     * sysrepo-plugin-generator: Generated module change operator() for path
+     * /ietf-interfaces:interfaces/interface[name='%s']/ietf-if-extensions:encapsulation.
+     *
+     * @param session An implicit session for the callback.
+     * @param subscriptionId ID the subscription associated with the callback.
+     * @param moduleName The module name used for subscribing.
+     * @param subXPath The optional xpath used at the time of subscription.
+     * @param event Type of the event that has occured.
+     * @param requestId Request ID unique for the specific module_name. Connected events for one request (SR_EV_CHANGE and
+     * SR_EV_DONE, for example) have the same request ID.
+     *
+     * @return Error code.
+     *
+     */
+    sr::ErrorCode operator()(sr::Session session, uint32_t subscriptionId, std::string_view moduleName, std::optional<std::string_view> subXPath,
+        sr::Event event, uint32_t requestId);
+
+private:
+    std::shared_ptr<InterfacesModuleChangesContext> m_ctx;
+};
+
+/**
+ * @brief sysrepo-plugin-generator: Generated module change functor for path
+ * /ietf-interfaces:interfaces/interface[name='%s']/ietf-if-extensions:loopback.
+ */
+class InterfaceLoopbackModuleChangeCb {
+public:
+    /**
+     * sysrepo-plugin-generator: Generated default constructor.
+     *
+     * @param ctx Plugin module change context.
+     *
+     */
+    InterfaceLoopbackModuleChangeCb(std::shared_ptr<InterfacesModuleChangesContext> ctx);
+
+    /**
+     * sysrepo-plugin-generator: Generated module change operator() for path
+     * /ietf-interfaces:interfaces/interface[name='%s']/ietf-if-extensions:loopback.
+     *
+     * @param session An implicit session for the callback.
+     * @param subscriptionId ID the subscription associated with the callback.
+     * @param moduleName The module name used for subscribing.
+     * @param subXPath The optional xpath used at the time of subscription.
+     * @param event Type of the event that has occured.
+     * @param requestId Request ID unique for the specific module_name. Connected events for one request (SR_EV_CHANGE and
+     * SR_EV_DONE, for example) have the same request ID.
+     *
+     * @return Error code.
+     *
+     */
+    sr::ErrorCode operator()(sr::Session session, uint32_t subscriptionId, std::string_view moduleName, std::optional<std::string_view> subXPath,
+        sr::Event event, uint32_t requestId);
+
+private:
+    std::shared_ptr<InterfacesModuleChangesContext> m_ctx;
+};
+
+/**
+ * @brief sysrepo-plugin-generator: Generated module change functor for path
+ * /ietf-interfaces:interfaces/interface[name='%s']/ietf-if-extensions:max-frame-size.
+ */
+class InterfaceMaxFrameSizeModuleChangeCb {
+public:
+    /**
+     * sysrepo-plugin-generator: Generated default constructor.
+     *
+     * @param ctx Plugin module change context.
+     *
+     */
+    InterfaceMaxFrameSizeModuleChangeCb(std::shared_ptr<InterfacesModuleChangesContext> ctx);
+
+    /**
+     * sysrepo-plugin-generator: Generated module change operator() for path
+     * /ietf-interfaces:interfaces/interface[name='%s']/ietf-if-extensions:max-frame-size.
+     *
+     * @param session An implicit session for the callback.
+     * @param subscriptionId ID the subscription associated with the callback.
+     * @param moduleName The module name used for subscribing.
+     * @param subXPath The optional xpath used at the time of subscription.
+     * @param event Type of the event that has occured.
+     * @param requestId Request ID unique for the specific module_name. Connected events for one request (SR_EV_CHANGE and
+     * SR_EV_DONE, for example) have the same request ID.
+     *
+     * @return Error code.
+     *
+     */
+    sr::ErrorCode operator()(sr::Session session, uint32_t subscriptionId, std::string_view moduleName, std::optional<std::string_view> subXPath,
+        sr::Event event, uint32_t requestId);
+
+private:
+    std::shared_ptr<InterfacesModuleChangesContext> m_ctx;
+};
+
+/**
+ * @brief sysrepo-plugin-generator: Generated module change functor for path
+ * /ietf-interfaces:interfaces/interface[name='%s']/ietf-if-extensions:parent-interface.
+ */
+class InterfaceParentInterfaceModuleChangeCb {
+public:
+    /**
+     * sysrepo-plugin-generator: Generated default constructor.
+     *
+     * @param ctx Plugin module change context.
+     *
+     */
+    InterfaceParentInterfaceModuleChangeCb(std::shared_ptr<InterfacesModuleChangesContext> ctx);
+
+    /**
+     * sysrepo-plugin-generator: Generated module change operator() for path
+     * /ietf-interfaces:interfaces/interface[name='%s']/ietf-if-extensions:parent-interface.
+     *
+     * @param session An implicit session for the callback.
+     * @param subscriptionId ID the subscription associated with the callback.
+     * @param moduleName The module name used for subscribing.
+     * @param subXPath The optional xpath used at the time of subscription.
+     * @param event Type of the event that has occured.
+     * @param requestId Request ID unique for the specific module_name. Connected events for one request (SR_EV_CHANGE and
+     * SR_EV_DONE, for example) have the same request ID.
+     *
+     * @return Error code.
+     *
+     */
+    sr::ErrorCode operator()(sr::Session session, uint32_t subscriptionId, std::string_view moduleName, std::optional<std::string_view> subXPath,
+        sr::Event event, uint32_t requestId);
+
+private:
+    std::shared_ptr<InterfacesModuleChangesContext> m_ctx;
+};
