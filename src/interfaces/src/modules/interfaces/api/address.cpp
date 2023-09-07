@@ -154,7 +154,7 @@ AddressStatus RouteAddressRef::getStatus() const { return AddressStatus::Preferr
  */
 std::string RouteAddressRef::getIPAddress() const
 {
-    auto local = AddressRef(rtnl_addr_get_local(m_addr.get()),m_socket.get());
+    auto local = AddressRef(rtnl_addr_get_local(m_addr.get()), m_socket.get());
     auto str = local.toString();
     auto slash_pos = str.find('/');
     auto ip_address = str;
@@ -170,3 +170,24 @@ std::string RouteAddressRef::getIPAddress() const
  * @brief Get the prefix portion of the route address.
  */
 int RouteAddressRef::getPrefix() const { return rtnl_addr_get_prefixlen(m_addr.get()); }
+
+/**
+ * @brief Get the prefix portion of the route address.
+ */
+#include <iostream>
+void RouteAddressRef::setPrefix(int prefix_len) const
+{
+    rtnl_addr* address = m_addr.get();
+    int err = 0;
+
+    err = rtnl_addr_delete(m_socket.get(), address, 0);
+
+    if (err < 0)
+        throw std::runtime_error(nl_geterror(err));
+
+    rtnl_addr_set_prefixlen(address, prefix_len);
+
+    err = rtnl_addr_add(m_socket.get(), address, 0);
+    if (err < 0)
+        throw std::runtime_error(nl_geterror(err));
+}
