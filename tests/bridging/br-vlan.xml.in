@@ -5,6 +5,7 @@
     <component>
       <name>br0</name>
       <type xmlns:dot1q="urn:ieee:std:802.1Q:yang:ieee802-dot1q-bridge">dot1q:c-vlan-component</type>
+      <address>42-50-a1-c4-23-78</address>
       <filtering-database>
         <vlan-registration-entry>
           <database-id>0</database-id>
