@@ -20,12 +20,10 @@
 // libyang
 #include <libyang/tree_data.h>
 
-// check if the datastore which the session uses is empty (startup or running)
-static bool bridging_datastore_is_empty(sr_session_ctx_t *session);
-
 int sr_plugin_init_cb(sr_session_ctx_t *running_session, void **private_data)
 {
 	int error = 0;
+	bool empty_startup = true;
 
 	// sysrepo
 	sr_session_ctx_t *startup_session = NULL;
@@ -92,7 +90,9 @@ int sr_plugin_init_cb(sr_session_ctx_t *running_session, void **private_data)
 
 	ctx->startup_session = startup_session;
 
-	if (bridging_datastore_is_empty(startup_session)) {
+	SRPC_SAFE_CALL_ERR(error, srpc_check_empty_datastore(startup_session, BRIDGING_BRIDGE_LIST_YANG_PATH, &empty_startup), error_out);
+
+	if (empty_startup) {
 		SRPLG_LOG_INF(PLUGIN_NAME, "Startup datasore is empty");
 		SRPLG_LOG_INF(PLUGIN_NAME, "Loading initial system data");
 		error = bridging_startup_load_data(ctx, startup_session);
@@ -163,27 +163,4 @@ void sr_plugin_cleanup_cb(sr_session_ctx_t *running_session, void *private_data)
 	}
 
 	FREE_SAFE(ctx);
-}
-
-static bool bridging_datastore_is_empty(sr_session_ctx_t *session)
-{
-	int error = SR_ERR_OK;
-	bool is_empty = true;
-	sr_data_t *test_data = NULL;
-
-	error = sr_get_subtree(session, BRIDGING_BRIDGES_CONTAINER_YANG_PATH, 0, &test_data);
-	if (error) {
-		SRPLG_LOG_ERR(PLUGIN_NAME, "sr_get_subtree() error (%d): %s", error, sr_strerror(error));
-		goto out;
-	}
-
-	if (test_data->tree != NULL && lyd_child(test_data->tree) != NULL) {
-		// main container found: datastore is not empty
-		is_empty = false;
-	}
-
-out:
-	sr_release_data(test_data);
-
-	return is_empty;
 }
