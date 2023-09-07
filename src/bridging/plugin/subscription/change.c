@@ -156,7 +156,7 @@ int apply_bridge_list_config_changes(bridging_ctx_t *ctx, sr_session_ctx_t *sess
 		}
 
 		if (strstr(change_path, "component")) {
-			if (strstr(change_path, "filtering-database") && !strcmp(sub_xpath, BRIDGING_BRIDGE_COMPONENT_FILTERING_DATABASE_YANG_PATH)) {
+			if (strstr(change_path, "filtering-database")) {
 				// modify filtering database for a bridge component (frame forwarding and port VLANs)
 				error = modify_filtering_database(socket, change_path, node_name, node_value, operation);
 				if (error) {
