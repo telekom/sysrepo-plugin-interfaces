@@ -15,8 +15,8 @@ jobs:
     
     - uses: DoozyX/clang-format-lint-action@v0.16.2
       with:
-        source: './src/'
-        exclude: './deps/'
+        source: 'src,tests/routing'
+        exclude: 'deps'
         # only C source and header files
         extensions: 'h,c'
         clangFormatVersion: 16
