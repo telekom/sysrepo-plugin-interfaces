@@ -505,13 +505,11 @@ sr::ErrorCode Ipv4ForwardingModuleChangeCb::operator()(sr::Session session, uint
 
             switch (change.operation) {
             case sysrepo::ChangeOperation::Created:
-            case sysrepo::ChangeOperation::Modified:
-
-                SRPLG_LOG_DBG(getModuleLogPrefix(), "Forwadring: %s", name_value ? "true" : "false");
                 break;
+            case sysrepo::ChangeOperation::Modified: {
+                break;
+            }
             case sysrepo::ChangeOperation::Deleted:
-                // delete interface with 'name' = 'name_value'
-                SRPLG_LOG_DBG(getModuleLogPrefix(), "Deleted Forwarding %s", name_value ? "true" : "false");
                 break;
             default:
                 // other options not needed
@@ -632,27 +630,26 @@ sr::ErrorCode Ipv4AddrIpModuleChangeCb::operator()(sr::Session session, uint32_t
             SRPLG_LOG_DBG(getModuleLogPrefix(), "Value of %s modified.", change.node.path().c_str());
             SRPLG_LOG_DBG(getModuleLogPrefix(), "Value of %s modified.", change.node.schema().name().data());
 
-           
-           
             const auto& value = change.node.asTerm().value();
             const auto& address_value = std::get<std::string>(value);
             const auto& interface_name = srpc::extractListKeyFromXPath("interface", "name", change.node.path());
 
-            const auto& enabled_node =  session.getData("/ietf-interfaces:interfaces/interface[name='" + interface_name + "']/ietf-ip:ipv4");
-            const auto& enabled_leaf = enabled_node->findPath("/ietf-interfaces:interfaces/interface[name='" + interface_name + "']/ietf-ip:ipv4/enabled");
+            const auto& enabled_node = session.getData("/ietf-interfaces:interfaces/interface[name='" + interface_name + "']/ietf-ip:ipv4");
+            const auto& enabled_leaf
+                = enabled_node->findPath("/ietf-interfaces:interfaces/interface[name='" + interface_name + "']/ietf-ip:ipv4/enabled");
 
-            if(!enabled_leaf.has_value()){
-                SRPLG_LOG_ERR(getModuleLogPrefix(),"Cannot find ipv4/enabled node");
+            if (!enabled_leaf.has_value()) {
+                SRPLG_LOG_ERR(getModuleLogPrefix(), "Cannot find ipv4/enabled node");
                 return sr::ErrorCode::NotFound;
             }
 
             bool ipv4_enabled = std::get<bool>(enabled_leaf->asTerm().value());
-           
-            if(!ipv4_enabled){
-                SRPLG_LOG_ERR(getModuleLogPrefix(),"Cannot modify ipv4 address/neighbor, first enable ipv4!");
+
+            if (!ipv4_enabled) {
+                SRPLG_LOG_ERR(getModuleLogPrefix(), "Cannot modify ipv4 address/neighbor, first enable ipv4!");
                 return sr::ErrorCode::NotFound;
             }
-            
+
             std::string prefix_len_xpath = "/ietf-interfaces:interfaces/interface[name='" + interface_name + "']/ietf-ip:ipv4/address[ip='"
                 + address_value + "']/prefix-length";
 

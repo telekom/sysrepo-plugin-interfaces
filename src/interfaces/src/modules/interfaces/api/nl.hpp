@@ -19,6 +19,12 @@ class NeighborRef;
 enum class AddressFamily;
 template <typename T> class CacheRef;
 
+enum class NeighborOperations {
+    Create,
+    Modify,
+    Delete,
+};
+
 /**
  * @brief Netlink context using the libnl library. Used for updating system networking configuration.
  */
@@ -72,14 +78,10 @@ public:
     void deleteAddress(std::string interface_name, std::string address, int prefix_length, AddressFamily fam);
 
     /**
-     * @brief Enable IPV4/IPV6 on interface.
+     * @brief Create Neighbor
      */
-    void enableIPV(InterfaceRef& interface, AddressFamily fam);
+    void neighbor(std::string interface_name, std::string address, std::string ll_addr, AddressFamily fam, NeighborOperations oper);
 
-    /**
-     * @brief Enable IPV4/IPV6 on interface.
-     */
-    void dissableIPV(InterfaceRef& interface, AddressFamily fam);
 
     /**
      * @brief Get the links cache.
