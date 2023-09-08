@@ -291,22 +291,78 @@ void NlContext::deleteAddress(std::string interface_name, std::string address, i
 }
 
 /**
- * @brief Enable IPV4/IPV6 on interface.
+ * @brief Create Neighbor
  */
-void NlContext::enableIPV(InterfaceRef& interface, AddressFamily fam) { refillCache(); }
-
-/**
- * @brief Dissable IPV4/IPV6 on interface.
- */
-void NlContext::dissableIPV(InterfaceRef& interface, AddressFamily fam)
+void NlContext::neighbor(std::string interface_name, std::string address, std::string ll_addr, AddressFamily fam, NeighborOperations oper)
 {
-    refillCache();
+    auto interface = getInterfaceByName(interface_name);
 
-    // for (auto&& addr : getAddressCache()) {
-    //     if (addr.getFamily() == AddressFamily::V4 && interface.getName() == ) {
-    //         addr.remove();
-    //     }
-   // }
+    if (!interface.has_value())
+        throw std::bad_optional_access();
+
+    rtnl_neigh* neighbor = NULL;
+    nl_addr* lo_addr = NULL;
+    nl_addr* addr = NULL;
+    int err = 0;
+
+    auto clean = [&]() {
+        if (neighbor != NULL)
+            rtnl_neigh_put(neighbor);
+        if (lo_addr != NULL)
+            nl_addr_put(lo_addr);
+        if (addr != NULL)
+            nl_addr_put(addr);
+    };
+
+    int ifindex = interface->getIndex();
+
+    neighbor = rtnl_neigh_alloc();
+
+    err = nl_addr_parse(address.c_str(), (int)fam, &addr);
+
+    if (err < 0) {
+        clean();
+        throw std::runtime_error(nl_geterror(err));
+    }
+
+    err = nl_addr_parse(ll_addr.c_str(), AF_LLC, &lo_addr);
+
+    if (err < 0) {
+        clean();
+        throw std::runtime_error(nl_geterror(err));
+    }
+
+    rtnl_neigh_set_lladdr(neighbor, lo_addr);
+    rtnl_neigh_set_ifindex(neighbor, ifindex);
+    rtnl_neigh_set_state(neighbor, NUD_PERMANENT);
+    rtnl_neigh_set_family(neighbor, (int)fam);
+
+    err = rtnl_neigh_set_dst(neighbor, addr);
+
+    if (err < 0) {
+        clean();
+        throw std::runtime_error(nl_geterror(err));
+    }
+
+    switch (oper) {
+    case NeighborOperations::Create:
+        err = rtnl_neigh_add(m_sock.get(), neighbor, NLM_F_CREATE);
+        break;
+    case NeighborOperations::Modify:
+        err = rtnl_neigh_add(m_sock.get(), neighbor, NLM_F_REPLACE);
+        break;
+    case NeighborOperations::Delete:
+        err = rtnl_neigh_delete(m_sock.get(), neighbor, NLM_F_NONREC | NLM_F_MATCH);
+        break;
+    }
+
+    if (err < 0) {
+        clean();
+        throw std::runtime_error(nl_geterror(err));
+    }
+
+    clean();
+
 }
 
 /**
