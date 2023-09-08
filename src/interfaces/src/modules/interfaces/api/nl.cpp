@@ -187,7 +187,6 @@ void NlContext::deleteInterface(const std::string& name)
         iter = (struct rtnl_link*)nl_cache_get_next((struct nl_object*)iter);
     };
 
-    throw std::runtime_error("Interface not found!");
 }
 
 /**
