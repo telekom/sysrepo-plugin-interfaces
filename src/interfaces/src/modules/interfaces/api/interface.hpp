@@ -27,14 +27,9 @@ struct InterfaceStats {
     uint32_t OutErrors;
 };
 
-const std::unordered_map<std::string,std::string> InterfaceTypes = {
-    {"iana-if-type:ethernetCsmacd", "veth"},
-    {"iana-if-type:softwareLoopback", "vcan"},
-    {"iana-if-type:l2vlan", "vlan"}, 
-    {"iana-if-type:other", "dummy"},
-    {"iana-if-type:bridge", "bridge"}
-};
-
+const std::unordered_map<std::string, std::string> InterfaceTypes
+    = { { "iana-if-type:ethernetCsmacd", "veth" }, { "iana-if-type:softwareLoopback", "vcan" }, { "iana-if-type:l2vlan", "vlan" },
+          { "iana-if-type:other", "dummy" }, { "iana-if-type:bridge", "bridge" } };
 
 class InterfaceRef {
 public:
@@ -110,14 +105,13 @@ public:
      * @brief Changes the MTU of an interface.
      */
     void setMtu(uint16_t mtu);
-    
 
 
 private:
     using RtnlLink = struct rtnl_link; ///< Route link type alias.
     using RtnlLinkDeleter = NlDeleter<RtnlLink>; ///< Deleter type alias.
     using RtnlLinkPtr = std::unique_ptr<RtnlLink, RtnlLinkDeleter>; ///< Unique pointer type alias.
-    using NlSocketPtr = std::unique_ptr<struct nl_sock, NlDeleter<struct nl_sock>>; //Socket type alias.
+    using NlSocketPtr = std::unique_ptr<struct nl_sock, NlDeleter<struct nl_sock>>; // Socket type alias.
 
     /**
      * @brief Private constructor accessible only to netlink context. Stores a reference to a link for later access of link members.
@@ -130,5 +124,5 @@ private:
     InterfaceRef(struct nl_object* link, struct nl_sock* socket);
 
     RtnlLinkPtr m_link; ///< Link reference.
-    NlSocketPtr m_socket; ///socket reference.
+    NlSocketPtr m_socket; /// socket reference.
 };

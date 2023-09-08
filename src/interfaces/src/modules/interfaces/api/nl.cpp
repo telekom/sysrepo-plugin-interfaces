@@ -291,6 +291,25 @@ void NlContext::deleteAddress(std::string interface_name, std::string address, i
 }
 
 /**
+ * @brief Enable IPV4/IPV6 on interface.
+ */
+void NlContext::enableIPV(InterfaceRef& interface, AddressFamily fam) { refillCache(); }
+
+/**
+ * @brief Dissable IPV4/IPV6 on interface.
+ */
+void NlContext::dissableIPV(InterfaceRef& interface, AddressFamily fam)
+{
+    refillCache();
+
+    // for (auto&& addr : getAddressCache()) {
+    //     if (addr.getFamily() == AddressFamily::V4 && interface.getName() == ) {
+    //         addr.remove();
+    //     }
+   // }
+}
+
+/**
  * @brief Get the links cache.
  */
 CacheRef<InterfaceRef> NlContext::getLinkCache() { return CacheRef<InterfaceRef>(m_linkCache.get(), m_sock.get()); }

@@ -110,6 +110,11 @@ public:
      */
     void setPrefix(int prefix_len) const;
 
+    /**
+     * @brief Get the prefix portion of the route address.
+     */
+    void remove();
+
 private:
     using RtnlAddr = struct rtnl_addr; ///< Rout NL address type alias;
     using RtnlAddrDeleter = NlDeleter<RtnlAddr>; ///< Deleter type alias.

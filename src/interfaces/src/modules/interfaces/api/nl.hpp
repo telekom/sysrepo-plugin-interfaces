@@ -71,6 +71,15 @@ public:
      */
     void deleteAddress(std::string interface_name, std::string address, int prefix_length, AddressFamily fam);
 
+    /**
+     * @brief Enable IPV4/IPV6 on interface.
+     */
+    void enableIPV(InterfaceRef& interface, AddressFamily fam);
+
+    /**
+     * @brief Enable IPV4/IPV6 on interface.
+     */
+    void dissableIPV(InterfaceRef& interface, AddressFamily fam);
 
     /**
      * @brief Get the links cache.

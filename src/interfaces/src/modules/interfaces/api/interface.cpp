@@ -74,6 +74,7 @@ std::uint8_t InterfaceRef::getLinkMode() const { return rtnl_link_get_linkmode(m
  */
 AddressRef InterfaceRef::getAddress() const { return AddressRef(rtnl_link_get_addr(m_link.get()), m_socket.get()); }
 
+
 /**
  * @brief Returns the speed of the interface.
  */
@@ -192,5 +193,3 @@ void InterfaceRef::setMtu(uint16_t mtu)
     // deallocate change link
     rtnl_link_put(change_link);
 }
-
-
