@@ -174,7 +174,6 @@ int RouteAddressRef::getPrefix() const { return rtnl_addr_get_prefixlen(m_addr.g
 /**
  * @brief Get the prefix portion of the route address.
  */
-#include <iostream>
 void RouteAddressRef::setPrefix(int prefix_len) const
 {
     rtnl_addr* address = m_addr.get();
@@ -191,3 +190,14 @@ void RouteAddressRef::setPrefix(int prefix_len) const
     if (err < 0)
         throw std::runtime_error(nl_geterror(err));
 }
+
+/**
+ * @brief Remove address.
+ */
+void RouteAddressRef::remove()
+{
+    int err = rtnl_addr_delete(m_socket.get(), m_addr.get(), 0);
+
+    if (err < 0)
+        throw std::runtime_error(nl_geterror(err));
+};
