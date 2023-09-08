@@ -13,79 +13,79 @@
 
 #include "memory.h"
 
-void *xmalloc(size_t size)
+void* xmalloc(size_t size)
 {
-	void *res;
+    void* res;
 
-	if (size == 0) {
-		abort();
-	}
+    if (size == 0) {
+        abort();
+    }
 
-	res = malloc(size);
+    res = malloc(size);
 
-	if (res == NULL) {
-		abort();
-	}
+    if (res == NULL) {
+        abort();
+    }
 
-	return res;
+    return res;
 }
 
-void *xrealloc(void *ptr, size_t size)
+void* xrealloc(void* ptr, size_t size)
 {
-	void *res;
+    void* res;
 
-	if (size == 0) {
-		abort();
-	}
+    if (size == 0) {
+        abort();
+    }
 
-	res = realloc(ptr, size);
+    res = realloc(ptr, size);
 
-	if (res == NULL) {
-		abort();
-	}
+    if (res == NULL) {
+        abort();
+    }
 
-	return res;
+    return res;
 }
 
-void *xcalloc(size_t nmemb, size_t size)
+void* xcalloc(size_t nmemb, size_t size)
 {
-	void *res;
+    void* res;
 
-	if (size == 0) {
-		abort();
-	}
+    if (size == 0) {
+        abort();
+    }
 
-	res = calloc(nmemb, size);
+    res = calloc(nmemb, size);
 
-	if (res == NULL) {
-		abort();
-	}
+    if (res == NULL) {
+        abort();
+    }
 
-	return res;
+    return res;
 }
 
-char *xstrdup(const char *s)
+char* xstrdup(const char* s)
 {
-	char *res;
+    char* res;
 
-	res = strdup(s);
+    res = strdup(s);
 
-	if (res == NULL) {
-		abort();
-	}
+    if (res == NULL) {
+        abort();
+    }
 
-	return res;
+    return res;
 }
 
-char *xstrndup(const char *s, size_t size)
+char* xstrndup(const char* s, size_t size)
 {
-	char *res;
+    char* res;
 
-	res = strndup(s, size);
+    res = strndup(s, size);
 
-	if (res == NULL) {
-		abort();
-	}
+    if (res == NULL) {
+        abort();
+    }
 
-	return res;
+    return res;
 }

@@ -19,7 +19,7 @@
 #include "route/list_hash.h"
 
 struct routing_ctx {
-	sr_session_ctx_t *startup_session;
+    sr_session_ctx_t* startup_session;
 };
 
 #endif // ROUTING_PLUGIN_CONTEXT_H
