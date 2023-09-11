@@ -1299,17 +1299,51 @@ sr::ErrorCode Ipv6AddrIpModuleChangeCb::operator()(sr::Session session, uint32_t
         for (auto& change : session.getChanges("/ietf-interfaces:interfaces/interface/ipv6/address/ip")) {
 
             const auto& value = change.node.asTerm().value();
-            const auto& name_value = std::get<std::string>(value);
+            const auto& address_value = std::get<std::string>(value);
+            const auto& interface_name = srpc::extractListKeyFromXPath("interface", "name", change.node.path());
+
+            auto& ctx = m_ctx->getNetlinkContext();
+
+            std::string prefix_len_xpath = "/ietf-interfaces:interfaces/interface[name='" + interface_name + "']/ietf-ip:ipv6/address[ip='"
+                + address_value + "']/prefix-length";
 
             switch (change.operation) {
             case sysrepo::ChangeOperation::Created:
-            case sysrepo::ChangeOperation::Modified:
 
-                SRPLG_LOG_DBG(getModuleLogPrefix(), "Ip Address: %s", name_value.c_str());
+                try {
+                    ctx.refillCache();
+                    const auto& interface_opt = ctx.getInterfaceByName(interface_name);
+
+                    const auto& prefix_len_val = change.node.findPath(prefix_len_xpath)->asTerm().value();
+                    int prefix_len = std::get<uint8_t>(prefix_len_val);
+
+                    ctx.createAddress(interface_name, address_value, prefix_len, AddressFamily::V6);
+
+                } catch (std::exception& e) {
+                    SRPLG_LOG_ERR(getModuleLogPrefix(), "Cannot create address: %s", e.what());
+                    return sr::ErrorCode::OperationFailed;
+                }
                 break;
             case sysrepo::ChangeOperation::Deleted:
-                // delete interface with 'name' = 'name_value'
-                SRPLG_LOG_DBG(getModuleLogPrefix(), "Deleted Ip Address: %s", name_value.c_str());
+                try {
+                    ctx.refillCache();
+                    const auto& interface_opt = ctx.getInterfaceByName(interface_name);
+
+                    // if interface does not exist, its been deleted previously in <interface><name> node
+                    if (!interface_opt.has_value()) {
+                        SRPLG_LOG_WRN(getModuleLogPrefix(), "Interface %s is allready deleted!", interface_name.c_str());
+                        break;
+                    };
+
+                    const auto& prefix_len_val = change.node.findPath(prefix_len_xpath)->asTerm().value();
+                    int prefix_len = std::get<uint8_t>(prefix_len_val);
+
+                    ctx.deleteAddress(interface_name, address_value, prefix_len, AddressFamily::V6);
+
+                } catch (std::exception& e) {
+                    SRPLG_LOG_ERR(getModuleLogPrefix(), "Cannot delete address: %s", e.what());
+                    return sr::ErrorCode::OperationFailed;
+                }
                 break;
             default:
                 // other options not needed
@@ -1358,17 +1392,43 @@ sr::ErrorCode Ipv6AddrPrefixLengthModuleChangeCb::operator()(sr::Session session
         for (auto& change : session.getChanges("/ietf-interfaces:interfaces/interface/ipv6/address/prefix-length")) {
 
             const auto& value = change.node.asTerm().value();
-            const auto& name_value = std::get<uint8_t>(value);
+            const auto& prefix_value = std::get<uint8_t>(value);
+            const auto& interface_name = srpc::extractListKeyFromXPath("interface", "name", change.node.path());
+            const auto& ip_addr = srpc::extractListKeyFromXPath("address", "ip", change.node.path());
+
+            // Netlink context
+            NlContext& nl_ctx = m_ctx->getNetlinkContext();
 
             switch (change.operation) {
-            case sysrepo::ChangeOperation::Created:
-            case sysrepo::ChangeOperation::Modified:
 
-                SRPLG_LOG_DBG(getModuleLogPrefix(), "Prefix length: %d", name_value);
-                break;
-            case sysrepo::ChangeOperation::Deleted:
-                // delete interface with 'name' = 'name_value'
-                SRPLG_LOG_DBG(getModuleLogPrefix(), "Deleted Prefix length %d", name_value);
+            case sysrepo::ChangeOperation::Modified:
+                // prefix len is mandatory, can only be modified
+                try {
+                    nl_ctx.refillCache();
+                    int old_prefix_len = std::stoi(change.previousValue->data());
+                    bool found = false;
+
+                    for (auto&& addr : nl_ctx.getAddressCache()) {
+                        if ((addr.getFamily() == AddressFamily::V6) && (addr.getIPAddress() == ip_addr) && (addr.getPrefix() == old_prefix_len)) {
+                            addr.setPrefix(prefix_value);
+                            found = true;
+                            break;
+                        };
+                    };
+
+                    if (!found) {
+                        SRPLG_LOG_INF(
+                            getModuleLogPrefix(), "Address %s not found", std::string(ip_addr + "/" + change.previousValue->data()).c_str());
+                        return sr::ErrorCode::NotFound;
+                    }
+
+                } catch (std::exception& e) {
+                    SRPLG_LOG_ERR(getModuleLogPrefix(), "Cannot modify prefix-length: %s", e.what());
+                    return sr::ErrorCode::OperationFailed;
+                }
+
+                SRPLG_LOG_DBG(getModuleLogPrefix(), "Prefix length: %d", prefix_value);
+
                 break;
             default:
                 // other options not needed
