@@ -714,7 +714,6 @@ sr::ErrorCode Ipv4AddrPrefixLengthModuleChangeCb::operator()(sr::Session session
 
             switch (change.operation) {
             case sysrepo::ChangeOperation::Modified:
-                SRPLG_LOG_DBG("INTERFACE IPV4 ADDR PREFIX", "MODIFIED");
                 // prefix len is mandatory, can only be modified
                 try {
                     nl_ctx.refillCache();
@@ -904,17 +903,54 @@ sr::ErrorCode Ipv4NeighIpModuleChangeCb::operator()(sr::Session session, uint32_
         for (auto& change : session.getChanges("/ietf-interfaces:interfaces/interface/ipv4/neighbor/ip")) {
 
             const auto& value = change.node.asTerm().value();
-            const auto& name_value = std::get<std::string>(value);
+            const auto& address_value = std::get<std::string>(value);
+            const auto& interface_name = srpc::extractListKeyFromXPath("interface", "name", change.node.path());
+
+            auto& ctx = m_ctx->getNetlinkContext();
+
+            std::string lladdr_xpath = "/ietf-interfaces:interfaces/interface[name='" + interface_name + "']/ietf-ip:ipv4/neighbor[ip='"
+                + address_value + "']/link-layer-address";
 
             switch (change.operation) {
             case sysrepo::ChangeOperation::Created:
-            case sysrepo::ChangeOperation::Modified:
 
-                SRPLG_LOG_DBG(getModuleLogPrefix(), "Neighbor ip: %s", name_value.c_str());
+                try {
+                    ctx.refillCache();
+                    const auto& interface_opt = ctx.getInterfaceByName(interface_name);
+
+                    const auto& lladdr_val = change.node.findPath(lladdr_xpath)->asTerm().value();
+                    std::string ll_addr = std::get<std::string>(lladdr_val);
+
+                    ctx.neighbor(interface_name, address_value, ll_addr, AddressFamily::V4, NeighborOperations::Create);
+
+                } catch (std::exception& e) {
+                    SRPLG_LOG_ERR(getModuleLogPrefix(), "Cannot create address: %s", e.what());
+                    return sr::ErrorCode::OperationFailed;
+                }
+
                 break;
             case sysrepo::ChangeOperation::Deleted:
-                // delete interface with 'name' = 'name_value'
-                SRPLG_LOG_DBG(getModuleLogPrefix(), "Deleted Neighbor ip %s", name_value.c_str());
+
+                try {
+                    ctx.refillCache();
+                    const auto& interface_opt = ctx.getInterfaceByName(interface_name);
+
+                    // if interface does not exist, its been deleted previously in <interface><name> node
+                    if (!interface_opt.has_value()) {
+                        SRPLG_LOG_WRN(getModuleLogPrefix(), "Interface %s is allready deleted!", interface_name.c_str());
+                        break;
+                    };
+
+                    const auto& lladdr_val = change.node.findPath(lladdr_xpath)->asTerm().value();
+                    std::string ll_addr = std::get<std::string>(lladdr_val);
+
+                    ctx.neighbor(interface_name, address_value, ll_addr, AddressFamily::V4, NeighborOperations::Delete);
+
+                } catch (std::exception& e) {
+                    SRPLG_LOG_ERR(getModuleLogPrefix(), "Cannot delete address: %s", e.what());
+                    return sr::ErrorCode::OperationFailed;
+                }
+
                 break;
             default:
                 // other options not needed
@@ -962,18 +998,29 @@ sr::ErrorCode Ipv4NeighLinkLayerAddressModuleChangeCb::operator()(sr::Session se
         // apply interface changes to the netlink context received from module changes context
         for (auto& change : session.getChanges("/ietf-interfaces:interfaces/interface/ipv4/neighbor/link-layer-address")) {
 
-            const auto& value = change.node.asTerm().value();
-            const auto& name_value = std::get<std::string>(value);
+            const auto& lladdr_value = change.node.asTerm().value();
+            const auto& lladdr = std::get<std::string>(lladdr_value);
+
+            const auto& interface_name = srpc::extractListKeyFromXPath("interface", "name", change.node.path());
+            const auto& neigh_addr = srpc::extractListKeyFromXPath("neighbor", "ip", change.node.path());
+
+            // Netlink context
+            NlContext& nl_ctx = m_ctx->getNetlinkContext();
 
             switch (change.operation) {
-            case sysrepo::ChangeOperation::Created:
             case sysrepo::ChangeOperation::Modified:
+                SRPLG_LOG_DBG(getModuleLogPrefix(), "Link layer address: %s", lladdr.c_str());
 
-                SRPLG_LOG_DBG(getModuleLogPrefix(), "Link layer address: %s", name_value.c_str());
-                break;
-            case sysrepo::ChangeOperation::Deleted:
-                // delete interface with 'name' = 'name_value'
-                SRPLG_LOG_DBG(getModuleLogPrefix(), "Deleted Link layer address %s", name_value.c_str());
+                try {
+
+                    nl_ctx.refillCache();
+                    nl_ctx.neighbor(interface_name, neigh_addr, lladdr, AddressFamily::V4, NeighborOperations::Modify);
+
+                } catch (std::exception& e) {
+                    return sr::ErrorCode::CallbackFailed;
+                    SRPLG_LOG_ERR(getModuleLogPrefix(), e.what());
+                }
+
                 break;
             default:
                 // other options not needed
