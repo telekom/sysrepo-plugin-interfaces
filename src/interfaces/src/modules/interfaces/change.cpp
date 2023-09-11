@@ -47,8 +47,6 @@ sr::ErrorCode InterfaceNameModuleChangeCb::operator()(sr::Session session, uint3
     case sysrepo::Event::Change:
         // apply interface changes to the netlink context received from module changes context
         for (sysrepo::Change change : session.getChanges("/ietf-interfaces:interfaces/interface/name")) {
-            SRPLG_LOG_DBG(getModuleLogPrefix(), "Value of %s modified.", change.node.path().c_str());
-            SRPLG_LOG_DBG(getModuleLogPrefix(), "Value of %s modified.", change.node.schema().name().data());
 
             const auto& value = change.node.asTerm().value();
             const auto& name_value = std::get<std::string>(value);
@@ -58,6 +56,8 @@ sr::ErrorCode InterfaceNameModuleChangeCb::operator()(sr::Session session, uint3
             switch (change.operation) {
             case sysrepo::ChangeOperation::Created: {
                 // create a new interface using the NetlinkContext API
+                SRPLG_LOG_DBG("INTERFACE NAME", "CREATED");
+
                 try {
                     std::string type_str = change.node.findPath(type_xpath)->asTerm().valueStr().data();
                     nl_ctx.createInterface(name_value, type_str, false);
@@ -71,6 +71,7 @@ sr::ErrorCode InterfaceNameModuleChangeCb::operator()(sr::Session session, uint3
             }
             case sysrepo::ChangeOperation::Deleted:
                 // delete interface with 'name' = 'name_value'
+                SRPLG_LOG_DBG("INTERFACE NAME", "DELETED");
                 try {
                     nl_ctx.deleteInterface(name_value);
                 } catch (std::exception& e) {
@@ -124,8 +125,6 @@ sr::ErrorCode InterfaceDescriptionModuleChangeCb::operator()(sr::Session session
     case sysrepo::Event::Change:
         // apply interface changes to the netlink context received from module changes context
         for (auto& change : session.getChanges("/ietf-interfaces:interfaces/interface/description")) {
-            SRPLG_LOG_DBG(getModuleLogPrefix(), "Value of %s modified.", change.node.path().c_str());
-            SRPLG_LOG_DBG(getModuleLogPrefix(), "Value of %s modified.", change.node.schema().name().data());
 
             const auto& value = change.node.asTerm().value();
             const auto& name_value = std::get<std::string>(value);
@@ -193,8 +192,6 @@ sr::ErrorCode InterfaceTypeModuleChangeCb::operator()(sr::Session session, uint3
     case sysrepo::Event::Change:
         // apply interface changes to the netlink context received from module changes context
         for (sysrepo::Change change : session.getChanges("/ietf-interfaces:interfaces/interface/type")) {
-            SRPLG_LOG_DBG(getModuleLogPrefix(), "Value of %s modified.", change.node.path().c_str());
-            SRPLG_LOG_DBG(getModuleLogPrefix(), "Value of %s modified.", change.node.schema().name().data());
 
             const std::string& name_value = change.node.asTerm().valueStr().data();
 
@@ -250,10 +247,6 @@ sr::ErrorCode InterfaceEnabledModuleChangeCb::operator()(sr::Session session, ui
     case sysrepo::Event::Change:
         // apply enabled leaf changes to the netlink context for a specific interface
         for (sysrepo::Change change : session.getChanges("/ietf-interfaces:interfaces/interface/enabled")) {
-            SRPLG_LOG_DBG(getModuleLogPrefix(), "Value of %s modified.", change.node.path().c_str());
-            SRPLG_LOG_DBG(getModuleLogPrefix(), "Value of %s modified.", change.node.schema().name().data());
-            SRPLG_LOG_DBG(getModuleLogPrefix(), "\n%s", change.node.printStr(libyang::DataFormat::XML, libyang::PrintFlags::WithDefaultsAll)->data());
-
             const auto& value = change.node.asTerm().value();
             const bool enabled_value = std::get<bool>(value);
             const auto& interface_name = srpc::extractListKeyFromXPath("interface", "name", change.node.path());
@@ -275,8 +268,7 @@ sr::ErrorCode InterfaceEnabledModuleChangeCb::operator()(sr::Session session, ui
             case sysrepo::ChangeOperation::Created:
             case sysrepo::ChangeOperation::Modified:
                 // apply 'enabled_value' value for interface 'interface_name'
-                SRPLG_LOG_DBG(
-                    getModuleLogPrefix(), "Setting enabled value for interface %s to %s", interface_name.c_str(), enabled_value ? "true" : "false");
+                SRPLG_LOG_DBG("INTERFACE ENABLED", "CREATED/MODIFIED");
 
                 try {
                     if_ref.has_value() ? if_ref->setEnabled(enabled_value) : throw std::bad_optional_access();
@@ -336,8 +328,6 @@ sr::ErrorCode InterfaceLinkUpDownTrapEnableModuleChangeCb::operator()(sr::Sessio
     case sysrepo::Event::Change:
         // apply interface changes to the netlink context received from module changes context
         for (auto& change : session.getChanges("/ietf-interfaces:interfaces/interface/link-up-down-trap-enable")) {
-            SRPLG_LOG_DBG(getModuleLogPrefix(), "Value of %s modified.", change.node.path().c_str());
-            SRPLG_LOG_DBG(getModuleLogPrefix(), "Value of %s modified.", change.node.schema().name().data());
 
             const auto& value = change.node.asTerm().value();
             const auto& name_value = std::get<std::string>(value);
@@ -346,11 +336,9 @@ sr::ErrorCode InterfaceLinkUpDownTrapEnableModuleChangeCb::operator()(sr::Sessio
             case sysrepo::ChangeOperation::Created:
             case sysrepo::ChangeOperation::Modified:
 
-                SRPLG_LOG_DBG(getModuleLogPrefix(), "link-up-down-trap-enable: %s", name_value.c_str());
                 break;
             case sysrepo::ChangeOperation::Deleted:
                 // delete interface with 'name' = 'name_value'
-                SRPLG_LOG_DBG(getModuleLogPrefix(), "Deleted link-up-down-trap-enable %s", name_value.c_str());
                 break;
             default:
                 // other options not needed
@@ -405,18 +393,13 @@ sr::ErrorCode Ipv4EnabledModuleChangeCb::operator()(sr::Session session, uint32_
             auto& ctx = m_ctx->getNetlinkContext();
             const auto& interface_name = srpc::extractListKeyFromXPath("interface", "name", change.node.path());
 
-            auto interface_opt = ctx.getInterfaceByName(interface_name);
-
-            if (!interface_opt.has_value()) {
-                SRPLG_LOG_ERR(getModuleLogPrefix(), "Interface %s not found!", interface_name.c_str());
-                return sr::ErrorCode::NotFound;
-            }
-
             switch (change.operation) {
             case sysrepo::ChangeOperation::Created:
                 SRPLG_LOG_DBG(getModuleLogPrefix(), "Ipv4 enabled CREATED: %s", enabled_value ? "true" : "false");
                 break;
             case sysrepo::ChangeOperation::Modified: {
+                ctx.refillCache();
+                auto interface_opt = ctx.getInterfaceByName(interface_name);
 
                 SRPLG_LOG_DBG(getModuleLogPrefix(), "Ipv4 enabled MODIFIED: %s", enabled_value ? "true" : "false");
 
@@ -497,8 +480,6 @@ sr::ErrorCode Ipv4ForwardingModuleChangeCb::operator()(sr::Session session, uint
     case sysrepo::Event::Change:
         // apply interface changes to the netlink context received from module changes context
         for (auto& change : session.getChanges("/ietf-interfaces:interfaces/interface/ipv4/forwarding")) {
-            SRPLG_LOG_DBG(getModuleLogPrefix(), "Value of %s modified.", change.node.path().c_str());
-            SRPLG_LOG_DBG(getModuleLogPrefix(), "Value of %s modified.", change.node.schema().name().data());
 
             const auto& value = change.node.asTerm().value();
             const auto& name_value = std::get<bool>(value);
@@ -554,8 +535,6 @@ sr::ErrorCode Ipv4MtuModuleChangeCb::operator()(sr::Session session, uint32_t su
     case sysrepo::Event::Change:
         // apply interface changes to the netlink context received from module changes context
         for (auto& change : session.getChanges("/ietf-interfaces:interfaces/interface/ipv4/mtu")) {
-            SRPLG_LOG_DBG(getModuleLogPrefix(), "Value of %s modified.", change.node.path().c_str());
-            SRPLG_LOG_DBG(getModuleLogPrefix(), "Value of %s modified.", change.node.schema().name().data());
 
             const auto& value = change.node.asTerm().value();
             const auto& mtu_value = std::get<uint16_t>(value);
@@ -571,8 +550,7 @@ sr::ErrorCode Ipv4MtuModuleChangeCb::operator()(sr::Session session, uint32_t su
             case sysrepo::ChangeOperation::Created:
             case sysrepo::ChangeOperation::Modified:
 
-                SRPLG_LOG_DBG(getModuleLogPrefix(), "Mtu: %d", mtu_value);
-
+                SRPLG_LOG_DBG("INTERFACE IPV4 MTU", "CREATED/MODIFIED");
                 try {
                     if_ref ? if_ref->setMtu(mtu_value) : throw std::bad_optional_access();
                 } catch (std::exception& e) {
@@ -581,8 +559,8 @@ sr::ErrorCode Ipv4MtuModuleChangeCb::operator()(sr::Session session, uint32_t su
 
                 break;
             case sysrepo::ChangeOperation::Deleted:
+                SRPLG_LOG_DBG("INTERFACE IPV4 MTU", "DELETED");
 
-                SRPLG_LOG_DBG(getModuleLogPrefix(), "Deleted Mtu %d", mtu_value);
                 break;
             default:
                 // other options not needed
@@ -627,39 +605,23 @@ sr::ErrorCode Ipv4AddrIpModuleChangeCb::operator()(sr::Session session, uint32_t
     case sysrepo::Event::Change:
         // apply interface changes to the netlink context received from module changes context
         for (sysrepo::Change change : session.getChanges("/ietf-interfaces:interfaces/interface/ipv4/address/ip")) {
-            SRPLG_LOG_DBG(getModuleLogPrefix(), "Value of %s modified.", change.node.path().c_str());
-            SRPLG_LOG_DBG(getModuleLogPrefix(), "Value of %s modified.", change.node.schema().name().data());
 
             const auto& value = change.node.asTerm().value();
             const auto& address_value = std::get<std::string>(value);
             const auto& interface_name = srpc::extractListKeyFromXPath("interface", "name", change.node.path());
 
-            const auto& enabled_node = session.getData("/ietf-interfaces:interfaces/interface[name='" + interface_name + "']/ietf-ip:ipv4");
-            const auto& enabled_leaf
-                = enabled_node->findPath("/ietf-interfaces:interfaces/interface[name='" + interface_name + "']/ietf-ip:ipv4/enabled");
-
-            if (!enabled_leaf.has_value()) {
-                SRPLG_LOG_ERR(getModuleLogPrefix(), "Cannot find ipv4/enabled node");
-                return sr::ErrorCode::NotFound;
-            }
-
-            bool ipv4_enabled = std::get<bool>(enabled_leaf->asTerm().value());
-
-            if (!ipv4_enabled) {
-                SRPLG_LOG_ERR(getModuleLogPrefix(), "Cannot modify ipv4 address/neighbor, first enable ipv4!");
-                return sr::ErrorCode::NotFound;
-            }
+            auto& ctx = m_ctx->getNetlinkContext();
 
             std::string prefix_len_xpath = "/ietf-interfaces:interfaces/interface[name='" + interface_name + "']/ietf-ip:ipv4/address[ip='"
                 + address_value + "']/prefix-length";
 
-            auto& ctx = m_ctx->getNetlinkContext();
-            ctx.refillCache();
-
             switch (change.operation) {
             case sysrepo::ChangeOperation::Created:
-
+                SRPLG_LOG_DBG("INTERFACE IPV4 ADDR IP", "CREATED on if %s", interface_name.c_str());
                 try {
+                    ctx.refillCache();
+                    const auto& interface_opt = ctx.getInterfaceByName(interface_name);
+
                     const auto& prefix_len_val = change.node.findPath(prefix_len_xpath)->asTerm().value();
                     int prefix_len = std::get<uint8_t>(prefix_len_val);
 
@@ -672,8 +634,17 @@ sr::ErrorCode Ipv4AddrIpModuleChangeCb::operator()(sr::Session session, uint32_t
 
                 break;
             case sysrepo::ChangeOperation::Deleted:
-
+                SRPLG_LOG_DBG("INTERFACE IPV4 ADDR IP", "DELETED on if %s", interface_name.c_str());
                 try {
+                    ctx.refillCache();
+                    const auto& interface_opt = ctx.getInterfaceByName(interface_name);
+
+                    // if interface does not exist, its been deleted previously in <interface><name> node
+                    if (!interface_opt.has_value()) {
+                        SRPLG_LOG_WRN(getModuleLogPrefix(), "Interface %s is allready deleted!", interface_name.c_str());
+                        break;
+                    };
+
                     const auto& prefix_len_val = change.node.findPath(prefix_len_xpath)->asTerm().value();
                     int prefix_len = std::get<uint8_t>(prefix_len_val);
 
@@ -743,6 +714,7 @@ sr::ErrorCode Ipv4AddrPrefixLengthModuleChangeCb::operator()(sr::Session session
 
             switch (change.operation) {
             case sysrepo::ChangeOperation::Modified:
+                SRPLG_LOG_DBG("INTERFACE IPV4 ADDR PREFIX", "MODIFIED");
                 // prefix len is mandatory, can only be modified
                 try {
                     nl_ctx.refillCache();
@@ -816,8 +788,6 @@ sr::ErrorCode Ipv4AddrNetmaskModuleChangeCb::operator()(sr::Session session, uin
     case sysrepo::Event::Change:
         // apply interface changes to the netlink context received from module changes context
         for (auto& change : session.getChanges("/ietf-interfaces:interfaces/interface/ipv4/address/netmask")) {
-            SRPLG_LOG_DBG(getModuleLogPrefix(), "Value of %s modified.", change.node.path().c_str());
-            SRPLG_LOG_DBG(getModuleLogPrefix(), "Value of %s modified.", change.node.schema().name().data());
 
             const auto& value = change.node.asTerm().value();
             const auto& name_value = std::get<std::string>(value);
@@ -876,9 +846,7 @@ sr::ErrorCode Ipv4AddrModuleChangeCb::operator()(sr::Session session, uint32_t s
     switch (event) {
     case sysrepo::Event::Change:
         // apply interface changes to the netlink context received from module changes context
-        for (sysrepo::Change change : session.getChanges("/ietf-interfaces:interfaces/interface/ipv4/address//*")) {
-
-            SRPLG_LOG_INF("TEST IPV4 ", "Changes: %s", change.node.schema().name().data());
+        for (sysrepo::Change change : session.getChanges("/ietf-interfaces:interfaces/interface/ipv4/address")) {
 
             switch (change.operation) {
             case sysrepo::ChangeOperation::Created:
@@ -934,8 +902,6 @@ sr::ErrorCode Ipv4NeighIpModuleChangeCb::operator()(sr::Session session, uint32_
     case sysrepo::Event::Change:
         // apply interface changes to the netlink context received from module changes context
         for (auto& change : session.getChanges("/ietf-interfaces:interfaces/interface/ipv4/neighbor/ip")) {
-            SRPLG_LOG_DBG(getModuleLogPrefix(), "Value of %s modified.", change.node.path().c_str());
-            SRPLG_LOG_DBG(getModuleLogPrefix(), "Value of %s modified.", change.node.schema().name().data());
 
             const auto& value = change.node.asTerm().value();
             const auto& name_value = std::get<std::string>(value);
@@ -995,8 +961,6 @@ sr::ErrorCode Ipv4NeighLinkLayerAddressModuleChangeCb::operator()(sr::Session se
     case sysrepo::Event::Change:
         // apply interface changes to the netlink context received from module changes context
         for (auto& change : session.getChanges("/ietf-interfaces:interfaces/interface/ipv4/neighbor/link-layer-address")) {
-            SRPLG_LOG_DBG(getModuleLogPrefix(), "Value of %s modified.", change.node.path().c_str());
-            SRPLG_LOG_DBG(getModuleLogPrefix(), "Value of %s modified.", change.node.schema().name().data());
 
             const auto& value = change.node.asTerm().value();
             const auto& name_value = std::get<std::string>(value);
@@ -1114,8 +1078,6 @@ sr::ErrorCode Ipv6EnabledModuleChangeCb::operator()(sr::Session session, uint32_
     case sysrepo::Event::Change:
         // apply interface changes to the netlink context received from module changes context
         for (auto& change : session.getChanges("/ietf-interfaces:interfaces/interface/ipv6/enabled")) {
-            SRPLG_LOG_DBG(getModuleLogPrefix(), "Value of %s modified.", change.node.path().c_str());
-            SRPLG_LOG_DBG(getModuleLogPrefix(), "Value of %s modified.", change.node.schema().name().data());
 
             const auto& value = change.node.asTerm().value();
             const auto& name_value = std::get<bool>(value);
@@ -1173,8 +1135,6 @@ sr::ErrorCode Ipv6ForwardingModuleChangeCb::operator()(sr::Session session, uint
     case sysrepo::Event::Change:
         // apply interface changes to the netlink context received from module changes context
         for (auto& change : session.getChanges("/ietf-interfaces:interfaces/interface/ipv6/forwarding")) {
-            SRPLG_LOG_DBG(getModuleLogPrefix(), "Value of %s modified.", change.node.path().c_str());
-            SRPLG_LOG_DBG(getModuleLogPrefix(), "Value of %s modified.", change.node.schema().name().data());
 
             const auto& value = change.node.asTerm().value();
             const auto& name_value = std::get<bool>(value);
@@ -1232,8 +1192,6 @@ sr::ErrorCode Ipv6MtuModuleChangeCb::operator()(sr::Session session, uint32_t su
     case sysrepo::Event::Change:
         // apply interface changes to the netlink context received from module changes context
         for (auto& change : session.getChanges("/ietf-interfaces:interfaces/interface/ipv6/mtu")) {
-            SRPLG_LOG_DBG(getModuleLogPrefix(), "Value of %s modified.", change.node.path().c_str());
-            SRPLG_LOG_DBG(getModuleLogPrefix(), "Value of %s modified.", change.node.schema().name().data());
 
             const auto& value = change.node.asTerm().value();
             const auto& name_value = std::get<uint32_t>(value);
@@ -1292,8 +1250,6 @@ sr::ErrorCode Ipv6AddrIpModuleChangeCb::operator()(sr::Session session, uint32_t
     case sysrepo::Event::Change:
         // apply interface changes to the netlink context received from module changes context
         for (auto& change : session.getChanges("/ietf-interfaces:interfaces/interface/ipv6/address/ip")) {
-            SRPLG_LOG_DBG(getModuleLogPrefix(), "Value of %s modified.", change.node.path().c_str());
-            SRPLG_LOG_DBG(getModuleLogPrefix(), "Value of %s modified.", change.node.schema().name().data());
 
             const auto& value = change.node.asTerm().value();
             const auto& name_value = std::get<std::string>(value);
@@ -1353,8 +1309,6 @@ sr::ErrorCode Ipv6AddrPrefixLengthModuleChangeCb::operator()(sr::Session session
     case sysrepo::Event::Change:
         // apply interface changes to the netlink context received from module changes context
         for (auto& change : session.getChanges("/ietf-interfaces:interfaces/interface/ipv6/address/prefix-length")) {
-            SRPLG_LOG_DBG(getModuleLogPrefix(), "Value of %s modified.", change.node.path().c_str());
-            SRPLG_LOG_DBG(getModuleLogPrefix(), "Value of %s modified.", change.node.schema().name().data());
 
             const auto& value = change.node.asTerm().value();
             const auto& name_value = std::get<uint8_t>(value);
@@ -1443,8 +1397,6 @@ sr::ErrorCode Ipv6NeighIpModuleChangeCb::operator()(sr::Session session, uint32_
     case sysrepo::Event::Change:
         // apply interface changes to the netlink context received from module changes context
         for (auto& change : session.getChanges("/ietf-interfaces:interfaces/interface/ipv6/neighbor/ip")) {
-            SRPLG_LOG_DBG(getModuleLogPrefix(), "Value of %s modified.", change.node.path().c_str());
-            SRPLG_LOG_DBG(getModuleLogPrefix(), "Value of %s modified.", change.node.schema().name().data());
 
             const auto& value = change.node.asTerm().value();
             const auto& name_value = std::get<std::string>(value);
@@ -1504,8 +1456,6 @@ sr::ErrorCode Ipv6NeighLinkLayerAddressModuleChangeCb::operator()(sr::Session se
     case sysrepo::Event::Change:
         // apply interface changes to the netlink context received from module changes context
         for (auto& change : session.getChanges("/ietf-interfaces:interfaces/interface/ipv6/neighbor/link-layer-address")) {
-            SRPLG_LOG_DBG(getModuleLogPrefix(), "Value of %s modified.", change.node.path().c_str());
-            SRPLG_LOG_DBG(getModuleLogPrefix(), "Value of %s modified.", change.node.schema().name().data());
 
             const auto& value = change.node.asTerm().value();
             const auto& name_value = std::get<std::string>(value);
@@ -1597,8 +1547,6 @@ sr::ErrorCode Ipv6DupAddrDetectTransmitsModuleChangeCb::operator()(sr::Session s
     case sysrepo::Event::Change:
         // apply interface changes to the netlink context received from module changes context
         for (auto& change : session.getChanges("/ietf-interfaces:interfaces/interface/ipv6/dup-addr-detect-transmits")) {
-            SRPLG_LOG_DBG(getModuleLogPrefix(), "Value of %s modified.", change.node.path().c_str());
-            SRPLG_LOG_DBG(getModuleLogPrefix(), "Value of %s modified.", change.node.schema().name().data());
 
             const auto& value = change.node.asTerm().value();
             const auto& name_value = std::get<uint32_t>(value);
@@ -1659,8 +1607,6 @@ sr::ErrorCode Ipv6AutoconfCreateGlobalAddressesModuleChangeCb::operator()(sr::Se
     case sysrepo::Event::Change:
         // apply interface changes to the netlink context received from module changes context
         for (auto& change : session.getChanges("/ietf-interfaces:interfaces/interface/ipv6/autoconf/create-global-addresses")) {
-            SRPLG_LOG_DBG(getModuleLogPrefix(), "Value of %s modified.", change.node.path().c_str());
-            SRPLG_LOG_DBG(getModuleLogPrefix(), "Value of %s modified.", change.node.schema().name().data());
 
             const auto& value = change.node.asTerm().value();
             const auto& name_value = std::get<bool>(value);
@@ -1724,8 +1670,6 @@ sr::ErrorCode Ipv6AutoconfCreateTemporaryAddressesModuleChangeCb::operator()(sr:
     case sysrepo::Event::Change:
         // apply interface changes to the netlink context received from module changes context
         for (auto& change : session.getChanges("/ietf-interfaces:interfaces/interface/ipv6/autoconf/create-temporary-addresses")) {
-            SRPLG_LOG_DBG(getModuleLogPrefix(), "Value of %s modified.", change.node.path().c_str());
-            SRPLG_LOG_DBG(getModuleLogPrefix(), "Value of %s modified.", change.node.schema().name().data());
 
             const auto& value = change.node.asTerm().value();
             const auto& name_value = std::get<bool>(value);
@@ -1788,8 +1732,6 @@ sr::ErrorCode Ipv6AutoconfTemporaryValidLifetimeModuleChangeCb::operator()(sr::S
     case sysrepo::Event::Change:
         // apply interface changes to the netlink context received from module changes context
         for (auto& change : session.getChanges("/ietf-interfaces:interfaces/interface/ipv6/autoconf/temporary-valid-lifetime")) {
-            SRPLG_LOG_DBG(getModuleLogPrefix(), "Value of %s modified.", change.node.path().c_str());
-            SRPLG_LOG_DBG(getModuleLogPrefix(), "Value of %s modified.", change.node.schema().name().data());
 
             const auto& value = change.node.asTerm().value();
             const auto& name_value = std::get<uint32_t>(value);
@@ -1852,8 +1794,6 @@ sr::ErrorCode Ipv6AutoconfTemporaryPreferredLifetimeModuleChangeCb::operator()(s
     case sysrepo::Event::Change:
         // apply interface changes to the netlink context received from module changes context
         for (auto& change : session.getChanges("/ietf-interfaces:interfaces/interface/ipv6/autoconf/temporary-preferred-lifetime")) {
-            SRPLG_LOG_DBG(getModuleLogPrefix(), "Value of %s modified.", change.node.path().c_str());
-            SRPLG_LOG_DBG(getModuleLogPrefix(), "Value of %s modified.", change.node.schema().name().data());
 
             const auto& value = change.node.asTerm().value();
             const auto& name_value = std::get<uint32_t>(value);
