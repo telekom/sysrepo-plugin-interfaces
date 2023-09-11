@@ -1506,17 +1506,52 @@ sr::ErrorCode Ipv6NeighIpModuleChangeCb::operator()(sr::Session session, uint32_
         for (auto& change : session.getChanges("/ietf-interfaces:interfaces/interface/ipv6/neighbor/ip")) {
 
             const auto& value = change.node.asTerm().value();
-            const auto& name_value = std::get<std::string>(value);
+            const auto& address_value = std::get<std::string>(value);
+            const auto& interface_name = srpc::extractListKeyFromXPath("interface", "name", change.node.path());
+
+            auto& ctx = m_ctx->getNetlinkContext();
+
+            std::string lladdr_xpath = "/ietf-interfaces:interfaces/interface[name='" + interface_name + "']/ietf-ip:ipv6/neighbor[ip='"
+                + address_value + "']/link-layer-address";
 
             switch (change.operation) {
             case sysrepo::ChangeOperation::Created:
-            case sysrepo::ChangeOperation::Modified:
 
-                SRPLG_LOG_DBG(getModuleLogPrefix(), "Neighbor ip: %s", name_value.c_str());
+                try {
+                    ctx.refillCache();
+                    const auto& interface_opt = ctx.getInterfaceByName(interface_name);
+
+                    const auto& lladdr_val = change.node.findPath(lladdr_xpath)->asTerm().value();
+                    std::string ll_addr = std::get<std::string>(lladdr_val);
+
+                    ctx.neighbor(interface_name, address_value, ll_addr, AddressFamily::V6, NeighborOperations::Create);
+
+                } catch (std::exception& e) {
+                    SRPLG_LOG_ERR(getModuleLogPrefix(), "Cannot create address: %s", e.what());
+                    return sr::ErrorCode::OperationFailed;
+                }
+
                 break;
             case sysrepo::ChangeOperation::Deleted:
-                // delete interface with 'name' = 'name_value'
-                SRPLG_LOG_DBG(getModuleLogPrefix(), "Deleted Neighbor ip: %s", name_value.c_str());
+                try {
+                    ctx.refillCache();
+                    const auto& interface_opt = ctx.getInterfaceByName(interface_name);
+
+                    // if interface does not exist, its been deleted previously in <interface><name> node
+                    if (!interface_opt.has_value()) {
+                        SRPLG_LOG_WRN(getModuleLogPrefix(), "Interface %s is allready deleted!", interface_name.c_str());
+                        break;
+                    };
+
+                    const auto& lladdr_val = change.node.findPath(lladdr_xpath)->asTerm().value();
+                    std::string ll_addr = std::get<std::string>(lladdr_val);
+
+                    ctx.neighbor(interface_name, address_value, ll_addr, AddressFamily::V6, NeighborOperations::Delete);
+
+                } catch (std::exception& e) {
+                    SRPLG_LOG_ERR(getModuleLogPrefix(), "Cannot delete address: %s", e.what());
+                    return sr::ErrorCode::OperationFailed;
+                }
                 break;
             default:
                 // other options not needed
