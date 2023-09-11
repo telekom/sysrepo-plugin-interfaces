@@ -1599,18 +1599,29 @@ sr::ErrorCode Ipv6NeighLinkLayerAddressModuleChangeCb::operator()(sr::Session se
         // apply interface changes to the netlink context received from module changes context
         for (auto& change : session.getChanges("/ietf-interfaces:interfaces/interface/ipv6/neighbor/link-layer-address")) {
 
-            const auto& value = change.node.asTerm().value();
-            const auto& name_value = std::get<std::string>(value);
+            const auto& lladdr_value = change.node.asTerm().value();
+            const auto& lladdr = std::get<std::string>(lladdr_value);
+
+            const auto& interface_name = srpc::extractListKeyFromXPath("interface", "name", change.node.path());
+            const auto& neigh_addr = srpc::extractListKeyFromXPath("neighbor", "ip", change.node.path());
+
+            // Netlink context
+            NlContext& nl_ctx = m_ctx->getNetlinkContext();
 
             switch (change.operation) {
-            case sysrepo::ChangeOperation::Created:
             case sysrepo::ChangeOperation::Modified:
+                SRPLG_LOG_DBG(getModuleLogPrefix(), "Link layer address: %s", lladdr.c_str());
 
-                SRPLG_LOG_DBG(getModuleLogPrefix(), "Link layer address: %s", name_value.c_str());
-                break;
-            case sysrepo::ChangeOperation::Deleted:
-                // delete interface with 'name' = 'name_value'
-                SRPLG_LOG_DBG(getModuleLogPrefix(), "Deleted link layer address: %s", name_value.c_str());
+                try {
+
+                    nl_ctx.refillCache();
+                    nl_ctx.neighbor(interface_name, neigh_addr, lladdr, AddressFamily::V6, NeighborOperations::Modify);
+
+                } catch (std::exception& e) {
+                    return sr::ErrorCode::CallbackFailed;
+                    SRPLG_LOG_ERR(getModuleLogPrefix(), e.what());
+                }
+
                 break;
             default:
                 // other options not needed
