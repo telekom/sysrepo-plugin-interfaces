@@ -390,10 +390,8 @@ sr::ErrorCode Ipv4EnabledModuleChangeCb::operator()(sr::Session session, uint32_
 
             switch (change.operation) {
             case sysrepo::ChangeOperation::Created:
-                SRPLG_LOG_DBG("ENABLED", " CREATED");
                 break;
             case sysrepo::ChangeOperation::Modified: {
-                SRPLG_LOG_DBG("ENABLED", " MODIFIED");
                 ctx.refillCache();
                 auto interface_opt = ctx.getInterfaceByName(interface_name);
 
@@ -425,7 +423,6 @@ sr::ErrorCode Ipv4EnabledModuleChangeCb::operator()(sr::Session session, uint32_
                 break;
             }
             case sysrepo::ChangeOperation::Deleted:
-                SRPLG_LOG_DBG("ENABLED", " DELETED");
                 break;
             default:
                 // other options not needed
@@ -1135,17 +1132,48 @@ sr::ErrorCode Ipv6EnabledModuleChangeCb::operator()(sr::Session session, uint32_
         for (auto& change : session.getChanges("/ietf-interfaces:interfaces/interface/ipv6/enabled")) {
 
             const auto& value = change.node.asTerm().value();
-            const auto& name_value = std::get<bool>(value);
+            const auto& enabled_value = std::get<bool>(value);
+
+            auto& ctx = m_ctx->getNetlinkContext();
+            const auto& interface_name = srpc::extractListKeyFromXPath("interface", "name", change.node.path());
 
             switch (change.operation) {
             case sysrepo::ChangeOperation::Created:
-            case sysrepo::ChangeOperation::Modified:
-
-                SRPLG_LOG_DBG(getModuleLogPrefix(), "Ipv6 enabled: %s", name_value ? "true" : "false");
                 break;
+            case sysrepo::ChangeOperation::Modified: {
+                SRPLG_LOG_DBG(getModuleLogPrefix(), "Ipv6 enabled: %s", enabled_value ? "true" : "false");
+                ctx.refillCache();
+                auto interface_opt = ctx.getInterfaceByName(interface_name);
+
+                auto data = session.getData("/ietf-interfaces:interfaces/interface/ietf-ip:ipv6");
+                if (!data.has_value())
+                    return sr::ErrorCode::NotFound;
+
+                auto leaf = data->findXPath("/ietf-interfaces:interfaces/interface[name='" + interface_name + "']/ietf-ip:ipv6/address");
+
+                for (libyang::DataNode&& address_node : leaf) {
+                    std::string address = "";
+                    int prefix_len = 0;
+
+                    for (libyang::DataNode&& child : address_node.childrenDfs()) {
+                        if (std::string(child.schema().name().data()).compare("prefix-length") == 0) {
+                            prefix_len = std::stoi(child.asTerm().valueStr().data());
+                        } else if (std::string(child.schema().name().data()).compare("ip") == 0) {
+                            address = child.asTerm().valueStr().data();
+                        }
+                    }
+
+                    if (enabled_value) {
+                        ctx.createAddress(interface_name, address, prefix_len, AddressFamily::V6);
+                    } else {
+                        ctx.deleteAddress(interface_name, address, prefix_len, AddressFamily::V6);
+                    }
+                }
+                break;
+            }
             case sysrepo::ChangeOperation::Deleted:
                 // delete interface with 'name' = 'name_value'
-                SRPLG_LOG_DBG(getModuleLogPrefix(), "Deleted Ipv6 enabled %s", name_value ? "true" : "false");
+                SRPLG_LOG_DBG(getModuleLogPrefix(), "Deleted Ipv6 enabled %s", enabled_value ? "true" : "false");
                 break;
             default:
                 // other options not needed
@@ -1314,6 +1342,24 @@ sr::ErrorCode Ipv6AddrIpModuleChangeCb::operator()(sr::Session session, uint32_t
             std::string prefix_len_xpath = "/ietf-interfaces:interfaces/interface[name='" + interface_name + "']/ietf-ip:ipv6/address[ip='"
                 + address_value + "']/prefix-length";
 
+            // Enabled node from running DS
+
+            // As default value
+            bool enabled_running_ds = true;
+            const auto& enabled_data = session.getData("/ietf-interfaces:interfaces/interface[name='" + interface_name + "']/ietf-ip:ipv6");
+
+            if (!enabled_data.has_value()) {
+                enabled_running_ds = false;
+            } else {
+                const auto& enabled_opt
+                    = enabled_data->findPath("/ietf-interfaces:interfaces/interface[name='" + interface_name + "']/ietf-ip:ipv6/enabled");
+                if (!enabled_data.has_value()) {
+                    enabled_running_ds = false;
+                } else {
+                    enabled_running_ds = std::get<bool>(enabled_opt->asTerm().value());
+                }
+            }
+
             switch (change.operation) {
             case sysrepo::ChangeOperation::Created:
 
@@ -1324,7 +1370,9 @@ sr::ErrorCode Ipv6AddrIpModuleChangeCb::operator()(sr::Session session, uint32_t
                     const auto& prefix_len_val = change.node.findPath(prefix_len_xpath)->asTerm().value();
                     int prefix_len = std::get<uint8_t>(prefix_len_val);
 
-                    ctx.createAddress(interface_name, address_value, prefix_len, AddressFamily::V6);
+                    if (enabled_running_ds) {
+                        ctx.createAddress(interface_name, address_value, prefix_len, AddressFamily::V6);
+                    }
 
                 } catch (std::exception& e) {
                     SRPLG_LOG_ERR(getModuleLogPrefix(), "Cannot create address: %s", e.what());
@@ -1345,7 +1393,9 @@ sr::ErrorCode Ipv6AddrIpModuleChangeCb::operator()(sr::Session session, uint32_t
                     const auto& prefix_len_val = change.node.findPath(prefix_len_xpath)->asTerm().value();
                     int prefix_len = std::get<uint8_t>(prefix_len_val);
 
-                    ctx.deleteAddress(interface_name, address_value, prefix_len, AddressFamily::V6);
+                    if (enabled_running_ds) {
+                        ctx.deleteAddress(interface_name, address_value, prefix_len, AddressFamily::V6);
+                    }
 
                 } catch (std::exception& e) {
                     SRPLG_LOG_ERR(getModuleLogPrefix(), "Cannot delete address: %s", e.what());
