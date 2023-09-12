@@ -470,12 +470,29 @@ sr::ErrorCode Ipv4ForwardingModuleChangeCb::operator()(sr::Session session, uint
         for (auto& change : session.getChanges("/ietf-interfaces:interfaces/interface/ipv4/forwarding")) {
 
             const auto& value = change.node.asTerm().value();
-            const auto& name_value = std::get<bool>(value);
+            const auto& forwarding_value = std::get<bool>(value);
+
+            // Netlink context
+            NlContext& ctx = m_ctx->getNetlinkContext();
+            const auto& interface_name = srpc::extractListKeyFromXPath("interface", "name", change.node.path());
+            // get interface reference
+            std::optional<InterfaceRef> if_ref = ctx.getInterfaceByName(interface_name);
+
+            if (!if_ref.has_value()) {
+                SRPLG_LOG_ERR(getModuleLogPrefix(), "Interface %s not found!", interface_name.c_str());
+                return sr::ErrorCode::OperationFailed;
+            };
 
             switch (change.operation) {
             case sysrepo::ChangeOperation::Created:
-                break;
             case sysrepo::ChangeOperation::Modified: {
+                
+                try {
+                    if_ref->setForwarding(forwarding_value,AddressFamily::V4);
+                } catch (std::exception& e) {
+                    SRPLG_LOG_ERR(getModuleLogPrefix(), e.what());
+                }
+
                 break;
             }
             case sysrepo::ChangeOperation::Deleted:

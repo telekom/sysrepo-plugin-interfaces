@@ -106,6 +106,10 @@ public:
      */
     void setMtu(uint16_t mtu);
 
+    /**
+     * @brief Enable/Dissable forwarding of an interface.
+     */
+    void setForwarding(bool enabled, AddressFamily fam);
 
 private:
     using RtnlLink = struct rtnl_link; ///< Route link type alias.
