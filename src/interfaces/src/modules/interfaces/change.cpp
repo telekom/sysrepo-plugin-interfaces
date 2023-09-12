@@ -56,8 +56,6 @@ sr::ErrorCode InterfaceNameModuleChangeCb::operator()(sr::Session session, uint3
             switch (change.operation) {
             case sysrepo::ChangeOperation::Created: {
                 // create a new interface using the NetlinkContext API
-                SRPLG_LOG_DBG("INTERFACE NAME", "CREATED");
-
                 try {
                     std::string type_str = change.node.findPath(type_xpath)->asTerm().valueStr().data();
                     nl_ctx.createInterface(name_value, type_str, false);
@@ -66,12 +64,11 @@ sr::ErrorCode InterfaceNameModuleChangeCb::operator()(sr::Session session, uint3
                     return sr::ErrorCode::OperationFailed;
                 }
 
-                SRPLG_LOG_DBG(getModuleLogPrefix(), "Creating interface %s", name_value.c_str());
+                SRPLG_LOG_DBG(getModuleLogPrefix(), "Created interface %s", name_value.c_str());
                 break;
             }
             case sysrepo::ChangeOperation::Deleted:
                 // delete interface with 'name' = 'name_value'
-                SRPLG_LOG_DBG("INTERFACE NAME", "DELETED");
                 try {
                     nl_ctx.deleteInterface(name_value);
                 } catch (std::exception& e) {
@@ -79,7 +76,7 @@ sr::ErrorCode InterfaceNameModuleChangeCb::operator()(sr::Session session, uint3
                     return sr::ErrorCode::OperationFailed;
                 }
 
-                SRPLG_LOG_DBG(getModuleLogPrefix(), "Deleting interface %s", name_value.c_str());
+                SRPLG_LOG_DBG(getModuleLogPrefix(), "Deleted interface %s", name_value.c_str());
                 break;
             default:
                 // other options not needed
@@ -268,8 +265,6 @@ sr::ErrorCode InterfaceEnabledModuleChangeCb::operator()(sr::Session session, ui
             case sysrepo::ChangeOperation::Created:
             case sysrepo::ChangeOperation::Modified:
                 // apply 'enabled_value' value for interface 'interface_name'
-                SRPLG_LOG_DBG("INTERFACE ENABLED", "CREATED/MODIFIED");
-
                 try {
                     if_ref.has_value() ? if_ref->setEnabled(enabled_value) : throw std::bad_optional_access();
                 } catch (std::exception& e) {
@@ -395,13 +390,10 @@ sr::ErrorCode Ipv4EnabledModuleChangeCb::operator()(sr::Session session, uint32_
 
             switch (change.operation) {
             case sysrepo::ChangeOperation::Created:
-                SRPLG_LOG_DBG(getModuleLogPrefix(), "Ipv4 enabled CREATED: %s", enabled_value ? "true" : "false");
                 break;
             case sysrepo::ChangeOperation::Modified: {
                 ctx.refillCache();
                 auto interface_opt = ctx.getInterfaceByName(interface_name);
-
-                SRPLG_LOG_DBG(getModuleLogPrefix(), "Ipv4 enabled MODIFIED: %s", enabled_value ? "true" : "false");
 
                 auto data = session.getData("/ietf-interfaces:interfaces/interface/ietf-ip:ipv4");
                 if (!data.has_value())
@@ -426,15 +418,11 @@ sr::ErrorCode Ipv4EnabledModuleChangeCb::operator()(sr::Session session, uint32_
                     } else {
                         ctx.deleteAddress(interface_name, address, prefix_len, AddressFamily::V4);
                     }
-
-                    SRPLG_LOG_DBG("TEST NODES: ", "ADDR: %s, prefix: %d", address.c_str(), prefix_len);
                 }
 
                 break;
             }
             case sysrepo::ChangeOperation::Deleted:
-                // delete interface with 'name' = 'name_value'
-                SRPLG_LOG_DBG(getModuleLogPrefix(), "Ipv4 enabled DELETED: %s", enabled_value ? "true" : "false");
                 break;
             default:
                 // other options not needed
@@ -549,8 +537,6 @@ sr::ErrorCode Ipv4MtuModuleChangeCb::operator()(sr::Session session, uint32_t su
             switch (change.operation) {
             case sysrepo::ChangeOperation::Created:
             case sysrepo::ChangeOperation::Modified:
-
-                SRPLG_LOG_DBG("INTERFACE IPV4 MTU", "CREATED/MODIFIED");
                 try {
                     if_ref ? if_ref->setMtu(mtu_value) : throw std::bad_optional_access();
                 } catch (std::exception& e) {
@@ -559,8 +545,6 @@ sr::ErrorCode Ipv4MtuModuleChangeCb::operator()(sr::Session session, uint32_t su
 
                 break;
             case sysrepo::ChangeOperation::Deleted:
-                SRPLG_LOG_DBG("INTERFACE IPV4 MTU", "DELETED");
-
                 break;
             default:
                 // other options not needed
@@ -617,7 +601,7 @@ sr::ErrorCode Ipv4AddrIpModuleChangeCb::operator()(sr::Session session, uint32_t
 
             switch (change.operation) {
             case sysrepo::ChangeOperation::Created:
-                SRPLG_LOG_DBG("INTERFACE IPV4 ADDR IP", "CREATED on if %s", interface_name.c_str());
+               
                 try {
                     ctx.refillCache();
                     const auto& interface_opt = ctx.getInterfaceByName(interface_name);
@@ -634,7 +618,7 @@ sr::ErrorCode Ipv4AddrIpModuleChangeCb::operator()(sr::Session session, uint32_t
 
                 break;
             case sysrepo::ChangeOperation::Deleted:
-                SRPLG_LOG_DBG("INTERFACE IPV4 ADDR IP", "DELETED on if %s", interface_name.c_str());
+               
                 try {
                     ctx.refillCache();
                     const auto& interface_opt = ctx.getInterfaceByName(interface_name);
@@ -1250,7 +1234,6 @@ sr::ErrorCode Ipv6MtuModuleChangeCb::operator()(sr::Session session, uint32_t su
                 SRPLG_LOG_DBG(getModuleLogPrefix(), "Mtu: %d", name_value);
                 break;
             case sysrepo::ChangeOperation::Deleted:
-                // delete interface with 'name' = 'name_value'
                 SRPLG_LOG_DBG(getModuleLogPrefix(), "Deleted Mtu: %d", name_value);
                 break;
             default:
