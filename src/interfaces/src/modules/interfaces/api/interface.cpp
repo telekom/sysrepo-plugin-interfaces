@@ -6,6 +6,7 @@
 #include <memory>
 #include <stdexcept>
 #include <linux/if.h>
+#include <fstream>
 
 /**
  * @brief Private constructor accessible only to netlink context. Stores a reference to a link for later access of link members.
@@ -73,7 +74,6 @@ std::uint8_t InterfaceRef::getLinkMode() const { return rtnl_link_get_linkmode(m
  * @brief Returns address of the interface.
  */
 AddressRef InterfaceRef::getAddress() const { return AddressRef(rtnl_link_get_addr(m_link.get()), m_socket.get()); }
-
 
 /**
  * @brief Returns the speed of the interface.
@@ -192,4 +192,40 @@ void InterfaceRef::setMtu(uint16_t mtu)
 
     // deallocate change link
     rtnl_link_put(change_link);
+}
+
+/**
+ * @brief Enable/Dissable forwarding of an interface.
+ */
+void InterfaceRef::setForwarding(bool enabled, AddressFamily fam)
+{
+    std::fstream fw_file;
+    std::string ip_version;
+
+    switch (fam) {
+    case AddressFamily::V4:
+        ip_version = "ipv4";
+        break;
+    case AddressFamily::V6:
+        ip_version = "ipv6";
+        break;
+    default:
+        break;
+    };
+
+    std::string path = "/proc/sys/net/" + ip_version + "/conf/" + this->getName() + "/forwarding";
+
+    fw_file.open(path, std::ios::out);
+
+    if (!fw_file.is_open())
+        throw std::runtime_error("Error opening file: " + path);
+
+    char ch_enabled;
+    enabled ? ch_enabled = '1' : ch_enabled = '0';
+
+    fw_file << ch_enabled;
+
+    fw_file.close();
+
+    // probably some reset of network service afterwords
 }
