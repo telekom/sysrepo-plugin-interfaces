@@ -390,8 +390,10 @@ sr::ErrorCode Ipv4EnabledModuleChangeCb::operator()(sr::Session session, uint32_
 
             switch (change.operation) {
             case sysrepo::ChangeOperation::Created:
+                SRPLG_LOG_DBG("ENABLED", " CREATED");
                 break;
             case sysrepo::ChangeOperation::Modified: {
+                SRPLG_LOG_DBG("ENABLED", " MODIFIED");
                 ctx.refillCache();
                 auto interface_opt = ctx.getInterfaceByName(interface_name);
 
@@ -423,6 +425,7 @@ sr::ErrorCode Ipv4EnabledModuleChangeCb::operator()(sr::Session session, uint32_
                 break;
             }
             case sysrepo::ChangeOperation::Deleted:
+                SRPLG_LOG_DBG("ENABLED", " DELETED");
                 break;
             default:
                 // other options not needed
@@ -599,9 +602,27 @@ sr::ErrorCode Ipv4AddrIpModuleChangeCb::operator()(sr::Session session, uint32_t
             std::string prefix_len_xpath = "/ietf-interfaces:interfaces/interface[name='" + interface_name + "']/ietf-ip:ipv4/address[ip='"
                 + address_value + "']/prefix-length";
 
+            // Enabled node from running DS
+
+            // As default value
+            bool enabled_running_ds = true;
+            const auto& enabled_data = session.getData("/ietf-interfaces:interfaces/interface[name='" + interface_name + "']/ietf-ip:ipv4");
+
+            if (!enabled_data.has_value()) {
+                enabled_running_ds = false;
+            } else {
+                const auto& enabled_opt
+                    = enabled_data->findPath("/ietf-interfaces:interfaces/interface[name='" + interface_name + "']/ietf-ip:ipv4/enabled");
+                if (!enabled_data.has_value()) {
+                    enabled_running_ds = false;
+                } else {
+                    enabled_running_ds = std::get<bool>(enabled_opt->asTerm().value());
+                }
+            }
+
             switch (change.operation) {
             case sysrepo::ChangeOperation::Created:
-               
+
                 try {
                     ctx.refillCache();
                     const auto& interface_opt = ctx.getInterfaceByName(interface_name);
@@ -609,7 +630,9 @@ sr::ErrorCode Ipv4AddrIpModuleChangeCb::operator()(sr::Session session, uint32_t
                     const auto& prefix_len_val = change.node.findPath(prefix_len_xpath)->asTerm().value();
                     int prefix_len = std::get<uint8_t>(prefix_len_val);
 
-                    ctx.createAddress(interface_name, address_value, prefix_len, AddressFamily::V4);
+                    if (enabled_running_ds) {
+                        ctx.createAddress(interface_name, address_value, prefix_len, AddressFamily::V4);
+                    }
 
                 } catch (std::exception& e) {
                     SRPLG_LOG_ERR(getModuleLogPrefix(), "Cannot create address: %s", e.what());
@@ -618,7 +641,7 @@ sr::ErrorCode Ipv4AddrIpModuleChangeCb::operator()(sr::Session session, uint32_t
 
                 break;
             case sysrepo::ChangeOperation::Deleted:
-               
+
                 try {
                     ctx.refillCache();
                     const auto& interface_opt = ctx.getInterfaceByName(interface_name);
@@ -631,8 +654,9 @@ sr::ErrorCode Ipv4AddrIpModuleChangeCb::operator()(sr::Session session, uint32_t
 
                     const auto& prefix_len_val = change.node.findPath(prefix_len_xpath)->asTerm().value();
                     int prefix_len = std::get<uint8_t>(prefix_len_val);
-
-                    ctx.deleteAddress(interface_name, address_value, prefix_len, AddressFamily::V4);
+                    if (enabled_running_ds) {
+                        ctx.deleteAddress(interface_name, address_value, prefix_len, AddressFamily::V4);
+                    }
 
                 } catch (std::exception& e) {
                     SRPLG_LOG_ERR(getModuleLogPrefix(), "Cannot delete address: %s", e.what());
