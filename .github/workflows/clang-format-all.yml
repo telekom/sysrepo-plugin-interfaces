@@ -1,0 +1,23 @@
+name: clang-format all
+
+on:
+  push:
+    branches: [ "main", "devel" ]
+  pull_request:
+    branches: [ "main", "devel" ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v2
+
+    - uses: DoozyX/clang-format-lint-action@v0.16.2
+      with:
+        source: './src ./tests/bridging'
+        exclude: './deps'
+        # only C source and header files
+        extensions: 'h,c'
+        clangFormatVersion: 16
+        inplace: False
