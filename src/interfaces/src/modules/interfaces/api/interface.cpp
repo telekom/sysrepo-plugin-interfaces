@@ -228,4 +228,5 @@ void InterfaceRef::setForwarding(bool enabled, AddressFamily fam)
     fw_file.close();
 
     // probably some reset of network service afterwords
+    // file path probably varies from system to system
 }
