@@ -2,9 +2,9 @@ name: sysrepo-plugin-interfaces CI
 
 on:
   push:
-    branches: [ "main", "devel" ]
+    branches: [ "main", "devel", "bridging-plugin" ]
   pull_request:
-    branches: [ "main", "devel" ]
+    branches: [ "main", "devel", "bridging-plugin" ]
 
 jobs:
   build:
