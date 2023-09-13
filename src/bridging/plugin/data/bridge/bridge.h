@@ -10,7 +10,7 @@
 #include <stdint.h>
 
 // uthash
-#include <utlist.h>
+#include <uthash/include/utlist.h>
 
 void bridge_init(bridge_t *br);
 void bridge_free(bridge_t *br);

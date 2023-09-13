@@ -4,7 +4,7 @@
 
 #include <stdlib.h>
 
-#include <utlist.h>
+#include <uthash/include/utlist.h>
 
 void bridge_component_list_init(bridge_component_list_element_t **head)
 {

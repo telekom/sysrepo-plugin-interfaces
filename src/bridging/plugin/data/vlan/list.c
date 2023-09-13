@@ -3,7 +3,7 @@
 #include <stdint.h>
 #include <string.h>
 
-#include <utlist.h>
+#include <uthash/include/utlist.h>
 
 #include "list.h"
 #include "memory.h"

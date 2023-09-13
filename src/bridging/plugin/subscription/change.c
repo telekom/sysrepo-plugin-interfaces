@@ -14,7 +14,7 @@
 #include <sysrepo/xpath.h>
 #include <netlink/socket.h>
 #include <netlink/route/link.h>
-#include <utlist.h>
+#include <uthash/include/utlist.h>
 
 #include "change.h"
 #include "plugin/common.h"
