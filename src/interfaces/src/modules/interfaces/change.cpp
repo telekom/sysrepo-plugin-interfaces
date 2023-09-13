@@ -480,7 +480,7 @@ sr::ErrorCode Ipv4ForwardingModuleChangeCb::operator()(sr::Session session, uint
 
             if (!if_ref.has_value()) {
                 SRPLG_LOG_ERR(getModuleLogPrefix(), "Interface %s not found!", interface_name.c_str());
-                return sr::ErrorCode::OperationFailed;
+                break; // breaks the getChanges for loop since interface is deleted in upper node
             };
 
             switch (change.operation) {
