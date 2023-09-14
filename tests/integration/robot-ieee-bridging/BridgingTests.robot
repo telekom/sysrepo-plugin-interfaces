@@ -59,6 +59,9 @@ Test Bridging Filtering Database
     ${Vlan show}=    Run Process        bridge vlan show        shell=yes
     ${Vlan File}=    Get File    data/bridging/vlan_show.txt
 
+    # NOTE: the order of the interfaces shown via 'bridge vlan show' might not always have br0 on top, but on the bottom
+    # in that case this test will fail
+    # TODO: improve this check to not be dependant of the interfaces order in the output
     Should Be Equal As Strings    ${Vlan File}    ${Vlan show.stdout}
 
 Test Bridging Vlan Operational
@@ -112,6 +115,9 @@ Test Bridging Vlan Transmitted
 
 Test Mac Address Filtering
     [Documentation]    Set MAC address filtering
+    # TODO: based on the example from manual_tests.md, it should have 'permanent' at the end, but it's 'static'
+    # TODO: check if that is a bug or the manual_tests.md has to be updated
+
     Run Process    ../bridging/br-filtering.sh    shell=yes
     Edit Datastore Config By File    ${Connection Default}    ${Session Running}    data/bridging/br-filtering.xml    xml
 
