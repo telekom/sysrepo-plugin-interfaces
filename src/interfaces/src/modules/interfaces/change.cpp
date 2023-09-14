@@ -486,9 +486,9 @@ sr::ErrorCode Ipv4ForwardingModuleChangeCb::operator()(sr::Session session, uint
             switch (change.operation) {
             case sysrepo::ChangeOperation::Created:
             case sysrepo::ChangeOperation::Modified: {
-                
+
                 try {
-                    if_ref->setForwarding(forwarding_value,AddressFamily::V4);
+                    if_ref->setForwarding(forwarding_value, AddressFamily::V4);
                 } catch (std::exception& e) {
                     SRPLG_LOG_ERR(getModuleLogPrefix(), e.what());
                 }
@@ -2112,6 +2112,35 @@ sr::ErrorCode InterfaceIpv6ModuleChangeCb::operator()(sr::Session session, uint3
  * @param ctx Plugin module change context.
  *
  */
+InterfacesEncapsulationModuleChangeCb::InterfacesEncapsulationModuleChangeCb(std::shared_ptr<InterfacesModuleChangesContext> ctx) { m_ctx = ctx; }
+
+/**
+ * sysrepo-plugin-generator: Generated module change operator() for path /ietf-interfaces:interfaces.
+ *
+ * @param session An implicit session for the callback.
+ * @param subscriptionId ID the subscription associated with the callback.
+ * @param moduleName The module name used for subscribing.
+ * @param subXPath The optional xpath used at the time of subscription.
+ * @param event Type of the event that has occured.
+ * @param requestId Request ID unique for the specific module_name. Connected events for one request (SR_EV_CHANGE and
+ * SR_EV_DONE, for example) have the same request ID.
+ *
+ * @return Error code.
+ *
+ */
+sr::ErrorCode InterfacesEncapsulationModuleChangeCb::operator()(sr::Session session, uint32_t subscriptionId, std::string_view moduleName,
+    std::optional<std::string_view> subXPath, sr::Event event, uint32_t requestId)
+{
+    sr::ErrorCode error = sr::ErrorCode::Ok;
+    return error;
+}
+
+/**
+ * sysrepo-plugin-generator: Generated default constructor.
+ *
+ * @param ctx Plugin module change context.
+ *
+ */
 InterfaceModuleChangeCb::InterfaceModuleChangeCb(std::shared_ptr<InterfacesModuleChangesContext> ctx) { m_ctx = ctx; }
 
 /**
@@ -2132,6 +2161,34 @@ sr::ErrorCode InterfaceModuleChangeCb::operator()(sr::Session session, uint32_t 
     std::optional<std::string_view> subXPath, sr::Event event, uint32_t requestId)
 {
     sr::ErrorCode error = sr::ErrorCode::Ok;
+    switch (event) {
+    case sysrepo::Event::Change:
+        // apply interface changes to the netlink context received from module changes context
+        for (auto& change : session.getChanges("/ietf-interfaces:interfaces/interface/ipv6/autoconf/temporary-preferred-lifetime")) {
+
+            const auto& value = change.node.asTerm().value();
+            const auto& name_value = std::get<uint32_t>(value);
+
+            switch (change.operation) {
+            case sysrepo::ChangeOperation::Created:
+            case sysrepo::ChangeOperation::Modified:
+
+                SRPLG_LOG_DBG(getModuleLogPrefix(), "temporary-preferred-lifetime: %d", name_value);
+                break;
+            case sysrepo::ChangeOperation::Deleted:
+                // delete interface with 'name' = 'name_value'
+                SRPLG_LOG_DBG(getModuleLogPrefix(), "Deleted temporary-preferred-lifetime: %d", name_value);
+                break;
+            default:
+                // other options not needed
+                break;
+            }
+        }
+        break;
+    default:
+        break;
+    }
+
     return error;
 }
 
@@ -2161,5 +2218,249 @@ sr::ErrorCode InterfacesModuleChangeCb::operator()(sr::Session session, uint32_t
     std::optional<std::string_view> subXPath, sr::Event event, uint32_t requestId)
 {
     sr::ErrorCode error = sr::ErrorCode::Ok;
+    return error;
+}
+
+/**
+ * sysrepo-plugin-generator: Generated default constructor.
+ *
+ * @param ctx Plugin module change context.
+ *
+ */
+InterfacesEncapsulationDot1qvlanModuleChangeCb::InterfacesEncapsulationDot1qvlanModuleChangeCb(std::shared_ptr<InterfacesModuleChangesContext> ctx)
+{
+    m_ctx = ctx;
+}
+
+/**
+ * sysrepo-plugin-generator: Generated module change operator() for path /ietf-interfaces:interfaces.
+ *
+ * @param session An implicit session for the callback.
+ * @param subscriptionId ID the subscription associated with the callback.
+ * @param moduleName The module name used for subscribing.
+ * @param subXPath The optional xpath used at the time of subscription.
+ * @param event Type of the event that has occured.
+ * @param requestId Request ID unique for the specific module_name. Connected events for one request (SR_EV_CHANGE and
+ * SR_EV_DONE, for example) have the same request ID.
+ *
+ * @return Error code.
+ *
+ */
+sr::ErrorCode InterfacesEncapsulationDot1qvlanModuleChangeCb::operator()(sr::Session session, uint32_t subscriptionId, std::string_view moduleName,
+    std::optional<std::string_view> subXPath, sr::Event event, uint32_t requestId)
+{
+    sr::ErrorCode error = sr::ErrorCode::Ok;
+
+    switch (event) {
+    case sysrepo::Event::Change:
+        // apply interface changes to the netlink context received from module changes context
+        for (auto& change : session.getChanges("/ietf-interfaces:interfaces/interface/ipv6/autoconf/temporary-preferred-lifetime")) {
+
+            const auto& value = change.node.asTerm().value();
+            const auto& name_value = std::get<uint32_t>(value);
+
+            switch (change.operation) {
+            case sysrepo::ChangeOperation::Created:
+            case sysrepo::ChangeOperation::Modified:
+
+                SRPLG_LOG_DBG(getModuleLogPrefix(), "temporary-preferred-lifetime: %d", name_value);
+                break;
+            case sysrepo::ChangeOperation::Deleted:
+                // delete interface with 'name' = 'name_value'
+                SRPLG_LOG_DBG(getModuleLogPrefix(), "Deleted temporary-preferred-lifetime: %d", name_value);
+                break;
+            default:
+                // other options not needed
+                break;
+            }
+        }
+        break;
+    default:
+        break;
+    }
+
+    return error;
+}
+
+/**
+ * sysrepo-plugin-generator: Generated default constructor.
+ *
+ * @param ctx Plugin module change context.
+ *
+ */
+InterfacesEncapsulationDot1qvlanOuterTagTagTypeModuleChangeCb::InterfacesEncapsulationDot1qvlanOuterTagTagTypeModuleChangeCb(
+    std::shared_ptr<InterfacesModuleChangesContext> ctx)
+{
+    m_ctx = ctx;
+}
+
+/**
+ * sysrepo-plugin-generator: Generated module change operator() for path /ietf-interfaces:interfaces.
+ *
+ * @param session An implicit session for the callback.
+ * @param subscriptionId ID the subscription associated with the callback.
+ * @param moduleName The module name used for subscribing.
+ * @param subXPath The optional xpath used at the time of subscription.
+ * @param event Type of the event that has occured.
+ * @param requestId Request ID unique for the specific module_name. Connected events for one request (SR_EV_CHANGE and
+ * SR_EV_DONE, for example) have the same request ID.
+ *
+ * @return Error code.
+ *
+ */
+sr::ErrorCode InterfacesEncapsulationDot1qvlanOuterTagTagTypeModuleChangeCb::operator()(sr::Session session, uint32_t subscriptionId,
+    std::string_view moduleName, std::optional<std::string_view> subXPath, sr::Event event, uint32_t requestId)
+{
+    sr::ErrorCode error = sr::ErrorCode::Ok;
+    switch (event) {
+    case sysrepo::Event::Change:
+        // apply interface changes to the netlink context received from module changes context
+        for (auto& change : session.getChanges("/ietf-interfaces:interfaces/interface/ipv6/autoconf/temporary-preferred-lifetime")) {
+
+            const auto& value = change.node.asTerm().value();
+            const auto& name_value = std::get<uint32_t>(value);
+
+            switch (change.operation) {
+            case sysrepo::ChangeOperation::Created:
+            case sysrepo::ChangeOperation::Modified:
+
+                SRPLG_LOG_DBG(getModuleLogPrefix(), "temporary-preferred-lifetime: %d", name_value);
+                break;
+            case sysrepo::ChangeOperation::Deleted:
+                // delete interface with 'name' = 'name_value'
+                SRPLG_LOG_DBG(getModuleLogPrefix(), "Deleted temporary-preferred-lifetime: %d", name_value);
+                break;
+            default:
+                // other options not needed
+                break;
+            }
+        }
+        break;
+    default:
+        break;
+    }
+
+    return error;
+}
+
+/**
+ * sysrepo-plugin-generator: Generated default constructor.
+ *
+ * @param ctx Plugin module change context.
+ *
+ */
+InterfacesEncapsulationDot1qvlanOuterTagModuleChangeCb::InterfacesEncapsulationDot1qvlanOuterTagModuleChangeCb(
+    std::shared_ptr<InterfacesModuleChangesContext> ctx)
+{
+    m_ctx = ctx;
+}
+
+/**
+ * sysrepo-plugin-generator: Generated module change operator() for path /ietf-interfaces:interfaces.
+ *
+ * @param session An implicit session for the callback.
+ * @param subscriptionId ID the subscription associated with the callback.
+ * @param moduleName The module name used for subscribing.
+ * @param subXPath The optional xpath used at the time of subscription.
+ * @param event Type of the event that has occured.
+ * @param requestId Request ID unique for the specific module_name. Connected events for one request (SR_EV_CHANGE and
+ * SR_EV_DONE, for example) have the same request ID.
+ *
+ * @return Error code.
+ *
+ */
+sr::ErrorCode InterfacesEncapsulationDot1qvlanOuterTagModuleChangeCb::operator()(sr::Session session, uint32_t subscriptionId,
+    std::string_view moduleName, std::optional<std::string_view> subXPath, sr::Event event, uint32_t requestId)
+{
+    sr::ErrorCode error = sr::ErrorCode::Ok;
+    switch (event) {
+    case sysrepo::Event::Change:
+        // apply interface changes to the netlink context received from module changes context
+        for (auto& change : session.getChanges("/ietf-interfaces:interfaces/interface/ipv6/autoconf/temporary-preferred-lifetime")) {
+
+            const auto& value = change.node.asTerm().value();
+            const auto& name_value = std::get<uint32_t>(value);
+
+            switch (change.operation) {
+            case sysrepo::ChangeOperation::Created:
+            case sysrepo::ChangeOperation::Modified:
+
+                SRPLG_LOG_DBG(getModuleLogPrefix(), "temporary-preferred-lifetime: %d", name_value);
+                break;
+            case sysrepo::ChangeOperation::Deleted:
+                // delete interface with 'name' = 'name_value'
+                SRPLG_LOG_DBG(getModuleLogPrefix(), "Deleted temporary-preferred-lifetime: %d", name_value);
+                break;
+            default:
+                // other options not needed
+                break;
+            }
+        }
+        break;
+    default:
+        break;
+    }
+
+    return error;
+}
+
+/**
+ * sysrepo-plugin-generator: Generated default constructor.
+ *
+ * @param ctx Plugin module change context.
+ *
+ */
+InterfacesEncapsulationDot1qvlanOuterTagVlanIdModuleChangeCb::InterfacesEncapsulationDot1qvlanOuterTagVlanIdModuleChangeCb(
+    std::shared_ptr<InterfacesModuleChangesContext> ctx)
+{
+    m_ctx = ctx;
+}
+
+/**
+ * sysrepo-plugin-generator: Generated module change operator() for path /ietf-interfaces:interfaces.
+ *
+ * @param session An implicit session for the callback.
+ * @param subscriptionId ID the subscription associated with the callback.
+ * @param moduleName The module name used for subscribing.
+ * @param subXPath The optional xpath used at the time of subscription.
+ * @param event Type of the event that has occured.
+ * @param requestId Request ID unique for the specific module_name. Connected events for one request (SR_EV_CHANGE and
+ * SR_EV_DONE, for example) have the same request ID.
+ *
+ * @return Error code.
+ *
+ */
+sr::ErrorCode InterfacesEncapsulationDot1qvlanOuterTagVlanIdModuleChangeCb::operator()(sr::Session session, uint32_t subscriptionId,
+    std::string_view moduleName, std::optional<std::string_view> subXPath, sr::Event event, uint32_t requestId)
+{
+    sr::ErrorCode error = sr::ErrorCode::Ok;
+    switch (event) {
+    case sysrepo::Event::Change:
+        // apply interface changes to the netlink context received from module changes context
+        for (auto& change : session.getChanges("/ietf-interfaces:interfaces/interface/ipv6/autoconf/temporary-preferred-lifetime")) {
+
+            const auto& value = change.node.asTerm().value();
+            const auto& name_value = std::get<uint32_t>(value);
+
+            switch (change.operation) {
+            case sysrepo::ChangeOperation::Created:
+            case sysrepo::ChangeOperation::Modified:
+
+                SRPLG_LOG_DBG(getModuleLogPrefix(), "temporary-preferred-lifetime: %d", name_value);
+                break;
+            case sysrepo::ChangeOperation::Deleted:
+                // delete interface with 'name' = 'name_value'
+                SRPLG_LOG_DBG(getModuleLogPrefix(), "Deleted temporary-preferred-lifetime: %d", name_value);
+                break;
+            default:
+                // other options not needed
+                break;
+            }
+        }
+        break;
+    default:
+        break;
+    }
+
     return error;
 }

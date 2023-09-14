@@ -235,6 +235,31 @@ std::list<srpc::ModuleChangeCallback> InterfacesModule::getModuleChangeCallbacks
             "/ietf-interfaces:interfaces/interface/ipv6/autoconf/temporary-preferred-lifetime",
             Ipv6AutoconfTemporaryPreferredLifetimeModuleChangeCb(this->m_changeContext),
         },
+        srpc::ModuleChangeCallback {
+            "ietf-interfaces",
+            "/ietf-interfaces:interfaces/interface/encapsulation",
+            InterfacesEncapsulationModuleChangeCb(this->m_changeContext),
+        },
+        srpc::ModuleChangeCallback {
+            "ietf-interfaces",
+            "/ietf-interfaces:interfaces/interface/encapsulation/dot1q-vlan",
+            InterfacesEncapsulationDot1qvlanModuleChangeCb(this->m_changeContext),
+        },
+        srpc::ModuleChangeCallback {
+            "ietf-interfaces",
+            "/ietf-interfaces:interfaces/interface/encapsulation/dot1q-vlan/outer-tag",
+            InterfacesEncapsulationDot1qvlanOuterTagModuleChangeCb(this->m_changeContext),
+        },
+        srpc::ModuleChangeCallback {
+            "ietf-interfaces",
+            "/ietf-interfaces:interfaces/interface/encapsulation/dot1q-vlan/outer-tag/tag-type",
+            InterfacesEncapsulationDot1qvlanOuterTagTagTypeModuleChangeCb(this->m_changeContext),
+        },
+        srpc::ModuleChangeCallback {
+            "ietf-interfaces",
+            "/ietf-interfaces:interfaces/interface/encapsulation/dot1q-vlan/outer-tag/vlan-id",
+            InterfacesEncapsulationDot1qvlanOuterTagVlanIdModuleChangeCb(this->m_changeContext),
+        },
     };
 }
 /**
