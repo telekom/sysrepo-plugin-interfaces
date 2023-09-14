@@ -48,10 +48,10 @@ jobs:
             packages: "libnl-3-dev libnl-route-3-dev libnl-nf-3-dev libnl-genl-3-dev libcmocka-dev",
           }
           - {
-            name: "ASAN and UBSAN",
+            name: "ASAN, UBSAN and LSAN",
             build-type: "Debug",
             cc: "clang",
-            options: "-DCMAKE_C_FLAGS=-fsanitize=address,undefined -DENABLE_BUILD_TESTS=ON -DINTERFACES_PLUGIN=ON -DROUTING_PLUGIN=ON",
+            options: "-DCMAKE_C_FLAGS=-fsanitize=address,undefined,leak -DENABLE_BUILD_TESTS=ON -DINTERFACES_PLUGIN=ON -DROUTING_PLUGIN=ON",
             packager: "sudo apt-get",
             packages: "libnl-3-dev libnl-route-3-dev libnl-nf-3-dev libnl-genl-3-dev libcmocka-dev",
           }
