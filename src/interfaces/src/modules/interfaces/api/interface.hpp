@@ -28,8 +28,11 @@ struct InterfaceStats {
 };
 
 const std::unordered_map<std::string, std::string> InterfaceTypes
-    = { { "iana-if-type:ethernetCsmacd", "veth" }, { "iana-if-type:softwareLoopback", "vcan" }, { "iana-if-type:l2vlan", "vlan" },
-          { "iana-if-type:other", "dummy" }, { "iana-if-type:bridge", "bridge" } };
+    = { { "iana-if-type:ethernetCsmacd", "veth" }, 
+        { "iana-if-type:softwareLoopback", "vcan" }, 
+        //{ "iana-if-type:l2vlan", "vlan" },
+        { "iana-if-type:other", "dummy" }, 
+        { "iana-if-type:bridge", "bridge" } };
 
 class InterfaceRef {
 public:

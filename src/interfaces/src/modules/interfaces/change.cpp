@@ -2131,7 +2131,7 @@ InterfacesEncapsulationModuleChangeCb::InterfacesEncapsulationModuleChangeCb(std
 sr::ErrorCode InterfacesEncapsulationModuleChangeCb::operator()(sr::Session session, uint32_t subscriptionId, std::string_view moduleName,
     std::optional<std::string_view> subXPath, sr::Event event, uint32_t requestId)
 {
-    sr::ErrorCode error = sr::ErrorCode::Ok; 
+    sr::ErrorCode error = sr::ErrorCode::Ok;
     return error;
 }
 
@@ -2164,20 +2164,18 @@ sr::ErrorCode InterfaceModuleChangeCb::operator()(sr::Session session, uint32_t 
     switch (event) {
     case sysrepo::Event::Change:
         // apply interface changes to the netlink context received from module changes context
-        for (auto& change : session.getChanges("/ietf-interfaces:interfaces/interface")) {
+        for (sysrepo::Change change : session.getChanges("/ietf-interfaces:interfaces/interface")) {
 
-            const auto& value = change.node.asTerm().value();
-            const auto& name_value = std::get<uint32_t>(value);
+            std::string value = change.node.asTerm().valueStr().data();
 
             switch (change.operation) {
             case sysrepo::ChangeOperation::Created:
             case sysrepo::ChangeOperation::Modified:
-
-                SRPLG_LOG_DBG(getModuleLogPrefix(), "Interface: %d", name_value);
+                SRPLG_LOG_DBG(getModuleLogPrefix(), "Interface: %d", value.c_str());
                 break;
             case sysrepo::ChangeOperation::Deleted:
                 // delete interface with 'name' = 'name_value'
-                SRPLG_LOG_DBG(getModuleLogPrefix(), "Deleted Interface: %d", name_value);
+                SRPLG_LOG_DBG(getModuleLogPrefix(), "Deleted Interface: %d", value.c_str());
                 break;
             default:
                 // other options not needed
@@ -2251,35 +2249,6 @@ sr::ErrorCode InterfacesEncapsulationDot1qvlanModuleChangeCb::operator()(sr::Ses
 {
     sr::ErrorCode error = sr::ErrorCode::Ok;
 
-    switch (event) {
-    case sysrepo::Event::Change:
-        // apply interface changes to the netlink context received from module changes context
-        for (auto& change : session.getChanges("/ietf-interfaces:interfaces/interface/encapsulation/dot1q-vlan")) {
-
-            const auto& value = change.node.asTerm().value();
-            const auto& name_value = std::get<uint32_t>(value);
-
-            switch (change.operation) {
-            case sysrepo::ChangeOperation::Created:
-            break;
-            case sysrepo::ChangeOperation::Modified:
-
-                SRPLG_LOG_DBG(getModuleLogPrefix(), "dot1q-vlan: %d", name_value);
-                break;
-            case sysrepo::ChangeOperation::Deleted:
-                // delete interface with 'name' = 'name_value'
-                SRPLG_LOG_DBG(getModuleLogPrefix(), "Deleted dot1q-vlan: %d", name_value);
-                break;
-            default:
-                // other options not needed
-                break;
-            }
-        }
-        break;
-    default:
-        break;
-    }
-
     return error;
 }
 
@@ -2296,7 +2265,8 @@ InterfacesEncapsulationDot1qvlanOuterTagTagTypeModuleChangeCb::InterfacesEncapsu
 }
 
 /**
- * sysrepo-plugin-generator: Generated module change operator() for path /ietf-interfaces:interfaces/interface/encapsulation/dot1q-vlan/outer-tag/tag-type.
+ * sysrepo-plugin-generator: Generated module change operator() for path
+ * /ietf-interfaces:interfaces/interface/encapsulation/dot1q-vlan/outer-tag/tag-type.
  *
  * @param session An implicit session for the callback.
  * @param subscriptionId ID the subscription associated with the callback.
@@ -2318,18 +2288,17 @@ sr::ErrorCode InterfacesEncapsulationDot1qvlanOuterTagTagTypeModuleChangeCb::ope
         // apply interface changes to the netlink context received from module changes context
         for (auto& change : session.getChanges("/ietf-interfaces:interfaces/interface/encapsulation/dot1q-vlan/outer-tag/tag-type")) {
 
-            const auto& value = change.node.asTerm().value();
-            const auto& name_value = std::get<uint32_t>(value);
+            std::string type_value = change.node.asTerm().valueStr().data();
 
             switch (change.operation) {
             case sysrepo::ChangeOperation::Created:
             case sysrepo::ChangeOperation::Modified:
 
-                SRPLG_LOG_DBG(getModuleLogPrefix(), "Tag type: %d", name_value);
+                SRPLG_LOG_DBG(getModuleLogPrefix(), "Tag type: %d", type_value.c_str());
                 break;
             case sysrepo::ChangeOperation::Deleted:
                 // delete interface with 'name' = 'name_value'
-                SRPLG_LOG_DBG(getModuleLogPrefix(), "Deleted tag type: %d", name_value);
+                SRPLG_LOG_DBG(getModuleLogPrefix(), "Deleted tag type: %d", type_value.c_str());
                 break;
             default:
                 // other options not needed
@@ -2374,33 +2343,6 @@ sr::ErrorCode InterfacesEncapsulationDot1qvlanOuterTagModuleChangeCb::operator()
     std::string_view moduleName, std::optional<std::string_view> subXPath, sr::Event event, uint32_t requestId)
 {
     sr::ErrorCode error = sr::ErrorCode::Ok;
-    switch (event) {
-    case sysrepo::Event::Change:
-        // apply interface changes to the netlink context received from module changes context
-        for (auto& change : session.getChanges("/ietf-interfaces:interfaces/interface/encapsulation/dot1q-vlan/outer-tag")) {
-
-            const auto& value = change.node.asTerm().value();
-            const auto& name_value = std::get<uint32_t>(value);
-
-            switch (change.operation) {
-            case sysrepo::ChangeOperation::Created:
-            case sysrepo::ChangeOperation::Modified:
-
-                SRPLG_LOG_DBG(getModuleLogPrefix(), "temporary-preferred-lifetime: %d", name_value);
-                break;
-            case sysrepo::ChangeOperation::Deleted:
-                // delete interface with 'name' = 'name_value'
-                SRPLG_LOG_DBG(getModuleLogPrefix(), "Deleted temporary-preferred-lifetime: %d", name_value);
-                break;
-            default:
-                // other options not needed
-                break;
-            }
-        }
-        break;
-    default:
-        break;
-    }
 
     return error;
 }
@@ -2418,7 +2360,8 @@ InterfacesEncapsulationDot1qvlanOuterTagVlanIdModuleChangeCb::InterfacesEncapsul
 }
 
 /**
- * sysrepo-plugin-generator: Generated module change operator() for path /ietf-interfaces:interfaces/interface/encapsulation/dot1q-vlan/outer-tag/vlan-id.
+ * sysrepo-plugin-generator: Generated module change operator() for path
+ * /ietf-interfaces:interfaces/interface/encapsulation/dot1q-vlan/outer-tag/vlan-id.
  *
  * @param session An implicit session for the callback.
  * @param subscriptionId ID the subscription associated with the callback.
@@ -2435,23 +2378,24 @@ sr::ErrorCode InterfacesEncapsulationDot1qvlanOuterTagVlanIdModuleChangeCb::oper
     std::string_view moduleName, std::optional<std::string_view> subXPath, sr::Event event, uint32_t requestId)
 {
     sr::ErrorCode error = sr::ErrorCode::Ok;
+
     switch (event) {
     case sysrepo::Event::Change:
         // apply interface changes to the netlink context received from module changes context
-        for (auto& change : session.getChanges("/ietf-interfaces:interfaces/interface/encapsulation/dot1q-vlan/outer-tag/vlan-id")) {
+        for (sysrepo::Change change : session.getChanges("/ietf-interfaces:interfaces/interface/encapsulation/dot1q-vlan/outer-tag/vlan-id")) {
 
             const auto& value = change.node.asTerm().value();
-            const auto& name_value = std::get<uint32_t>(value);
+            const auto& name_value = std::get<uint16_t>(value);
 
             switch (change.operation) {
             case sysrepo::ChangeOperation::Created:
             case sysrepo::ChangeOperation::Modified:
-
-                SRPLG_LOG_DBG(getModuleLogPrefix(), "vlanid: %d", name_value);
+                SRPLG_LOG_DBG(getModuleLogPrefix(), "xpath %s", change.node.schema().path().c_str());
+                SRPLG_LOG_DBG(getModuleLogPrefix(), "Interface: %d", name_value);
                 break;
             case sysrepo::ChangeOperation::Deleted:
                 // delete interface with 'name' = 'name_value'
-                SRPLG_LOG_DBG(getModuleLogPrefix(), "Deleted vlanid: %d", name_value);
+                SRPLG_LOG_DBG(getModuleLogPrefix(), "Deleted Interface: %d", name_value);
                 break;
             default:
                 // other options not needed
@@ -2462,6 +2406,5 @@ sr::ErrorCode InterfacesEncapsulationDot1qvlanOuterTagVlanIdModuleChangeCb::oper
     default:
         break;
     }
-
     return error;
 }
