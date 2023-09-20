@@ -24,8 +24,8 @@ int sr_plugin_init_cb(sr_session_ctx_t* session, void** priv)
 {
     sr::ErrorCode error = sysrepo::ErrorCode::Ok;
     auto sess = sysrepo::wrapUnmanagedSession(session);
-    auto& registry(srpc::ModuleRegistry<ietf::ifc::PluginContext>::getInstance());
-    auto ctx = new ietf::ifc::PluginContext(sess);
+    auto& registry(srpc::ModuleRegistry<ietf::rt::PluginContext>::getInstance());
+    auto ctx = new ietf::rt::PluginContext(sess);
 
     *priv = static_cast<void*>(ctx);
 
@@ -77,8 +77,8 @@ int sr_plugin_init_cb(sr_session_ctx_t* session, void** priv)
  */
 void sr_plugin_cleanup_cb(sr_session_ctx_t* session, void* priv)
 {
-    auto& registry(srpc::ModuleRegistry<ietf::ifc::PluginContext>::getInstance());
-    auto ctx = static_cast<ietf::ifc::PluginContext*>(priv);
+    auto& registry(srpc::ModuleRegistry<ietf::rt::PluginContext>::getInstance());
+    auto ctx = static_cast<ietf::rt::PluginContext*>(priv);
     const auto plugin_name = ctx->getPluginName();
 
     SRPLG_LOG_INF(plugin_name, "Plugin cleanup called");
