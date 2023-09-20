@@ -1,15 +1,3 @@
-/*
- * telekom / sysrepo-plugin-system
- *
- * This program is made available under the terms of the
- * BSD 3-Clause license which is available at
- * https://opensource.org/licenses/BSD-3-Clause
- *
- * SPDX-FileCopyrightText: 2022 Deutsche Telekom AG
- * SPDX-FileContributor: Sartura Ltd.
- *
- * SPDX-License-Identifier: BSD-3-Clause
- */
 #include <sysrepo.h>
 #include <signal.h>
 #include <unistd.h>
@@ -17,7 +5,8 @@
 volatile int exit_application = 0;
 
 // extern needed data to build the plugin executable
-extern const char* PLUGIN_NAME;
+const char* PLUGIN_NAME = "ietf-system-interfaces";
+
 extern int sr_plugin_init_cb(sr_session_ctx_t* session, void** private_data);
 extern void sr_plugin_cleanup_cb(sr_session_ctx_t* session, void* private_data);
 
@@ -30,7 +19,7 @@ int main(void)
     sr_session_ctx_t* session = NULL;
     void* private_data = NULL;
 
-    sr_log_stderr(SR_LL_INF);
+    sr_log_stderr(SR_LL_DBG);
 
     /* connect to sysrepo */
     error = sr_connect(SR_CONN_DEFAULT, &connection);

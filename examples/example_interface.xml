@@ -1,0 +1,13 @@
+<interfaces
+    xmlns="urn:ietf:params:xml:ns:yang:ietf-interfaces"
+    xmlns:ianaift="urn:ietf:params:xml:ns:yang:iana-if-type"
+    xmlns:dot1q-types="urn:ieee:std:802.1Q:yang:ieee802-dot1q-types"
+    xmlns:if-ext="urn:ietf:params:xml:ns:yang:ietf-if-extensions">
+
+    <interface>
+        <name>example_if</name>
+        <description>Test Interface</description>
+        <type>ianaift:other</type>
+        <enabled>false</enabled>
+    </interface>
+</interfaces>

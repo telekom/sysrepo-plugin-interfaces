@@ -11,24 +11,26 @@
 # SPDX-License-Identifier: BSD-3-Clause
 #
 cmake_minimum_required(VERSION 3.0)
-project(sysrepo-interfaces-plugins C)
+project(sysrepo-interfaces-plugins) 
+
+set(CMAKE_CXX_STANDARD 20)
 
 include(CompileOptions.cmake)
 
 set(PLUGIN 0 CACHE BOOL "Build a plugin")
 
-include_directories(
-    ${CMAKE_SOURCE_DIR}/src/
-    ${CMAKE_SOURCE_DIR}/deps/uthash/include/
-)
-
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/CMakeModules")
+
+find_package(SYSREPOCPP REQUIRED)
+find_package(LIBYANGCPP REQUIRED)
 find_package(SYSREPO REQUIRED)
 find_package(LIBYANG REQUIRED)
 find_package(SRPC REQUIRED)
 find_package(NL REQUIRED)
 
 include_directories(
+    ${SYSREPOCPP_INCLUDE_DIRS}
+    ${LIBYANGCPP_INCLUDE_DIRS}
     ${SYSREPO_INCLUDE_DIRS}
     ${LIBYANG_INCLUDE_DIRS}
     ${SRPC_INCLUDE_DIRS}
@@ -44,10 +46,4 @@ endif()
 
 if(ROUTING_PLUGIN)
     add_subdirectory(src/routing)
-endif()
-
-if(ENABLE_BUILD_TESTS)
-    find_package(CMOCKA REQUIRED)
-    include(CTest)
-    include(tests/Tests.cmake)
 endif()
