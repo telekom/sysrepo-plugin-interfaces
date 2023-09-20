@@ -46,6 +46,7 @@ set(
 
     src/modules/routing.cpp
     src/modules/routing/common.cpp
+    src/modules/routing/change.cpp
 )
 
 set(
