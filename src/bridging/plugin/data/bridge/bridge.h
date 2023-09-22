@@ -12,7 +12,7 @@
 // uthash
 #include <uthash/include/utlist.h>
 
-void bridge_init(bridge_t *br);
-void bridge_free(bridge_t *br);
+void bridge_init(bridge_t* br);
+void bridge_free(bridge_t* br);
 
 #endif // BRIDGING_PLUGIN_DATA_BRIDGE_H

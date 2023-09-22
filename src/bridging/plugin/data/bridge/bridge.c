@@ -4,22 +4,22 @@
 
 #include <string.h>
 
-void bridge_init(bridge_t *br)
+void bridge_init(bridge_t* br)
 {
-	memset(br, 0, sizeof(*br));
+    memset(br, 0, sizeof(*br));
 }
 
-void bridge_free(bridge_t *br)
+void bridge_free(bridge_t* br)
 {
-	if (br->name) {
-		FREE_SAFE(br->name);
-	}
+    if (br->name) {
+        FREE_SAFE(br->name);
+    }
 
-	if (br->type) {
-		FREE_SAFE(br->type);
-	}
+    if (br->type) {
+        FREE_SAFE(br->type);
+    }
 
-	bridge_component_list_free(&br->component_list);
+    bridge_component_list_free(&br->component_list);
 
-	bridge_init(br);
+    bridge_init(br);
 }
