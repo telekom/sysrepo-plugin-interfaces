@@ -2363,3 +2363,779 @@ sr::ErrorCode InterfacesOperGetCb::operator()(sr::Session session, uint32_t subs
     sr::ErrorCode error = sr::ErrorCode::Ok;
     return error;
 }
+
+/**
+ * sysrepo-plugin-generator: Generated default constructor.
+ *
+ * @param ctx Plugin operational context.
+ *
+ */
+StatsInDiscardUnknownEncapsOperGetCb::StatsInDiscardUnknownEncapsOperGetCb(std::shared_ptr<InterfacesOperationalContext> ctx) { m_ctx = ctx; }
+
+/**
+ * sysrepo-plugin-generator: Generated operator() for path
+ * /ietf-interfaces:interfaces/interface[name='%s']/statistics/ietf-if-extensions:in-discard-unknown-encaps.
+ *
+ * @param session An implicit session for the callback.
+ * @param subscriptionId ID the subscription associated with the callback.
+ * @param moduleName The module name used for subscribing.
+ * @param subXPath The optional xpath used at the time of subscription.
+ * @param requestId Request ID unique for the specific module_name. Connected events for one request (SR_EV_CHANGE and
+ * @param output A handle to a tree. The callback is supposed to fill this tree with the requested data.
+ *
+ * @return Error code.
+ *
+ */
+sr::ErrorCode StatsInDiscardUnknownEncapsOperGetCb::operator()(sr::Session session, uint32_t subscriptionId, std::string_view moduleName,
+    std::optional<std::string_view> subXPath, std::optional<std::string_view> requestXPath, uint32_t requestId, std::optional<ly::DataNode>& output)
+{
+    sr::ErrorCode error = sr::ErrorCode::Ok;
+    return error;
+}
+
+/**
+ * sysrepo-plugin-generator: Generated default constructor.
+ *
+ * @param ctx Plugin operational context.
+ *
+ */
+InterfaceCarrierDelayDownOperGetCb::InterfaceCarrierDelayDownOperGetCb(std::shared_ptr<InterfacesOperationalContext> ctx) { m_ctx = ctx; }
+
+/**
+ * sysrepo-plugin-generator: Generated operator() for path /ietf-interfaces:interfaces/interface[name='%s']/ietf-if-extensions:carrier-delay/down.
+ *
+ * @param session An implicit session for the callback.
+ * @param subscriptionId ID the subscription associated with the callback.
+ * @param moduleName The module name used for subscribing.
+ * @param subXPath The optional xpath used at the time of subscription.
+ * @param requestId Request ID unique for the specific module_name. Connected events for one request (SR_EV_CHANGE and
+ * @param output A handle to a tree. The callback is supposed to fill this tree with the requested data.
+ *
+ * @return Error code.
+ *
+ */
+sr::ErrorCode InterfaceCarrierDelayDownOperGetCb::operator()(sr::Session session, uint32_t subscriptionId, std::string_view moduleName,
+    std::optional<std::string_view> subXPath, std::optional<std::string_view> requestXPath, uint32_t requestId, std::optional<ly::DataNode>& output)
+{
+    sr::ErrorCode error = sr::ErrorCode::Ok;
+    return error;
+}
+
+/**
+ * sysrepo-plugin-generator: Generated default constructor.
+ *
+ * @param ctx Plugin operational context.
+ *
+ */
+InterfaceCarrierDelayUpOperGetCb::InterfaceCarrierDelayUpOperGetCb(std::shared_ptr<InterfacesOperationalContext> ctx) { m_ctx = ctx; }
+
+/**
+ * sysrepo-plugin-generator: Generated operator() for path /ietf-interfaces:interfaces/interface[name='%s']/ietf-if-extensions:carrier-delay/up.
+ *
+ * @param session An implicit session for the callback.
+ * @param subscriptionId ID the subscription associated with the callback.
+ * @param moduleName The module name used for subscribing.
+ * @param subXPath The optional xpath used at the time of subscription.
+ * @param requestId Request ID unique for the specific module_name. Connected events for one request (SR_EV_CHANGE and
+ * @param output A handle to a tree. The callback is supposed to fill this tree with the requested data.
+ *
+ * @return Error code.
+ *
+ */
+sr::ErrorCode InterfaceCarrierDelayUpOperGetCb::operator()(sr::Session session, uint32_t subscriptionId, std::string_view moduleName,
+    std::optional<std::string_view> subXPath, std::optional<std::string_view> requestXPath, uint32_t requestId, std::optional<ly::DataNode>& output)
+{
+    sr::ErrorCode error = sr::ErrorCode::Ok;
+    return error;
+}
+
+/**
+ * sysrepo-plugin-generator: Generated default constructor.
+ *
+ * @param ctx Plugin operational context.
+ *
+ */
+InterfaceCarrierDelayCarrierTransitionsOperGetCb::InterfaceCarrierDelayCarrierTransitionsOperGetCb(std::shared_ptr<InterfacesOperationalContext> ctx)
+{
+    m_ctx = ctx;
+}
+
+/**
+ * sysrepo-plugin-generator: Generated operator() for path
+ * /ietf-interfaces:interfaces/interface[name='%s']/ietf-if-extensions:carrier-delay/carrier-transitions.
+ *
+ * @param session An implicit session for the callback.
+ * @param subscriptionId ID the subscription associated with the callback.
+ * @param moduleName The module name used for subscribing.
+ * @param subXPath The optional xpath used at the time of subscription.
+ * @param requestId Request ID unique for the specific module_name. Connected events for one request (SR_EV_CHANGE and
+ * @param output A handle to a tree. The callback is supposed to fill this tree with the requested data.
+ *
+ * @return Error code.
+ *
+ */
+sr::ErrorCode InterfaceCarrierDelayCarrierTransitionsOperGetCb::operator()(sr::Session session, uint32_t subscriptionId, std::string_view moduleName,
+    std::optional<std::string_view> subXPath, std::optional<std::string_view> requestXPath, uint32_t requestId, std::optional<ly::DataNode>& output)
+{
+    sr::ErrorCode error = sr::ErrorCode::Ok;
+    return error;
+}
+
+/**
+ * sysrepo-plugin-generator: Generated default constructor.
+ *
+ * @param ctx Plugin operational context.
+ *
+ */
+InterfaceCarrierDelayTimerRunningOperGetCb::InterfaceCarrierDelayTimerRunningOperGetCb(std::shared_ptr<InterfacesOperationalContext> ctx)
+{
+    m_ctx = ctx;
+}
+
+/**
+ * sysrepo-plugin-generator: Generated operator() for path
+ * /ietf-interfaces:interfaces/interface[name='%s']/ietf-if-extensions:carrier-delay/timer-running.
+ *
+ * @param session An implicit session for the callback.
+ * @param subscriptionId ID the subscription associated with the callback.
+ * @param moduleName The module name used for subscribing.
+ * @param subXPath The optional xpath used at the time of subscription.
+ * @param requestId Request ID unique for the specific module_name. Connected events for one request (SR_EV_CHANGE and
+ * @param output A handle to a tree. The callback is supposed to fill this tree with the requested data.
+ *
+ * @return Error code.
+ *
+ */
+sr::ErrorCode InterfaceCarrierDelayTimerRunningOperGetCb::operator()(sr::Session session, uint32_t subscriptionId, std::string_view moduleName,
+    std::optional<std::string_view> subXPath, std::optional<std::string_view> requestXPath, uint32_t requestId, std::optional<ly::DataNode>& output)
+{
+    sr::ErrorCode error = sr::ErrorCode::Ok;
+    return error;
+}
+
+/**
+ * sysrepo-plugin-generator: Generated default constructor.
+ *
+ * @param ctx Plugin operational context.
+ *
+ */
+InterfaceCarrierDelayOperGetCb::InterfaceCarrierDelayOperGetCb(std::shared_ptr<InterfacesOperationalContext> ctx) { m_ctx = ctx; }
+
+/**
+ * sysrepo-plugin-generator: Generated operator() for path /ietf-interfaces:interfaces/interface[name='%s']/ietf-if-extensions:carrier-delay.
+ *
+ * @param session An implicit session for the callback.
+ * @param subscriptionId ID the subscription associated with the callback.
+ * @param moduleName The module name used for subscribing.
+ * @param subXPath The optional xpath used at the time of subscription.
+ * @param requestId Request ID unique for the specific module_name. Connected events for one request (SR_EV_CHANGE and
+ * @param output A handle to a tree. The callback is supposed to fill this tree with the requested data.
+ *
+ * @return Error code.
+ *
+ */
+sr::ErrorCode InterfaceCarrierDelayOperGetCb::operator()(sr::Session session, uint32_t subscriptionId, std::string_view moduleName,
+    std::optional<std::string_view> subXPath, std::optional<std::string_view> requestXPath, uint32_t requestId, std::optional<ly::DataNode>& output)
+{
+    sr::ErrorCode error = sr::ErrorCode::Ok;
+    return error;
+}
+
+/**
+ * sysrepo-plugin-generator: Generated default constructor.
+ *
+ * @param ctx Plugin operational context.
+ *
+ */
+InterfaceDampeningHalfLifeOperGetCb::InterfaceDampeningHalfLifeOperGetCb(std::shared_ptr<InterfacesOperationalContext> ctx) { m_ctx = ctx; }
+
+/**
+ * sysrepo-plugin-generator: Generated operator() for path /ietf-interfaces:interfaces/interface[name='%s']/ietf-if-extensions:dampening/half-life.
+ *
+ * @param session An implicit session for the callback.
+ * @param subscriptionId ID the subscription associated with the callback.
+ * @param moduleName The module name used for subscribing.
+ * @param subXPath The optional xpath used at the time of subscription.
+ * @param requestId Request ID unique for the specific module_name. Connected events for one request (SR_EV_CHANGE and
+ * @param output A handle to a tree. The callback is supposed to fill this tree with the requested data.
+ *
+ * @return Error code.
+ *
+ */
+sr::ErrorCode InterfaceDampeningHalfLifeOperGetCb::operator()(sr::Session session, uint32_t subscriptionId, std::string_view moduleName,
+    std::optional<std::string_view> subXPath, std::optional<std::string_view> requestXPath, uint32_t requestId, std::optional<ly::DataNode>& output)
+{
+    sr::ErrorCode error = sr::ErrorCode::Ok;
+    return error;
+}
+
+/**
+ * sysrepo-plugin-generator: Generated default constructor.
+ *
+ * @param ctx Plugin operational context.
+ *
+ */
+InterfaceDampeningReuseOperGetCb::InterfaceDampeningReuseOperGetCb(std::shared_ptr<InterfacesOperationalContext> ctx) { m_ctx = ctx; }
+
+/**
+ * sysrepo-plugin-generator: Generated operator() for path /ietf-interfaces:interfaces/interface[name='%s']/ietf-if-extensions:dampening/reuse.
+ *
+ * @param session An implicit session for the callback.
+ * @param subscriptionId ID the subscription associated with the callback.
+ * @param moduleName The module name used for subscribing.
+ * @param subXPath The optional xpath used at the time of subscription.
+ * @param requestId Request ID unique for the specific module_name. Connected events for one request (SR_EV_CHANGE and
+ * @param output A handle to a tree. The callback is supposed to fill this tree with the requested data.
+ *
+ * @return Error code.
+ *
+ */
+sr::ErrorCode InterfaceDampeningReuseOperGetCb::operator()(sr::Session session, uint32_t subscriptionId, std::string_view moduleName,
+    std::optional<std::string_view> subXPath, std::optional<std::string_view> requestXPath, uint32_t requestId, std::optional<ly::DataNode>& output)
+{
+    sr::ErrorCode error = sr::ErrorCode::Ok;
+    return error;
+}
+
+/**
+ * sysrepo-plugin-generator: Generated default constructor.
+ *
+ * @param ctx Plugin operational context.
+ *
+ */
+InterfaceDampeningSuppressOperGetCb::InterfaceDampeningSuppressOperGetCb(std::shared_ptr<InterfacesOperationalContext> ctx) { m_ctx = ctx; }
+
+/**
+ * sysrepo-plugin-generator: Generated operator() for path /ietf-interfaces:interfaces/interface[name='%s']/ietf-if-extensions:dampening/suppress.
+ *
+ * @param session An implicit session for the callback.
+ * @param subscriptionId ID the subscription associated with the callback.
+ * @param moduleName The module name used for subscribing.
+ * @param subXPath The optional xpath used at the time of subscription.
+ * @param requestId Request ID unique for the specific module_name. Connected events for one request (SR_EV_CHANGE and
+ * @param output A handle to a tree. The callback is supposed to fill this tree with the requested data.
+ *
+ * @return Error code.
+ *
+ */
+sr::ErrorCode InterfaceDampeningSuppressOperGetCb::operator()(sr::Session session, uint32_t subscriptionId, std::string_view moduleName,
+    std::optional<std::string_view> subXPath, std::optional<std::string_view> requestXPath, uint32_t requestId, std::optional<ly::DataNode>& output)
+{
+    sr::ErrorCode error = sr::ErrorCode::Ok;
+    return error;
+}
+
+/**
+ * sysrepo-plugin-generator: Generated default constructor.
+ *
+ * @param ctx Plugin operational context.
+ *
+ */
+InterfaceDampeningMaxSuppressTimeOperGetCb::InterfaceDampeningMaxSuppressTimeOperGetCb(std::shared_ptr<InterfacesOperationalContext> ctx)
+{
+    m_ctx = ctx;
+}
+
+/**
+ * sysrepo-plugin-generator: Generated operator() for path
+ * /ietf-interfaces:interfaces/interface[name='%s']/ietf-if-extensions:dampening/max-suppress-time.
+ *
+ * @param session An implicit session for the callback.
+ * @param subscriptionId ID the subscription associated with the callback.
+ * @param moduleName The module name used for subscribing.
+ * @param subXPath The optional xpath used at the time of subscription.
+ * @param requestId Request ID unique for the specific module_name. Connected events for one request (SR_EV_CHANGE and
+ * @param output A handle to a tree. The callback is supposed to fill this tree with the requested data.
+ *
+ * @return Error code.
+ *
+ */
+sr::ErrorCode InterfaceDampeningMaxSuppressTimeOperGetCb::operator()(sr::Session session, uint32_t subscriptionId, std::string_view moduleName,
+    std::optional<std::string_view> subXPath, std::optional<std::string_view> requestXPath, uint32_t requestId, std::optional<ly::DataNode>& output)
+{
+    sr::ErrorCode error = sr::ErrorCode::Ok;
+    return error;
+}
+
+/**
+ * sysrepo-plugin-generator: Generated default constructor.
+ *
+ * @param ctx Plugin operational context.
+ *
+ */
+InterfaceDampeningPenaltyOperGetCb::InterfaceDampeningPenaltyOperGetCb(std::shared_ptr<InterfacesOperationalContext> ctx) { m_ctx = ctx; }
+
+/**
+ * sysrepo-plugin-generator: Generated operator() for path /ietf-interfaces:interfaces/interface[name='%s']/ietf-if-extensions:dampening/penalty.
+ *
+ * @param session An implicit session for the callback.
+ * @param subscriptionId ID the subscription associated with the callback.
+ * @param moduleName The module name used for subscribing.
+ * @param subXPath The optional xpath used at the time of subscription.
+ * @param requestId Request ID unique for the specific module_name. Connected events for one request (SR_EV_CHANGE and
+ * @param output A handle to a tree. The callback is supposed to fill this tree with the requested data.
+ *
+ * @return Error code.
+ *
+ */
+sr::ErrorCode InterfaceDampeningPenaltyOperGetCb::operator()(sr::Session session, uint32_t subscriptionId, std::string_view moduleName,
+    std::optional<std::string_view> subXPath, std::optional<std::string_view> requestXPath, uint32_t requestId, std::optional<ly::DataNode>& output)
+{
+    sr::ErrorCode error = sr::ErrorCode::Ok;
+    return error;
+}
+
+/**
+ * sysrepo-plugin-generator: Generated default constructor.
+ *
+ * @param ctx Plugin operational context.
+ *
+ */
+InterfaceDampeningSuppressedOperGetCb::InterfaceDampeningSuppressedOperGetCb(std::shared_ptr<InterfacesOperationalContext> ctx) { m_ctx = ctx; }
+
+/**
+ * sysrepo-plugin-generator: Generated operator() for path /ietf-interfaces:interfaces/interface[name='%s']/ietf-if-extensions:dampening/suppressed.
+ *
+ * @param session An implicit session for the callback.
+ * @param subscriptionId ID the subscription associated with the callback.
+ * @param moduleName The module name used for subscribing.
+ * @param subXPath The optional xpath used at the time of subscription.
+ * @param requestId Request ID unique for the specific module_name. Connected events for one request (SR_EV_CHANGE and
+ * @param output A handle to a tree. The callback is supposed to fill this tree with the requested data.
+ *
+ * @return Error code.
+ *
+ */
+sr::ErrorCode InterfaceDampeningSuppressedOperGetCb::operator()(sr::Session session, uint32_t subscriptionId, std::string_view moduleName,
+    std::optional<std::string_view> subXPath, std::optional<std::string_view> requestXPath, uint32_t requestId, std::optional<ly::DataNode>& output)
+{
+    sr::ErrorCode error = sr::ErrorCode::Ok;
+    return error;
+}
+
+/**
+ * sysrepo-plugin-generator: Generated default constructor.
+ *
+ * @param ctx Plugin operational context.
+ *
+ */
+InterfaceDampeningTimeRemainingOperGetCb::InterfaceDampeningTimeRemainingOperGetCb(std::shared_ptr<InterfacesOperationalContext> ctx) { m_ctx = ctx; }
+
+/**
+ * sysrepo-plugin-generator: Generated operator() for path
+ * /ietf-interfaces:interfaces/interface[name='%s']/ietf-if-extensions:dampening/time-remaining.
+ *
+ * @param session An implicit session for the callback.
+ * @param subscriptionId ID the subscription associated with the callback.
+ * @param moduleName The module name used for subscribing.
+ * @param subXPath The optional xpath used at the time of subscription.
+ * @param requestId Request ID unique for the specific module_name. Connected events for one request (SR_EV_CHANGE and
+ * @param output A handle to a tree. The callback is supposed to fill this tree with the requested data.
+ *
+ * @return Error code.
+ *
+ */
+sr::ErrorCode InterfaceDampeningTimeRemainingOperGetCb::operator()(sr::Session session, uint32_t subscriptionId, std::string_view moduleName,
+    std::optional<std::string_view> subXPath, std::optional<std::string_view> requestXPath, uint32_t requestId, std::optional<ly::DataNode>& output)
+{
+    sr::ErrorCode error = sr::ErrorCode::Ok;
+    return error;
+}
+
+/**
+ * sysrepo-plugin-generator: Generated default constructor.
+ *
+ * @param ctx Plugin operational context.
+ *
+ */
+InterfaceDampeningOperGetCb::InterfaceDampeningOperGetCb(std::shared_ptr<InterfacesOperationalContext> ctx) { m_ctx = ctx; }
+
+/**
+ * sysrepo-plugin-generator: Generated operator() for path /ietf-interfaces:interfaces/interface[name='%s']/ietf-if-extensions:dampening.
+ *
+ * @param session An implicit session for the callback.
+ * @param subscriptionId ID the subscription associated with the callback.
+ * @param moduleName The module name used for subscribing.
+ * @param subXPath The optional xpath used at the time of subscription.
+ * @param requestId Request ID unique for the specific module_name. Connected events for one request (SR_EV_CHANGE and
+ * @param output A handle to a tree. The callback is supposed to fill this tree with the requested data.
+ *
+ * @return Error code.
+ *
+ */
+sr::ErrorCode InterfaceDampeningOperGetCb::operator()(sr::Session session, uint32_t subscriptionId, std::string_view moduleName,
+    std::optional<std::string_view> subXPath, std::optional<std::string_view> requestXPath, uint32_t requestId, std::optional<ly::DataNode>& output)
+{
+    sr::ErrorCode error = sr::ErrorCode::Ok;
+    return error;
+}
+
+/**
+ * sysrepo-plugin-generator: Generated default constructor.
+ *
+ * @param ctx Plugin operational context.
+ *
+ */
+InterfaceEncapsulationDot1QVlanOuterTagTagTypeOperGetCb::InterfaceEncapsulationDot1QVlanOuterTagTagTypeOperGetCb(
+    std::shared_ptr<InterfacesOperationalContext> ctx)
+{
+    m_ctx = ctx;
+}
+
+/**
+ * sysrepo-plugin-generator: Generated operator() for path
+ * /ietf-interfaces:interfaces/interface[name='%s']/ietf-if-extensions:encapsulation/ietf-if-vlan-encapsulation:dot1q-vlan/outer-tag/tag-type.
+ *
+ * @param session An implicit session for the callback.
+ * @param subscriptionId ID the subscription associated with the callback.
+ * @param moduleName The module name used for subscribing.
+ * @param subXPath The optional xpath used at the time of subscription.
+ * @param requestId Request ID unique for the specific module_name. Connected events for one request (SR_EV_CHANGE and
+ * @param output A handle to a tree. The callback is supposed to fill this tree with the requested data.
+ *
+ * @return Error code.
+ *
+ */
+sr::ErrorCode InterfaceEncapsulationDot1QVlanOuterTagTagTypeOperGetCb::operator()(sr::Session session, uint32_t subscriptionId,
+    std::string_view moduleName, std::optional<std::string_view> subXPath, std::optional<std::string_view> requestXPath, uint32_t requestId,
+    std::optional<ly::DataNode>& output)
+{
+    sr::ErrorCode error = sr::ErrorCode::Ok;
+    return error;
+}
+
+/**
+ * sysrepo-plugin-generator: Generated default constructor.
+ *
+ * @param ctx Plugin operational context.
+ *
+ */
+InterfaceEncapsulationDot1QVlanOuterTagVlanIdOperGetCb::InterfaceEncapsulationDot1QVlanOuterTagVlanIdOperGetCb(
+    std::shared_ptr<InterfacesOperationalContext> ctx)
+{
+    m_ctx = ctx;
+}
+
+/**
+ * sysrepo-plugin-generator: Generated operator() for path
+ * /ietf-interfaces:interfaces/interface[name='%s']/ietf-if-extensions:encapsulation/ietf-if-vlan-encapsulation:dot1q-vlan/outer-tag/vlan-id.
+ *
+ * @param session An implicit session for the callback.
+ * @param subscriptionId ID the subscription associated with the callback.
+ * @param moduleName The module name used for subscribing.
+ * @param subXPath The optional xpath used at the time of subscription.
+ * @param requestId Request ID unique for the specific module_name. Connected events for one request (SR_EV_CHANGE and
+ * @param output A handle to a tree. The callback is supposed to fill this tree with the requested data.
+ *
+ * @return Error code.
+ *
+ */
+sr::ErrorCode InterfaceEncapsulationDot1QVlanOuterTagVlanIdOperGetCb::operator()(sr::Session session, uint32_t subscriptionId,
+    std::string_view moduleName, std::optional<std::string_view> subXPath, std::optional<std::string_view> requestXPath, uint32_t requestId,
+    std::optional<ly::DataNode>& output)
+{
+    sr::ErrorCode error = sr::ErrorCode::Ok;
+    return error;
+}
+
+/**
+ * sysrepo-plugin-generator: Generated default constructor.
+ *
+ * @param ctx Plugin operational context.
+ *
+ */
+InterfaceEncapsulationDot1QVlanOuterTagOperGetCb::InterfaceEncapsulationDot1QVlanOuterTagOperGetCb(std::shared_ptr<InterfacesOperationalContext> ctx)
+{
+    m_ctx = ctx;
+}
+
+/**
+ * sysrepo-plugin-generator: Generated operator() for path
+ * /ietf-interfaces:interfaces/interface[name='%s']/ietf-if-extensions:encapsulation/ietf-if-vlan-encapsulation:dot1q-vlan/outer-tag.
+ *
+ * @param session An implicit session for the callback.
+ * @param subscriptionId ID the subscription associated with the callback.
+ * @param moduleName The module name used for subscribing.
+ * @param subXPath The optional xpath used at the time of subscription.
+ * @param requestId Request ID unique for the specific module_name. Connected events for one request (SR_EV_CHANGE and
+ * @param output A handle to a tree. The callback is supposed to fill this tree with the requested data.
+ *
+ * @return Error code.
+ *
+ */
+sr::ErrorCode InterfaceEncapsulationDot1QVlanOuterTagOperGetCb::operator()(sr::Session session, uint32_t subscriptionId, std::string_view moduleName,
+    std::optional<std::string_view> subXPath, std::optional<std::string_view> requestXPath, uint32_t requestId, std::optional<ly::DataNode>& output)
+{
+    sr::ErrorCode error = sr::ErrorCode::Ok;
+    return error;
+}
+
+/**
+ * sysrepo-plugin-generator: Generated default constructor.
+ *
+ * @param ctx Plugin operational context.
+ *
+ */
+InterfaceEncapsulationDot1QVlanSecondTagTagTypeOperGetCb::InterfaceEncapsulationDot1QVlanSecondTagTagTypeOperGetCb(
+    std::shared_ptr<InterfacesOperationalContext> ctx)
+{
+    m_ctx = ctx;
+}
+
+/**
+ * sysrepo-plugin-generator: Generated operator() for path
+ * /ietf-interfaces:interfaces/interface[name='%s']/ietf-if-extensions:encapsulation/ietf-if-vlan-encapsulation:dot1q-vlan/second-tag/tag-type.
+ *
+ * @param session An implicit session for the callback.
+ * @param subscriptionId ID the subscription associated with the callback.
+ * @param moduleName The module name used for subscribing.
+ * @param subXPath The optional xpath used at the time of subscription.
+ * @param requestId Request ID unique for the specific module_name. Connected events for one request (SR_EV_CHANGE and
+ * @param output A handle to a tree. The callback is supposed to fill this tree with the requested data.
+ *
+ * @return Error code.
+ *
+ */
+sr::ErrorCode InterfaceEncapsulationDot1QVlanSecondTagTagTypeOperGetCb::operator()(sr::Session session, uint32_t subscriptionId,
+    std::string_view moduleName, std::optional<std::string_view> subXPath, std::optional<std::string_view> requestXPath, uint32_t requestId,
+    std::optional<ly::DataNode>& output)
+{
+    sr::ErrorCode error = sr::ErrorCode::Ok;
+    return error;
+}
+
+/**
+ * sysrepo-plugin-generator: Generated default constructor.
+ *
+ * @param ctx Plugin operational context.
+ *
+ */
+InterfaceEncapsulationDot1QVlanSecondTagVlanIdOperGetCb::InterfaceEncapsulationDot1QVlanSecondTagVlanIdOperGetCb(
+    std::shared_ptr<InterfacesOperationalContext> ctx)
+{
+    m_ctx = ctx;
+}
+
+/**
+ * sysrepo-plugin-generator: Generated operator() for path
+ * /ietf-interfaces:interfaces/interface[name='%s']/ietf-if-extensions:encapsulation/ietf-if-vlan-encapsulation:dot1q-vlan/second-tag/vlan-id.
+ *
+ * @param session An implicit session for the callback.
+ * @param subscriptionId ID the subscription associated with the callback.
+ * @param moduleName The module name used for subscribing.
+ * @param subXPath The optional xpath used at the time of subscription.
+ * @param requestId Request ID unique for the specific module_name. Connected events for one request (SR_EV_CHANGE and
+ * @param output A handle to a tree. The callback is supposed to fill this tree with the requested data.
+ *
+ * @return Error code.
+ *
+ */
+sr::ErrorCode InterfaceEncapsulationDot1QVlanSecondTagVlanIdOperGetCb::operator()(sr::Session session, uint32_t subscriptionId,
+    std::string_view moduleName, std::optional<std::string_view> subXPath, std::optional<std::string_view> requestXPath, uint32_t requestId,
+    std::optional<ly::DataNode>& output)
+{
+    sr::ErrorCode error = sr::ErrorCode::Ok;
+    return error;
+}
+
+/**
+ * sysrepo-plugin-generator: Generated default constructor.
+ *
+ * @param ctx Plugin operational context.
+ *
+ */
+InterfaceEncapsulationDot1QVlanSecondTagOperGetCb::InterfaceEncapsulationDot1QVlanSecondTagOperGetCb(
+    std::shared_ptr<InterfacesOperationalContext> ctx)
+{
+    m_ctx = ctx;
+}
+
+/**
+ * sysrepo-plugin-generator: Generated operator() for path
+ * /ietf-interfaces:interfaces/interface[name='%s']/ietf-if-extensions:encapsulation/ietf-if-vlan-encapsulation:dot1q-vlan/second-tag.
+ *
+ * @param session An implicit session for the callback.
+ * @param subscriptionId ID the subscription associated with the callback.
+ * @param moduleName The module name used for subscribing.
+ * @param subXPath The optional xpath used at the time of subscription.
+ * @param requestId Request ID unique for the specific module_name. Connected events for one request (SR_EV_CHANGE and
+ * @param output A handle to a tree. The callback is supposed to fill this tree with the requested data.
+ *
+ * @return Error code.
+ *
+ */
+sr::ErrorCode InterfaceEncapsulationDot1QVlanSecondTagOperGetCb::operator()(sr::Session session, uint32_t subscriptionId, std::string_view moduleName,
+    std::optional<std::string_view> subXPath, std::optional<std::string_view> requestXPath, uint32_t requestId, std::optional<ly::DataNode>& output)
+{
+    sr::ErrorCode error = sr::ErrorCode::Ok;
+    return error;
+}
+
+/**
+ * sysrepo-plugin-generator: Generated default constructor.
+ *
+ * @param ctx Plugin operational context.
+ *
+ */
+InterfaceEncapsulationDot1QVlanOperGetCb::InterfaceEncapsulationDot1QVlanOperGetCb(std::shared_ptr<InterfacesOperationalContext> ctx) { m_ctx = ctx; }
+
+/**
+ * sysrepo-plugin-generator: Generated operator() for path
+ * /ietf-interfaces:interfaces/interface[name='%s']/ietf-if-extensions:encapsulation/ietf-if-vlan-encapsulation:dot1q-vlan.
+ *
+ * @param session An implicit session for the callback.
+ * @param subscriptionId ID the subscription associated with the callback.
+ * @param moduleName The module name used for subscribing.
+ * @param subXPath The optional xpath used at the time of subscription.
+ * @param requestId Request ID unique for the specific module_name. Connected events for one request (SR_EV_CHANGE and
+ * @param output A handle to a tree. The callback is supposed to fill this tree with the requested data.
+ *
+ * @return Error code.
+ *
+ */
+sr::ErrorCode InterfaceEncapsulationDot1QVlanOperGetCb::operator()(sr::Session session, uint32_t subscriptionId, std::string_view moduleName,
+    std::optional<std::string_view> subXPath, std::optional<std::string_view> requestXPath, uint32_t requestId, std::optional<ly::DataNode>& output)
+{
+    sr::ErrorCode error = sr::ErrorCode::Ok;
+    return error;
+}
+
+/**
+ * sysrepo-plugin-generator: Generated default constructor.
+ *
+ * @param ctx Plugin operational context.
+ *
+ */
+InterfaceEncapsulationOperGetCb::InterfaceEncapsulationOperGetCb(std::shared_ptr<InterfacesOperationalContext> ctx) { m_ctx = ctx; }
+
+/**
+ * sysrepo-plugin-generator: Generated operator() for path /ietf-interfaces:interfaces/interface[name='%s']/ietf-if-extensions:encapsulation.
+ *
+ * @param session An implicit session for the callback.
+ * @param subscriptionId ID the subscription associated with the callback.
+ * @param moduleName The module name used for subscribing.
+ * @param subXPath The optional xpath used at the time of subscription.
+ * @param requestId Request ID unique for the specific module_name. Connected events for one request (SR_EV_CHANGE and
+ * @param output A handle to a tree. The callback is supposed to fill this tree with the requested data.
+ *
+ * @return Error code.
+ *
+ */
+sr::ErrorCode InterfaceEncapsulationOperGetCb::operator()(sr::Session session, uint32_t subscriptionId, std::string_view moduleName,
+    std::optional<std::string_view> subXPath, std::optional<std::string_view> requestXPath, uint32_t requestId, std::optional<ly::DataNode>& output)
+{
+    sr::ErrorCode error = sr::ErrorCode::Ok;
+    return error;
+}
+
+/**
+ * sysrepo-plugin-generator: Generated default constructor.
+ *
+ * @param ctx Plugin operational context.
+ *
+ */
+InterfaceLoopbackOperGetCb::InterfaceLoopbackOperGetCb(std::shared_ptr<InterfacesOperationalContext> ctx) { m_ctx = ctx; }
+
+/**
+ * sysrepo-plugin-generator: Generated operator() for path /ietf-interfaces:interfaces/interface[name='%s']/ietf-if-extensions:loopback.
+ *
+ * @param session An implicit session for the callback.
+ * @param subscriptionId ID the subscription associated with the callback.
+ * @param moduleName The module name used for subscribing.
+ * @param subXPath The optional xpath used at the time of subscription.
+ * @param requestId Request ID unique for the specific module_name. Connected events for one request (SR_EV_CHANGE and
+ * @param output A handle to a tree. The callback is supposed to fill this tree with the requested data.
+ *
+ * @return Error code.
+ *
+ */
+sr::ErrorCode InterfaceLoopbackOperGetCb::operator()(sr::Session session, uint32_t subscriptionId, std::string_view moduleName,
+    std::optional<std::string_view> subXPath, std::optional<std::string_view> requestXPath, uint32_t requestId, std::optional<ly::DataNode>& output)
+{
+    sr::ErrorCode error = sr::ErrorCode::Ok;
+    return error;
+}
+
+/**
+ * sysrepo-plugin-generator: Generated default constructor.
+ *
+ * @param ctx Plugin operational context.
+ *
+ */
+InterfaceMaxFrameSizeOperGetCb::InterfaceMaxFrameSizeOperGetCb(std::shared_ptr<InterfacesOperationalContext> ctx) { m_ctx = ctx; }
+
+/**
+ * sysrepo-plugin-generator: Generated operator() for path /ietf-interfaces:interfaces/interface[name='%s']/ietf-if-extensions:max-frame-size.
+ *
+ * @param session An implicit session for the callback.
+ * @param subscriptionId ID the subscription associated with the callback.
+ * @param moduleName The module name used for subscribing.
+ * @param subXPath The optional xpath used at the time of subscription.
+ * @param requestId Request ID unique for the specific module_name. Connected events for one request (SR_EV_CHANGE and
+ * @param output A handle to a tree. The callback is supposed to fill this tree with the requested data.
+ *
+ * @return Error code.
+ *
+ */
+sr::ErrorCode InterfaceMaxFrameSizeOperGetCb::operator()(sr::Session session, uint32_t subscriptionId, std::string_view moduleName,
+    std::optional<std::string_view> subXPath, std::optional<std::string_view> requestXPath, uint32_t requestId, std::optional<ly::DataNode>& output)
+{
+    sr::ErrorCode error = sr::ErrorCode::Ok;
+    return error;
+}
+
+/**
+ * sysrepo-plugin-generator: Generated default constructor.
+ *
+ * @param ctx Plugin operational context.
+ *
+ */
+InterfaceForwardingModeOperGetCb::InterfaceForwardingModeOperGetCb(std::shared_ptr<InterfacesOperationalContext> ctx) { m_ctx = ctx; }
+
+/**
+ * sysrepo-plugin-generator: Generated operator() for path /ietf-interfaces:interfaces/interface[name='%s']/ietf-if-extensions:forwarding-mode.
+ *
+ * @param session An implicit session for the callback.
+ * @param subscriptionId ID the subscription associated with the callback.
+ * @param moduleName The module name used for subscribing.
+ * @param subXPath The optional xpath used at the time of subscription.
+ * @param requestId Request ID unique for the specific module_name. Connected events for one request (SR_EV_CHANGE and
+ * @param output A handle to a tree. The callback is supposed to fill this tree with the requested data.
+ *
+ * @return Error code.
+ *
+ */
+sr::ErrorCode InterfaceForwardingModeOperGetCb::operator()(sr::Session session, uint32_t subscriptionId, std::string_view moduleName,
+    std::optional<std::string_view> subXPath, std::optional<std::string_view> requestXPath, uint32_t requestId, std::optional<ly::DataNode>& output)
+{
+    sr::ErrorCode error = sr::ErrorCode::Ok;
+    return error;
+}
+
+/**
+ * sysrepo-plugin-generator: Generated default constructor.
+ *
+ * @param ctx Plugin operational context.
+ *
+ */
+InterfaceParentInterfaceOperGetCb::InterfaceParentInterfaceOperGetCb(std::shared_ptr<InterfacesOperationalContext> ctx) { m_ctx = ctx; }
+
+/**
+ * sysrepo-plugin-generator: Generated operator() for path /ietf-interfaces:interfaces/interface[name='%s']/ietf-if-extensions:parent-interface.
+ *
+ * @param session An implicit session for the callback.
+ * @param subscriptionId ID the subscription associated with the callback.
+ * @param moduleName The module name used for subscribing.
+ * @param subXPath The optional xpath used at the time of subscription.
+ * @param requestId Request ID unique for the specific module_name. Connected events for one request (SR_EV_CHANGE and
+ * @param output A handle to a tree. The callback is supposed to fill this tree with the requested data.
+ *
+ * @return Error code.
+ *
+ */
+sr::ErrorCode InterfaceParentInterfaceOperGetCb::operator()(sr::Session session, uint32_t subscriptionId, std::string_view moduleName,
+    std::optional<std::string_view> subXPath, std::optional<std::string_view> requestXPath, uint32_t requestId, std::optional<ly::DataNode>& output)
+{
+    sr::ErrorCode error = sr::ErrorCode::Ok;
+    return error;
+}
