@@ -1,0 +1,12 @@
+<bridges xmlns="urn:ieee:std:802.1Q:yang:ieee802-dot1q-bridge">
+  <bridge>
+    <name>br0</name>
+    <address>42-50-a1-c4-23-78</address>
+    <bridge-type xmlns:dot1q="urn:ieee:std:802.1Q:yang:ieee802-dot1q-bridge">dot1q:customer-vlan-bridge</bridge-type>
+    <component>
+      <name>br0</name>
+      <address>42-50-a1-c4-23-78</address>
+      <type xmlns:dot1q="urn:ieee:std:802.1Q:yang:ieee802-dot1q-bridge">dot1q:c-vlan-component</type>
+    </component>
+  </bridge>
+</bridges>

@@ -1,4 +1,4 @@
-cffi==1.14.5
-libyang==1.6.1
-pycparser==2.20
-sysrepo==0.4.2
+cffi>=1.15.1
+libyang>=2.8.0
+pycparser>=2.21
+sysrepo>=1.5.0

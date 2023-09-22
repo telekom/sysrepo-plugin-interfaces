@@ -4,14 +4,24 @@ else()
     find_path(
         PTHREAD_INCLUDE_DIR
         NAMES pthread.h
-        PATHS /usr/include /usr/local/include /opt/local/include /sw/include ${CMAKE_INCLUDE_PATH} ${CMAKE_INSTALL_PREFIX}/include
-    )
+        PATHS /usr/include
+              /usr/local/include
+              /opt/local/include
+              /sw/include
+              ${CMAKE_INCLUDE_PATH}
+              ${CMAKE_INSTALL_PREFIX}/include)
 
     find_library(
         PTHREAD_LIBRARY
         NAMES pthread
-        PATHS /usr/lib /usr/lib64 /usr/local/lib /usr/local/lib64 /opt/local/lib /sw/lib ${CMAKE_LIBRARY_PATH} ${CMAKE_INSTALL_PREFIX}/lib
-    )
+        PATHS /usr/lib
+              /usr/lib64
+              /usr/local/lib
+              /usr/local/lib64
+              /opt/local/lib
+              /sw/lib
+              ${CMAKE_LIBRARY_PATH}
+              ${CMAKE_INSTALL_PREFIX}/lib)
 
     if(PTHREAD_INCLUDE_DIR AND PTHREAD_LIBRARY)
         set(PTHREAD_FOUND TRUE)

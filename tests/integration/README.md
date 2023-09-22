@@ -25,21 +25,21 @@ pip3 install -r requirements.txt
 
 Make sure to have Sysrepo and the accompanying plugins installed under `devel`.
 
-Create a virtual environment, activate it and make sure `pip`, `setuptools` and `wheel` are up to date.
+Create a virtual environment, activate it and make sure `pip`, `setuptools` and `wheel` are up to date:
 Finally install the packages.
 
 ```
 $ python3 -m venv sysrepolibrary-venv
 $ source sysrepolibrary-venv/bin/activate
 $ python3 -m pip install --upgrade pip setuptools wheel
-$ python3 -m pip install rpaframework SysrepoLibrary robotframework-tidy
+$ python3 -m pip install rpaframework robotframework-sysrepolibrary robotframework-tidy
 ```
 
 To autoformat the robot code:
 ```
+$ robotidy robot-ieee-bridging/
 $ robotidy robot-ietf-interfaces/
 ```
-
 
 # Running the tests
 
@@ -65,8 +65,12 @@ OK
 ## Robot framework
 Note the root privileges when invoking the command (datastore permission issues otherwise, item not found):
 
-The plugin wait start time can be modified via the env var `SYSREPO_INTEGRATION_PLUGIN_TIMEOUT_SECONDS`. The default value is `0.5s`. It's set in `robot-ietf-interfaces/InterfacesInit.resource` and `robot-ietf-routing/RoutingInit.resource`.
+The plugin wait start time can be modified via the env var `SYSREPO_INTEGRATION_PLUGIN_TIMEOUT_SECONDS`. The default value is `0.5s`. It's set in `robot-ietf-interfaces/InterfacesInit.resource`, `robot-ietf-routing/RoutingInit.resource` and `robot-ieee-bridging/BridgingInit.resource`.
 
+To test the routing plugin:
+```
+# SYSREPO_BRIDGING_PLUGIN_PATH=/path/to/bridging/plugin/executable robot robot-ieee-bridging
+```
 To test the interfaces plugin (change env var path):
 ```
 # SYSREPO_INTERFACES_PLUGIN_PATH=/path/to/interfaces/plugin/executable robot robot-ietf-interfaces

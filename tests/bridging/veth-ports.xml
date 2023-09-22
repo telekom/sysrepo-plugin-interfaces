@@ -1,0 +1,18 @@
+<interfaces xmlns="urn:ietf:params:xml:ns:yang:ietf-interfaces">
+  <interface>
+    <name>veth1_bport</name>
+    <description>test port for br0 bridge</description>
+    <type xmlns:ianaift="urn:ietf:params:xml:ns:yang:iana-if-type">ianaift:ethernetCsmacd</type>
+    <bridge-port xmlns="urn:ieee:std:802.1Q:yang:ieee802-dot1q-bridge">
+      <component-name>br0</component-name>
+    </bridge-port>
+  </interface>
+  <interface>
+    <name>veth2_bport</name>
+    <description>test port for br0 bridge</description>
+    <type xmlns:ianaift="urn:ietf:params:xml:ns:yang:iana-if-type">ianaift:ethernetCsmacd</type>
+    <bridge-port xmlns="urn:ieee:std:802.1Q:yang:ieee802-dot1q-bridge">
+      <component-name>br0</component-name>
+    </bridge-port>
+  </interface>
+</interfaces>
