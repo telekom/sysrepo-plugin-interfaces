@@ -1,69 +1,116 @@
-cmake_minimum_required(VERSION 2.8)
-project(sysrepo-plugin-routing C)
+# telekom / sysrepo-plugin-routing
+#
+# This program is made available under the terms of the
+# BSD 3-Clause license which is available at
+# https://opensource.org/licenses/BSD-3-Clause
+#
+# SPDX-FileCopyrightText: 2021 Deutsche Telekom AG
+# SPDX-FileContributor: Sartura Ltd.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+#
+cmake_minimum_required(VERSION 3.0)
+project(ietf-routing-plugin)
+
+set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/CMakeModules")
+
+set(PLUGIN_LIRBARY_NAME srplg-ietf-routing)
+set(PLUGIN_EXECUTABLE_NAME ietf-routing-plugin)
+set(PLUGIN_CORE_LIBRARY_NAME ietf-routing-plugin-core)
+
+find_package(PkgConfig REQUIRED)
+find_package(SYSREPOCPP REQUIRED)
+find_package(LIBYANGCPP REQUIRED)
+find_package(SYSREPO REQUIRED)
+find_package(LIBYANG REQUIRED)
+find_package(SRPCPP REQUIRED)
+find_package(NL REQUIRED)
 
 include_directories(
-	${PROJECT_SOURCE_DIR}
+    ${SYSREPOCPP_INCLUDE_DIRS}
+    ${LIBYANGCPP_INCLUDE_DIRS}
+    ${SRPCPP_INCLUDE_DIRS}
+    ${NL_INCLUDE_DIRS}
+    ${CMAKE_SOURCE_DIR}/src/routing/src
 )
 
 set(
-    SOURCES
-    routing.c
-    ${CMAKE_SOURCE_DIR}/src/utils/memory.c
-    rib.c
-    rib/list.c
-    route/list.c
-    route/list_hash.c
-    route/next_hop.c
-    route.c
-    control_plane_protocol.c
-    common.c
-    startup.c
-    persist.c
+    CORE_SOURCES
 
-    # subscriptions
-    subscription/change.c
-    subscription/rpc.c
-    subscription/operational.c
+    src/core/context.cpp
 )
 
-if (NOT PLUGIN)
-	set(SOURCES ${SOURCES} "main.c")
-endif()
+set(
+    MODULE_SOURCES
 
-# get sysrepo version
-find_package(PkgConfig)
-if (PKG_CONFIG_FOUND)
-    execute_process(COMMAND ${PKG_CONFIG_EXECUTABLE} "--modversion" "sysrepo" OUTPUT_VARIABLE SYSREPO_VERSION)
-    if(SYSREPO_VERSION)
-        # strip new line from string
-        string(STRIP ${SYSREPO_VERSION} SYSREPO_VERSION)
-        if(${SYSREPO_VERSION} VERSION_LESS "1.0.0")
-            message(FATAL_ERROR "${PROJECT_NAME} requires at least libsysrepo verision 1.0.0")
-        endif()
-    endif()
-endif()
+    src/modules/routing.cpp
+    src/modules/routing/common.cpp
+    src/modules/routing/change.cpp
+    src/modules/routing/oper.cpp
+)
 
-if(PLUGIN)
-    add_library(${PROJECT_NAME} MODULE ${SOURCES})
-    install(TARGETS ${PROJECT_NAME} DESTINATION lib)
-else()
-    add_executable(${PROJECT_NAME} ${SOURCES})
-    install(TARGETS ${PROJECT_NAME} DESTINATION bin)
-endif()
+set(
+    PLUGIN_SOURCES
 
-set_target_properties(${PROJECT_NAME} PROPERTIES OUTPUT_NAME ${PROJECT_NAME} PREFIX "")
+    src/plugin.cpp
+)
 
-find_package(NL REQUIRED)
+set(
+    EXECUTABLE_SOURCES
+
+    src/main.c
+    src/plugin.cpp
+)
+
+# core library
+add_library(
+    ${PLUGIN_CORE_LIBRARY_NAME}
+    STATIC
+    ${CORE_SOURCES}
+    ${MODULE_SOURCES}
+)
+
+target_compile_options(
+    ${PLUGIN_CORE_LIBRARY_NAME}
+    PRIVATE
+    -fPIC
+)
+
+# plugin as an executable
+add_executable(
+    ${PLUGIN_EXECUTABLE_NAME}
+    ${EXECUTABLE_SOURCES}
+)
 
 target_link_libraries(
-    ${PROJECT_NAME}
+    ${PLUGIN_EXECUTABLE_NAME}
+
+    ${PLUGIN_CORE_LIBRARY_NAME}
+
     ${SYSREPO_LIBRARIES}
     ${LIBYANG_LIBRARIES}
+    ${SYSREPOCPP_LIBRARIES}
+    ${LIBYANGCPP_LIBRARIES}
+    ${SRPCPP_LIBRARIES}
     ${NL_LIBRARIES}
 )
 
-include_directories(
-    ${SYSREPO_INCLUDE_DIRS}
-    ${LIBYANG_INCLUDE_DIRS}
-    ${NL_INCLUDE_DIRS}
+# plugin as a library
+add_library(
+    ${PLUGIN_LIRBARY_NAME}
+    MODULE
+    ${PLUGIN_SOURCES}
+)
+
+target_link_libraries(
+    ${PLUGIN_LIRBARY_NAME}
+
+    ${PLUGIN_CORE_LIBRARY_NAME}
+    ${SYSREPO_LIBRARIES}
+    ${LIBYANG_LIBRARIES}
+    ${SYSREPOCPP_LIBRARIES}
+    ${LIBYANGCPP_LIBRARIES}
+    ${SRPCPP_LIBRARIES}
+    ${NL_LIBRARIES}
 )
