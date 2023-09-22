@@ -25,14 +25,24 @@ pip3 install -r requirements.txt
 
 Make sure to have Sysrepo and the accompanying plugins installed under `devel`.
 
-Create a virtual environment, activate it and make sure `pip`, `setuptools` and `wheel` are up to date.
-Finally install the packages.
+Create a virtual environment, activate it and make sure `pip`, `setuptools` and `wheel` are up to date:
 
 ```
-$ python3 -m venv sysrepolibrary-venv
-$ source sysrepolibrary-venv/bin/activate
+$ python3 -m venv robotframework-interfaces-venv
+$ source robotframework-interfaces-venv/bin/activate
 $ python3 -m pip install --upgrade pip setuptools wheel
-$ python3 -m pip install rpaframework SysrepoLibrary robotframework-tidy
+```
+
+Finally install the package:
+
+```
+$ python3 -m pip install robotframework-sysrepolibrary
+```
+
+Optionally for autoformatting install:
+
+```
+$ python3 -m pip install robotframework-tidy
 ```
 
 To autoformat the robot code:
@@ -40,6 +50,7 @@ To autoformat the robot code:
 $ robotidy robot-ietf-interfaces/
 ```
 
+`robotidy.toml` is the configuration file.
 
 # Running the tests
 
