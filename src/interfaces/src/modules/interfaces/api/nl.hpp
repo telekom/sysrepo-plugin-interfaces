@@ -3,6 +3,7 @@
 #include <memory>
 #include <functional>
 #include <optional>
+#include <stdexcept>
 
 ///< Type used for deleting libnl allocated structs
 template <typename T> using NlDeleter = std::function<void(T*)>;
@@ -15,7 +16,14 @@ class InterfaceRef;
 class AddressRef;
 class RouteAddressRef;
 class NeighborRef;
+enum class AddressFamily;
 template <typename T> class CacheRef;
+
+enum class NeighborOperations {
+    Create,
+    Modify,
+    Delete,
+};
 
 /**
  * @brief Netlink context using the libnl library. Used for updating system networking configuration.
@@ -48,6 +56,32 @@ public:
      * @brief Return an interface found in cache by its index.
      */
     std::optional<InterfaceRef> getInterfaceByIndex(const uint32_t index);
+
+    /**
+     * @brief Create interface.
+     */
+    void createInterface(std::string name, std::string type, bool enabled);
+
+    /**
+     * @brief Create new address.
+     */
+    void createAddress(std::string interface_name, std::string address, int prefix_length, AddressFamily fam);
+
+    /**
+     * @brief Delete existing interface, if not existant, throws an exception.
+     */
+    void deleteInterface(const std::string& name);
+
+    /**
+     * @brief Delete existing Address, if not existant, throws an exception.
+     */
+    void deleteAddress(std::string interface_name, std::string address, int prefix_length, AddressFamily fam);
+
+    /**
+     * @brief Create Neighbor
+     */
+    void neighbor(std::string interface_name, std::string address, std::string ll_addr, AddressFamily fam, NeighborOperations oper);
+
 
     /**
      * @brief Get the links cache.

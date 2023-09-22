@@ -4,16 +4,26 @@
 #include <netlink/route/qdisc.h>
 #include <netlink/route/tc.h>
 #include <memory>
+#include <stdexcept>
+#include <linux/if.h>
+#include <fstream>
 
 /**
  * @brief Private constructor accessible only to netlink context. Stores a reference to a link for later access of link members.
  */
-InterfaceRef::InterfaceRef(struct rtnl_link* link) { m_link = RtnlLinkPtr(link, NlEmptyDeleter<RtnlLink>); }
+InterfaceRef::InterfaceRef(struct rtnl_link* link, struct nl_sock* socket)
+{
+    m_link = RtnlLinkPtr(link, NlEmptyDeleter<RtnlLink>), m_socket = NlSocketPtr(socket, NlEmptyDeleter<struct nl_sock>);
+}
 
 /**
  * @brief Private constructor accessible only to netlink context. Stores a reference to a link for later access of link members.
  */
-InterfaceRef::InterfaceRef(struct nl_object* link) { m_link = RtnlLinkPtr(reinterpret_cast<RtnlLink*>(link), NlEmptyDeleter<RtnlLink>); }
+InterfaceRef::InterfaceRef(struct nl_object* link, struct nl_sock* socket)
+{
+    m_link = RtnlLinkPtr(reinterpret_cast<RtnlLink*>(link), NlEmptyDeleter<RtnlLink>),
+    m_socket = NlSocketPtr(reinterpret_cast<struct nl_sock*>(socket), NlEmptyDeleter<struct nl_sock>);
+};
 
 /**
  * @breif Wrapper function for rtnl_link_get_name().
@@ -63,7 +73,7 @@ std::uint8_t InterfaceRef::getLinkMode() const { return rtnl_link_get_linkmode(m
 /**
  * @brief Returns address of the interface.
  */
-AddressRef InterfaceRef::getAddress() const { return AddressRef(rtnl_link_get_addr(m_link.get())); }
+AddressRef InterfaceRef::getAddress() const { return AddressRef(rtnl_link_get_addr(m_link.get()), m_socket.get()); }
 
 /**
  * @brief Returns the speed of the interface.
@@ -130,4 +140,93 @@ InterfaceStats InterfaceRef::getStatistics() const
         .OutDiscards = out_discards,
         .OutErrors = out_errors,
     };
+}
+
+/**
+ * @brief Enable and disable an interface.
+ */
+void InterfaceRef::setEnabled(bool enabled)
+{
+
+    RtnlLink* current_link = m_link.get();
+
+    // allocate change link
+    RtnlLink* change_link = rtnl_link_alloc();
+
+    // set enabled flags to link
+    enabled ? rtnl_link_set_flags(change_link, IFF_UP) : rtnl_link_unset_flags(change_link, IFF_UP);
+
+    // change link
+    int err = rtnl_link_change(m_socket.get(), current_link, change_link, 0);
+
+    if (err < 0) {
+        rtnl_link_put(change_link);
+        throw std::runtime_error(std::string(nl_geterror(err)));
+    }
+
+    // deallocate change link
+    rtnl_link_put(change_link);
+}
+
+/**
+ * @brief Changes the MTU of an interface.
+ */
+void InterfaceRef::setMtu(uint16_t mtu)
+{
+
+    RtnlLink* current_link = m_link.get();
+
+    // allocate change link
+    RtnlLink* change_link = rtnl_link_alloc();
+
+    // set mtu
+    rtnl_link_set_mtu(change_link, mtu);
+
+    // change link
+    int err = rtnl_link_change(m_socket.get(), current_link, change_link, 0);
+
+    if (err < 0) {
+        rtnl_link_put(change_link);
+        throw std::runtime_error(std::string(nl_geterror(err)));
+    }
+
+    // deallocate change link
+    rtnl_link_put(change_link);
+}
+
+/**
+ * @brief Enable/Dissable forwarding of an interface.
+ */
+void InterfaceRef::setForwarding(bool enabled, AddressFamily fam)
+{
+    std::fstream fw_file;
+    std::string ip_version;
+
+    switch (fam) {
+    case AddressFamily::V4:
+        ip_version = "ipv4";
+        break;
+    case AddressFamily::V6:
+        ip_version = "ipv6";
+        break;
+    default:
+        break;
+    };
+
+    std::string path = "/proc/sys/net/" + ip_version + "/conf/" + this->getName() + "/forwarding";
+
+    fw_file.open(path, std::ios::out);
+
+    if (!fw_file.is_open())
+        throw std::runtime_error("Error opening file: " + path);
+
+    char ch_enabled;
+    enabled ? ch_enabled = '1' : ch_enabled = '0';
+
+    fw_file << ch_enabled;
+
+    fw_file.close();
+
+    // probably some reset of network service afterwords
+    // file path probably varies from system to system
 }

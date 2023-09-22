@@ -70,8 +70,9 @@ std::string addressStatusToString(AddressStatus status)
 /**
  * @brief Private constructor accessible only to friend classes. Stores a reference to nl_addr for later access of address members.
  */
-AddressRef::AddressRef(struct nl_addr* addr)
+AddressRef::AddressRef(struct nl_addr* addr, struct nl_sock* socket)
     : m_addr(addr, NlEmptyDeleter<NlAddr>)
+    , m_socket(socket, NlEmptyDeleter<struct nl_sock>)
 {
 }
 
@@ -94,16 +95,18 @@ std::string AddressRef::toString() const
 /**
  * @brief Private constructor accessible only to friend classes. Stores a reference to rtnl_addr for later access of address members.
  */
-RouteAddressRef::RouteAddressRef(struct rtnl_addr* addr)
+RouteAddressRef::RouteAddressRef(struct rtnl_addr* addr, struct nl_sock* socket)
     : m_addr(addr, NlEmptyDeleter<RtnlAddr>)
+    , m_socket(socket, NlEmptyDeleter<struct nl_sock>)
 {
 }
 
 /**
  * @brief Private constructor accessible only to friend classes. Stores a reference to rtnl_addr for later access of address members.
  */
-RouteAddressRef::RouteAddressRef(struct nl_object* addr)
+RouteAddressRef::RouteAddressRef(struct nl_object* addr, struct nl_sock* socket)
     : m_addr(reinterpret_cast<RtnlAddr*>(addr), NlEmptyDeleter<RtnlAddr>)
+    , m_socket(reinterpret_cast<struct nl_sock*>(socket), NlEmptyDeleter<struct nl_sock>)
 {
 }
 
@@ -151,7 +154,7 @@ AddressStatus RouteAddressRef::getStatus() const { return AddressStatus::Preferr
  */
 std::string RouteAddressRef::getIPAddress() const
 {
-    auto local = AddressRef(rtnl_addr_get_local(m_addr.get()));
+    auto local = AddressRef(rtnl_addr_get_local(m_addr.get()), m_socket.get());
     auto str = local.toString();
     auto slash_pos = str.find('/');
     auto ip_address = str;
@@ -167,3 +170,34 @@ std::string RouteAddressRef::getIPAddress() const
  * @brief Get the prefix portion of the route address.
  */
 int RouteAddressRef::getPrefix() const { return rtnl_addr_get_prefixlen(m_addr.get()); }
+
+/**
+ * @brief Get the prefix portion of the route address.
+ */
+void RouteAddressRef::setPrefix(int prefix_len) const
+{
+    rtnl_addr* address = m_addr.get();
+    int err = 0;
+
+    err = rtnl_addr_delete(m_socket.get(), address, 0);
+
+    if (err < 0)
+        throw std::runtime_error(nl_geterror(err));
+
+    rtnl_addr_set_prefixlen(address, prefix_len);
+
+    err = rtnl_addr_add(m_socket.get(), address, 0);
+    if (err < 0)
+        throw std::runtime_error(nl_geterror(err));
+}
+
+/**
+ * @brief Remove address.
+ */
+void RouteAddressRef::remove()
+{
+    int err = rtnl_addr_delete(m_socket.get(), m_addr.get(), 0);
+
+    if (err < 0)
+        throw std::runtime_error(nl_geterror(err));
+};
