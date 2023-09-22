@@ -24,11 +24,11 @@
 #define BRIDGING_BRIDGE_COMPONENT_FILTERING_DATABASE_YANG_PATH BRIDGING_BRIDGE_COMPONENT_YANG_PATH "/filtering-database"
 
 // equivalent to '#define BR_MAX_PORTS (1<<BR_PORT_BITS)' whereas '#define BR_PORT_BITS 10' - see /net/bridge/br_private.h
-#define BRIDGING_MAX_BR_PORTS (1<<10)
+#define BRIDGING_MAX_BR_PORTS (1 << 10)
 
 #define ARRAY_SIZE(arr) (sizeof(arr) / sizeof(arr[0]))
 
-void mac_address_ly_to_nl(char *addr);
-void mac_address_nl_to_ly(char *addr);
+void mac_address_ly_to_nl(char* addr);
+void mac_address_nl_to_ly(char* addr);
 
 #endif // BRIDGING_PLUGIN_COMMON_H
