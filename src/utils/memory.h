@@ -14,15 +14,15 @@
 #include <stdlib.h>
 
 #define FREE_SAFE(x) \
-	do {             \
-		free(x);     \
-		(x) = NULL;  \
-	} while (0)
+    do {             \
+        free(x);     \
+        (x) = NULL;  \
+    } while (0)
 
-void *xmalloc(size_t size);
-void *xrealloc(void *ptr, size_t size);
-void *xcalloc(size_t nmemb, size_t size);
-char *xstrdup(const char *s);
-char *xstrndup(const char *s, size_t size);
+void* xmalloc(size_t size);
+void* xrealloc(void* ptr, size_t size);
+void* xcalloc(size_t nmemb, size_t size);
+char* xstrdup(const char* s);
+char* xstrndup(const char* s, size_t size);
 
 #endif /* MEMORY_H_ONCE */

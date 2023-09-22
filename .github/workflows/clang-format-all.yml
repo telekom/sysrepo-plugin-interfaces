@@ -12,10 +12,9 @@ jobs:
 
     steps:
     - uses: actions/checkout@v2
-
     - uses: DoozyX/clang-format-lint-action@v0.16.2
       with:
-        source: './src ./tests/bridging'
+        source: './src ./tests/routing ./tests/bridging'
         exclude: './deps'
         # only C source and header files
         extensions: 'h,c'

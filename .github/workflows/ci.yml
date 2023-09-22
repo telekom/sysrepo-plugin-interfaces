@@ -2,9 +2,9 @@ name: sysrepo-plugin-interfaces CI
 
 on:
   push:
-    branches: [ "main", "devel", "bridging-plugin" ]
+    branches: [ "main", "devel" ]
   pull_request:
-    branches: [ "main", "devel", "bridging-plugin" ]
+    branches: [ "main", "devel" ]
 
 jobs:
   build:
@@ -18,7 +18,7 @@ jobs:
             name: "Release, gcc",
             build-type: "Release",
             cc: "gcc",
-            options: "-DENABLE_BUILD_TESTS=ON -DBRIDGING_PLUGIN=ON",
+            options: "-DENABLE_BUILD_TESTS=ON -DINTERFACES_PLUGIN=ON -DROUTING_PLUGIN=ON",
             packager: "sudo apt-get",
             # no expect because stdout seems to be redirected
             packages: "libnl-3-dev libnl-route-3-dev libnl-nf-3-dev libnl-genl-3-dev libcmocka-dev",
@@ -27,7 +27,7 @@ jobs:
             name: "Release, clang",
             build-type: "Release",
             cc: "clang",
-            options: "-DENABLE_BUILD_TESTS=ON -DBRIDGING_PLUGIN=ON",
+            options: "-DENABLE_BUILD_TESTS=ON -DINTERFACES_PLUGIN=ON -DROUTING_PLUGIN=ON",
             packager: "sudo apt-get",
             packages: "libnl-3-dev libnl-route-3-dev libnl-nf-3-dev libnl-genl-3-dev libcmocka-dev",
           }
@@ -35,7 +35,7 @@ jobs:
             name: "Debug, gcc",
             build-type: "Debug",
             cc: "gcc",
-            options: "-DENABLE_BUILD_TESTS=ON -DBRIDGING_PLUGIN=ON",
+            options: "-DENABLE_BUILD_TESTS=ON -DINTERFACES_PLUGIN=ON -DROUTING_PLUGIN=ON",
             packager: "sudo apt-get",
             packages: "libnl-3-dev libnl-route-3-dev libnl-nf-3-dev libnl-genl-3-dev libcmocka-dev",
           }
@@ -43,15 +43,13 @@ jobs:
             name: "Debug, clang",
             build-type: "Debug",
             cc: "clang",
-            options: "-DENABLE_BUILD_TESTS=ON -DBRIDGING_PLUGIN=ON",
+            options: "-DENABLE_BUILD_TESTS=ON -DINTERFACES_PLUGIN=ON -DROUTING_PLUGIN=ON",
             packager: "sudo apt-get",
             packages: "libnl-3-dev libnl-route-3-dev libnl-nf-3-dev libnl-genl-3-dev libcmocka-dev",
           }
           - {
-            name: "ASAN and UBSAN",
-            build-type: "Debug",
-            cc: "clang",
-            options: "-DCMAKE_C_FLAGS=-fsanitize=address,undefined -DENABLE_BUILD_TESTS=ON -DBRIDGING_PLUGIN=ON",
+            name: "ASAN, UBSAN and LSAN",
+            options: "-DCMAKE_C_FLAGS=-fsanitize=address,undefined,leak -DENABLE_BUILD_TESTS=ON -DINTERFACES_PLUGIN=ON -DROUTING_PLUGIN=ON -DBRIDGING_PLUGIN=ON",
             packager: "sudo apt-get",
             packages: "libnl-3-dev libnl-route-3-dev libnl-nf-3-dev libnl-genl-3-dev libcmocka-dev",
           }
@@ -149,11 +147,16 @@ jobs:
           cache: 'pip' # caching pip dependencies
       - name: Deps-robotframework
         run: pip install rpaframework robotframework-sysrepolibrary
-      - name: Integration tests
+      - name: Bridging robot integration test
         working-directory: ${{github.workspace}}/tests/integration
         env:
           SYSREPO_BRIDGING_PLUGIN_PATH: ${{github.workspace}}/build/src/bridging/sysrepo-plugin-bridging
         run: bash ./run_robot_bridging_tests.sh
+      - name: Interfaces robot integration test
+        working-directory: ${{github.workspace}}/tests/integration
+        env:
+          SYSREPO_INTERFACES_PLUGIN_PATH: ${{github.workspace}}/build/src/interfaces/ietf-interfaces-plugin
+        run: bash ./run_robot_interfaces_tests.sh
 
       - name: Setup tmate on any previous step fail
         if: ${{ failure() }}
@@ -210,7 +213,7 @@ jobs:
       - name: Run build-wrapper
         run: |
           mkdir build
-          cmake -S . -B build -DBRIDGING_PLUGIN=ON
+          cmake -S . -B build -DINTERFACES_PLUGIN=ON -DROUTING_PLUGIN=ON
           build-wrapper-linux-x86-64 --out-dir ${{ env.BUILD_WRAPPER_OUT_DIR }} cmake --build build/ --config Release
       - name: Run sonar-scanner
         env:
