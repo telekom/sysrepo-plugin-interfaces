@@ -204,3 +204,108 @@ jobs:
         if: ${{ failure() }}
         # will keep outputing due to a workaround for a GitHub log display bug
         uses: mxschmitt/action-tmate@v3
+
+  sonarcloud:
+    name: sonarcloud
+    runs-on: ubuntu-latest
+    env:
+      BUILD_WRAPPER_OUT_DIR: build_wrapper_output_directory # Directory where build-wrapper output will be placed
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          submodules: 'recursive'
+          fetch-depth: 0 # Shallow clones should be disabled for a better relevancy of analysis
+      - name: Deps-packages
+        shell: bash
+        run: |
+            sudo apt install libnl-3-dev libnl-route-3-dev libnl-nf-3-dev libnl-genl-3-dev libcmocka-dev
+
+      - name: Deps-libyang repo
+        uses: actions/checkout@v4
+        with:
+          repository: CESNET/libyang
+          path: libyang
+          # required devel for libyang-cpp (including master)
+          ref: devel
+      - name: Deps-libyang install
+        working-directory: ${{ github.workspace }}/libyang
+        shell: bash
+        run: |
+          CC=gcc cmake -B build
+          cmake --build build
+          sudo cmake --install build
+          sudo ldconfig
+
+      - name: Deps-sysrepo repo
+        uses: actions/checkout@v4
+        with:
+          repository: sysrepo/sysrepo
+          # required devel for sysrepo-cpp (including master)
+          path: sysrepo
+          ref: devel
+      - name: Deps-sysrepo install
+        working-directory: ${{ github.workspace }}/sysrepo
+        shell: bash
+        run: |
+          CC=gcc cmake -B build
+          cmake --build build
+          sudo cmake --install build
+          sudo ldconfig
+
+      - name: Deps-srpc repo
+        uses: actions/checkout@v4
+        with:
+          repository: telekom/sysrepo-plugins-common
+          path: sysrepo-plugins-common
+          ref: cpp
+      - name: Deps-srpc install
+        working-directory: ${{ github.workspace }}/sysrepo-plugins-common
+        shell: bash
+        run: |
+          # cpp srpc main cmake is in the cpp dir of the project
+          CC=g++ cmake -S cpp -B build
+          cmake --build build
+          sudo cmake --install build
+          sudo ldconfig
+
+      - name: Deps-libyang-cpp repo
+        uses: actions/checkout@v4
+        with:
+          repository: CESNET/libyang-cpp
+          path: libyang-cpp
+      - name: Deps-libyang-cpp install
+        working-directory: ${{ github.workspace }}/libyang-cpp
+        shell: bash
+        run: |
+          CC=g++ cmake -B build
+          cmake --build build
+          sudo cmake --install build
+          sudo ldconfig
+
+      - name: Deps-sysrepo-cpp repo
+        uses: actions/checkout@v4
+        with:
+          repository: sysrepo/sysrepo-cpp
+          path: sysrepo-cpp
+      - name: Deps-sysrepo install
+        working-directory: ${{ github.workspace }}/sysrepo-cpp
+        shell: bash
+        run: |
+          CC=g++ cmake -B build
+          cmake --build build
+          sudo cmake --install build
+          sudo ldconfig
+
+      - name: Install sonar-scanner and build-wrapper
+        uses: SonarSource/sonarcloud-github-c-cpp@v1
+      - name: Run build-wrapper
+        run: |
+          mkdir build
+          cmake -S . -B build -DINTERFACES_PLUGIN=ON -DROUTING_PLUGIN=ON
+          build-wrapper-linux-x86-64 --out-dir ${{ env.BUILD_WRAPPER_OUT_DIR }} cmake --build build/ --config Release
+      - name: Run sonar-scanner
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SONAR_TOKEN: ${{ secrets.SONARCLOUD_TOKEN }}
+        run: |
+          sonar-scanner -X --define sonar.cfamily.build-wrapper-output="${{ env.BUILD_WRAPPER_OUT_DIR }}"
