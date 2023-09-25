@@ -142,6 +142,7 @@ jobs:
         with:
           repository: telekom/sysrepo-plugins-common
           path: sysrepo-plugins-common
+          submodules: recursive
           ref: devel
       - name: Deps-srpc install
         working-directory: ${{ github.workspace }}/sysrepo-plugins-common
