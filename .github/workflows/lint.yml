@@ -1,0 +1,20 @@
+name: clang-format lint
+
+on:
+  push:
+    branches: [ "cpp-*" ]
+  pull_request:
+    branches: [ "cpp-*" ]
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v2
+    - uses: DoozyX/clang-format-lint-action@v0.16.2
+      with:
+        source: './src ./tests/routing'
+        exclude: './deps'
+        extensions: 'h,c,hpp,cpp'
+        clangFormatVersion: 16
