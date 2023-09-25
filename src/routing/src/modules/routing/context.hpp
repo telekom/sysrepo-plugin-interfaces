@@ -17,4 +17,5 @@ class RoutingModuleChangesContext : public srpc::IModuleContext {
 /**
  * RPC context for the routing module.
  */
-class RoutingRpcContext : public srpc::IModuleContext { };
+class RoutingRpcContext : public srpc::IModuleContext {
+};

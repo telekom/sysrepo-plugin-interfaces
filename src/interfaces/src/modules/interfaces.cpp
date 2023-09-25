@@ -235,7 +235,7 @@ std::list<srpc::ModuleChangeCallback> InterfacesModule::getModuleChangeCallbacks
             "/ietf-interfaces:interfaces/interface/ipv6/autoconf/temporary-preferred-lifetime",
             Ipv6AutoconfTemporaryPreferredLifetimeModuleChangeCb(this->m_changeContext),
         },
-      
+
     };
 }
 /**

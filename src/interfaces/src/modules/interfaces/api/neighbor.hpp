@@ -73,7 +73,7 @@ private:
     using RtnlNeigh = struct rtnl_neigh; ///< Route NL neighbor type alias;
     using RtnlNeighDeleter = NlDeleter<RtnlNeigh>; ///< Deleter type alias.
     using RtnlNeighPtr = std::unique_ptr<RtnlNeigh, RtnlNeighDeleter>; ///< Unique pointer type alias.
-    using NlSocketPtr = std::unique_ptr<struct nl_sock, NlDeleter<struct nl_sock>>; //Socket type alias.
+    using NlSocketPtr = std::unique_ptr<struct nl_sock, NlDeleter<struct nl_sock>>; // Socket type alias.
 
     /**
      * @brief Private constructor accessible only to friend classes. Stores a reference to rtnl_neigh for later access of address members.
@@ -86,5 +86,5 @@ private:
     NeighborRef(struct nl_object* neigh, struct nl_sock* socket);
 
     RtnlNeighPtr m_neigh; ///< Neighbor reference.
-    NlSocketPtr m_socket; ///socket reference.
+    NlSocketPtr m_socket; /// socket reference.
 };

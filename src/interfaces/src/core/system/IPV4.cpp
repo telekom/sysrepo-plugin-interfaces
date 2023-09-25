@@ -52,13 +52,9 @@ bool IPV4::getEnabled()
     return args.enabled;
 }
 
-int IPV4::getMtu() {
-   return Interface(this->ifindex).getMTU();
-}
+int IPV4::getMtu() { return Interface(this->ifindex).getMTU(); }
 
-void IPV4::setMtu(unsigned int mtu){
-    Interface(this->ifindex).setMTU(mtu);
-}
+void IPV4::setMtu(unsigned int mtu) { Interface(this->ifindex).setMTU(mtu); }
 
 std::string IPV4::getIPWithPrefix()
 {

@@ -2106,8 +2106,6 @@ sr::ErrorCode InterfaceIpv6ModuleChangeCb::operator()(sr::Session session, uint3
     return error;
 }
 
-
-
 /**
  * sysrepo-plugin-generator: Generated default constructor.
  *

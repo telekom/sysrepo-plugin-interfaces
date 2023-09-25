@@ -82,7 +82,6 @@ public:
      */
     void neighbor(std::string interface_name, std::string address, std::string ll_addr, AddressFamily fam, NeighborOperations oper);
 
-
     /**
      * @brief Get the links cache.
      */
