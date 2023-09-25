@@ -1,0 +1,206 @@
+name: sysrepo-plugin-interfaces CI
+
+# match cpp-plugin naming convention
+on:
+  push:
+    branches: [ "cpp-*" ]
+  pull_request:
+    branches: [ "cpp-*" ]
+
+jobs:
+  build:
+    name: ${{matrix.config.name}}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        config:
+          - {
+            name: "Release, g++",
+            build-type: "Release",
+            cc: "g++",
+            options: "-DENABLE_BUILD_TESTS=ON -DINTERFACES_PLUGIN=ON -DROUTING_PLUGIN=ON",
+            packager: "sudo apt-get",
+            # no expect because stdout seems to be redirected
+            packages: "libnl-3-dev libnl-route-3-dev libnl-nf-3-dev libnl-genl-3-dev libcmocka-dev",
+          }
+          - {
+            name: "Release, clang++",
+            build-type: "Release",
+            cc: "clang++",
+            options: "-DENABLE_BUILD_TESTS=ON -DINTERFACES_PLUGIN=ON -DROUTING_PLUGIN=ON",
+            packager: "sudo apt-get",
+            packages: "libnl-3-dev libnl-route-3-dev libnl-nf-3-dev libnl-genl-3-dev libcmocka-dev",
+          }
+          - {
+            name: "Debug, g++",
+            build-type: "Debug",
+            cc: "g++",
+            options: "-DENABLE_BUILD_TESTS=ON -DINTERFACES_PLUGIN=ON -DROUTING_PLUGIN=ON",
+            packager: "sudo apt-get",
+            packages: "libnl-3-dev libnl-route-3-dev libnl-nf-3-dev libnl-genl-3-dev libcmocka-dev",
+          }
+          - {
+            name: "Debug, clang++",
+            build-type: "Debug",
+            cc: "clang++",
+            options: "-DENABLE_BUILD_TESTS=ON -DINTERFACES_PLUGIN=ON -DROUTING_PLUGIN=ON",
+            packager: "sudo apt-get",
+            packages: "libnl-3-dev libnl-route-3-dev libnl-nf-3-dev libnl-genl-3-dev libcmocka-dev",
+          }
+          - {
+            name: "ASAN, UBSAN and LSAN",
+            build-type: "Debug",
+            cc: "clang++",
+            options: "-DCMAKE_CXX_FLAGS=-fsanitize=address,undefined,leak -DENABLE_BUILD_TESTS=ON -DINTERFACES_PLUGIN=ON -DROUTING_PLUGIN=ON",
+            packager: "sudo apt-get",
+            packages: "libnl-3-dev libnl-route-3-dev libnl-nf-3-dev libnl-genl-3-dev libcmocka-dev",
+          }
+
+    steps:
+      - name: Init repository
+        uses: actions/checkout@v4
+        with:
+          ref: cpp-interfaces
+          submodules: recursive
+
+      - name: Deps-packages
+        shell: bash
+        run: |
+          ${{matrix.config.packager}} update
+          if ${{matrix.config.packages != ''}}
+            then ${{matrix.config.packager}} install ${{matrix.config.packages}}
+          fi
+
+      - name: Deps-libyang repo
+        uses: actions/checkout@v4
+        with:
+          repository: CESNET/libyang
+          path: libyang
+          # required devel for libyang-cpp (including master)
+          ref: devel
+      - name: Deps-libyang install
+        working-directory: ${{ github.workspace }}/libyang
+        shell: bash
+        run: |
+          CC=${{matrix.config.cc}} cmake -B build
+          cmake --build build
+          sudo cmake --install build
+          sudo ldconfig
+
+      - name: Deps-sysrepo repo
+        uses: actions/checkout@v4
+        with:
+          repository: sysrepo/sysrepo
+          # required devel for sysrepo-cpp (including master)
+          path: sysrepo
+          ref: devel
+      - name: Deps-sysrepo install
+        working-directory: ${{ github.workspace }}/sysrepo
+        shell: bash
+        run: |
+          CC=${{matrix.config.cc}} cmake -B build
+          cmake --build build
+          sudo cmake --install build
+          sudo ldconfig
+
+      - name: Deps-srpc repo
+        uses: actions/checkout@v4
+        with:
+          repository: telekom/sysrepo-plugins-common
+          path: sysrepo-plugins-common
+          ref: cpp
+      - name: Deps-srpc install
+        working-directory: ${{ github.workspace }}/sysrepo-plugins-common
+        shell: bash
+        run: |
+          # cpp srpc main cmake is in the cpp dir of the project
+          CC=${{matrix.config.cc}} cmake -S cpp -B build
+          cmake --build build
+          sudo cmake --install build
+          sudo ldconfig
+
+      - name: Deps-libyang-cpp repo
+        uses: actions/checkout@v4
+        with:
+          repository: CESNET/libyang-cpp
+          path: libyang-cpp
+      - name: Deps-libyang-cpp install
+        working-directory: ${{ github.workspace }}/libyang-cpp
+        shell: bash
+        run: |
+          CC=${{matrix.config.cc}} cmake -B build
+          cmake --build build
+          sudo cmake --install build
+          sudo ldconfig
+
+      - name: Deps-sysrepo-cpp repo
+        uses: actions/checkout@v4
+        with:
+          repository: sysrepo/sysrepo-cpp
+          path: sysrepo-cpp
+      - name: Deps-sysrepo install
+        working-directory: ${{ github.workspace }}/sysrepo-cpp
+        shell: bash
+        run: |
+          CC=${{matrix.config.cc}} cmake -B build
+          cmake --build build
+          sudo cmake --install build
+          sudo ldconfig
+
+      - name: Configure
+        shell: bash
+        working-directory: ${{github.workspace}}
+        run: |
+          CC=${{matrix.config.cc}} cmake -B ${{github.workspace}}/build -DCMAKE_BUILD_TYPE=${{matrix.config.build-type}} ${{matrix.config.options}}
+
+      - name: Build
+        shell: bash
+        working-directory: ${{github.workspace}}
+        run: |
+          cmake --build ${{github.workspace}}/build
+ 
+      - name: Sysrepo Control (Yang, Features)
+        shell: bash
+        working-directory: ${{github.workspace}}
+        run: |
+          sudo sysctl -e fs.protected_regular=0
+          # interfaces YANG modules
+          sysrepoctl -v debug -i yang/ietf-interfaces@2018-02-20.yang
+          sysrepoctl -v debug -i yang/iana-if-type@2017-01-19.yang
+          sysrepoctl -v debug -i yang/ieee802-dot1q-types.yang
+          sysrepoctl -v debug -i yang/ietf-if-extensions@2020-07-29.yang
+          sysrepoctl -v debug -i yang/ietf-if-vlan-encapsulation@2020-07-13.yang
+          sysrepoctl -v debug -i yang/ietf-ip@2018-02-22.yang
+          # interfaces features
+          sysrepoctl -v debug --change ietf-interfaces --enable-feature if-mib
+          sysrepoctl -v debug --change ietf-if-extensions --enable-feature sub-interfaces
+          # routing YANG modules
+          sysrepoctl -v debug -i ./yang/ietf-routing@2018-03-13.yang
+          sysrepoctl -v debug -i ./yang/ietf-ipv4-unicast-routing@2018-03-13.yang
+          sysrepoctl -v debug -i ./yang/ietf-ipv6-unicast-routing@2018-03-13.yang -s ./yang
+
+      - name: CTest
+        shell: bash
+        working-directory: ${{github.workspace}}/build
+        run: ctest --output-on-failure
+
+        # ensure python version based on robotframework-sysrepolibrary min
+        # cache pip packages between runs
+      - uses: actions/setup-python@v4
+        with:
+          python-version: '>=3.06'
+          cache: 'pip'
+      - name: Deps-robotframework
+        run: pip install rpaframework robotframework-sysrepolibrary
+      - name: Integration tests
+        working-directory: ${{github.workspace}}/tests/integration
+        env: 
+          SYSREPO_INTERFACES_PLUGIN_PATH: ${{github.workspace}}/build/src/interfaces/ietf-interfaces-plugin
+        run: bash ./run_robot_interfaces_tests.sh
+
+        # remote runner tmate (ssh) debugging
+      - name: Setup tmate on any previous step fail
+        if: ${{ failure() }}
+        # will keep outputing due to a workaround for a GitHub log display bug
+        uses: mxschmitt/action-tmate@v3
