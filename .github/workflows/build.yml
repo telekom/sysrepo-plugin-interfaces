@@ -118,7 +118,7 @@ jobs:
         working-directory: ${{ github.workspace }}/libyang-cpp
         shell: bash
         run: |
-          CC=${{matrix.config.ccpp}} CXX=${{matrix.config.cxx}} cmake -B build
+          CC=${{matrix.config.cc}} CXX=${{matrix.config.cxx}} cmake -B build
           cmake --build build
           sudo cmake --install build
           sudo ldconfig
@@ -132,7 +132,7 @@ jobs:
         working-directory: ${{ github.workspace }}/sysrepo-cpp
         shell: bash
         run: |
-          CC=${{matrix.config.ccpp}} CXX=${{matrix.config.cxx}} cmake -B build
+          CC=${{matrix.config.cc}} CXX=${{matrix.config.cxx}} cmake -B build
           cmake --build build
           sudo cmake --install build
           sudo ldconfig
