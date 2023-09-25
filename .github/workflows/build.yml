@@ -219,7 +219,9 @@ jobs:
         env: 
           SYSREPO_INTERFACES_PLUGIN_PATH: ${{github.workspace}}/build/src/interfaces/ietf-interfaces-plugin
         # cpp interfaces incomplete, no integration tests
-        #run: bash ./run_robot_interfaces_tests.sh
+        run: |
+          echo "not supported currently"
+          #bash ./run_robot_interfaces_tests.sh
         
 
         # remote runner tmate (ssh) debugging
