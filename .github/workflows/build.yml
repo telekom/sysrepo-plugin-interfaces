@@ -257,22 +257,6 @@ jobs:
           sudo cmake --install build
           sudo ldconfig
 
-      - name: Deps-srpc repo
-        uses: actions/checkout@v4
-        with:
-          repository: telekom/sysrepo-plugins-common
-          path: sysrepo-plugins-common
-          ref: cpp
-      - name: Deps-srpc install
-        working-directory: ${{ github.workspace }}/sysrepo-plugins-common
-        shell: bash
-        run: |
-          # cpp srpc main cmake is in the cpp dir of the project
-          CC=gcc CXX=g++ cmake -S cpp -B build
-          cmake --build build
-          sudo cmake --install build
-          sudo ldconfig
-
       - name: Deps-libyang-cpp repo
         uses: actions/checkout@v4
         with:
@@ -282,7 +266,7 @@ jobs:
         working-directory: ${{ github.workspace }}/libyang-cpp
         shell: bash
         run: |
-          CC=gcc CXX=g++ cmake -B build
+          CC=gcc CXX=g++ cmake -D BUILD_TESTING=OFF -B build
           cmake --build build
           sudo cmake --install build
           sudo ldconfig
@@ -296,7 +280,23 @@ jobs:
         working-directory: ${{ github.workspace }}/sysrepo-cpp
         shell: bash
         run: |
-          CC=gcc CXX=g++ cmake -B build
+          CC=gcc CXX=g++ cmake -D BUILD_TESTING=OFF -B build
+          cmake --build build
+          sudo cmake --install build
+          sudo ldconfig
+
+      - name: Deps-srpc repo
+        uses: actions/checkout@v4
+        with:
+          repository: telekom/sysrepo-plugins-common
+          path: sysrepo-plugins-common
+          ref: cpp
+      - name: Deps-srpc install
+        working-directory: ${{ github.workspace }}/sysrepo-plugins-common
+        shell: bash
+        run: |
+          # cpp srpc main cmake is in the cpp dir of the project
+          CC=gcc CXX=g++ cmake -S cpp -B build
           cmake --build build
           sudo cmake --install build
           sudo ldconfig
