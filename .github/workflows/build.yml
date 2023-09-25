@@ -210,7 +210,7 @@ jobs:
         # cache pip packages between runs
       - uses: actions/setup-python@v4
         with:
-          python-version: '>=3.06'
+          python-version: '>=3.6'
           cache: 'pip'
       - name: Deps-robotframework
         run: pip install rpaframework robotframework-sysrepolibrary
@@ -306,9 +306,25 @@ jobs:
         with:
           repository: telekom/sysrepo-plugins-common
           path: sysrepo-plugins-common
-          ref: cpp
+          submodules: recursive
+          ref: devel
       - name: Deps-srpc install
         working-directory: ${{ github.workspace }}/sysrepo-plugins-common
+        shell: bash
+        run: |
+          CC=gcc cmake -B build
+          cmake --build build
+          sudo cmake --install build
+          sudo ldconfig
+
+      - name: Deps-srpcpp repo
+        uses: actions/checkout@v4
+        with:
+          repository: telekom/sysrepo-plugins-common
+          path: sysrepo-plugins-common-cpp
+          ref: cpp
+      - name: Deps-srpcpp install
+        working-directory: ${{ github.workspace }}/sysrepo-plugins-common-cpp
         shell: bash
         run: |
           # cpp srpc main cmake is in the cpp dir of the project
