@@ -157,7 +157,7 @@ void modifiedLinkLayerAddr(const libyang::DataNode& change_node, int ifindex)
         throw std::runtime_error("Failed to find ip node!");
     };
 
-    IPV6(ifindex).modifyNetworkLinkLayer(Neighbour(ip_addr,ll_addr));
+    IPV6(ifindex).modifyNetworkLinkLayer(Neighbour(ip_addr, ll_addr));
 };
 
 };

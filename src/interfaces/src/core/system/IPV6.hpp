@@ -31,9 +31,9 @@ public:
 
     void removeAddress(const Address& address);
 
-    //to be implemented
+    // to be implemented
     int getMTU();
-    //to be implemented
+    // to be implemented
     void setMTU(unsigned int mtu);
 
     std::vector<Address> getAddressList();

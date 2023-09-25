@@ -20,5 +20,5 @@ public:
 
     std::string getAddressString() const;
 
-    std::string getAddressAndPrefix() const ;
+    std::string getAddressAndPrefix() const;
 };

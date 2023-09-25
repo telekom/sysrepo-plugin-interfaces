@@ -13,5 +13,5 @@ public:
     Neighbour(std::string address, std::string link_layer_address);
 
     std::string getAddress() const;
-    std::string getLinkLayer() const ;
+    std::string getLinkLayer() const;
 };

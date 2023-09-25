@@ -115,7 +115,7 @@ NeighborState NeighborRef::getState() const { return (NeighborState)rtnl_neigh_g
  */
 std::string NeighborRef::getDestinationIP() const
 {
-    auto dst = AddressRef(rtnl_neigh_get_dst(m_neigh.get()),m_socket.get());
+    auto dst = AddressRef(rtnl_neigh_get_dst(m_neigh.get()), m_socket.get());
     auto str = dst.toString();
     auto slash_pos = str.find('/');
     auto ip_address = str;
@@ -132,7 +132,7 @@ std::string NeighborRef::getDestinationIP() const
  */
 std::string NeighborRef::getLinkLayerAddress() const
 {
-    auto ll_addr = AddressRef(rtnl_neigh_get_lladdr(m_neigh.get()),m_socket.get());
+    auto ll_addr = AddressRef(rtnl_neigh_get_lladdr(m_neigh.get()), m_socket.get());
     return ll_addr.toString();
 }
 

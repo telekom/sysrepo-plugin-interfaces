@@ -186,7 +186,6 @@ void NlContext::deleteInterface(const std::string& name)
 
         iter = (struct rtnl_link*)nl_cache_get_next((struct nl_object*)iter);
     };
-
 }
 
 /**
@@ -361,7 +360,6 @@ void NlContext::neighbor(std::string interface_name, std::string address, std::s
     }
 
     clean();
-
 }
 
 /**

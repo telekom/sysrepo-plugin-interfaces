@@ -29,4 +29,5 @@ private:
 /**
  * RPC context for the interfaces module.
  */
-class InterfacesRpcContext : public srpc::IModuleContext { };
+class InterfacesRpcContext : public srpc::IModuleContext {
+};

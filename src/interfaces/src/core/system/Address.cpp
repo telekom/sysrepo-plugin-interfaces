@@ -11,12 +11,11 @@ Address::Address(std::string address, int prefix_len)
 {
 
     size_t delimiter_pos = address.find("/");
-    if(delimiter_pos == std::string::npos){
+    if (delimiter_pos == std::string::npos) {
         this->m_address = address;
-    }else{
-        this->m_address = address.substr(0,delimiter_pos);
+    } else {
+        this->m_address = address.substr(0, delimiter_pos);
     }
-    
 };
 Address::Address(std::string address_with_prefix)
 {
