@@ -17,4 +17,4 @@ jobs:
         source: './src ./tests/routing'
         exclude: './deps'
         extensions: 'h,c,hpp,cpp'
-        clangFormatVersion: 16
+        clangFormatVersion: 12
