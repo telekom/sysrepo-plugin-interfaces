@@ -142,9 +142,24 @@ jobs:
         with:
           repository: telekom/sysrepo-plugins-common
           path: sysrepo-plugins-common
-          ref: cpp
+          ref: devel
       - name: Deps-srpc install
         working-directory: ${{ github.workspace }}/sysrepo-plugins-common
+        shell: bash
+        run: |
+          CC=${{matrix.config.cc}} cmake -B build
+          cmake --build build
+          sudo cmake --install build
+          sudo ldconfig
+
+      - name: Deps-srpcpp repo
+        uses: actions/checkout@v4
+        with:
+          repository: telekom/sysrepo-plugins-common
+          path: sysrepo-plugins-common-cpp
+          ref: cpp
+      - name: Deps-srpcpp install
+        working-directory: ${{ github.workspace }}/sysrepo-plugins-common-cpp
         shell: bash
         run: |
           # cpp srpc main cmake is in the cpp dir of the project
