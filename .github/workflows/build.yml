@@ -109,22 +109,6 @@ jobs:
           sudo cmake --install build
           sudo ldconfig
 
-      - name: Deps-srpc repo
-        uses: actions/checkout@v4
-        with:
-          repository: telekom/sysrepo-plugins-common
-          path: sysrepo-plugins-common
-          ref: cpp
-      - name: Deps-srpc install
-        working-directory: ${{ github.workspace }}/sysrepo-plugins-common
-        shell: bash
-        run: |
-          # cpp srpc main cmake is in the cpp dir of the project
-          CC=${{matrix.config.cc}} CXX=${{matrix.config.cxx}} cmake -S cpp -B build
-          cmake --build build
-          sudo cmake --install build
-          sudo ldconfig
-
       - name: Deps-libyang-cpp repo
         uses: actions/checkout@v4
         with:
@@ -149,6 +133,22 @@ jobs:
         shell: bash
         run: |
           CC=${{matrix.config.ccpp}} CXX=${{matrix.config.cxx}} cmake -B build
+          cmake --build build
+          sudo cmake --install build
+          sudo ldconfig
+
+      - name: Deps-srpc repo
+        uses: actions/checkout@v4
+        with:
+          repository: telekom/sysrepo-plugins-common
+          path: sysrepo-plugins-common
+          ref: cpp
+      - name: Deps-srpc install
+        working-directory: ${{ github.workspace }}/sysrepo-plugins-common
+        shell: bash
+        run: |
+          # cpp srpc main cmake is in the cpp dir of the project
+          CC=${{matrix.config.cc}} CXX=${{matrix.config.cxx}} cmake -S cpp -B build
           cmake --build build
           sudo cmake --install build
           sudo ldconfig
