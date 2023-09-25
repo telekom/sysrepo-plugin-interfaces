@@ -268,7 +268,7 @@ jobs:
         shell: bash
         run: |
           # cpp srpc main cmake is in the cpp dir of the project
-          CC=g++ cmake -S cpp -B build
+          CC=gcc CXX=g++ cmake -S cpp -B build
           cmake --build build
           sudo cmake --install build
           sudo ldconfig
@@ -282,7 +282,7 @@ jobs:
         working-directory: ${{ github.workspace }}/libyang-cpp
         shell: bash
         run: |
-          CC=g++ cmake -B build
+          CC=gcc CXX=g++ cmake -B build
           cmake --build build
           sudo cmake --install build
           sudo ldconfig
@@ -296,7 +296,7 @@ jobs:
         working-directory: ${{ github.workspace }}/sysrepo-cpp
         shell: bash
         run: |
-          CC=g++ cmake -B build
+          CC=gcc CXX=g++ cmake -B build
           cmake --build build
           sudo cmake --install build
           sudo ldconfig
