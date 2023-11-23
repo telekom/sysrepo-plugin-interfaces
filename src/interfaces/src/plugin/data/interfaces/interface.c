@@ -20,7 +20,7 @@
 #include "srpc/ly_tree.h"
 #include "sysrepo.h"
 #include "uthash.h"
-#include "utils/memory.h"
+#include "memory.h"
 #include "utlist.h"
 
 // other data API
