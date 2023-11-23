@@ -20,6 +20,7 @@ set(PLUGIN_EXECUTABLE_NAME "ietf-interfaces-plugin")
 include_directories(
     ${CMAKE_SOURCE_DIR}/src/interfaces/src
     ${CMAKE_SOURCE_DIR}/deps/uthash
+    ${CMAKE_SOURCE_DIR}/src/utils
 )
 
 # set(PLUGIN 0 CACHE BOOL "Build a plugin")
