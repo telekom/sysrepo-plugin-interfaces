@@ -81,6 +81,11 @@ int interfaces_load_interface(interfaces_ctx_t* ctx, interfaces_interface_hash_e
         SRPC_SAFE_CALL_ERR(error, interfaces_interface_load_name(ctx, &new_element, link_iter), error_out);
         SRPC_SAFE_CALL_ERR(error, interfaces_interface_load_type(ctx, &new_element, link_iter), error_out);
         SRPC_SAFE_CALL_ERR(error, interfaces_interface_load_enabled(ctx, &new_element, link_iter), error_out);
+        // depends on sub-interfaces feature as well as on the interface type
+        if (srpc_feature_status_hash_check(ctx->features.ietf_if_extensions_features, "sub-interfaces") && strcmp(new_element->interface.type, "iana-if-type:l2vlan") == 0)
+        {
+            SRPC_SAFE_CALL_ERR(error, interfaces_interface_load_parent_interface(nl_ctx, ctx, &new_element, link_iter), error_out);
+        }
 
         // load interface IPv4 data
         SRPC_SAFE_CALL_ERR(error, interfaces_interface_ipv4_load_enabled(ctx, &new_element->interface.ipv4, link_iter), error_out);
