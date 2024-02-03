@@ -18,7 +18,7 @@
 #include "plugin/data/interfaces/interface.h"
 #include "plugin/types.h"
 #include "read.h"
-#include "utils/memory.h"
+#include "memory.h"
 #include "utlist.h"
 
 // load APIs
